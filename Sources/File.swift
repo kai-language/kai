@@ -47,11 +47,11 @@ extension FileReader: IteratorProtocol, Sequence {
       guard count > 0 else { return nil }
       pointer = basePointer
       endPointer = pointer.advanced(by: count)
-      return *pointer
+      return pointer.pointee
     }
 
     defer { pointer = pointer.advanced(by: 1) }
-    return *pointer
+    return pointer.pointee
   }
 }
 

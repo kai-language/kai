@@ -34,20 +34,6 @@ enum LexicalExpression {
   case declaration(Declaration)
 }
 
-prefix operator *
-
-prefix
-func *<Pointee>(pointer: UnsafeMutablePointer<Pointee>) -> Pointee {
-  return pointer.pointee
-}
-
-prefix operator ^
-
-prefix
-func ^<Pointee>(pointee: inout Pointee) -> UnsafeMutablePointer<Pointee> {
-  return withUnsafeMutablePointer(to: &pointee) { $0 }
-}
-
 let kaiRoot = "/" + #file.characters.split(separator: "/").dropLast(2).map(String.init).joined(separator: "/")
 
 struct Lexer {
