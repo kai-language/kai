@@ -7,22 +7,34 @@ extension Lexer {
     case closeBrace
     case openParentheses
     case closeParentheses
-    case newline
+
+    case doubleQuote
+    case singleQuote
+
+    case endOfStatement
+
     case equals
-    case hash
     case colon
+    case hash
+
     case literal(String)
     case identifier(String)
     case comment(String)
 
-    init?(char: UTF8.CodeUnit) {
+    init?(_ char: UTF8.CodeUnit) {
 
       switch char {
       case "{":  self = .openBrace
       case "}":  self = .closeBrace
       case "(":  self = .openParentheses
       case ")":  self = .closeParentheses
-      case "\n": self = .newline
+
+      case "'":  self = .singleQuote
+      case "\"": self = .doubleQuote
+
+      case "\n": self = .endOfStatement
+      case ";":  self = .endOfStatement
+
       case "=":  self = .equals
       case "#":  self = .hash
       case ":":  self = .colon
@@ -53,6 +65,18 @@ extension Lexer {
 
     return nil
   }
+
+  static func needsMatching(_ char: UTF8.CodeUnit) -> UTF8.CodeUnit? {
+
+    switch Token(char) {
+    case .openBrace?: return "}"
+    case .openParentheses?: return ")"
+    case .singleQuote?: return "'"
+    case .doubleQuote?: return "\""
+
+    default: return nil
+    }
+  }
 }
 
 extension Sequence {
@@ -76,10 +100,16 @@ extension Lexer.Token: Equatable {
     case (.closeBrace, .closeBrace): fallthrough
     case (.openParentheses, .openParentheses): fallthrough
     case (.closeParentheses, .closeParentheses): fallthrough
+
+    case (.singleQuote, .singleQuote): fallthrough
+    case (.doubleQuote, .doubleQuote): fallthrough
+
     case (.equals, .equals): fallthrough
     case (.hash, .hash): fallthrough
     case (.colon, .colon): fallthrough
-    case (.newline, .newline): fallthrough
+
+    case (.endOfStatement, .endOfStatement): fallthrough
+
     case (.comment(_), .comment(_)): // all comments are considered equal
       return true
 
@@ -101,10 +131,16 @@ extension Lexer.Token: CustomStringConvertible {
     case .closeBrace: return "}"
     case .openParentheses: return "("
     case .closeParentheses: return "("
-    case .newline: return ";"
+
+    case .singleQuote: return "'"
+    case .doubleQuote: return "\""
+
+    case .endOfStatement: return ";"
+
     case .equals: return "="
     case .hash: return "#"
     case .colon: return ":"
+
     case .literal(let value): return value
     case .identifier(let name): return "'\(name)'"
     case .comment(_): return ""

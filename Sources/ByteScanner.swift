@@ -36,6 +36,19 @@ extension ByteScanner {
     defer { pointer = pointer.advanced(by: 1) }
     return pointer.pointee
   }
+
+  /// - Precondition: index != bytes.endIndex. It is assumed before calling pop that you have
+  @discardableResult
+  mutating func pop(until terminator: Byte) -> [Byte] {
+    var seen: [Byte] = []
+    repeat {
+
+      guard let char = peek() else { return seen }
+      if char == terminator { return seen }
+
+      seen.append(pop())
+    } while true
+  }
 }
 
 extension ByteScanner {

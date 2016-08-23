@@ -10,7 +10,6 @@ struct Lexer {
 
     guard !buffer.isEmpty else { return [] }
 
-
     var scanner: ByteScanner = try! ByteScanner(buffer)
 
     var tokens: [Token] = []
@@ -31,20 +30,34 @@ struct Lexer {
         return tokens
       }
 
+
+      let token = Token(char)
+
+      if let terminator = Lexer.needsMatching(char) {
+        assert(identifierBuffer.isEmpty, "About to enter a new scope, buffer should be empty!")
+
+        // remove the token at the start of the pair
+        scanner.pop()
+        // pop until 
+        let result = scanner.pop(until: terminator)
+        guard let token = token, let terminator = Token(terminator) else { fatalError() }
+        tokens.append(token)
+        tokens.append(contentsOf: try self.tokenize(result))
+        continue
+      }
+
       defer { scanner.pop() }
 
-      let token = Token(char: char)
-
-      guard token != .newline else {
+      guard token != .endOfStatement else {
         if !identifierBuffer.isEmpty {
           tokens.append(contentsOf: try self.tokenize(identifierBuffer))
           identifierBuffer.removeAll(keepingCapacity: true)
         }
 
         guard let previous = tokens.last else { continue } // strips leading newlines
-        if previous == .newline { continue }
+        if previous == .endOfStatement { continue }
 
-        tokens.append(.newline)
+        tokens.append(.endOfStatement)
 
         continue
       }
