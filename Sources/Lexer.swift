@@ -38,7 +38,7 @@ struct Lexer {
 
         // remove the token at the start of the pair
         scanner.pop()
-        // pop until 
+        // pop until
         let result = scanner.pop(until: terminator)
         guard let token = token, let terminator = Token(terminator) else { fatalError() }
         tokens.append(token)
@@ -54,8 +54,7 @@ struct Lexer {
           identifierBuffer.removeAll(keepingCapacity: true)
         }
 
-        guard let previous = tokens.last else { continue } // strips leading newlines
-        if previous == .endOfStatement { continue }
+        if tokens.last == .endOfStatement { continue }
 
         tokens.append(.endOfStatement)
 
