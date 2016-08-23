@@ -1,22 +1,35 @@
 
-// json special characters
-let arrayOpen: UTF8.CodeUnit = "[".utf8.first!
-let objectOpen: UTF8.CodeUnit = "{".utf8.first!
-let arrayClose: UTF8.CodeUnit = "]".utf8.first!
-let objectClose: UTF8.CodeUnit = "}".utf8.first!
-let comma: UTF8.CodeUnit = ",".utf8.first!
-let colon: UTF8.CodeUnit = ":".utf8.first!
-let quote: UTF8.CodeUnit = "\"".utf8.first!
-let slash: UTF8.CodeUnit = "/".utf8.first!
-let backslash: UTF8.CodeUnit = "\\".utf8.first!
+
+// brackets and braces
+let openSquare:   UTF8.CodeUnit = "[".utf8.first!
+let openBrace:    UTF8.CodeUnit = "{".utf8.first!
+let openRound:    UTF8.CodeUnit = "(".utf8.first!
+let closeSquare:  UTF8.CodeUnit = "]".utf8.first!
+let closeBrace:   UTF8.CodeUnit = "}".utf8.first!
+let closeRound:   UTF8.CodeUnit = ")".utf8.first!
+
+// punctuation
+let dot:          UTF8.CodeUnit = ".".utf8.first!
+let hash:         UTF8.CodeUnit = "#".utf8.first!
+let comma:        UTF8.CodeUnit = ",".utf8.first!
+let colon:        UTF8.CodeUnit = ":".utf8.first!
+let semiColon:    UTF8.CodeUnit = ";".utf8.first!
+
+let equals:       UTF8.CodeUnit = "=".utf8.first!
+
+let quote:        UTF8.CodeUnit = "\"".utf8.first!
+let singleQuote:  UTF8.CodeUnit = "\"".utf8.first!
+
+let slash:      UTF8.CodeUnit = "/".utf8.first!
+let backslash:  UTF8.CodeUnit = "\\".utf8.first!
 
 // whitespace characters
-let space: UTF8.CodeUnit = " ".utf8.first!
-let tab: UTF8.CodeUnit = "\t".utf8.first!
-let cr: UTF8.CodeUnit = "\r".utf8.first!
-let newline: UTF8.CodeUnit = "\n".utf8.first!
-let backspace: UTF8.CodeUnit = UTF8.CodeUnit(0x08)
-let formfeed: UTF8.CodeUnit = UTF8.CodeUnit(0x0C)
+let space:      UTF8.CodeUnit = " ".utf8.first!
+let tab:        UTF8.CodeUnit = "\t".utf8.first!
+let cr:         UTF8.CodeUnit = "\r".utf8.first!
+let newline:    UTF8.CodeUnit = "\n".utf8.first!
+let backspace:  UTF8.CodeUnit = UTF8.CodeUnit(0x08)
+let formfeed:   UTF8.CodeUnit = UTF8.CodeUnit(0x0C)
 
 // Literal characters
 let n: UTF8.CodeUnit = "n".utf8.first!
@@ -36,7 +49,6 @@ let E: UTF8.CodeUnit = "E".utf8.first!
 let zero: UTF8.CodeUnit = "0".utf8.first!
 let plus: UTF8.CodeUnit = "+".utf8.first!
 let minus: UTF8.CodeUnit = "-".utf8.first!
-let decimal: UTF8.CodeUnit = ".".utf8.first!
 let numbers: ClosedRange<UTF8.CodeUnit> = "0".utf8.first!..."9".utf8.first!
 let alphaNumericLower: ClosedRange<UTF8.CodeUnit> = "a".utf8.first!..."f".utf8.first!
 let alphaNumericUpper: ClosedRange<UTF8.CodeUnit> = "A".utf8.first!..."F".utf8.first!

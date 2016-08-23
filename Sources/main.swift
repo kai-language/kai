@@ -1,23 +1,26 @@
 
+//extension Lexer {
+//
+//  mutating func lex() -> [] {
+//
+//    var tokens: [String] = []
+//
+//    while let tokenBytes = scanner.consume(to: whitespace.contains) {
+//      guard !tokenBytes.isEmpty else { continue }
+//      guard let string = String(utf8: tokenBytes) else { fatalError("Invalid Unicode") }
+//      tokens.append(string)
+//    }
+//
+//    return tokens
+//  }
+//}
+
 
 // TODO(vdka): Read this from the arguments
-let file = FileReader(file: kaiRoot + "/Sources/main.swift")!
+let file = File(path: kaiRoot + "/sample.kai")!
 
-let lines =
-  file
-    .lazy
-    .split(separator: newline)
-    .flatMap(String.init)
-    .filter { !$0.hasPrefix("//") }
+var lexer = Lexer(file: file)
 
-let tokens =
-  lines
-    .lazy
-    .map {
-      $0.characters.split(separator: " ", maxSplits: .max, omittingEmptySubsequences: true).map(String.init)
-    }
+let tokens = lexer.tokenize()
 
-
-for token in tokens {
-  print(token)
-}
+print(tokens)

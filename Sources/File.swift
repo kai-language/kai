@@ -1,7 +1,7 @@
 
 import Darwin.C
 
-class FileReader {
+class File {
 
   let filePath: String
 
@@ -18,7 +18,7 @@ class FileReader {
 
   var endPointer:   UnsafeMutablePointer<UTF8.CodeUnit>
 
-  init?(file path: String, chunkSize: Int = 1024) {
+  init?(path: String, chunkSize: Int = 1024) {
 
     self.filePath = path
 
@@ -38,21 +38,19 @@ class FileReader {
   }
 }
 
-extension FileReader: IteratorProtocol, Sequence {
-
-  func next() -> UTF8.CodeUnit? {
-    
-    guard pointer != endPointer else {
-      let count = fread(basePointer, MemoryLayout<UTF8.CodeUnit>.size, chunkSize, filePointer)
-      guard count > 0 else { return nil }
-      pointer = basePointer
-      endPointer = pointer.advanced(by: count)
-      return pointer.pointee
-    }
-
-    defer { pointer = pointer.advanced(by: 1) }
-    return pointer.pointee
-  }
-}
-
-
+//extension File: IteratorProtocol, Sequence {
+//
+//  func next() -> UTF8.CodeUnit? {
+//    
+//    guard pointer != endPointer else {
+//      let count = fread(basePointer, MemoryLayout<UTF8.CodeUnit>.size, chunkSize, filePointer)
+//      guard count > 0 else { return nil }
+//      pointer = basePointer
+//      endPointer = pointer.advanced(by: count)
+//      return pointer.pointee
+//    }
+//
+//    defer { pointer = pointer.advanced(by: 1) }
+//    return pointer.pointee
+//  }
+//}
