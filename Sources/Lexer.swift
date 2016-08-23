@@ -1,23 +1,17 @@
 
-let whitespace = Set([space, tab])
+let whitespace = Set([space, tab, newline])
 
 let kaiRoot = "/" + #file.characters.split(separator: "/").dropLast(2).map(String.init).joined(separator: "/")
 
 struct Lexer {
 
-  var scanner: ByteScanner
-  var lastChar: UTF8.CodeUnit? = nil
-  var tokens: [Syntax] = []
-
-  init(file: File) throws {
-
-    let bytes = Array(file)
-
-    self.scanner = try ByteScanner(bytes)
-  }
-
   // splits the input stream into whitespace seperated strings
-  mutating func tokenize() throws -> [Token] {
+  mutating func tokenize(_ buffer: [UTF8.CodeUnit]) throws -> [Token] {
+
+    guard !buffer.isEmpty else { return [] }
+
+
+    var scanner: ByteScanner = try! ByteScanner(buffer)
 
     var tokens: [Token] = []
 
@@ -39,23 +33,39 @@ struct Lexer {
 
       defer { scanner.pop() }
 
-      if let token = Token(char: char) {
-        if case .newline = token {
-          // will strip the first newline but it's semantically meaningless
-          guard let previous = tokens.last else { continue }
-          guard previous != .newline else { continue }
-          tokens.append(.newline)
+      let token = Token(char: char)
 
-          continue
+      guard token != .newline else {
+        if !identifierBuffer.isEmpty {
+          tokens.append(contentsOf: try self.tokenize(identifierBuffer))
+          identifierBuffer.removeAll(keepingCapacity: true)
         }
+
+        guard let previous = tokens.last else { continue } // strips leading newlines
+        if previous == .newline { continue }
+
+        tokens.append(.newline)
+
+        continue
+      }
+
+      if let token = token {
+
         tokens.append(token)
         continue
       }
 
       if char.isMember(of: whitespace) {
+
+        guard !identifierBuffer.isEmpty else { continue }
         guard let identifier = String(utf8: identifierBuffer) else { throw Error.Reason.invalidUnicode }
 
-        tokens.append(.identifier(identifier))
+        if Lexer.isLiteral(identifierBuffer) != nil {
+          tokens.append(.literal(identifier))
+        } else {
+
+          tokens.append(.identifier(identifier))
+        }
 
         identifierBuffer.removeAll(keepingCapacity: true)
         continue

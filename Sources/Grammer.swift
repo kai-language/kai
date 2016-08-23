@@ -11,6 +11,7 @@ extension Lexer {
     case equals
     case hash
     case colon
+    case literal(String)
     case identifier(String)
     case comment(String)
 
@@ -30,6 +31,39 @@ extension Lexer {
         return nil
       }
     }
+  }
+}
+
+extension Lexer {
+
+  enum LiteralType {
+    case number
+    case string
+    case character
+    case boolean
+    case null
+  }
+
+  static func isLiteral(_ chars: [UTF8.CodeUnit]) -> LiteralType? {
+    precondition(!chars.isEmpty, "isLiteral(_:) only works on a non-empty sequence of chars")
+
+    if numbers.contains(chars.first!) {
+      guard chars.dropFirst().follows(rule: numbers.contains) else { return .number }
+    }
+
+    return nil
+  }
+}
+
+extension Sequence {
+
+  func follows(rule: (Iterator.Element) -> Bool) -> Bool {
+
+    for item in self {
+      guard rule(item) else { return false }
+    }
+
+    return true
   }
 }
 
@@ -54,6 +88,26 @@ extension Lexer.Token: Equatable {
 
     default:
       return false
+    }
+  }
+}
+
+extension Lexer.Token: CustomStringConvertible {
+
+  var description: String {
+
+    switch self {
+    case .openBrace: return "{"
+    case .closeBrace: return "}"
+    case .openParentheses: return "("
+    case .closeParentheses: return "("
+    case .newline: return ";"
+    case .equals: return "="
+    case .hash: return "#"
+    case .colon: return ":"
+    case .literal(let value): return value
+    case .identifier(let name): return "'\(name)'"
+    case .comment(_): return ""
     }
   }
 }
