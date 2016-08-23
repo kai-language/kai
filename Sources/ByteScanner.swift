@@ -3,108 +3,38 @@ struct ByteScanner {
 
   typealias Byte = UTF8.CodeUnit
 
-  var bytes: AnyCollection<Byte>
-  var index: UInt
+  var pointer: UnsafePointer<Byte>
+  var buffer: UnsafeBufferPointer<Byte>
+  let bufferCopy: [Byte]
+}
 
-  init<I: IteratorProtocol>(bytes: I) where I.Element == Byte {
+extension ByteScanner {
 
-    self.bytes = bytes
-    self.bytes = bytes
-  }
+  init(_ data: [Byte]) throws {
+    self.bufferCopy = data
+    self.buffer = bufferCopy.withUnsafeBufferPointer { $0 }
 
-  mutating func match(_ string: String) throws {
-
-    for expected in string.utf8 {
-      guard let nextByte = bytes.next() else { throw Error.Reason.endOfStream }
-      guard nextByte == expected else { throw Error.Reason.searchFailed(at: consumed, wanted: Array(string.utf8)) }
-
-      consumed += 1
+    guard let pointer = buffer.baseAddress, buffer.endAddress != buffer.baseAddress else {
+      throw Error.Reason.emptyInput
     }
+
+    self.pointer = pointer
   }
 }
 
 extension ByteScanner {
 
-  mutating func consume(to terminator: Byte) -> [Byte]? {
-    var byteBuffer: [Byte] = []
-
-    while let byte = bytes.next() {
-
-      if byte == terminator {
-
-        return byteBuffer
-      } else {
-
-        byteBuffer.append(byte)
-      }
-    }
-
-    guard !byteBuffer.isEmpty else { return nil }
-    return byteBuffer
+  func peek(aheadBy n: Int = 0) -> Byte? {
+    guard pointer.advanced(by: n) < buffer.endAddress else { return nil }
+    return pointer.advanced(by: n).pointee
   }
 
-  mutating func consume(to isTerminator: (Byte) -> Bool) -> [Byte]? {
-    var byteBuffer: [Byte] = []
-
-    while let byte = bytes.next() {
-
-      if isTerminator(byte) {
-
-        return byteBuffer
-      } else {
-
-        byteBuffer.append(byte)
-      }
-    }
-
-    guard !byteBuffer.isEmpty else { return nil }
-    return byteBuffer
-  }
-}
-
-extension ByteScanner {
-
-  mutating func skip(while testTrue: (Byte) -> Bool) throws {
-
-    while let byte = bytes.next() {
-
-      if testTrue(byte) { return }
-
-      consumed += 1
-    }
-
-    throw Error.Reason.endOfStream
-  }
-
-  mutating func skip(until match: String) throws {
-
-    let expectedBytes: [Byte] = Array(match.utf8)
-
-    var nextIndexToMatch = expectedBytes.startIndex
-
-    while let byte = bytes.next(), nextIndexToMatch != expectedBytes.endIndex {
-
-      assert(nextIndexToMatch < expectedBytes.endIndex)
-
-      if byte == expectedBytes[nextIndexToMatch] {
-
-        nextIndexToMatch = expectedBytes.index(after: nextIndexToMatch)
-      } else {
-
-        nextIndexToMatch = expectedBytes.startIndex
-      }
-
-      consumed += 1
-    }
-
-    throw Error.Reason.searchFailed(at: consumed, wanted: expectedBytes)
-  }
-}
-
-extension ByteScanner: IteratorProtocol, Sequence {
-
-  mutating func next() -> Byte? {
-    return bytes.next()
+  /// - Precondition: index != bytes.endIndex. It is assumed before calling pop that you have
+  @discardableResult
+  mutating func pop() -> Byte {
+    assert(pointer != buffer.endAddress)
+    defer { pointer = pointer.advanced(by: 1) }
+    return pointer.pointee
   }
 }
 
@@ -115,9 +45,19 @@ extension ByteScanner {
     let reason: Reason
 
     enum Reason: Swift.Error {
+      case emptyInput
       case endOfStream
       case unexpected(at: UInt)
       case searchFailed(at: UInt, wanted: [Byte])
     }
   }
 }
+
+extension UnsafeBufferPointer {
+
+  fileprivate var endAddress: UnsafePointer<Element> {
+
+    return baseAddress!.advanced(by: endIndex)
+  }
+}
+

@@ -19,8 +19,9 @@
 // TODO(vdka): Read this from the arguments
 let file = File(path: kaiRoot + "/sample.kai")!
 
-var lexer = Lexer(file: file)
+var lexer = try Lexer(file: file)
 
-let tokens = lexer.tokenize()
+let tokens = try lexer.tokenize()
 
 print(tokens)
+

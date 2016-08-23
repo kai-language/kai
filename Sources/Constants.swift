@@ -1,12 +1,12 @@
 
 
 // brackets and braces
-let openSquare:   UTF8.CodeUnit = "[".utf8.first!
-let openBrace:    UTF8.CodeUnit = "{".utf8.first!
-let openRound:    UTF8.CodeUnit = "(".utf8.first!
-let closeSquare:  UTF8.CodeUnit = "]".utf8.first!
-let closeBrace:   UTF8.CodeUnit = "}".utf8.first!
-let closeRound:   UTF8.CodeUnit = ")".utf8.first!
+let openSquare:         UTF8.CodeUnit = "[".utf8.first!
+let openBrace:          UTF8.CodeUnit = "{".utf8.first!
+let openParentheses:     UTF8.CodeUnit = "(".utf8.first!
+let closeSquare:        UTF8.CodeUnit = "]".utf8.first!
+let closeBrace:         UTF8.CodeUnit = "}".utf8.first!
+let closeParentheses:   UTF8.CodeUnit = ")".utf8.first!
 
 // punctuation
 let dot:          UTF8.CodeUnit = ".".utf8.first!

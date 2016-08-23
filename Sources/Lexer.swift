@@ -1,19 +1,5 @@
 
-import Darwin.C
-
-let whitespace = Set([space, tab, newline])
-
-enum SyntaxToken {
-  case openSqaure
-  case closeBrace
-  case newline
-  case equals
-  case openParentheses
-  case closeParentheses
-  case hash
-  case identifier(String)
-  case comment(String)
-}
+let whitespace = Set([space, tab])
 
 let kaiRoot = "/" + #file.characters.split(separator: "/").dropLast(2).map(String.init).joined(separator: "/")
 
@@ -23,27 +9,61 @@ struct Lexer {
   var lastChar: UTF8.CodeUnit? = nil
   var tokens: [Syntax] = []
 
-  init(file: File) {
+  init(file: File) throws {
 
-    self.scanner = ByteScanner(bytes: file)
+    let bytes = Array(file)
+
+    self.scanner = try ByteScanner(bytes)
   }
 
   // splits the input stream into whitespace seperated strings
-  mutating func tokenize() -> [String] {
+  mutating func tokenize() throws -> [Token] {
 
-    var tokens: [String] = []
+    var tokens: [Token] = []
 
-    while let tokenBytes = scanner.consume(to: whitespace.contains) {
-      guard !tokenBytes.isEmpty else { continue }
-      guard let string = String(utf8: tokenBytes) else { fatalError("Invalid Unicode") }
-      tokens.append(string)
-    }
+    var identifierBuffer: [UTF8.CodeUnit] = []
 
-    return tokens
-  }
+    repeat {
 
-  func parseNext(byte: UTF8.CodeUnit) {
+      /// when we run out of byte return the tokens
 
+      // TODO(vdka): input the final token
+      guard let char = scanner.peek() else {
+
+        if !identifierBuffer.isEmpty {
+          guard let identifier = String(utf8: identifierBuffer) else { throw Error.Reason.invalidUnicode }
+          tokens.append(.identifier(identifier))
+        }
+        return tokens
+      }
+
+      defer { scanner.pop() }
+
+      if let token = Token(char: char) {
+        if case .newline = token {
+          // will strip the first newline but it's semantically meaningless
+          guard let previous = tokens.last else { continue }
+          guard previous != .newline else { continue }
+          tokens.append(.newline)
+
+          continue
+        }
+        tokens.append(token)
+        continue
+      }
+
+      if char.isMember(of: whitespace) {
+        guard let identifier = String(utf8: identifierBuffer) else { throw Error.Reason.invalidUnicode }
+
+        tokens.append(.identifier(identifier))
+
+        identifierBuffer.removeAll(keepingCapacity: true)
+        continue
+      }
+
+      identifierBuffer.append(char)
+
+    } while true
   }
 }
 
@@ -68,9 +88,18 @@ extension Lexer {
   struct Error: Swift.Error {
 
     enum Reason: Swift.Error {
+      case invalidUnicode
       case invalidLiteral
       case fileNotFound
       case endOfFile
     }
   }
 }
+
+extension UTF8.CodeUnit {
+
+  func isMember(of set: Set<UTF8.CodeUnit>) -> Bool {
+    return set.contains(self)
+  }
+}
+

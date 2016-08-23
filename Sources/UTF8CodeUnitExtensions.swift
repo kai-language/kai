@@ -12,6 +12,13 @@ extension UTF8.CodeUnit {
   }
 }
 
+extension UTF8.CodeUnit: ExpressibleByUnicodeScalarLiteral {
+
+  public init(unicodeScalarLiteral: UnicodeScalar) {
+    self = numericCast(unicodeScalarLiteral.value)
+  }
+}
+
 extension String {
 
   init?<S: Sequence>(utf8: S) where S.Iterator.Element == UTF8.CodeUnit {

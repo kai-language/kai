@@ -32,25 +32,25 @@ class File {
   }
 
   deinit {
-    
+
     basePointer.deallocate(capacity: chunkSize)
     fclose(filePointer)
   }
 }
 
-//extension File: IteratorProtocol, Sequence {
-//
-//  func next() -> UTF8.CodeUnit? {
-//    
-//    guard pointer != endPointer else {
-//      let count = fread(basePointer, MemoryLayout<UTF8.CodeUnit>.size, chunkSize, filePointer)
-//      guard count > 0 else { return nil }
-//      pointer = basePointer
-//      endPointer = pointer.advanced(by: count)
-//      return pointer.pointee
-//    }
-//
-//    defer { pointer = pointer.advanced(by: 1) }
-//    return pointer.pointee
-//  }
-//}
+extension File: IteratorProtocol, Sequence {
+
+  func next() -> UTF8.CodeUnit? {
+
+    guard pointer != endPointer else {
+      let count = fread(basePointer, MemoryLayout<UTF8.CodeUnit>.size, chunkSize, filePointer)
+      guard count > 0 else { return nil }
+      pointer = basePointer
+      endPointer = pointer.advanced(by: count)
+      return pointer.pointee
+    }
+
+    defer { pointer = pointer.advanced(by: 1) }
+    return pointer.pointee
+  }
+}
