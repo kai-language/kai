@@ -14,44 +14,41 @@ struct Lexer {
 
     var tokens: [Token] = []
 
-    var identifierBuffer: [UTF8.CodeUnit] = []
+    var needsMatches: Stack<ByteString> = []
+
+    var partial: ByteString = ""
+    var outstandingRequiredMatches: Stack<ByteString> = []
 
     repeat {
 
       /// when we run out of byte return the tokens
-
-      // TODO(vdka): input the final token
       guard let char = scanner.peek() else {
 
-        if !identifierBuffer.isEmpty {
-          guard let identifier = String(utf8: identifierBuffer) else { throw Error.Reason.invalidUnicode }
+        if !partial.isEmpty {
+          guard let identifier = String(utf8: partial) else { throw Error.Reason.invalidUnicode }
           tokens.append(.identifier(identifier))
         }
         return tokens
       }
 
+      let token = Token(partial)
 
-      let token = Token(char)
+      // TODO(vdka): HERE string support would go here with some fairly simple logic. (create stack of size _HERE_ put latest char into stack, compare stack value to _HERE_ value)
 
-      if let terminator = Lexer.needsMatching(char) {
-        assert(identifierBuffer.isEmpty, "About to enter a new scope, buffer should be empty!")
-
-        // remove the token at the start of the pair
-        scanner.pop()
-        // pop until
-        let result = scanner.pop(until: terminator)
-        guard let token = token, let terminator = Token(terminator) else { fatalError() }
-        tokens.append(token)
-        tokens.append(contentsOf: try self.tokenize(result))
-        continue
+      if let terminator = Lexer.requiresMatch(partial) {
+        outstandingRequiredMatches.push(terminator)
+      } else if partial == outstandingRequiredMatches.peek() {
+        outstandingRequiredMatches.pop()
       }
 
+      // IMPORTANT: Do not do any early exit's before this point
       defer { scanner.pop() }
 
       guard token != .endOfStatement else {
-        if !identifierBuffer.isEmpty {
-          tokens.append(contentsOf: try self.tokenize(identifierBuffer))
-          identifierBuffer.removeAll(keepingCapacity: true)
+        if !partial.isEmpty {
+          guard let token = Token(partial) else { fatalError("Handle me") }
+          tokens.append(token)
+          partial.bytes.removeAll(keepingCapacity: true)
         }
 
         if tokens.last == .endOfStatement { continue }
@@ -69,21 +66,21 @@ struct Lexer {
 
       if char.isMember(of: whitespace) {
 
-        guard !identifierBuffer.isEmpty else { continue }
-        guard let identifier = String(utf8: identifierBuffer) else { throw Error.Reason.invalidUnicode }
+        guard !partial.bytes.isEmpty else { continue }
+        guard let identifier = String(utf8: partial.bytes) else { throw Error.Reason.invalidUnicode }
 
-        if Lexer.isLiteral(identifierBuffer) != nil {
+        if Lexer.isLiteral(partial) != nil {
           tokens.append(.literal(identifier))
         } else {
 
           tokens.append(.identifier(identifier))
         }
 
-        identifierBuffer.removeAll(keepingCapacity: true)
+         partial.bytes.removeAll(keepingCapacity: true)
         continue
       }
 
-      identifierBuffer.append(char)
+       partial.bytes.append(char)
 
     } while true
   }

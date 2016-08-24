@@ -11,8 +11,6 @@ let tokens = try lexer.tokenize(bytes)
 
 print(tokens)
 
-print()
-
 for token in tokens {
   guard token != .endOfStatement else {
     print()

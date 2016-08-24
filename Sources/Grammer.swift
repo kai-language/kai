@@ -17,13 +17,15 @@ extension Lexer {
     case colon
     case hash
 
+    //case declaration(DeclarationType)
+
     case literal(String)
     case identifier(String)
     case comment(String)
 
-    init?(_ char: UTF8.CodeUnit) {
+    init?(_ utf8: ByteString) {
 
-      switch char {
+      switch utf8 {
       case "{":  self = .openBrace
       case "}":  self = .closeBrace
       case "(":  self = .openParentheses
@@ -39,10 +41,24 @@ extension Lexer {
       case "#":  self = .hash
       case ":":  self = .colon
 
+      //case "struct": self = .declaration(.structure)
+
       default:
         return nil
       }
     }
+
+    /*
+    enum DeclarationType: ByteString {
+      case structure = "struct"
+
+      // TODO(vdka): Do we want to limit ourselves to Swift-esque semantics for variable declarations
+      //  I think it is clearer but I am biased.
+
+      //case constant = "let"
+      //case variable = "var"
+    }
+    */
   }
 }
 
@@ -56,7 +72,7 @@ extension Lexer {
     case null
   }
 
-  static func isLiteral(_ chars: [UTF8.CodeUnit]) -> LiteralType? {
+  static func isLiteral(_ chars: ByteString) -> LiteralType? {
     precondition(!chars.isEmpty, "isLiteral(_:) only works on a non-empty sequence of chars")
 
     if numbers.contains(chars.first!) {
@@ -66,7 +82,7 @@ extension Lexer {
     return nil
   }
 
-  static func needsMatching(_ char: UTF8.CodeUnit) -> UTF8.CodeUnit? {
+  static func requiresMatch(_ char: ByteString) -> ByteString? {
 
     switch Token(char) {
     case .openBrace?: return "}"
@@ -76,18 +92,6 @@ extension Lexer {
 
     default: return nil
     }
-  }
-}
-
-extension Sequence {
-
-  func follows(rule: (Iterator.Element) -> Bool) -> Bool {
-
-    for item in self {
-      guard rule(item) else { return false }
-    }
-
-    return true
   }
 }
 
@@ -109,6 +113,8 @@ extension Lexer.Token: Equatable {
     case (.colon, .colon): fallthrough
 
     case (.endOfStatement, .endOfStatement): fallthrough
+
+    //case (.declaration(let l), .declaration(let r)): return l == r
 
     case (.comment(_), .comment(_)): // all comments are considered equal
       return true
@@ -140,6 +146,8 @@ extension Lexer.Token: CustomStringConvertible {
     case .equals: return "="
     case .hash: return "#"
     case .colon: return ":"
+
+    //case .declaration(let declaration): return declaration.description
 
     case .literal(let value): return value
     case .identifier(let name): return "'\(name)'"
