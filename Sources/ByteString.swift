@@ -64,16 +64,6 @@ extension ByteString: ExpressibleByStringLiteral {
 
     self.bytes = stringLiteral.withUTF8Buffer { return $0.map({ $0 }) }
   }
-
-  init(unicodeScalarLiteral: StaticString) {
-
-    self.bytes = unicodeScalarLiteral.withUTF8Buffer { return $0.map({ $0 }) }
-  }
-
-  init(extendedGraphemeClusterLiteral: StaticString) {
-
-    self.bytes = extendedGraphemeClusterLiteral.withUTF8Buffer { return $0.map({ $0 }) }
-  }
 }
 
 extension ByteString: CustomStringConvertible {
