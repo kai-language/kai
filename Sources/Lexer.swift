@@ -1,18 +1,33 @@
 
-let whitespace = Set([space, tab, newline])
+let terminatorList: Set<ByteString> = Set(" \t\n.,:=(){}[]".utf8.map { ByteString([$0]) })
 
 let kaiRoot = "/" + #file.characters.split(separator: "/").dropLast(2).map(String.init).joined(separator: "/")
 
 struct Lexer {
+
+  var tokens: [Token] = []
+  var beginHereString = false
+
+  func requiresMatch(_ string: ByteString) -> ByteString? {
+
+    switch string {
+    case "{":  return "}"
+    case "(":  return ")"
+    case "'":  return "'"
+    case "\"": return "\""
+
+    case _ where beginHereString: return string
+
+    default: return nil
+    }
+  }
 
   // splits the input stream into whitespace seperated strings
   mutating func tokenize(_ buffer: [UTF8.CodeUnit]) throws -> [Token] {
 
     guard !buffer.isEmpty else { return [] }
 
-    var scanner: ByteScanner = try! ByteScanner(buffer)
-
-    var tokens: [Token] = []
+    var scanner = try! ByteScanner(buffer)
 
     var needsMatches: Stack<ByteString> = []
 
@@ -22,7 +37,7 @@ struct Lexer {
     repeat {
 
       /// when we run out of byte return the tokens
-      guard let char = scanner.peek() else {
+      guard let byte = scanner.peek() else {
 
         if !partial.isEmpty {
           guard let identifier = String(utf8: partial) else { throw Error.Reason.invalidUnicode }
@@ -31,19 +46,43 @@ struct Lexer {
         return tokens
       }
 
-      let token = Token(partial)
+      partial.bytes.append(byte)
 
-      // TODO(vdka): HERE string support would go here with some fairly simple logic. (create stack of size _HERE_ put latest char into stack, compare stack value to _HERE_ value)
+      scanner.pop()
 
-      if let terminator = Lexer.requiresMatch(partial) {
-        outstandingRequiredMatches.push(terminator)
-      } else if partial == outstandingRequiredMatches.peek() {
-        outstandingRequiredMatches.pop()
+      // if we don't get a token, what would we possibly want to do?
+      //  Seriously is there something? I don't normally write Lexers.
+      guard let token = Token(partial) else { continue }
+      tokens.append(token)
+
+      partial.bytes.removeAll(keepingCapacity: true)
+
+      if case .hereString(let terminator) = token {
+        assert(terminator.hasSuffix("`") && terminator.hasPrefix("`"))
+
+        repeat {
+
+          let byte = try scanner.attemptPop()
+
+          partial.bytes.append(byte)
+
+          if partial.hasSuffix(ByteString(terminator.utf8)) {
+            partial.bytes.removeLast(terminator.utf8.count)
+            tokens.append(.literal(String(utf8: partial)!))
+            tokens.append(.hereString(terminator))
+            break
+          }
+        } while true
       }
 
-      // IMPORTANT: Do not do any early exit's before this point
-      defer { scanner.pop() }
+      // TODO(vdka): HERE string support would go here with some fairly simple logic. (create stack of size _HERE_ put latest char into stack, compare stack value to _HERE_ value)
+      // Decision, HERE strings will be of the form `HERE`some literal complex stupid string`HERE`
 
+
+      // IMPORTANT: Do not do any early exit's before this point
+
+      // DISCUSS(vdka): clean up multiple newlines into a single thing. Or strip them all together.
+      /*
       guard token != .endOfStatement else {
         if !partial.isEmpty {
           guard let token = Token(partial) else { fatalError("Handle me") }
@@ -57,30 +96,44 @@ struct Lexer {
 
         continue
       }
+      */
 
-      if let token = token {
+      // If our partial requires a Match we should take note
+      if let terminator = requiresMatch(partial) {
 
-        tokens.append(token)
-        continue
-      }
+        if terminator == partial {
+          // we have a here string. Until we match the terminator just fill
+          //  the parial buffer and at the end we have a StringLiteralToken
+          partial = ""
 
-      if char.isMember(of: whitespace) {
+          repeat {
 
-        guard !partial.bytes.isEmpty else { continue }
-        guard let identifier = String(utf8: partial.bytes) else { throw Error.Reason.invalidUnicode }
+            if partial.hasSuffix(terminator) {
+              partial.bytes.removeLast(terminator.count)
+            }
+          } while true
 
-        if Lexer.isLiteral(partial) != nil {
-          tokens.append(.literal(identifier))
-        } else {
-
-          tokens.append(.identifier(identifier))
         }
-
-         partial.bytes.removeAll(keepingCapacity: true)
-        continue
+        outstandingRequiredMatches.push(terminator)
+      } else if partial == outstandingRequiredMatches.peek() {
+        outstandingRequiredMatches.pop()
       }
 
-       partial.bytes.append(char)
+
+      //if char.isMember(of: whitespace) {
+
+      //  guard !partial.bytes.isEmpty else { continue }
+      //  guard let identifier = String(utf8: partial.bytes) else { throw Error.Reason.invalidUnicode }
+
+      //  if Lexer.isLiteral(partial) != nil {
+      //    tokens.append(.literal(identifier))
+      //  } else {
+      //    tokens.append(.identifier(identifier))
+      //  }
+
+      //   partial.bytes.removeAll(keepingCapacity: true)
+      //  continue
+      //}
 
     } while true
   }

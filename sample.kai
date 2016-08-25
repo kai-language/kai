@@ -1,5 +1,7 @@
 
-{
-  id := 12
-}
+`HERE` _ `HERE`
+
+let a: Int = 5
+let b: Int = 10
+let c: Int = a + b
 

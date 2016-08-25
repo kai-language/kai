@@ -39,6 +39,14 @@ extension ByteScanner {
 
   /// - Precondition: index != bytes.endIndex. It is assumed before calling pop that you have
   @discardableResult
+  mutating func attemptPop() throws -> Byte {
+    guard pointer < buffer.endAddress else { throw Error.Reason.endOfStream }
+    defer { pointer = pointer.advanced(by: 1) }
+    return pointer.pointee
+  }
+
+  /// - Precondition: index != bytes.endIndex. It is assumed before calling pop that you have
+  @discardableResult
   mutating func pop(until terminator: Byte) -> [Byte] {
     var seen: [Byte] = []
     repeat {

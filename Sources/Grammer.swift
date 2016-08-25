@@ -22,6 +22,7 @@ extension Lexer {
     case literal(String)
     case identifier(String)
     case comment(String)
+    case hereString(String)
 
     init?(_ utf8: ByteString) {
 
@@ -34,6 +35,12 @@ extension Lexer {
       case "'":  self = .singleQuote
       case "\"": self = .doubleQuote
 
+      // TODO(vdka): clean up
+      case _ where utf8.count > 1 &&
+        utf8.first == "`" &&
+        utf8.last == "`":
+        self = .hereString(String(utf8: utf8)!)
+
       case "\n": self = .endOfStatement
       case ";":  self = .endOfStatement
 
@@ -43,8 +50,7 @@ extension Lexer {
 
       //case "struct": self = .declaration(.structure)
 
-      default:
-        return nil
+      default: return nil
       }
     }
 
@@ -81,18 +87,6 @@ extension Lexer {
 
     return nil
   }
-
-  static func requiresMatch(_ char: ByteString) -> ByteString? {
-
-    switch Token(char) {
-    case .openBrace?: return "}"
-    case .openParentheses?: return ")"
-    case .singleQuote?: return "'"
-    case .doubleQuote?: return "\""
-
-    default: return nil
-    }
-  }
 }
 
 extension Lexer.Token: Equatable {
@@ -128,6 +122,7 @@ extension Lexer.Token: Equatable {
   }
 }
 
+/*
 extension Lexer.Token: CustomStringConvertible {
 
   var description: String {
@@ -148,6 +143,7 @@ extension Lexer.Token: CustomStringConvertible {
     case .colon: return ":"
 
     //case .declaration(let declaration): return declaration.description
+    case .hereString(let string): return string
 
     case .literal(let value): return value
     case .identifier(let name): return "'\(name)'"
@@ -155,4 +151,4 @@ extension Lexer.Token: CustomStringConvertible {
     }
   }
 }
-
+*/

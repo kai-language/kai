@@ -1,12 +1,5 @@
 
-// http://stackoverflow.com/questions/9616296/whats-the-best-hash-for-utf-8-strings
-func xorHash(_ bytes: [UInt8]) -> Int {
-
-  return bytes.reduce(5381) { hash, byte in
-
-    return ((hash << 5) &+ hash) ^ numericCast(byte)
-  }
-}
+import ByteHashable
 
 struct ByteString {
 
@@ -14,9 +7,9 @@ struct ByteString {
 
   var bytes: [Byte]
 
-  init(_ bytes: [Byte]) {
+  init<S: Sequence>(_ bytes: S) where S.Iterator.Element == Byte {
 
-    self.bytes = bytes
+    self.bytes = Array(bytes)
   }
 
   /// append
@@ -24,10 +17,24 @@ struct ByteString {
 
     return ByteString(lhs.bytes + rhs.bytes)
   }
+}
+
+extension ByteString: Hashable {
 
   var hashValue: Int {
 
-    return xorHash(bytes)
+    var h = 0
+    for byte in bytes {
+      h = h &+ numericCast(byte)
+      h = h &+ (h << 10)
+      h ^= (h >> 6)
+    }
+
+    h = h &+ (h << 3)
+    h ^= (h >> 11)
+    h = h &+ (h << 15)
+
+    return h
   }
 }
 
@@ -38,7 +45,7 @@ extension ByteString: Equatable {
   }
 }
 
-extension ByteString: Collection {
+extension ByteString: BidirectionalCollection {
 
   var startIndex: Int {
     return bytes.startIndex
@@ -53,8 +60,27 @@ extension ByteString: Collection {
     return bytes.index(after: index)
   }
 
+  func index(before index: Int) -> Int {
+
+    return bytes.index(before: index)
+  }
+
   subscript(position: Int) -> Byte {
     return bytes[position]
+  }
+}
+
+extension ByteString {
+
+  func hasSuffix(_ suffix: ByteString) -> Bool {
+    guard suffix.count <= self.count else { return false }
+    for (index, char) in suffix.enumerated() {
+      let selfIndex = (self.count - suffix.count) + index
+
+      guard self[selfIndex] == char else { return false }
+    }
+
+    return true
   }
 }
 
@@ -73,3 +99,4 @@ extension ByteString: CustomStringConvertible {
     return String(utf8: bytes)!
   }
 }
+
