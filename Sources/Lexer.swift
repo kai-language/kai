@@ -22,6 +22,29 @@ struct Lexer {
     }
   }
 
+  mutating func foundToken(_ token: Token) {
+
+    switch token {
+
+    case .hereString(let terminator):
+      assert(terminator.hasSuffix("`") && terminator.hasPrefix("`"))
+      repeat {
+
+        let byte = try scanner.attemptPop()
+
+        partial.bytes.append(byte)
+
+        if partial.hasSuffix(ByteString(terminator.utf8)) {
+          partial.bytes.removeLast(terminator.utf8.count)
+          tokens.append(.literal(String(utf8: partial)!))
+          tokens.append(.hereString(terminator))
+          break
+        }
+      } while true
+
+
+  }
+
   // splits the input stream into whitespace seperated strings
   mutating func tokenize(_ buffer: [UTF8.CodeUnit]) throws -> [Token] {
 
@@ -56,24 +79,6 @@ struct Lexer {
       tokens.append(token)
 
       partial.bytes.removeAll(keepingCapacity: true)
-
-      if case .hereString(let terminator) = token {
-        assert(terminator.hasSuffix("`") && terminator.hasPrefix("`"))
-
-        repeat {
-
-          let byte = try scanner.attemptPop()
-
-          partial.bytes.append(byte)
-
-          if partial.hasSuffix(ByteString(terminator.utf8)) {
-            partial.bytes.removeLast(terminator.utf8.count)
-            tokens.append(.literal(String(utf8: partial)!))
-            tokens.append(.hereString(terminator))
-            break
-          }
-        } while true
-      }
 
       // TODO(vdka): HERE string support would go here with some fairly simple logic. (create stack of size _HERE_ put latest char into stack, compare stack value to _HERE_ value)
       // Decision, HERE strings will be of the form `HERE`some literal complex stupid string`HERE`

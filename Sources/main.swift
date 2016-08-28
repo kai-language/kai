@@ -17,6 +17,7 @@ for token in tokens {
     continue
   }
 
-  print(token, terminator: "")
+  print(token)
+  //print(token, terminator: "")
 }
 

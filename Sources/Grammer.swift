@@ -1,6 +1,21 @@
 
 extension Lexer {
 
+  struct Identifier {
+
+    let name: String
+    let flags: Flag
+
+    struct Flag: OptionSet {
+
+      let rawValue: UInt64
+      init(rawValue: UInt64) { self.rawValue = rawValue }
+
+      static let constant = Flags(rawValue: 0b0001)
+    }
+  }
+
+
   enum Token {
 
     case openBrace
@@ -20,7 +35,7 @@ extension Lexer {
     //case declaration(DeclarationType)
 
     case literal(String)
-    case identifier(String)
+    case identifier(String, flags: [])
     case comment(String)
     case hereString(String)
 
