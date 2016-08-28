@@ -1,20 +1,13 @@
 
+let keywords: Set<ByteString> = ["let", "var", "struct"]
+let terminators: Set<UTF8.CodeUnit> =
+  [
+    " ", "\t", "\n",
+    ".", ",", ":", "=", "(", ")", "{", "}", "[", "]"
+  ]
+
+
 extension Lexer {
-
-  struct Identifier {
-
-    let name: String
-    let flags: Flag
-
-    struct Flag: OptionSet {
-
-      let rawValue: UInt64
-      init(rawValue: UInt64) { self.rawValue = rawValue }
-
-      static let constant = Flags(rawValue: 0b0001)
-    }
-  }
-
 
   enum Token {
 
@@ -32,12 +25,11 @@ extension Lexer {
     case colon
     case hash
 
-    //case declaration(DeclarationType)
-
-    case literal(String)
-    case identifier(String, flags: [])
-    case comment(String)
-    case hereString(String)
+    case identifier(ByteString)
+    case literal(ByteString)
+    case keyword(ByteString)
+    case comment(ByteString)
+    case hereString(ByteString)
 
     init?(_ utf8: ByteString) {
 
@@ -50,12 +42,6 @@ extension Lexer {
       case "'":  self = .singleQuote
       case "\"": self = .doubleQuote
 
-      // TODO(vdka): clean up
-      case _ where utf8.count > 1 &&
-        utf8.first == "`" &&
-        utf8.last == "`":
-        self = .hereString(String(utf8: utf8)!)
-
       case "\n": self = .endOfStatement
       case ";":  self = .endOfStatement
 
@@ -63,23 +49,18 @@ extension Lexer {
       case "#":  self = .hash
       case ":":  self = .colon
 
-      //case "struct": self = .declaration(.structure)
+      case _ where keywords.contains(utf8):
+        self = .keyword(utf8)
 
-      default: return nil
+      case _ where utf8.count > 1 &&
+        utf8.first == "`" &&
+        utf8.last == "`":
+        self = .hereString(utf8)
+
+      default:
+        return nil
       }
     }
-
-    /*
-    enum DeclarationType: ByteString {
-      case structure = "struct"
-
-      // TODO(vdka): Do we want to limit ourselves to Swift-esque semantics for variable declarations
-      //  I think it is clearer but I am biased.
-
-      //case constant = "let"
-      //case variable = "var"
-    }
-    */
   }
 }
 
@@ -109,27 +90,27 @@ extension Lexer.Token: Equatable {
   static func == (lhs: Lexer.Token, rhs: Lexer.Token) -> Bool {
 
     switch (lhs, rhs) {
-    case (.openBrace, .openBrace): fallthrough
-    case (.closeBrace, .closeBrace): fallthrough
-    case (.openParentheses, .openParentheses): fallthrough
-    case (.closeParentheses, .closeParentheses): fallthrough
+    case (.openBrace, .openBrace):                fallthrough
+    case (.closeBrace, .closeBrace):              fallthrough
+    case (.openParentheses, .openParentheses):    fallthrough
+    case (.closeParentheses, .closeParentheses):  fallthrough
 
-    case (.singleQuote, .singleQuote): fallthrough
-    case (.doubleQuote, .doubleQuote): fallthrough
+    case (.singleQuote, .singleQuote):  fallthrough
+    case (.doubleQuote, .doubleQuote):  fallthrough
 
-    case (.equals, .equals): fallthrough
-    case (.hash, .hash): fallthrough
-    case (.colon, .colon): fallthrough
+    case (.equals, .equals):  fallthrough
+    case (.hash, .hash):      fallthrough
+    case (.colon, .colon):    fallthrough
 
-    case (.endOfStatement, .endOfStatement): fallthrough
-
-    //case (.declaration(let l), .declaration(let r)): return l == r
-
-    case (.comment(_), .comment(_)): // all comments are considered equal
+    case (.endOfStatement, .endOfStatement):
       return true
 
-    case (.identifier(let l), .identifier(let r)):
-      return l == r
+    case (.keyword(let l), .keyword(let r)): return l == r
+
+    // all comments are considered equal
+    case (.comment(_), .comment(_)): return true
+
+    case (.identifier(let l), .identifier(let r)): return l == r
 
     default:
       return false

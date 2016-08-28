@@ -82,6 +82,16 @@ extension ByteString {
 
     return true
   }
+
+  func hasPrefix(_ prefix: ByteString) -> Bool {
+    guard prefix.count <= self.count else { return false }
+    for (index, char) in prefix.enumerated() {
+
+      guard self[index] == char else { return false }
+    }
+
+    return true
+  }
 }
 
 extension ByteString: ExpressibleByStringLiteral {

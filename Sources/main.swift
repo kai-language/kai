@@ -5,11 +5,15 @@ let file = File(path: kaiRoot + "/sample.kai")!
 
 let bytes = Array(file)
 
-var lexer = Lexer()
+var scanner = try! ByteScanner(bytes)
 
-let tokens = try lexer.tokenize(bytes)
+var lexer = Lexer(scanner: scanner)
 
+let tokens = try lexer.tokenize()
+
+print()
 print(tokens)
+print()
 
 for token in tokens {
   guard token != .endOfStatement else {
@@ -20,4 +24,12 @@ for token in tokens {
   print(token)
   //print(token, terminator: "")
 }
+
+print("=== CAT ===")
+
+for byte in bytes {
+  print(UnicodeScalar(byte), terminator: "")
+}
+
+print("=== END ===")
 
