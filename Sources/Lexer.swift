@@ -45,25 +45,42 @@ struct Lexer {
 
       partial.bytes.append(byte)
 
-      scanner.pop()
 
       guard let token = Token(partial) else {
         guard terminators.contains(byte) else { continue }
+
+        guard whitespace.contains(byte) else { continue }
+        scanner.pop()
 
         tokens.append(.identifier(partial))
         partial.bytes.removeAll(keepingCapacity: true)
         continue
       }
+      scanner.pop()
       partial.bytes.removeAll(keepingCapacity: true)
 
       switch token {
-
       case .hereString(let terminator):
         assert(terminator.hasSuffix("`") && terminator.hasPrefix("`"))
 
+        print()
+        print()
+        print()
+        print()
+        print("TERMINATOR: \(terminator)")
+        print()
+        print()
+        print()
+        print()
+
         repeat {
 
-          let byte = try scanner.attemptPop()
+          let byte: UTF8.CodeUnit
+          do {
+            byte = try scanner.attemptPop()
+          } catch {
+            throw Error.Reason.unmatchedToken(terminator)
+          }
 
           partial.bytes.append(byte)
 
@@ -109,6 +126,7 @@ extension Lexer {
   struct Error: Swift.Error {
 
     enum Reason: Swift.Error {
+      case unmatchedToken(ByteString)
       case invalidUnicode
       case invalidLiteral
       case fileNotFound

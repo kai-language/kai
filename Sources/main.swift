@@ -9,7 +9,9 @@ var scanner = try! ByteScanner(bytes)
 
 var lexer = Lexer(scanner: scanner)
 
-let tokens = try lexer.tokenize()
+print(#line)
+let tokens = try! lexer.tokenize()
+print(#line)
 
 print()
 print(tokens)

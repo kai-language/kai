@@ -5,6 +5,7 @@ let terminators: Set<UTF8.CodeUnit> =
     " ", "\t", "\n",
     ".", ",", ":", "=", "(", ")", "{", "}", "[", "]"
   ]
+let whitespace: Set<UTF8.CodeUnit> = [" ", "\t", "\n"]
 
 
 extension Lexer {
@@ -54,8 +55,9 @@ extension Lexer {
 
       case _ where utf8.count > 1 &&
         utf8.first == "`" &&
-        utf8.last == "`":
-        self = .hereString(utf8)
+        utf8.last  == "`":
+          self = .hereString(utf8)
+          print("Creating here string with body: \(utf8)")
 
       default:
         return nil

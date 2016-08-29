@@ -1,7 +1,7 @@
 
 `HERE`Hello https://vdka.me`HERE`
 
-let a: Int = 5
-let b: Int = 10
-let c: Int = a + b
+let playerX: Int = 5
+let playerY: Int = 10
+let distanceFromOrigin: Int = a + b
 
