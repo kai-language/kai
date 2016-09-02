@@ -10,15 +10,11 @@ struct ByteScanner {
 
 extension ByteScanner {
 
-  init(_ data: [Byte]) throws {
+  init(_ data: [Byte]) {
     self.bufferCopy = data
     self.buffer = bufferCopy.withUnsafeBufferPointer { $0 }
 
-    guard let pointer = buffer.baseAddress, buffer.endAddress != buffer.baseAddress else {
-      throw Error.Reason.emptyInput
-    }
-
-    self.pointer = pointer
+    self.pointer = buffer.baseAddress!
   }
 }
 

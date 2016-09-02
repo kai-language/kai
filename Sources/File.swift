@@ -3,9 +3,9 @@ import Darwin.C
 
 class File {
 
-  let filePath: String
+  let path: String
 
-  let filePointer:  UnsafeMutablePointer<FILE>
+  let handle:  UnsafeMutablePointer<FILE>
 
   /// The number of bytes to read when we reach the end of a buffer
   let chunkSize: Int
@@ -20,10 +20,10 @@ class File {
 
   init?(path: String, chunkSize: Int = 1024) {
 
-    self.filePath = path
+    self.path = path
 
     guard let fp = fopen(path, "r") else { return nil }
-    self.filePointer = fp
+    self.handle = fp
     self.chunkSize   = chunkSize
 
     self.basePointer = UnsafeMutablePointer<UTF8.CodeUnit>.allocate(capacity: chunkSize)
@@ -34,7 +34,7 @@ class File {
   deinit {
 
     basePointer.deallocate(capacity: chunkSize)
-    fclose(filePointer)
+    fclose(handle)
   }
 }
 
@@ -43,7 +43,7 @@ extension File: IteratorProtocol, Sequence {
   func next() -> UTF8.CodeUnit? {
 
     guard pointer != endPointer else {
-      let count = fread(basePointer, MemoryLayout<UTF8.CodeUnit>.size, chunkSize, filePointer)
+      let count = fread(basePointer, MemoryLayout<UTF8.CodeUnit>.size, chunkSize, handle)
       guard count > 0 else { return nil }
       pointer = basePointer
       endPointer = pointer.advanced(by: count)

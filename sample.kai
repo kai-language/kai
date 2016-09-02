@@ -1,5 +1,5 @@
 
-"Hello https://vdka.me"
+"Hello, World!"
 
 let playerX: Int = 5
 let playerY: Int = 10

@@ -3,9 +3,7 @@
 // TODO(vdka): Read this from the arguments
 let file = File(path: kaiRoot + "/sample.kai")!
 
-let bytes = Array(file)
-
-var scanner = try! ByteScanner(bytes)
+let scanner = FileScanner(file: file)
 
 var lexer = Lexer(scanner: scanner)
 
@@ -18,15 +16,12 @@ print(tokens)
 print()
 
 for token in tokens {
-  guard token != .endOfStatement else {
-    print()
-    continue
-  }
 
   print(token)
   //print(token, terminator: "")
 }
 
+/*
 print("=== CAT ===")
 
 for byte in bytes {
@@ -34,4 +29,4 @@ for byte in bytes {
 }
 
 print("=== END ===")
-
+*/

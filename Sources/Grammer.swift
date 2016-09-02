@@ -7,10 +7,94 @@ let terminators: Set<UTF8.CodeUnit> =
   ]
 let whitespace: Set<UTF8.CodeUnit> = [" ", "\t", "\n"]
 
+extension Lexer {
+
+  struct Token {
+
+    var filePosition: FileScanner.Position
+
+    var type: Lexer.TokenType
+    var value: ByteString
+
+    init(type: Lexer.TokenType, value: ByteString?, filePosition: FileScanner.Position) {
+
+      guard let value = type.defaultValue ?? value else { fatalError("Expected ") }
+
+      self.filePosition = filePosition
+
+      self.type = type
+      self.value = value
+
+      // set the column position to the start of the token
+      self.filePosition.column -= numericCast(value.count)
+    }
+  }
+}
+
+extension Lexer.Token {
+
+  static func infer(_ partial: ByteString) -> Lexer.TokenType? {
+
+    switch partial {
+    case "(": return .openParentheses
+    case ")": return .closeParentheses
+    case "{": return .openBrace
+    case "}": return .closeBrace
+    case "=": return .equals
+    case ":": return .colon
+
+    case _ where keywords.contains(partial):
+      return .keyword
+
+    default:
+      return nil
+    }
+  }
+}
 
 extension Lexer {
 
-  enum Token {
+  enum TokenType {
+    case openBrace
+    case closeBrace
+    case openParentheses
+    case closeParentheses
+
+    case doubleQuote
+    case singleQuote
+
+    case endOfStatement
+
+    case equals
+    case colon
+    case hash
+
+    case identifier
+    case stringLiteral
+    case literal
+    case keyword
+    case comment
+
+    var defaultValue: ByteString? {
+
+      switch self {
+      case .openBrace:        return "{"
+      case .closeBrace:       return "}"
+      case .openParentheses:  return "("
+      case .closeParentheses: return ")"
+      case .doubleQuote:      return "\""
+      case .singleQuote:      return "'"
+      case .endOfStatement:   return ";"
+      case .equals:           return "="
+      case .colon:            return ":"
+      case .hash:             return "#"
+
+      default:                return nil
+      }
+    }
+  }
+
+  enum TokenValue {
 
     case openBrace
     case closeBrace
@@ -30,7 +114,6 @@ extension Lexer {
     case literal(ByteString)
     case keyword(ByteString)
     case comment(ByteString)
-    case hereString(ByteString)
 
     init?(_ utf8: ByteString) {
 
@@ -53,12 +136,6 @@ extension Lexer {
       case _ where keywords.contains(utf8):
         self = .keyword(utf8)
 
-      case _ where utf8.count > 1 &&
-        utf8.first == "`" &&
-        utf8.last  == "`":
-          self = .hereString(utf8)
-          print("Creating here string with body: \(utf8)")
-
       default:
         return nil
       }
@@ -66,30 +143,9 @@ extension Lexer {
   }
 }
 
-extension Lexer {
+extension Lexer.TokenValue: Equatable {
 
-  enum LiteralType {
-    case number
-    case string
-    case character
-    case boolean
-    case null
-  }
-
-  static func isLiteral(_ chars: ByteString) -> LiteralType? {
-    precondition(!chars.isEmpty, "isLiteral(_:) only works on a non-empty sequence of chars")
-
-    if numbers.contains(chars.first!) {
-      guard chars.dropFirst().follows(rule: numbers.contains) else { return .number }
-    }
-
-    return nil
-  }
-}
-
-extension Lexer.Token: Equatable {
-
-  static func == (lhs: Lexer.Token, rhs: Lexer.Token) -> Bool {
+  static func == (lhs: Lexer.TokenValue, rhs: Lexer.TokenValue) -> Bool {
 
     switch (lhs, rhs) {
     case (.openBrace, .openBrace):                fallthrough

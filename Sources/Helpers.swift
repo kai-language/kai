@@ -30,3 +30,17 @@ extension ExpressibleByStringLiteral where StringLiteralType == StaticString {
   }
 }
 
+extension ByteString {
+
+  init(_ string: Swift.String) {
+
+    self.bytes = Array(string.utf8)
+  }
+}
+
+import Darwin
+
+func internalError(_ message: String, file: StaticString = #file, line: UInt = #line) -> Never {
+  print("Something went wrong internally. \(file):\(line)")
+  Darwin.exit(1)
+}
