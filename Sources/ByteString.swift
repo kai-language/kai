@@ -102,6 +102,15 @@ extension ByteString: ExpressibleByStringLiteral {
   }
 }
 
+extension ByteString.Byte: ExpressibleByStringLiteral {
+
+  public init(stringLiteral: StaticString) {
+
+    self = stringLiteral.withUTF8Buffer { return $0.first! }
+  }
+}
+
+
 extension ByteString: CustomStringConvertible {
 
   var description: String {

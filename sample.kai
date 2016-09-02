@@ -1,7 +1,6 @@
 
-`HERE`Hello https://vdka.me`HERE`
+"Hello https://vdka.me"
 
 let playerX: Int = 5
 let playerY: Int = 10
 let distanceFromOrigin: Int = a + b
-
