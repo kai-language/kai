@@ -7,17 +7,22 @@ let scanner = FileScanner(file: file)
 
 var tokenizer = Tokenizer(scanner: scanner)
 
-//let tokens = try! tokenizer.tokenize()
 
-print()
-//print(tokens)
-try print(tokenizer.getToken())
-print()
-
+var previousLine: UInt = 0
 var token = try tokenizer.getToken()
 while token.type != .endOfStream {
-  print(token)
+  if previousLine != token.filePosition.line {
+    print(token.filePosition.line)
+  }
+  if token.type == .unknown {
+    print("?", terminator: " ")
+  } else {
+    print(token.type, terminator: " ")
+  }
+
   token = try tokenizer.getToken()
+
+  previousLine = token.filePosition.line
 }
 
 /*

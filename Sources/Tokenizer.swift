@@ -28,7 +28,6 @@ struct Tokenizer {
 
     switch scanner.peek() {
     case "/"?:
-
       switch scanner.peek(aheadBy: 1) {
       case "/"?:
 
@@ -66,8 +65,46 @@ struct Tokenizer {
         return token(type: .comment, value: partial)
 
       default:
-        throw Error.Reason.unknown
+        return token(type: .unknown)
       }
+
+    case "\""?:
+
+      scanner.pop()
+
+      var escaped = false
+
+      while let char = scanner.peek() {
+
+        defer { scanner.pop() }
+
+        if char == "\\" {
+
+          if escaped {
+            partial.append("\\")
+          } else {
+            escaped = true
+          }
+          continue
+        }
+
+        if char == "\"" {
+          if escaped {
+            partial.append("\"")
+          } else {
+            partial
+          }
+        }
+        if char == "\"" && !escaped {
+          return token(type: .string, value: partial)
+        }
+
+        partial.append(char)
+
+        scanner.pop()
+      }
+
+      throw Error.Reason.unknown
 
     case nil:
       return token(type: .endOfStream)
@@ -76,30 +113,6 @@ struct Tokenizer {
       scanner.pop()
       return token(type: .unknown)
     }
-  }
-
-  mutating func parseString(terminator: ByteString) throws -> Token {
-
-    assert(scanner.peek() == "\"")
-    scanner.pop()
-
-    repeat {
-
-      let byte: UTF8.CodeUnit
-      do {
-        byte = try scanner.attemptPop()
-      } catch {
-        throw Error.Reason.unmatchedToken(terminator)
-      }
-
-      partial.bytes.append(byte)
-
-      if partial.hasSuffix(terminator) {
-        partial.bytes.removeLast(terminator.count)
-        defer { partial.bytes.removeAll(keepingCapacity: true) }
-        return token(type: .string, value: partial)
-      }
-    } while true
   }
 }
 

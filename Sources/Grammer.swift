@@ -31,26 +31,6 @@ extension Tokenizer {
   }
 }
 
-extension Tokenizer.Token {
-
-  static func infer(_ partial: ByteString) -> Tokenizer.TokenType? {
-
-    switch partial {
-    case "(": return .openParentheses
-    case ")": return .closeParentheses
-    case "[": return .openBracket
-    case "]": return .closeBracket
-    case "{": return .openBrace
-    case "}": return .closeBrace
-    case "=": return .equals
-    case ":": return .colon
-
-    default:
-      return nil
-    }
-  }
-}
-
 extension Tokenizer {
 
   enum TokenType {
@@ -71,7 +51,10 @@ extension Tokenizer {
     case doubleQuote
     case singleQuote
 
-    case endOfStatement
+    case solidus
+    case asterisk
+    case plus
+    case minus
 
     case equals
     case colon
@@ -94,44 +77,17 @@ extension Tokenizer {
       case .closeParentheses: return ")"
       case .doubleQuote:      return "\""
       case .singleQuote:      return "'"
-      case .endOfStatement:   return ";"
       case .equals:           return "="
       case .colon:            return ":"
       case .hash:             return "#"
+
+      case .solidus:          return "/"
+      case .asterisk:         return "*"
+      case .plus:             return "+"
+      case .minus:            return "-"
 
       default:                return nil
       }
     }
   }
 }
-
-/*
-extension Lexer.Token: CustomStringConvertible {
-
-  var description: String {
-
-    switch self {
-    case .openBrace: return "{"
-    case .closeBrace: return "}"
-    case .openParentheses: return "("
-    case .closeParentheses: return "("
-
-    case .singleQuote: return "'"
-    case .doubleQuote: return "\""
-
-    case .endOfStatement: return ";"
-
-    case .equals: return "="
-    case .hash: return "#"
-    case .colon: return ":"
-
-    //case .declaration(let declaration): return declaration.description
-    case .hereString(let string): return string
-
-    case .literal(let value): return value
-    case .identifier(let name): return "'\(name)'"
-    case .comment(_): return ""
-    }
-  }
-}
-*/
