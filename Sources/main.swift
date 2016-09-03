@@ -5,20 +5,19 @@ let file = File(path: kaiRoot + "/sample.kai")!
 
 let scanner = FileScanner(file: file)
 
-var lexer = Lexer(scanner: scanner)
+var tokenizer = Tokenizer(scanner: scanner)
 
-print(#line)
-let tokens = try! lexer.tokenize()
-print(#line)
+//let tokens = try! tokenizer.tokenize()
 
 print()
-print(tokens)
+//print(tokens)
+try print(tokenizer.getToken())
 print()
 
-for token in tokens {
-
+var token = try tokenizer.getToken()
+while token.type != .endOfStream {
   print(token)
-  //print(token, terminator: "")
+  token = try tokenizer.getToken()
 }
 
 /*

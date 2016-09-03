@@ -7,44 +7,43 @@ let terminators: Set<UTF8.CodeUnit> =
   ]
 let whitespace: Set<UTF8.CodeUnit> = [" ", "\t", "\n"]
 
-extension Lexer {
+extension Tokenizer {
 
   struct Token {
 
     var filePosition: FileScanner.Position
 
-    var type: Lexer.TokenType
-    var value: ByteString
+    var type: Tokenizer.TokenType
+    var value: ByteString?
 
-    init(type: Lexer.TokenType, value: ByteString?, filePosition: FileScanner.Position) {
+    init(type: Tokenizer.TokenType, value: ByteString?, filePosition: FileScanner.Position) {
 
-      guard let value = type.defaultValue ?? value else { fatalError("Expected ") }
+//      guard let value = type.defaultValue ?? value else { fatalError("Internal Error") }
 
       self.filePosition = filePosition
 
       self.type = type
-      self.value = value
+      self.value = type.defaultValue ?? value
 
       // set the column position to the start of the token
-      self.filePosition.column -= numericCast(value.count)
+      self.filePosition.column -= numericCast(value?.count ?? 0)
     }
   }
 }
 
-extension Lexer.Token {
+extension Tokenizer.Token {
 
-  static func infer(_ partial: ByteString) -> Lexer.TokenType? {
+  static func infer(_ partial: ByteString) -> Tokenizer.TokenType? {
 
     switch partial {
     case "(": return .openParentheses
     case ")": return .closeParentheses
+    case "[": return .openBracket
+    case "]": return .closeBracket
     case "{": return .openBrace
     case "}": return .closeBrace
     case "=": return .equals
     case ":": return .colon
-
-    case _ where keywords.contains(partial):
-      return .keyword
 
     default:
       return nil
@@ -52,11 +51,20 @@ extension Lexer.Token {
   }
 }
 
-extension Lexer {
+extension Tokenizer {
 
   enum TokenType {
+
+    case unknown
+
+    case comment
+
+    case identifier
+
     case openBrace
     case closeBrace
+    case openBracket
+    case closeBracket
     case openParentheses
     case closeParentheses
 
@@ -69,17 +77,19 @@ extension Lexer {
     case colon
     case hash
 
-    case identifier
-    case stringLiteral
-    case literal
-    case keyword
-    case comment
+    case string
+    case integer
+    case float
+
+    case endOfStream
 
     var defaultValue: ByteString? {
 
       switch self {
       case .openBrace:        return "{"
       case .closeBrace:       return "}"
+      case .openBracket:      return "["
+      case .closeBracket:     return "]"
       case .openParentheses:  return "("
       case .closeParentheses: return ")"
       case .doubleQuote:      return "\""
@@ -91,87 +101,6 @@ extension Lexer {
 
       default:                return nil
       }
-    }
-  }
-
-  enum TokenValue {
-
-    case openBrace
-    case closeBrace
-    case openParentheses
-    case closeParentheses
-
-    case doubleQuote
-    case singleQuote
-
-    case endOfStatement
-
-    case equals
-    case colon
-    case hash
-
-    case identifier(ByteString)
-    case literal(ByteString)
-    case keyword(ByteString)
-    case comment(ByteString)
-
-    init?(_ utf8: ByteString) {
-
-      switch utf8 {
-      case "{":  self = .openBrace
-      case "}":  self = .closeBrace
-      case "(":  self = .openParentheses
-      case ")":  self = .closeParentheses
-
-      case "'":  self = .singleQuote
-      case "\"": self = .doubleQuote
-
-      case "\n": self = .endOfStatement
-      case ";":  self = .endOfStatement
-
-      case "=":  self = .equals
-      case "#":  self = .hash
-      case ":":  self = .colon
-
-      case _ where keywords.contains(utf8):
-        self = .keyword(utf8)
-
-      default:
-        return nil
-      }
-    }
-  }
-}
-
-extension Lexer.TokenValue: Equatable {
-
-  static func == (lhs: Lexer.TokenValue, rhs: Lexer.TokenValue) -> Bool {
-
-    switch (lhs, rhs) {
-    case (.openBrace, .openBrace):                fallthrough
-    case (.closeBrace, .closeBrace):              fallthrough
-    case (.openParentheses, .openParentheses):    fallthrough
-    case (.closeParentheses, .closeParentheses):  fallthrough
-
-    case (.singleQuote, .singleQuote):  fallthrough
-    case (.doubleQuote, .doubleQuote):  fallthrough
-
-    case (.equals, .equals):  fallthrough
-    case (.hash, .hash):      fallthrough
-    case (.colon, .colon):    fallthrough
-
-    case (.endOfStatement, .endOfStatement):
-      return true
-
-    case (.keyword(let l), .keyword(let r)): return l == r
-
-    // all comments are considered equal
-    case (.comment(_), .comment(_)): return true
-
-    case (.identifier(let l), .identifier(let r)): return l == r
-
-    default:
-      return false
     }
   }
 }

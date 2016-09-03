@@ -110,7 +110,6 @@ extension ByteString.Byte: ExpressibleByStringLiteral {
   }
 }
 
-
 extension ByteString: CustomStringConvertible {
 
   var description: String {
@@ -119,3 +118,9 @@ extension ByteString: CustomStringConvertible {
   }
 }
 
+extension ByteString {
+
+  mutating func append(_ char: Byte) {
+    bytes.append(char)
+  }
+}

@@ -1,4 +1,6 @@
 
+// This is a comment
+/* This too */
 "Hello, World!"
 
 let playerX: Int = 5

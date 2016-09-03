@@ -46,6 +46,7 @@ extension FileScanner {
     return byte
   }
 
+
   @discardableResult
   mutating func attemptPop() throws -> Byte {
 
@@ -59,5 +60,20 @@ extension FileScanner {
     }
 
     return byte
+  }
+}
+
+extension FileScanner {
+
+  @discardableResult
+  mutating func pop(_ n: Int) {
+
+    for _ in 0..<n { pop() }
+  }
+
+  @discardableResult
+  mutating func attemptPop(_ n: Int) throws {
+
+    for _ in 0..<n { try attemptPop() }
   }
 }
