@@ -7,18 +7,16 @@ let terminators: Set<UTF8.CodeUnit> =
   ]
 let whitespace: Set<UTF8.CodeUnit> = [" ", "\t", "\n"]
 
-extension Tokenizer {
+extension Lexer {
 
   struct Token {
 
     var filePosition: FileScanner.Position
 
-    var type: Tokenizer.TokenType
+    var type: Lexer.TokenType
     var value: ByteString?
 
-    init(type: Tokenizer.TokenType, value: ByteString?, filePosition: FileScanner.Position) {
-
-//      guard let value = type.defaultValue ?? value else { fatalError("Internal Error") }
+    init(type: Lexer.TokenType, value: ByteString?, filePosition: FileScanner.Position) {
 
       self.filePosition = filePosition
 
@@ -26,12 +24,12 @@ extension Tokenizer {
       self.value = type.defaultValue ?? value
 
       // set the column position to the start of the token
-      self.filePosition.column -= numericCast(value?.count ?? 0)
+//      self.filePosition.column -= numericCast(value?.count ?? 0)
     }
   }
 }
 
-extension Tokenizer {
+extension Lexer {
 
   enum TokenType {
 

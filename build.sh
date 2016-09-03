@@ -3,7 +3,7 @@
 # Must have swiftenv installed here. Default for homebrew
 CC=`/usr/local/bin/swiftenv which swift`
 
-echo "Using $CC"
+#echo "Using $CC"
 export SDKROOT=$(xcrun --show-sdk-path --sdk macosx)
 
 SWIFTC_FLAGS="-DDebug"
@@ -17,6 +17,3 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Build Succeeded!"
-
-
-

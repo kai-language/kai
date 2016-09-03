@@ -28,7 +28,7 @@ extension FileScanner {
 
   func peek(aheadBy n: Int = 0) -> Byte? {
 
-    return scanner.peek()
+    return scanner.peek(aheadBy: n)
   }
 
   @discardableResult

@@ -5,22 +5,28 @@ let file = File(path: kaiRoot + "/sample.kai")!
 
 let scanner = FileScanner(file: file)
 
-var tokenizer = Tokenizer(scanner: scanner)
+var lexer = Lexer(scanner: scanner)
 
 
 var previousLine: UInt = 0
-var token = try tokenizer.getToken()
+var token = try lexer.getToken()
 while token.type != .endOfStream {
   if previousLine != token.filePosition.line {
     print(token.filePosition.line)
   }
   if token.type == .unknown {
-    print("?", terminator: " ")
+    if let value = token.value {
+      print(value, terminator: "")
+    } else {
+      print("?", terminator: "")
+    }
+  } else if let value = token.value {
+    print("\(token.type)(\(value))")
   } else {
     print(token.type, terminator: " ")
   }
 
-  token = try tokenizer.getToken()
+  token = try lexer.getToken()
 
   previousLine = token.filePosition.line
 }
