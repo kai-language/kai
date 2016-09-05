@@ -55,6 +55,10 @@ extension ByteString: BidirectionalCollection {
     return bytes.endIndex
   }
 
+  var lastIndex: Int {
+    return bytes.endIndex - 1
+  }
+
   func index(after index: Int) -> Int {
 
     return bytes.index(after: index)
@@ -120,7 +124,27 @@ extension ByteString: CustomStringConvertible {
 
 extension ByteString {
 
+  init(_ string: Swift.String) {
+
+    self.bytes = Array(string.utf8)
+  }
+}
+
+extension ByteString {
+
   mutating func append(_ char: Byte) {
     bytes.append(char)
+  }
+
+  mutating func removeAll(keepingCapacity: Bool = false) {
+    bytes.removeAll(keepingCapacity: keepingCapacity)
+  }
+
+  mutating func removeLast() -> Byte {
+    return bytes.removeLast()
+  }
+
+  mutating func removeLast(_ n: Int) {
+    bytes.removeLast(n)
   }
 }

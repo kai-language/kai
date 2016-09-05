@@ -2,6 +2,6 @@
 // This is a comment
 /* This too */
 
-var t = "Hello, World!"
+t := "Hello, World!"
 
-var i = 1 + 2
+i := 1 + 2

@@ -1,17 +1,6 @@
 
 // MARK: - Stdlib extensions
 
-extension UTF8.CodeUnit {
-
-  var isWhitespace: Bool {
-    if self == space || self == tab || self == newline {
-      return true
-    } else {
-      return false
-    }
-  }
-}
-
 extension UTF8.CodeUnit: ExpressibleByUnicodeScalarLiteral {
 
   public init(unicodeScalarLiteral: UnicodeScalar) {
@@ -41,4 +30,3 @@ extension String {
     self = str
   }
 }
-

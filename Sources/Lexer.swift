@@ -1,8 +1,4 @@
 
-import func Darwin.C.isspace
-
-let kaiRoot = "/" + #file.characters.split(separator: "/").dropLast(2).map(String.init).joined(separator: "/")
-
 struct Lexer {
 
   var scanner: FileScanner
@@ -12,6 +8,67 @@ struct Lexer {
 
     self.scanner = scanner
   }
+}
+
+extension Lexer {
+
+  mutating func getToken() throws -> Token {
+
+    skipWhitespace()
+
+    defer { partial.removeAll(keepingCapacity: true) }
+
+    var currentNode = grammer.root
+
+    var peeked = 0
+
+    while let char = scanner.peek(aheadBy: peeked) {
+      peeked += 1
+      // partial.append(char)
+
+      // if we have some sort of token where we need to perform a Lexing action then do that
+      if let nextAction = currentNode[char]?.tokenType?.nextAction {
+
+        return try nextAction(&self)()
+      }
+
+      // Ensure we can traverse our Trie to the next node
+      guard let nextNode = currentNode[char] else {
+
+        if let tokenType = currentNode.tokenType, whitespace.contains(scanner.peek(aheadBy: peeked + 1) ?? " ") {
+          scanner.pop(peeked)
+          return token(tokenType, value: partial)
+        } else {
+
+          consumeWhile({ !whitespace.contains($0) })
+          return token(.identifier, value: partial)
+        }
+      }
+
+      // If the next node has no further children then it's a leaf.
+      guard !nextNode.children.isEmpty else {
+        // print("popping \(peeked)")
+        scanner.pop(peeked)
+        return token(nextNode.tokenType!, value: partial)
+      }
+
+      currentNode = nextNode
+    }
+
+    return token(.endOfStream, value: partial)
+  }
+
+  /// appends the contents of everything consumed to partial
+  mutating func consumeWhile(_ predicate: (FileScanner.Byte) -> Bool) {
+
+    while let char = scanner.peek(), predicate(char) {
+      partial.append(char)
+      scanner.pop()
+    }
+  }
+}
+
+extension Lexer {
 
   mutating func skipWhitespace() {
 
@@ -20,115 +77,9 @@ struct Lexer {
     }
   }
 
-  mutating func getToken() throws -> Token {
-
-    skipWhitespace()
-
-    defer { partial.bytes.removeAll(keepingCapacity: true) }
-
-    while let char = scanner.peek() {
-      partial.append(char)
-
-      switch partial {
-      case "/":
-        partial.bytes.removeAll()
-        return try parseSolidus()
-
-      case "=":
-        scanner.pop()
-        return token(.equals)
-
-      case "+":
-        scanner.pop()
-        return token(.plus)
-
-      case "-":
-        scanner.pop()
-        return token(.minus)
-
-      case "*":
-        scanner.pop()
-        return token(.asterisk)
-
-      case "\"":
-        partial.bytes.removeAll()
-        return try parseString()
-        
-      case _ where numbers.contains(partial.bytes.first!):
-        return try parseNumber()
-
-      case "var":
-        scanner.pop()
-        return try parseIdentifier()
-
-      default:
-
-        scanner.pop()
-      }
-    }
-
-    return token(.endOfStream, value: partial)
-  }
-}
-
-
-// MARK: - Parser
-
-extension Lexer {
-
-  mutating func parseSolidus() throws -> Token {
-    assert(scanner.peek() == "/")
-
-    switch scanner.peek(aheadBy: 1) {
-    case "/"?:
-
-      scanner.pop(2)
-      skipWhitespace()
-
-      while let char = scanner.peek() {
-
-        guard char != "\n" else {
-          return token(.comment, value: partial)
-        }
-
-        partial.append(char)
-
-        scanner.pop()
-      }
-
-      return token(.endOfStream)
-
-    case "*"?:
-
-      scanner.pop(2)
-      skipWhitespace()
-
-      var depth: UInt = 1
-      while depth != 0, let char = scanner.peek() {
-
-        if char == "*" && scanner.peek(aheadBy: 1) == "/" {
-          depth -= 1
-        }
-
-        partial.append(char)
-        scanner.pop()
-      }
-
-      partial.bytes.removeLast(2)
-
-      scanner.pop()
-
-      return token(.comment, value: partial)
-
-    // TODO(vdka): divisor
-    default:
-      return token(.unknown)
-    }
-  }
-
   mutating func parseString() throws -> Token {
     assert(scanner.peek() == "\"")
-
+    partial.removeAll()
     scanner.pop()
 
     while let char = scanner.peek() {
@@ -162,34 +113,54 @@ extension Lexer {
   }
 
   mutating func parseNumber() throws -> Token {
-    scanner.pop()
 
-    while let char = scanner.peek(),
-      numbers.contains(char) || char == "_" {
+    // TODO(vdka): Do float stuff
+    let numberChars = Set<UInt8>(["0"..."9", "a"..."f", "A"..."F"].joined())
+
+    while let char = scanner.peek(), numberChars.contains(char) {
 
       partial.append(char)
       scanner.pop()
     }
 
-    return token(.integer, value: partial)
+    return token(.number, value: partial)
   }
 
-  mutating func parseIdentifier() throws -> Token {
-    assert(partial == "let" || partial == "var")
+  mutating func parseBlockComment() throws -> Token {
+    assert(scanner.hasPrefix("/*"))
 
-    partial.bytes.removeAll(keepingCapacity: true)
+    var depth: UInt = 1
+    while let char = scanner.peek(), depth != 0 {
 
-    skipWhitespace()
-
-    while let char = scanner.peek(), !whitespace.contains(char) {
+      if char == "*" && scanner.peek(aheadBy: 1) == "/" {
+        depth -= 1
+      }
 
       partial.append(char)
       scanner.pop()
     }
 
-    return token(.identifier, value: partial)
+    // I beleive this means we have an unmatched '/*' token
+    guard depth == 0 else { throw Error.unknown }
+
+    partial.append(scanner.pop())
+
+    return token(.blockComment, value: partial)
+  }
+
+  mutating func parseLineComment() throws -> Token {
+    assert(scanner.hasPrefix("//"))
+
+    while let char = scanner.peek(), char != "\n" {
+
+      partial.append(char)
+      scanner.pop()
+    }
+
+    return token(.lineComment, value: partial)
   }
 }
+
 
 // MARK: - Helpers
 

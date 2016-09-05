@@ -1,6 +1,4 @@
 
-
-
 struct FileScanner {
 
   struct Position {
@@ -19,7 +17,8 @@ struct FileScanner {
   init(file: File) {
 
     self.file = file
-    self.position = Position(line: 0, column: 0, fileName: file.path)
+    // TODO(vdka): this should start at line number 1 but that puts it all off by 1 :S
+    self.position = Position(line: 0, column: 1, fileName: file.path)
     self.scanner = ByteScanner(Array(file))
   }
 }
@@ -37,8 +36,8 @@ extension FileScanner {
     let byte = scanner.pop()
 
     if byte == "\n" {
-      position.line += 1
-      position.column = 0
+      position.line   += 1
+      position.column  = 1
     } else {
       position.column += 1
     }
@@ -53,8 +52,8 @@ extension FileScanner {
     let byte = try scanner.attemptPop()
 
     if byte == "\n" {
-      position.line += 1
-      position.column = 0
+      position.line   += 1
+      position.column  = 1
     } else {
       position.column += 1
     }
@@ -75,5 +74,32 @@ extension FileScanner {
   mutating func attemptPop(_ n: Int) throws {
 
     for _ in 0..<n { try attemptPop() }
+  }
+}
+
+extension FileScanner {
+
+  func hasPrefix(_ prefix: ByteString) -> Bool {
+
+    for (index, char) in prefix.enumerated() {
+
+      guard self.peek(aheadBy: index) == char else { return false }
+    }
+
+    return true
+  }
+
+  func prefix(_ n: Int) -> ByteString {
+
+    var bytes: [Byte] = []
+
+    var index = 0
+    while index < n, let next = peek(aheadBy: index) {
+      defer { index += 1 }
+
+      bytes.append(next)
+    }
+
+    return ByteString(bytes)
   }
 }

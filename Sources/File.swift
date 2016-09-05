@@ -38,6 +38,11 @@ class File {
   }
 }
 
+extension File {
+
+  var name: String { return ByteString(ByteString(path).split(separator: "/").last!).description }
+}
+
 extension File: IteratorProtocol, Sequence {
 
   func next() -> UTF8.CodeUnit? {
