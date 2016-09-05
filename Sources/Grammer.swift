@@ -52,10 +52,14 @@ var grammer: Trie = {
 
   grammer.insert("+",   tokenType: .plus)
 
-  // grammer.insert(":=",  tokenType: .typeInferedDeclaration)
+  grammer.insert(":",   tokenType: .colon)
+  grammer.insert("=",   tokenType: .equals)
+  grammer.insert("==",   tokenType: .equals)
+  grammer.insert(":=",  tokenType: .typeInferedDeclaration)
 
   grammer.insert("\"",  tokenType: .string)
-  grammer.insert(contentsOf: ("0"..."9"), tokenType: .number)
+
+  grammer.insert(contentsOf: "0"..."9", tokenType: .number)
 
   return grammer
 }()
@@ -166,6 +170,8 @@ extension Lexer {
       case .asterisk:         return "*"
       case .plus:             return "+"
       case .minus:            return "-"
+
+      case .typeInferedDeclaration: return ":="
 
       default:                return nil
       }

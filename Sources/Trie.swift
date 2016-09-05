@@ -4,7 +4,7 @@
 
 struct Trie {
 
-  var root: Node = Node("_")
+  var root: Node = Node(" ")
 
   var count: Int = 0
   var nodeCount: Int = 0
@@ -90,5 +90,32 @@ extension Trie {
     var isEnd: Bool {
       return children.isEmpty
     }
+  }
+
+}
+
+extension Trie.Node {
+
+  func pretty(depth: Int) -> String {
+
+    let key = UnicodeScalar(value)
+
+    let payload: String
+    if let tokenType = self.tokenType {
+      payload = " -> \(tokenType)"
+    } else {
+      payload = ""
+    }
+
+    let children = self.children
+      .sorted { $0.1.value < $1.1.value }
+      .map { $0.1.pretty(depth: depth + 1) }
+      .reduce("", { $0 + $1})
+
+    let pretty = "- \(key)\(payload)" + "\n" + "\(children)"
+
+    let indentation = (0...depth).reduce("", { $0.0 + " " })
+
+    return "\(indentation)\(pretty)"
   }
 }

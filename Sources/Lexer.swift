@@ -115,7 +115,16 @@ extension Lexer {
   mutating func parseNumber() throws -> Token {
 
     // TODO(vdka): Do float stuff
-    let numberChars = Set<UInt8>(["0"..."9", "a"..."f", "A"..."F"].joined())
+
+    let digits: Set<ByteString.Byte> = Set("0"..."9")
+    let alphaNumerics: Set<ByteString.Byte> = Set("a"..."f", "A"..."F")
+
+    let numberChars: Set<ByteString.Byte>
+    switch scanner.prefix(2) {
+    case "0x": numberChars = digits.union(alphaNumerics).union(["x", "_"])
+    case "0b": numberChars = Set(["b", "0", "1", "_"])
+    default:   numberChars = digits.union([".", "_"])
+    }
 
     while let char = scanner.peek(), numberChars.contains(char) {
 

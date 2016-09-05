@@ -14,7 +14,6 @@ let scanner = FileScanner(file: file)
 
 var lexer = Lexer(scanner: scanner)
 
-
 var token = try lexer.getToken()
 
 while token.type != .endOfStream {
