@@ -53,8 +53,8 @@ var grammer: Trie = {
   grammer.insert("+",   tokenType: .plus)
 
   grammer.insert(":",   tokenType: .colon)
-  grammer.insert("=",   tokenType: .equals)
-  grammer.insert("==",   tokenType: .equals)
+  grammer.insert("=",   tokenType: .assignment)
+  grammer.insert("==",  tokenType: .equality)
   grammer.insert(":=",  tokenType: .typeInferedDeclaration)
 
   grammer.insert("\"",  tokenType: .string)
@@ -79,9 +79,6 @@ extension Lexer {
 
       self.type = type
       self.value = type.defaultValue ?? value
-
-      // set the column position to the start of the token
-     self.filePosition.column -= numericCast(value?.count ?? 0)
     }
   }
 }
@@ -124,7 +121,6 @@ extension Lexer {
     case trueKeyword
     case falseKeyword
 
-
     case typeInferedDeclaration
 
     case openBrace
@@ -137,14 +133,16 @@ extension Lexer {
     case doubleQuote
     case singleQuote
 
+    case assignment
+    case colon
+    case hash
+
     case solidus
     case asterisk
     case plus
     case minus
 
-    case equals
-    case colon
-    case hash
+    case equality
 
     case string
     case number
@@ -162,9 +160,10 @@ extension Lexer {
       case .closeParentheses: return ")"
       case .doubleQuote:      return "\""
       case .singleQuote:      return "'"
-      case .equals:           return "="
+      case .assignment:       return "="
       case .colon:            return ":"
       case .hash:             return "#"
+      case .equality:         return "=="
 
       case .solidus:          return "/"
       case .asterisk:         return "*"

@@ -1,7 +1,13 @@
 
 
+t : String = "Hello, World!"
+
+
+e := "Hello, World!"
+t == e
+
 // This is a comment
-/* This too */
+/* This too /* With nesting */ */
 
 t : String = "Hello, World!"
 

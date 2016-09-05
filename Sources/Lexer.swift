@@ -24,7 +24,6 @@ extension Lexer {
 
     while let char = scanner.peek(aheadBy: peeked) {
       peeked += 1
-      // partial.append(char)
 
       // if we have some sort of token where we need to perform a Lexing action then do that
       if let nextAction = currentNode[char]?.tokenType?.nextAction {
@@ -35,7 +34,7 @@ extension Lexer {
       // Ensure we can traverse our Trie to the next node
       guard let nextNode = currentNode[char] else {
 
-        if let tokenType = currentNode.tokenType, whitespace.contains(scanner.peek(aheadBy: peeked + 1) ?? " ") {
+        if let tokenType = currentNode.tokenType, whitespace.contains(char) {
           scanner.pop(peeked)
           return token(tokenType, value: partial)
         } else {
@@ -51,6 +50,15 @@ extension Lexer {
         scanner.pop(peeked)
         return token(nextNode.tokenType!, value: partial)
       }
+
+      /*
+      if let tokenType = nextNode.tokenType, whitespace.contains(scanner.peek(aheadBy: peeked) ?? " ") {
+
+        scanner.pop(peeked)
+        return token(tokenType, value: partial)
+      }
+      */
+
 
       currentNode = nextNode
     }
@@ -138,23 +146,35 @@ extension Lexer {
   mutating func parseBlockComment() throws -> Token {
     assert(scanner.hasPrefix("/*"))
 
-    var depth: UInt = 1
-    while let char = scanner.peek(), depth != 0 {
+    let startPosition = scanner.position
 
-      if char == "*" && scanner.peek(aheadBy: 1) == "/" {
+    var depth: UInt = 0
+    repeat {
+
+      guard let char = scanner.peek() else {
+        throw Error(.unmatchedToken, "Missing match block comment's not matched")
+      }
+
+      if scanner.hasPrefix("*/") {
+
         depth -= 1
+      } else if scanner.hasPrefix("/*") {
+
+        depth += 1
       }
 
       partial.append(char)
       scanner.pop()
-    }
+
+      if depth == 0 { break }
+    } while depth > 0
 
     // I beleive this means we have an unmatched '/*' token
-    guard depth == 0 else { throw Error.unknown }
+    guard depth == 0 else { throw Error(.unmatchedToken) }
 
     partial.append(scanner.pop())
 
-    return token(.blockComment, value: partial)
+    return Token(type: .blockComment, value: partial, filePosition: startPosition)
   }
 
   mutating func parseLineComment() throws -> Token {
@@ -175,10 +195,19 @@ extension Lexer {
 
 extension Lexer {
 
-  // convenience for generating tokens with context.
+  /// - Precondition: Multiline tokens must have their position specified
   func token(_ type: TokenType, value: ByteString? = nil) -> Token {
 
-    return Token(type: type, value: value, filePosition: scanner.position)
+    var position = scanner.position
+
+    position.column -= numericCast(type.defaultValue?.count ?? value?.count ?? 0)
+
+    return Token(type: type, value: value, filePosition: position)
+  }
+
+  /// - Note: This is really just here for consistency
+  func token(_ type: TokenType, value: ByteString, position: FileScanner.Position) -> Token {
+    return Token(type: type, value: value, filePosition: position)
   }
 }
 
@@ -189,9 +218,17 @@ extension Lexer {
 
   struct Error: Swift.Error {
 
+    var reason: Reason
+    var message: String
+
+    init(_ reason: Reason, _ message: String? = nil) {
+      self.reason = reason
+      self.message = "Add an error message"
+    }
+
     enum Reason: Swift.Error {
       case unknown
-      case unmatchedToken(ByteString)
+      case unmatchedToken
       case invalidUnicode
       case invalidLiteral
       case invalidEscape
