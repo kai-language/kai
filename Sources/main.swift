@@ -1,4 +1,8 @@
 
+guard let fileName = CommandLine.arguments.dropFirst().first else {
+  fatalError("Please provide a file")
+}
+
 let kaiRoot = "/" + #file.characters
   .split(separator: "/")
   .dropLast(2)
@@ -8,7 +12,7 @@ let kaiRoot = "/" + #file.characters
 // print(grammer)
 
 // TODO(vdka): Read this from the arguments
-let file = File(path: kaiRoot + "/sample.kai")!
+let file = File(path: kaiRoot + "/" + fileName)!
 
 let scanner = FileScanner(file: file)
 
