@@ -1,8 +1,6 @@
 
 struct ByteScanner {
 
-  typealias Byte = UTF8.CodeUnit
-
   var pointer: UnsafePointer<Byte>
   var buffer: UnsafeBufferPointer<Byte>
   let bufferCopy: [Byte]

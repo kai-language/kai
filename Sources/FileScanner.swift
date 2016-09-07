@@ -8,8 +8,6 @@ struct FileScanner {
     var fileName: String
   }
 
-  typealias Byte = UTF8.CodeUnit
-
   var file: File
   var position: Position
   var scanner: ByteScanner

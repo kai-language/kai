@@ -13,14 +13,13 @@ var grammer: Trie = {
 
   var grammer = Trie()
 
+  // MARK: - Keywords
+
   grammer.insert("struct",       tokenType: .structKeyword)
   grammer.insert("enum",         tokenType: .enumKeyword)
 
-  grammer.insert("static",       tokenType: .staticKeyword)
-
   grammer.insert("import",       tokenType: .importKeyword)
   grammer.insert("using",        tokenType: .usingKeyword)
-  grammer.insert("fn",           tokenType: .fnKeyword)
   grammer.insert("return",       tokenType: .returnKeyword)
   grammer.insert("defer",        tokenType: .deferKeyword)
 
@@ -40,6 +39,9 @@ var grammer: Trie = {
   grammer.insert("true",         tokenType: .trueKeyword)
   grammer.insert("false",        tokenType: .falseKeyword)
 
+
+  // MARK: - Non keyword
+
   grammer.insert("//",           tokenType: .lineComment)
   grammer.insert("/*",           tokenType: .blockComment)
 
@@ -55,11 +57,32 @@ var grammer: Trie = {
   grammer.insert(":",   tokenType: .colon)
   grammer.insert("=",   tokenType: .assignment)
   grammer.insert("==",  tokenType: .equality)
-  grammer.insert(":=",  tokenType: .typeInferedDeclaration)
+
+  grammer.insert(".",   tokenType: .dot)
+
+  grammer.insert(":=",  tokenType: .declaration)
+  grammer.insert("::",  tokenType: .staticDeclaration)
 
   grammer.insert("\"",  tokenType: .string)
 
-  grammer.insert(contentsOf: "0"..."9", tokenType: .number)
+  /*
+    NOTE(vdka):
+    Seems like parsing numbers using my Trie mechanism isn't _wonderful_
+    Thinking maybe it could be fixed when I approach the issue of
+    defining a set of acceptable _identifier_ & _operator_? starts
+  */
+
+  for n in Array<Byte>(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]) {
+    let numberStart   = ByteString([n])
+    let decimalStart  = ByteString([".", n])
+    let negativeStart = ByteString(["-", n])
+    let negativeDecimalStart = ByteString(["-", ".", n])
+
+    grammer.insert(numberStart,           tokenType: .integer)
+    grammer.insert(decimalStart,          tokenType: .real)
+    grammer.insert(negativeStart,         tokenType: .real)
+    grammer.insert(negativeDecimalStart,  tokenType: .real)
+  }
 
   return grammer
 }()
@@ -97,8 +120,6 @@ extension Lexer {
     case structKeyword
     case enumKeyword
 
-    case staticKeyword
-
     case importKeyword
     case usingKeyword
     case fnKeyword
@@ -121,7 +142,10 @@ extension Lexer {
     case trueKeyword
     case falseKeyword
 
-    case typeInferedDeclaration
+    case declaration
+    case staticDeclaration
+
+    case dot
 
     case openBrace
     case closeBrace
@@ -145,42 +169,71 @@ extension Lexer {
     case equality
 
     case string
-    case number
+    case integer
+    case real
 
     case endOfStream
 
     var defaultValue: ByteString? {
 
       switch self {
-      case .openBrace:        return "{"
-      case .closeBrace:       return "}"
-      case .openBracket:      return "["
-      case .closeBracket:     return "]"
-      case .openParentheses:  return "("
-      case .closeParentheses: return ")"
-      case .doubleQuote:      return "\""
-      case .singleQuote:      return "'"
-      case .assignment:       return "="
-      case .colon:            return ":"
-      case .hash:             return "#"
-      case .equality:         return "=="
+      case .openBrace:          return "{"
+      case .closeBrace:         return "}"
+      case .openBracket:        return "["
+      case .closeBracket:       return "]"
+      case .openParentheses:    return "("
+      case .closeParentheses:   return ")"
+      case .doubleQuote:        return "\""
+      case .singleQuote:        return "'"
+      case .assignment:         return "="
+      case .colon:              return ":"
+      case .hash:               return "#"
+      case .equality:           return "=="
 
-      case .solidus:          return "/"
-      case .asterisk:         return "*"
-      case .plus:             return "+"
-      case .minus:            return "-"
+      case .solidus:            return "/"
+      case .asterisk:           return "*"
+      case .plus:               return "+"
+      case .minus:              return "-"
 
-      case .typeInferedDeclaration: return ":="
+      case .dot:                return "."
 
-      default:                return nil
+      case .structKeyword:      return "struct"
+      case .enumKeyword:        return "enum"
+
+      case .importKeyword:      return "import"
+      case .usingKeyword:       return "using"
+      case .returnKeyword:      return "return"
+      case .deferKeyword:       return "defer"
+
+      case .ifKeyword:          return "if"
+      case .elseKeyword:        return "else"
+
+      case .switchKeyword:      return "switch"
+      case .caseKeyword:        return "case"
+      case .breakKeyword:       return "break"
+      case .defaultKeyword:     return "default"
+      case .fallthroughKeyword: return "fallthrough"
+
+      case .forKeyword:         return "for"
+      case .continueKeyword:    return "continue"
+
+      case .nullKeyword:        return "null"
+      case .trueKeyword:        return "true"
+      case .falseKeyword:       return "false"
+
+      case .declaration:        return ":="
+      case .staticDeclaration:  return "::"
+
+      default:                  return nil
       }
     }
 
     var nextAction: ((inout Lexer) -> () throws -> Token)? {
       switch self {
-      case .string: return Lexer.parseString
-      case .number: return Lexer.parseNumber
-      case .lineComment: return Lexer.parseLineComment
+      case .string:       return Lexer.parseString
+      case .integer:      return Lexer.parseNumber
+      case .real:         return Lexer.parseNumber
+      case .lineComment:  return Lexer.parseLineComment
       case .blockComment: return Lexer.parseBlockComment
 
       default: return nil

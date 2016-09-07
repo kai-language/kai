@@ -67,7 +67,7 @@ extension Lexer {
   }
 
   /// appends the contents of everything consumed to partial
-  mutating func consumeWhile(_ predicate: (FileScanner.Byte) -> Bool) {
+  mutating func consumeWhile(_ predicate: (Byte) -> Bool) {
 
     while let char = scanner.peek(), predicate(char) {
       partial.append(char)
@@ -124,23 +124,76 @@ extension Lexer {
 
     // TODO(vdka): Do float stuff
 
-    let digits: Set<ByteString.Byte> = Set("0"..."9")
-    let alphaNumerics: Set<ByteString.Byte> = Set("a"..."f", "A"..."F")
+    let digits: CountableClosedRange<Byte> = "0"..."9"
+    let alphaNumerics: Set<Byte> = Set("a"..."f", "A"..."F")
 
-    let numberChars: Set<ByteString.Byte>
+    let numberChars: Set<Byte>
     switch scanner.prefix(2) {
-    case "0x": numberChars = digits.union(alphaNumerics).union(["x", "_"])
-    case "0b": numberChars = Set(["b", "0", "1", "_"])
-    default:   numberChars = digits.union([".", "_"])
+    case "0x": numberChars = Set(digits).union(alphaNumerics).union(["x", "_"])
+    case "0b": numberChars = ["b", "0", "1", "_"]
+    default:   numberChars = Set(digits).union([".", "_", "e", "E", "+", "-"])
     }
+
+    /*
+      Valid (floats)
+      9.
+      .6
+      -.4
+      2.99e8
+      1.00e-5
+      -.12e-5
+
+      Invalid (floats)
+      0.-1
+      --01
+    */
+
+    var sightings = NumberParsingSightings(rawValue: 0)
 
     while let char = scanner.peek(), numberChars.contains(char) {
 
+      switch char {
+      case "-", "+":
+
+        if sightings.contains(.decimal) && !sightings.contains(.exponent) {
+
+          throw Error(.invalidLiteral, "Cannot provide a negative component for the mantisa")
+        } else if sightings.contains(.exponentSign) {
+
+          throw Error(.invalidLiteral, "Too many signs in exponent")
+        } else if sightings.contains(.exponent) {
+
+          sightings.insert(.exponentSign)
+        }
+
+      case ".":
+
+        guard !sightings.contains(.decimal) else {
+          throw Error(.invalidLiteral, "Too many decimal points in number")
+        }
+        sightings.insert(.decimal)
+
+      case "e", "E":
+
+        guard !sightings.contains(.exponent) else { throw Error(.invalidLiteral, "Too many exponent characters") }
+        sightings.insert(.exponent)
+
+      case digits:
+
+        if sightings.contains(.decimal) && !sightings.contains(.exponent) {
+          sightings.insert(.decimalDigit)
+        } else if sightings.contains(.exponent) {
+          sightings.insert(.exponentDigit)
+        }
+
+      default:
+        break
+      }
       partial.append(char)
       scanner.pop()
     }
 
-    return token(.number, value: partial)
+    return token(sightings.indicatesReal ? .real : .integer, value: partial)
   }
 
   mutating func parseBlockComment() throws -> Token {
@@ -223,7 +276,7 @@ extension Lexer {
 
     init(_ reason: Reason, _ message: String? = nil) {
       self.reason = reason
-      self.message = "Add an error message"
+      self.message = message ?? "Add an error message"
     }
 
     enum Reason: Swift.Error {
@@ -237,6 +290,24 @@ extension Lexer {
     }
   }
 }
+
+struct NumberParsingSightings: OptionSet {
+  let rawValue: UInt8
+  init(rawValue: UInt8) { self.rawValue = rawValue }
+
+  static let none           = NumberParsingSightings(rawValue: 0b0000_0000)
+  static let decimal        = NumberParsingSightings(rawValue: 0b0000_0001)
+  static let decimalDigit   = NumberParsingSightings(rawValue: 0b0000_0010)
+  static let exponent       = NumberParsingSightings(rawValue: 0b0000_0100)
+  static let exponentSign   = NumberParsingSightings(rawValue: 0b0000_1000)
+  static let exponentDigit  = NumberParsingSightings(rawValue: 0b0001_0000)
+
+  var indicatesReal: Bool {
+    return self.rawValue != 0
+  }
+}
+
+
 
 extension Lexer.Error {
 

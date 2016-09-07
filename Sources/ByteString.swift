@@ -3,8 +3,6 @@ import ByteHashable
 
 struct ByteString {
 
-  typealias Byte = UInt8
-
   var bytes: [Byte]
 
   init<S: Sequence>(_ bytes: S) where S.Iterator.Element == Byte {
@@ -103,14 +101,6 @@ extension ByteString: ExpressibleByStringLiteral {
   init(stringLiteral: StaticString) {
 
     self.bytes = stringLiteral.withUTF8Buffer { return $0.map({ $0 }) }
-  }
-}
-
-extension ByteString.Byte: ExpressibleByStringLiteral {
-
-  public init(stringLiteral: StaticString) {
-
-    self = stringLiteral.withUTF8Buffer { return $0.first! }
   }
 }
 

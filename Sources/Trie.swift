@@ -45,7 +45,7 @@ extension Trie {
   }
 
   mutating func insert<S: Sequence>(contentsOf values: S, tokenType: Lexer.TokenType)
-    where S.Iterator.Element == ByteString.Byte
+    where S.Iterator.Element == Byte
   {
 
     for value in values {
@@ -72,16 +72,16 @@ extension Trie {
   class Node {
 
     var tokenType: Lexer.TokenType? = nil
-    var value: ByteString.Byte
-    var children: [ByteString.Byte: Node] = [:]
+    var value: Byte
+    var children: [Byte: Node] = [:]
 
-    init(_ value: ByteString.Byte, tokenType: Lexer.TokenType? = nil) {
+    init(_ value: Byte, tokenType: Lexer.TokenType? = nil) {
 
       self.tokenType = tokenType
       self.value = value
     }
 
-    subscript(_ key: ByteString.Byte) -> Node? {
+    subscript(_ key: Byte) -> Node? {
 
       get { return children[key] }
       set { children[key] = newValue }

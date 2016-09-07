@@ -1,4 +1,5 @@
 
+typealias Byte = UInt8
 
 /*
   Miscelaneous methods extensions and other tidbits of useful functionality
