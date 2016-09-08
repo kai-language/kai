@@ -31,3 +31,11 @@ extension ExpressibleByStringLiteral where StringLiteralType == StaticString {
     self.init(stringLiteral: value)
   }
 }
+
+func unimplemented(_ featureName: String) -> Never {
+  fatalError("Unimplemented feature \(featureName).")
+}
+
+func unimplemented() -> Never {
+  fatalError("Unimplemented feature.")
+}

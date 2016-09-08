@@ -42,8 +42,10 @@ var grammer: Trie = {
 
   // MARK: - Non keyword
 
-  grammer.insert("//",           tokenType: .lineComment)
-  grammer.insert("/*",           tokenType: .blockComment)
+  grammer.insert("->",  tokenType: .returnOperator)
+
+  grammer.insert("//",  tokenType: .lineComment)
+  grammer.insert("/*",  tokenType: .blockComment)
 
   grammer.insert("{",   tokenType: .openBrace)
   grammer.insert("}",   tokenType: .closeBrace)
@@ -59,6 +61,7 @@ var grammer: Trie = {
   grammer.insert("==",  tokenType: .equality)
 
   grammer.insert(".",   tokenType: .dot)
+  grammer.insert(",",   tokenType: .comma)
 
   grammer.insert(":=",  tokenType: .declaration)
   grammer.insert("::",  tokenType: .staticDeclaration)
@@ -94,14 +97,14 @@ extension Lexer {
     var filePosition: FileScanner.Position
 
     var type: Lexer.TokenType
-    var value: ByteString?
+    var value: ByteString
 
     init(type: Lexer.TokenType, value: ByteString?, filePosition: FileScanner.Position) {
 
       self.filePosition = filePosition
 
       self.type = type
-      self.value = type.defaultValue ?? value
+      self.value = type.defaultValue ?? value!
     }
   }
 }
@@ -126,6 +129,9 @@ extension Lexer {
     case returnKeyword
     case deferKeyword
 
+    // ->
+    case returnOperator
+
     case ifKeyword
     case elseKeyword
 
@@ -146,6 +152,7 @@ extension Lexer {
     case staticDeclaration
 
     case dot
+    case comma
 
     case openBrace
     case closeBrace
@@ -190,12 +197,15 @@ extension Lexer {
       case .hash:               return "#"
       case .equality:           return "=="
 
+      case .returnOperator:     return "->"
+
       case .solidus:            return "/"
       case .asterisk:           return "*"
       case .plus:               return "+"
       case .minus:              return "-"
 
       case .dot:                return "."
+      case .comma:              return ","
 
       case .structKeyword:      return "struct"
       case .enumKeyword:        return "enum"
@@ -224,6 +234,8 @@ extension Lexer {
       case .declaration:        return ":="
       case .staticDeclaration:  return "::"
 
+      case .endOfStream:        return ""
+
       default:                  return nil
       }
     }
@@ -245,6 +257,6 @@ extension Lexer {
 extension Lexer.Token: CustomStringConvertible {
 
   var description: String {
-    return "\(type)(\(value ?? ""))"
+    return "\(type)('\(value)')"
   }
 }

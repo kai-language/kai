@@ -18,13 +18,27 @@ let scanner = FileScanner(file: file)
 
 var lexer = Lexer(scanner: scanner)
 
-var token = try lexer.getToken()
 
-while token.type != .endOfStream {
-
-  print("\(file.name)(\(token.filePosition.line):\(token.filePosition.column))", terminator: ": ")
-
-  print(token)
-
+var tokens: [Lexer.Token] = []
+var token: Lexer.Token
+repeat {
   token = try lexer.getToken()
-}
+
+  print("\(file.name)(\(token.filePosition.line):\(token.filePosition.column)): \(token)")
+
+  tokens.append(token)
+} while token.type != .endOfStream
+
+print("Done Lexing")
+print()
+
+var parser = Parser(tokens)
+
+let ast = try parser.parse()
+print()
+
+let ir = IRBuilder.getIR(for: ast)
+
+print(ir)
+
+print(ast)

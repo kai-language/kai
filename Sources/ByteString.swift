@@ -15,6 +15,16 @@ struct ByteString {
 
     return ByteString(lhs.bytes + rhs.bytes)
   }
+
+  static func + (lhs: String, rhs: ByteString) -> ByteString {
+
+    return ByteString(Array(lhs.utf8) + rhs.bytes)
+  }
+
+  static func + (lhs: ByteString, rhs: String) -> ByteString {
+
+    return ByteString(lhs + Array(rhs.utf8))
+  }
 }
 
 extension ByteString: Hashable {

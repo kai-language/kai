@@ -50,7 +50,6 @@ extension ByteScanner {
       case emptyInput
       case endOfStream
       case unexpected(at: UInt)
-      case searchFailed(at: UInt, wanted: [Byte])
     }
   }
 }
