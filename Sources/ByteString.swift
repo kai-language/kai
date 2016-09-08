@@ -136,6 +136,10 @@ extension ByteString {
     bytes.append(char)
   }
 
+  mutating func append(contentsOf suffix: ByteString) {
+    bytes.append(contentsOf: suffix.bytes)
+  }
+
   mutating func removeAll(keepingCapacity: Bool = false) {
     bytes.removeAll(keepingCapacity: keepingCapacity)
   }

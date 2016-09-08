@@ -8,6 +8,10 @@
 - IRBuilder
   - Implement serialization of the bare minimum for building IR for the main return 5 function.
 
+## Yet to Come but obvious needs
+- [ ] Type checker
+  - Idea being that you have an untyped AST and you pass it through the type checker getting back a fully typed AST
+
 ## Big Features
 - [ ] Unions
 

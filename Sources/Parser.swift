@@ -22,6 +22,21 @@ struct Parser {
 
         return try parseIdentifier(named: token.value)
 
+      case .returnKeyword:
+        scanner.pop()
+
+        // TODO(vdka): Ensure return type is what is expected
+        let node = AST.Node(.returnStatement)
+
+        return node
+
+      case .integer:
+        scanner.pop()
+
+        let node = AST.Node(.integer, value: token.value)
+
+        return node
+
       default:
         scanner.pop()
         break
@@ -30,7 +45,6 @@ struct Parser {
 
     return AST.Node(.unknown)
   }
-
 
   mutating func parseIdentifier(named name: ByteString) throws -> AST.Node {
 
@@ -62,7 +76,7 @@ struct Parser {
           throw Error(.invalidSyntax, "Missing open brace after procedure declaration")
         }
 
-        let procedureBody = try parse()
+        let procedureBody = try parseScope()
 
         let node = AST.Node(.procedure, name: name)
         node.children = [inputTypes, outputTypes, procedureBody]
@@ -145,6 +159,26 @@ struct Parser {
     }
 
     throw Error(.unknown)
+  }
+
+  mutating func parseScope() throws -> AST.Node {
+
+    assert(scanner.peek()?.type == .openBrace)
+
+    //TODO(vdka): maybe crashes on main :: () -> Int EOF
+    scanner.pop()
+
+    let scopeNode = AST.Node(.scope)
+
+    repeat {
+
+      let node = try parse()
+
+      scopeNode.children.append(node)
+
+    } while scanner.peek() != nil && scanner.peek()?.type != .closeBrace
+
+    return scopeNode
   }
 }
 

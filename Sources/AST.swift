@@ -16,13 +16,15 @@ struct AST {
 
     var kind: Kind
     var name: ByteString?
+    var value: ByteString?
     var type: KaiType?
 
     var children: [Node] = []
 
-    init(_ kind: Kind, name: ByteString? = nil, type: KaiType? = nil) {
+    init(_ kind: Kind, name: ByteString? = nil, value: ByteString? = nil, type: KaiType? = nil) {
       self.kind = kind
       self.name = name
+      self.value = value
       self.type = type
     }
 
@@ -33,6 +35,9 @@ struct AST {
       case typeList
       case procedure
       case procedureReturn
+      case scope
+      case returnStatement
+      case integer
     }
   }
 }
@@ -53,6 +58,12 @@ extension AST.Node {
 
     guard case .procedure = kind else { return nil }
 
-    return simpleTypeTable[children[1].name!] ?? children[1].name!
+    return simpleTypeTable[children[1].children[0].name!] ?? children[1].children[0].name!
+  }
+
+  var procedureBody: AST.Node? {
+    guard case .procedure = kind else { return nil }
+
+    return children[2]
   }
 }
