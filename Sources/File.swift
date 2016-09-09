@@ -52,6 +52,7 @@ extension File: IteratorProtocol, Sequence {
       guard count > 0 else { return nil }
       pointer = basePointer
       endPointer = pointer.advanced(by: count)
+      defer { pointer = pointer.advanced(by: 1) }
       return pointer.pointee
     }
 
