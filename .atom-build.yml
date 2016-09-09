@@ -9,6 +9,6 @@ targets:
   "Run Script":
     sh: true
     cmd: "$(pwd)/run.sh"
-  "Run Script with addition.kai":
+  "Run Script with main.kai":
     sh: true
-    cmd: "$(pwd)/run.sh main.kai"
+    cmd: "$(pwd)/run.sh samples/main.kai"

@@ -12,13 +12,31 @@ struct Lexer {
 
 extension Lexer {
 
-  mutating func getToken() throws -> Token {
+  static func tokenize(_ input: File) throws -> [Token] {
+
+    var lexer = Lexer(scanner: FileScanner(file: input))
+
+    var tokens: [Lexer.Token] = []
+
+    while let token = try lexer.getToken() {
+      // print("\(input.name)(\(token.filePosition.line):\(token.filePosition.column)): \(token)")
+
+      tokens.append(token)
+    }
+
+    return tokens
+  }
+}
+
+extension Lexer {
+
+  mutating func getToken() throws -> Token? {
 
     skipWhitespace()
 
     defer { partial.removeAll(keepingCapacity: true) }
 
-    var currentNode = grammer.root
+    var currentNode = lexerGrammer
 
     var peeked = 0
 
@@ -26,7 +44,7 @@ extension Lexer {
       peeked += 1
 
       // if we have some sort of token where we need to perform a Lexing action then do that
-      if let nextAction = currentNode[char]?.tokenType?.nextAction {
+      if let nextAction = currentNode[char]?.value?.nextAction {
 
         return try nextAction(&self)()
       }
@@ -34,7 +52,7 @@ extension Lexer {
       // Ensure we can traverse our Trie to the next node
       guard let nextNode = currentNode[char] else {
 
-        if let tokenType = currentNode.tokenType, whitespace.contains(char) {
+        if let tokenType = currentNode.value, whitespace.contains(char) {
           scanner.pop(peeked)
           return token(tokenType, value: partial)
         } else {
@@ -48,7 +66,7 @@ extension Lexer {
       guard !nextNode.children.isEmpty else {
         // print("popping \(peeked)")
         scanner.pop(peeked)
-        return token(nextNode.tokenType!, value: partial)
+        return token(nextNode.value!, value: partial)
       }
 
       /*
@@ -63,7 +81,7 @@ extension Lexer {
       currentNode = nextNode
     }
 
-    return token(.endOfStream, value: partial)
+    return nil
   }
 
   /// appends the contents of everything consumed to partial

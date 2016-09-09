@@ -9,64 +9,65 @@ let terminators: Set<UTF8.CodeUnit> =
 
 let whitespace: Set<UTF8.CodeUnit> = [" ", "\t", "\n"]
 
-var grammer: Trie = {
+var lexerGrammer: Trie<ByteString, Lexer.TokenType> = {
 
-  var grammer = Trie()
+  var grammer = Trie<ByteString, Lexer.TokenType>(key: "_")
 
   // MARK: - Keywords
 
-  grammer.insert("struct",       tokenType: .structKeyword)
-  grammer.insert("enum",         tokenType: .enumKeyword)
+  grammer.insert("struct",       value: .structKeyword)
+  grammer.insert("proc",         value: .procedureKeyword)
+  grammer.insert("enum",         value: .enumKeyword)
 
-  grammer.insert("import",       tokenType: .importKeyword)
-  grammer.insert("using",        tokenType: .usingKeyword)
-  grammer.insert("return",       tokenType: .returnKeyword)
-  grammer.insert("defer",        tokenType: .deferKeyword)
+  grammer.insert("import",       value: .importKeyword)
+  grammer.insert("using",        value: .usingKeyword)
+  grammer.insert("return",       value: .returnKeyword)
+  grammer.insert("defer",        value: .deferKeyword)
 
-  grammer.insert("if",           tokenType: .ifKeyword)
-  grammer.insert("else",         tokenType: .elseKeyword)
+  grammer.insert("if",           value: .ifKeyword)
+  grammer.insert("else",         value: .elseKeyword)
 
-  grammer.insert("switch",       tokenType: .switchKeyword)
-  grammer.insert("case",         tokenType: .caseKeyword)
-  grammer.insert("break",        tokenType: .breakKeyword)
-  grammer.insert("default",      tokenType: .defaultKeyword)
-  grammer.insert("fallthrough",  tokenType: .fallthroughKeyword)
+  grammer.insert("switch",       value: .switchKeyword)
+  grammer.insert("case",         value: .caseKeyword)
+  grammer.insert("break",        value: .breakKeyword)
+  grammer.insert("default",      value: .defaultKeyword)
+  grammer.insert("fallthrough",  value: .fallthroughKeyword)
 
-  grammer.insert("for",          tokenType: .forKeyword)
-  grammer.insert("continue",     tokenType: .continueKeyword)
+  grammer.insert("for",          value: .forKeyword)
+  grammer.insert("continue",     value: .continueKeyword)
 
-  grammer.insert("null",         tokenType: .nullKeyword)
-  grammer.insert("true",         tokenType: .trueKeyword)
-  grammer.insert("false",        tokenType: .falseKeyword)
+  grammer.insert("null",         value: .nullKeyword)
+  grammer.insert("true",         value: .trueKeyword)
+  grammer.insert("false",        value: .falseKeyword)
 
 
   // MARK: - Non keyword
 
-  grammer.insert("->",  tokenType: .returnOperator)
+  grammer.insert("->",  value: .returnOperator)
 
-  grammer.insert("//",  tokenType: .lineComment)
-  grammer.insert("/*",  tokenType: .blockComment)
+  grammer.insert("//",  value: .lineComment)
+  grammer.insert("/*",  value: .blockComment)
 
-  grammer.insert("{",   tokenType: .openBrace)
-  grammer.insert("}",   tokenType: .closeBrace)
-  grammer.insert("[",   tokenType: .openBracket)
-  grammer.insert("]",   tokenType: .closeBracket)
-  grammer.insert("(",   tokenType: .openParentheses)
-  grammer.insert(")",   tokenType: .closeParentheses)
+  grammer.insert("{",   value: .openBrace)
+  grammer.insert("}",   value: .closeBrace)
+  grammer.insert("[",   value: .openBracket)
+  grammer.insert("]",   value: .closeBracket)
+  grammer.insert("(",   value: .openParentheses)
+  grammer.insert(")",   value: .closeParentheses)
 
-  grammer.insert("+",   tokenType: .plus)
+  grammer.insert("+",   value: .plus)
 
-  grammer.insert(":",   tokenType: .colon)
-  grammer.insert("=",   tokenType: .assignment)
-  grammer.insert("==",  tokenType: .equality)
+  grammer.insert(":",   value: .colon)
+  grammer.insert("=",   value: .assignment)
+  grammer.insert("==",  value: .equality)
 
-  grammer.insert(".",   tokenType: .dot)
-  grammer.insert(",",   tokenType: .comma)
+  grammer.insert(".",   value: .dot)
+  grammer.insert(",",   value: .comma)
 
-  grammer.insert(":=",  tokenType: .declaration)
-  grammer.insert("::",  tokenType: .staticDeclaration)
+  grammer.insert(":=",  value: .declaration)
+  grammer.insert("::",  value: .staticDeclaration)
 
-  grammer.insert("\"",  tokenType: .string)
+  grammer.insert("\"",  value: .string)
 
   /*
     NOTE(vdka):
@@ -81,10 +82,10 @@ var grammer: Trie = {
     let negativeStart = ByteString(["-", n])
     let negativeDecimalStart = ByteString(["-", ".", n])
 
-    grammer.insert(numberStart,           tokenType: .integer)
-    grammer.insert(decimalStart,          tokenType: .real)
-    grammer.insert(negativeStart,         tokenType: .real)
-    grammer.insert(negativeDecimalStart,  tokenType: .real)
+    grammer.insert(numberStart,           value: .integer)
+    grammer.insert(decimalStart,          value: .real)
+    grammer.insert(negativeStart,         value: .real)
+    grammer.insert(negativeDecimalStart,  value: .real)
   }
 
   return grammer
@@ -121,6 +122,7 @@ extension Lexer {
     case identifier
 
     case structKeyword
+    case procedureKeyword
     case enumKeyword
 
     case importKeyword
@@ -179,8 +181,6 @@ extension Lexer {
     case integer
     case real
 
-    case endOfStream
-
     var defaultValue: ByteString? {
 
       switch self {
@@ -208,6 +208,7 @@ extension Lexer {
       case .comma:              return ","
 
       case .structKeyword:      return "struct"
+      case .procedureKeyword:   return "proc"
       case .enumKeyword:        return "enum"
 
       case .importKeyword:      return "import"
@@ -233,8 +234,6 @@ extension Lexer {
 
       case .declaration:        return ":="
       case .staticDeclaration:  return "::"
-
-      case .endOfStream:        return ""
 
       default:                  return nil
       }

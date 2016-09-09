@@ -6,6 +6,14 @@ typealias Byte = UInt8
   that is general enough to not belong in other files.
 */
 
+extension BidirectionalCollection where Index == Int {
+
+  /// The Actual last indexable position of the array
+  var lastIndex: Index {
+    return endIndex - 1
+  }
+}
+
 extension Set {
 
   init<S: Sequence>(_ sequences: S...)

@@ -1,115 +1,109 @@
 
+class Trie<KeyPath: BidirectionalCollection, Value>
+  where KeyPath.Iterator.Element: Equatable, KeyPath.Index == Int
+{
 
-// NOTE(vdka): A Trie can be used to parse by keeping track of the trie node we are up to.
+  typealias Key = KeyPath.Iterator.Element
 
-struct Trie {
+  typealias Node = Trie<KeyPath, Value>
 
-  var root: Node = Node(" ")
+  var key: Key
+  var value: Value?
+  var children: [Trie.Node] = []
 
-  var count: Int = 0
-  var nodeCount: Int = 0
-
+  init(key: Key, value: Value? = nil) {
+    self.key = key
+    self.value = value
+  }
 }
 
 extension Trie {
 
-  mutating func insert(_ value: ByteString, tokenType: Lexer.TokenType) {
+  subscript(key: Key) -> Trie.Node? {
 
-    var currentNode = root
+    get { return children.first(where: { $0.key == key }) }
+    set {
+      guard let index = children.index(where: { $0.key == key }) else {
+        guard let newValue = newValue else { return }
+        children.append(newValue)
 
-    for (index, byte) in value.enumerated() {
+        return
+      }
 
-      guard let nextNode = currentNode[byte] else {
+      guard let newValue = newValue else {
+        children.remove(at: index)
+        return
+      }
 
-        let nextNode = Node(byte)
-        nodeCount += 1
+      let existing = children[index]
 
-        currentNode[byte] = nextNode
+      if existing.value == nil {
+        existing.value = newValue.value
+      } else {
+        print("WARNING: You have inserted duplicates into your grammer")
+      }
+    }
+  }
 
+  func insert(_ keyPath: KeyPath, value: Value) {
+    insert(value, forKeyPath: keyPath)
+  }
+
+  func insert(_ value: Value, forKeyPath keys: KeyPath) {
+
+    var currentNode = self
+
+    for (index, key) in keys.enumerated() {
+
+      guard let nextNode = currentNode[key] else {
+        let nextNode = Trie.Node(key: key, value: nil)
+        currentNode[key] = nextNode
         currentNode = nextNode
 
-        if index == value.lastIndex {
-          nextNode.tokenType = tokenType
-          count += 1
+        if index == keys.lastIndex {
+          nextNode.value = value
         }
 
         continue
       }
 
-      if index == value.lastIndex && nextNode.tokenType == nil {
-        nextNode.tokenType = tokenType
-        count += 1
+      if index == keys.lastIndex && nextNode.value == nil {
+        nextNode.value = value
       }
+
       currentNode = nextNode
     }
   }
 
-  mutating func insert<S: Sequence>(contentsOf values: S, tokenType: Lexer.TokenType)
-    where S.Iterator.Element == Byte
-  {
+  func contains(_ keyPath: KeyPath) -> Value? {
+    var currentNode = self
 
-    for value in values {
-      insert(ByteString([value]), tokenType: tokenType)
-    }
-  }
-
-  func contains(_ value: ByteString) -> Lexer.TokenType? {
-
-    var currentNode = root
-
-    for byte in value {
-      guard let nextNode = currentNode[byte] else { return nil }
+    for key in keyPath {
+      guard let nextNode = currentNode[key] else { return nil }
 
       currentNode = nextNode
     }
 
-    return currentNode.tokenType
+    return currentNode.value
   }
 }
 
-extension Trie {
+extension Trie
+  // where Key: CustomStringConvertible, Value: CustomStringConvertible
+{
+  func pretty(depth: Int = 0) -> String {
 
-  class Node {
-
-    var tokenType: Lexer.TokenType? = nil
-    var value: Byte
-    var children: [Byte: Node] = [:]
-
-    init(_ value: Byte, tokenType: Lexer.TokenType? = nil) {
-
-      self.tokenType = tokenType
-      self.value = value
-    }
-
-    subscript(_ key: Byte) -> Node? {
-
-      get { return children[key] }
-      set { children[key] = newValue }
-    }
-
-    var isEnd: Bool {
-      return children.isEmpty
-    }
-  }
-
-}
-
-extension Trie.Node {
-
-  func pretty(depth: Int) -> String {
-
-    let key = UnicodeScalar(value)
 
     let payload: String
-    if let tokenType = self.tokenType {
-      payload = " -> \(tokenType)"
+    if let value = self.value {
+      payload = " -> \(value)"
     } else {
       payload = ""
     }
 
     let children = self.children
-      .sorted { $0.1.value < $1.1.value }
-      .map { $0.1.pretty(depth: depth + 1) }
+//      .sorted { $0.1.value < $1.1.value }
+      .map { $0.pretty(depth: depth + 1) }
       .reduce("", { $0 + $1})
 
     let pretty = "- \(key)\(payload)" + "\n" + "\(children)"

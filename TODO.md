@@ -3,8 +3,11 @@
 
 ## Where I left off
 
-- Parser
-  - Parse in scopes (procedure bodies?)
+- To make my life easier I can make tuple as sort of Anon Structs with the syntax
+- This is our approach to multiple returns. You may create an Anon struct instead.
+- This also allows labeled return values.
+  - `update :: (Key, Value) -> { value: Value, wasError: Bool }`
+  - `value, wasError := update("hello", "Harry")` @ Callsite.
 
 ## Yet to Come but obvious needs
 - [ ] Type checker
@@ -22,6 +25,12 @@
 ## Thoughts
 
 - [ ] In order to have a decent incremental compilation mechanism we should serialize one of the AST's to disk.
+
+# Lexer
+
+- [ ] Tests
+  - [ ] `parseNumber`
+  - [ ] `parseNumber`
 
 ## Compilation steps for executables
 

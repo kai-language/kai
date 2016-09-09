@@ -8,7 +8,7 @@ struct KaiType {
 struct AST {
 
   // TODO(vdka): The program AST's root Node should be the main function.
-  var root: Node = Node(.unknown, name: "_")
+  var root: Node = Node(.file, name: "_")
 
   class Node {
 
@@ -29,7 +29,8 @@ struct AST {
     }
 
     enum Kind {
-      // case file
+      case file
+      case fileImport
       case unknown
       case type
       case typeList
@@ -38,6 +39,7 @@ struct AST {
       case scope
       case returnStatement
       case integer
+      case staticDeclaration
     }
   }
 }

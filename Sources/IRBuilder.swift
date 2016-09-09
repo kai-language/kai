@@ -1,7 +1,9 @@
 
 struct IRBuilder {
 
-  static func getIR(for node: AST.Node) -> ByteString {
+  static func getIR(for node: AST.Node, indentationLevel: Int = 0) -> ByteString {
+
+    let indentation = ByteString(Array(repeating: " ", count: indentationLevel))
 
     var output: ByteString = ""
 
@@ -17,12 +19,12 @@ struct IRBuilder {
 
       // TODO(vdka): Do this properly
       if node.procedureArgumentTypeNames!.isEmpty {
-        output.append(contentsOf: "()")
+        output.append(contentsOf: "() ")
       } else {
         unimplemented("Multiple arguments")
       }
 
-      let irForBody = IRBuilder.getIR(for: node.procedureBody!)
+      let irForBody = IRBuilder.getIR(for: node.procedureBody!, indentationLevel: indentationLevel + 2)
 
       output.append(contentsOf: irForBody)
 
@@ -33,7 +35,7 @@ struct IRBuilder {
       output.append("\n")
 
       for child in node.children {
-        let ir = IRBuilder.getIR(for: child)
+        let ir = IRBuilder.getIR(for: child, indentationLevel: indentationLevel)
         output.append(contentsOf: ir)
       }
 
@@ -43,6 +45,7 @@ struct IRBuilder {
       return output
 
     case .returnStatement:
+      output.append(contentsOf: indentation)
       output.append(contentsOf: "ret ")
 
       return output

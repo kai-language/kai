@@ -89,7 +89,6 @@ struct Parser {
         throw Error(.invalidSyntax, "Expected a Type name after static declaration")
       }
 
-
     default:
       break
 //      throw Error(.invalidSyntax, "Expected")
@@ -179,6 +178,27 @@ struct Parser {
     } while scanner.peek() != nil && scanner.peek()?.type != .closeBrace
 
     return scopeNode
+  }
+
+  mutating func parseImport() throws -> AST.Node {
+    assert(scanner.peek()?.type == .importKeyword)
+    scanner.pop()
+
+    let fileName = scanner.pop().value
+
+    return AST.Node(.fileImport, value: fileName)
+  }
+
+  mutating func parseStruct() throws -> AST.Node {
+    unimplemented()
+  }
+
+  mutating func parseProcedure() throws -> AST.Node {
+    unimplemented()
+  }
+
+  mutating func parseEnum() throws -> AST.Node {
+    unimplemented()
   }
 }
 

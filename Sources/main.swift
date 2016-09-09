@@ -14,31 +14,27 @@ let kaiRoot = "/" + #file.characters
 // TODO(vdka): Read this from the arguments
 let file = File(path: kaiRoot + "/" + fileName)!
 
-let scanner = FileScanner(file: file)
-
-var lexer = Lexer(scanner: scanner)
-
-
-var tokens: [Lexer.Token] = []
-var token: Lexer.Token
-repeat {
-  token = try lexer.getToken()
-
-  print("\(file.name)(\(token.filePosition.line):\(token.filePosition.column)): \(token)")
-
-  tokens.append(token)
-} while token.type != .endOfStream
-
-print("Done Lexing")
-print()
+let tokens = try Lexer.tokenize(file)
 
 var parser = Parser(tokens)
 
 let ast = try parser.parse()
-print()
 
 let ir = IRBuilder.getIR(for: ast)
 
 print(ir)
 
-print(ast)
+var parserGrammer: Trie<[Lexer.TokenType], (inout Parser) -> () throws -> AST.Node> = {
+    // var nextAction: ((inout Lexer) -> () throws -> Token)? {
+
+  var parserGrammer: Trie<[Lexer.TokenType], (inout Parser) -> () throws -> AST.Node> = Trie(key: .unknown)
+
+  parserGrammer.insert(Parser.parseImport,    forKeyPath: [.importKeyword, .string])
+  parserGrammer.insert(Parser.parseStruct,    forKeyPath: [.identifier, .staticDeclaration, .structKeyword])
+  parserGrammer.insert(Parser.parseProcedure, forKeyPath: [.identifier, .staticDeclaration, .openParentheses])
+  parserGrammer.insert(Parser.parseEnum,      forKeyPath: [.identifier, .staticDeclaration, .enumKeyword])
+
+  return parserGrammer
+}()
+
+print(parserGrammer.pretty())
