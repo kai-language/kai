@@ -40,10 +40,24 @@ extension ExpressibleByStringLiteral where StringLiteralType == StaticString {
   }
 }
 
+import Darwin
+
 func unimplemented(_ featureName: String, file: StaticString = #file, line: UInt = #line) -> Never {
-  fatalError("\(file):\(line): Unimplemented feature \(featureName).")
+  print("\(file):\(line): Unimplemented feature \(featureName).")
+  exit(1)
+}
+
+func debug<T>(_ value: T, file: StaticString = #file, line: UInt = #line) {
+  print("\(line): \(value)")
+  fflush(stdout)
+}
+
+func debug(file: StaticString = #file, line: UInt = #line) {
+  print("\(line): HERE")
+  fflush(stdout)
 }
 
 func unimplemented(file: StaticString = #file, line: UInt = #line) -> Never {
-  fatalError("\(file):\(line): Unimplemented feature.")
+  print("\(file):\(line): Unimplemented feature.")
+  exit(1)
 }

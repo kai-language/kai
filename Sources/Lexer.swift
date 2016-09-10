@@ -115,7 +115,7 @@ extension Lexer {
 
   mutating func skipWhitespace() {
 
-    while let char = scanner.peek(), whitespace.contains(char) {
+    while let char = scanner.peek(), char == "\t" || char == " " {
       scanner.pop()
     }
   }

@@ -40,6 +40,7 @@ var lexerGrammer: Trie<ByteString, Lexer.TokenType> = {
   grammer.insert("true",         value: .trueKeyword)
   grammer.insert("false",        value: .falseKeyword)
 
+  grammer.insert("\n",           value: .newline)
 
   // MARK: - Non keyword
 
@@ -118,6 +119,8 @@ extension Lexer {
 
     case lineComment
     case blockComment
+
+    case newline
 
     case identifier
 
@@ -207,6 +210,8 @@ extension Lexer {
       case .dot:                return "."
       case .comma:              return ","
 
+      case .newline:            return "\n"
+
       case .structKeyword:      return "struct"
       case .procedureKeyword:   return "proc"
       case .enumKeyword:        return "enum"
@@ -256,6 +261,11 @@ extension Lexer {
 extension Lexer.Token: CustomStringConvertible {
 
   var description: String {
-    return "\(type)('\(value)')"
+    if case .newline = type {
+
+      return "\(type)('\("\\n")')"
+    } else {
+      return "\(type)('\(value)')"
+    }
   }
 }

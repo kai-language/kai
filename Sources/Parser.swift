@@ -1,10 +1,33 @@
 
-// MARK: - Parser
-// AKA Semantic checker
-// This component validates that the program structure is actually correct.
-// IE: Is a token of type N followed by a token of type M valid?
+typealias Action<Input, Output> = (inout Input) -> () throws -> Output
 
-struct Parser {
+var parserGrammar: Trie<[Lexer.TokenType], Action<TrieParser, AST.Node>> = {
+
+  func just(node: AST.Node) -> (inout Parser) -> () throws -> AST.Node {
+
+    return { _ in
+      return {
+        return node
+      }
+    }
+  }
+
+  var parserGrammar: Trie<[Lexer.TokenType], Action<TrieParser, AST.Node>> = Trie(key: .unknown)
+
+  parserGrammar.insert(TrieParser.parseImport, forKeyPath: [.importKeyword, .string])
+  parserGrammar.insert(TrieParser.parseReturnExpression, forKeyPath: [.returnKeyword])
+  parserGrammar.insert(TrieParser.parseScope, forKeyPath: [.openBrace])
+
+  // this will end up being a `call_expr` node. (as it's called in Swift)
+  // parserGrammar.insert(just(node: AST.Node(.unknown)), forKeyPath: [.identifier, .openParentheses])
+
+  // `parseStaticDeclaration determines if the following value is a type name, `
+  parserGrammar.insert(TrieParser.parseStaticDeclaration, forKeyPath: [.identifier, .staticDeclaration])
+
+  return parserGrammar
+}()
+
+struct TrieParser {
 
   var scanner: Scanner<Lexer.Token>
 
@@ -12,172 +35,96 @@ struct Parser {
     self.scanner = Scanner(tokens)
   }
 
-  mutating func parse() throws -> AST.Node {
+  static func parse(_ tokens: [Lexer.Token]) throws -> AST.Node {
 
-    while let token = scanner.peek() {
+    var parser = TrieParser(tokens)
 
-      switch token.type {
-      case .identifier:
-        scanner.pop()
+    // TODO(vdka): Handle adding actual file nodes.
+    let fileNode = AST.Node(.unknown)
 
-        return try parseIdentifier(named: token.value)
+    // while !parser.scanner.isEmpty {
+    while let next = parser.scanner.peek() {
 
-      case .returnKeyword:
-        scanner.pop()
-
-        // TODO(vdka): Ensure return type is what is expected
-        let node = AST.Node(.returnStatement)
-
-        return node
-
-      case .integer:
-        scanner.pop()
-
-        let node = AST.Node(.integer, value: token.value)
-
-        return node
-
-      default:
-        scanner.pop()
-        break
+      guard next.type != .newline else {
+        parser.scanner.pop()
+        continue
       }
+      // print("\(input.name)(\(token.filePosition.line):\(token.filePosition.column)): \(token)")
+
+      let node = try parser.nextASTNode()
+      fileNode.children.append(node)
     }
 
-    return AST.Node(.unknown)
+    return fileNode
   }
 
-  mutating func parseIdentifier(named name: ByteString) throws -> AST.Node {
+  mutating func nextASTNode() throws -> AST.Node {
 
-    guard let next = scanner.peek() else { throw Error.Reason.loneIdentifier }
+    var currentNode = parserGrammar
 
-    switch next.type {
-    case .declaration, .assignment:
-      unimplemented()
+    var lastMatch: Action<TrieParser, AST.Node>? = nil
 
+    var peeked = 0
 
-    case .staticDeclaration:
-      scanner.pop()
+    while let token = scanner.peek(aheadBy: peeked) {
+      peeked += 1
 
-      switch scanner.peek()?.type {
-      case .structKeyword?, .enumKeyword?:
-        unimplemented()
+      // Ensure we can traverse our Trie to the next node
+      guard let nextNode = currentNode[token.type] else {
 
-      case .openParentheses?:
-
-        let inputTypes = try parseTypeList(forceParens: true)
-
-        guard case .returnOperator = try scanner.attemptPop().type else {
-          throw Error(.invalidSyntax, "Missing return symbol '->'")
-        }
-
-        let outputTypes = try parseTypeList()
-
-        guard case .openBrace? = scanner.peek()?.type else {
-          throw Error(.invalidSyntax, "Missing open brace after procedure declaration")
-        }
-
-        let procedureBody = try parseScope()
-
-        let node = AST.Node(.procedure, name: name)
-        node.children = [inputTypes, outputTypes, procedureBody]
-
-        return node
-
-      default:
-        // TODO(vdka): `Type` is ambiguous here how do you refer to language
-        //  level constructs like procedures, structs, enums, unions etc.
-        throw Error(.invalidSyntax, "Expected a Type name after static declaration")
-      }
-
-    default:
-      break
-//      throw Error(.invalidSyntax, "Expected")
-    }
-
-    return AST.Node(.unknown)
-  }
-
-  // TODO(vdka): Support the following form: Also support multiple return values in general
-  /*
-  someFunc :: (Int, Int) -> (Int, Int)
-  */
-  mutating func parseTypeList(forceParens: Bool = false) throws -> AST.Node {
-
-    let list = AST.Node(.typeList)
-
-    guard let token = scanner.peek() else {
-      throw Error(.invalidSyntax, "Expected Type")
-    }
-
-    switch token.type {
-    case .identifier where !forceParens: // single argument
-      scanner.pop()
-
-      let node = AST.Node(.type, name: token.value)
-      list.children.append(node)
-
-      return list
-
-    case .identifier where forceParens:
-      throw Error(.invalidSyntax, "The arugment types of a proc must be surrounded by parenthesis '()'")
-
-    case .openParentheses: // multi argument
-      scanner.pop()
-
-      var wasComma = false
-      while let token = scanner.peek() {
-
-        if case .comma = token.type {
-          guard !wasComma else { throw Error(.invalidSyntax, "Duplicate comma") }
-          wasComma = false
-          scanner.pop()
+        if case .newline = token.type {
           continue
-        } else {
-          wasComma = true
         }
 
-        if case .closeParentheses = token.type {
-          // guard !wasComma else { throw Error(.invalidSyntax, "Trailing comma in Type list") }
-          scanner.pop()
+        guard let nextAction = lastMatch else { throw Error(.invalidSyntax) }
 
-          return list
-        }
-
-        guard case .identifier = token.type else {
-          throw Error(.invalidSyntax, "Expected Type")
-        }
-        scanner.pop()
-
-        let node = AST.Node(.type, name: token.value)
-
-        list.children.append(node)
+        defer { skipNewlines() }
+        return try nextAction(&self)()
       }
 
-    default:
-      throw Error(.invalidSyntax)
+      currentNode = nextNode
+
+      if let match = currentNode.value {
+        lastMatch = match
+      }
     }
 
-    throw Error(.unknown)
+    return AST.Node(.unknown)
   }
 
   mutating func parseScope() throws -> AST.Node {
+    precondition(scanner.pop().type == .openBrace)
 
-    assert(scanner.peek()?.type == .openBrace)
+    var scopeTokens: [Lexer.Token] = []
 
-    //TODO(vdka): maybe crashes on main :: () -> Int EOF
-    scanner.pop()
+    var depth = 1
+    while let next = scanner.peek() {
+      switch next.type {
+      case .openBrace:
+        depth += 1
 
-    let scopeNode = AST.Node(.scope)
+      case .closeBrace:
+        depth -= 1
 
-    repeat {
+      default:
+        break
+      }
 
-      let node = try parse()
+      guard depth > 0 else { break }
 
-      scopeNode.children.append(node)
+      scanner.pop()
+      scopeTokens.append(next)
+    }
 
-    } while scanner.peek() != nil && scanner.peek()?.type != .closeBrace
+    guard depth == 0 else { throw Error(.invalidSyntax, "Unmatched brace") }
 
-    return scopeNode
+    let scopeBody = try TrieParser.parse(scopeTokens)
+
+    let scope = AST.Node(.scope, children: scopeBody.children)
+
+    precondition(scanner.pop().type == .closeBrace)
+
+    return scope
   }
 
   mutating func parseImport() throws -> AST.Node {
@@ -191,30 +138,41 @@ struct Parser {
 
   mutating func parseStaticDeclaration() throws -> AST.Node {
 
-    let identifier = scanner.pop()
-    scanner.pop()
-    guard let next = scanner.peek() else { throw Error(.invalidSyntax) }
+    var seen = 2
+
+    guard let next = scanner.peek(aheadBy: seen) else { throw Error(.invalidSyntax) }
+    seen += 1
 
     switch next.type {
     case .string:
-      return AST.Node(.string, value: next.value)
+      return parseStaticLiteral(.string)
 
     case .integer:
-      return AST.Node(.integer, value: next.value)
+      return parseStaticLiteral(.string)
 
     case .real:
-      return AST.Node(.real, value: next.value)
+      return parseStaticLiteral(.string)
 
     case .openParentheses: // peek until we find the matching close, if the next tokenType after that is a '->' then we have a procedure, otherwise it's a tuple
-      var peeked = 1
-      while let next = scanner.peek(aheadBy: peeked) {
-        defer { peeked += 1 }
+      while let next = scanner.peek(aheadBy: seen) {
+        defer { seen += 1 }
 
         if case .closeParentheses = next.type {
-          if case .returnOperator? = scanner.peek(aheadBy: peeked + 1)?.type {
+          if case .returnOperator? = scanner.peek(aheadBy: seen + 1)?.type {
+
+            while case .newline? = scanner.peek()?.type {
+              scanner.pop()
+            }
+
             return try parseProcedure()
           } else {
-            return try parseTuple()
+
+            let nameToken = scanner.pop()
+            let node = AST.Node(.staticDeclaration, name: nameToken.value)
+
+            node.children = [try parseTuple()]
+
+            return node
           }
         }
       }
@@ -236,12 +194,56 @@ struct Parser {
       unimplemented()
 
     default:
+      debug(next)
       throw Error(.invalidSyntax)
     }
   }
 
+  mutating func parseStaticLiteral(_ kind: AST.Node.Kind) -> AST.Node {
+    let identifier = scanner.pop()
+    scanner.pop()
+    let literal = scanner.pop()
+
+    let value = AST.Node(kind, name: literal.value)
+
+    return AST.Node(.staticDeclaration, name: identifier.value, children: [value])
+  }
+
   mutating func parseTuple() throws -> AST.Node {
-    unimplemented()
+    let t = scanner.pop()
+    precondition(t.type == .openParentheses, "\(t)")
+
+    let tuple = AST.Node(.tuple)
+
+    var wasComma = false
+    while let token = scanner.peek() {
+
+      if case .comma = token.type {
+        guard !wasComma else { throw Error(.invalidSyntax, "Duplicate comma") }
+        wasComma = true
+        scanner.pop()
+        continue
+      }
+
+      if case .closeParentheses = token.type {
+        guard !wasComma else { throw Error(.invalidSyntax, "Trailing comma in Type list") }
+
+        scanner.pop()
+
+        return tuple
+      }
+
+      guard case .identifier = token.type else { throw Error(.invalidSyntax, "Expected Type") }
+      scanner.pop()
+
+      let type = AST.Node(.type, name: token.value)
+
+      tuple.children.append(type)
+
+      wasComma = false
+    }
+
+    throw Error(.invalidSyntax, "Expected ')' too match")
   }
 
   mutating func parseStruct() throws -> AST.Node {
@@ -250,13 +252,21 @@ struct Parser {
 
   mutating func parseProcedure() throws -> AST.Node {
 
-    _ = scanner.pop()
-    scanner.pop() // ::
-    _ = try parseTypeList(forceParens: true)
+    let identifier = scanner.pop()
+    precondition(scanner.pop().type == .staticDeclaration) // ::
+    let input = try parseTuple()
+    scanner.pop() // ->
 
-    // parseScope(context: .procedure)
+    let output = try parseType()
 
-    unimplemented()
+    let body = try parseScope()
+
+    let procedure = AST.Node(.procedure, name: identifier.value, children: [input, output, body])
+
+    return procedure
+
+
+    // unimplemented()
   }
 
   mutating func parseEnum() throws -> AST.Node {
@@ -265,6 +275,26 @@ struct Parser {
 
   // TODO(vdka): proper implementation
   mutating func parseExpression() throws -> AST.Node {
+
+    let next = scanner.peek()!
+
+    switch next.type {
+    case .string:
+      scanner.pop()
+      return AST.Node(.string, value: next.value)
+
+    case .integer:
+      scanner.pop()
+      return AST.Node(.integer, value: next.value)
+
+    case .real:
+      scanner.pop()
+      return AST.Node(.real, value: next.value)
+
+    default:
+      break
+
+    }
 
     return AST.Node(.unknown)
     // unimplemented()
@@ -279,18 +309,57 @@ struct Parser {
 
     return AST.Node(.returnStatement, children: [expressionNode])
   }
+
+  mutating func parseType() throws -> AST.Node {
+
+    let list = AST.Node(.typeList)
+
+    guard let token = scanner.peek() else {
+      throw Error(.invalidSyntax, "Expected Type")
+    }
+
+    switch token.type {
+    case .identifier: // single argument
+      scanner.pop()
+
+      let node = AST.Node(.type, name: token.value)
+      list.children.append(node)
+
+      return list
+
+    case .openParentheses: // multi argument
+
+      return try parseTuple()
+
+    default:
+      throw Error(.invalidSyntax)
+    }
+  }
+
+  mutating func skipNewlines() {
+
+    while let next = scanner.peek() {
+      guard case .newline = next.type else { return }
+      scanner.pop()
+    }
+  }
 }
 
-extension Parser {
+extension TrieParser {
 
   struct Error: Swift.Error {
 
     var reason: Reason
     var message: String
 
-    init(_ reason: Reason, _ message: String? = nil) {
+    var file: StaticString
+    var line: UInt
+
+    init(_ reason: Reason, _ message: String? = nil, file: StaticString = #file, line: UInt = #line) {
       self.reason = reason
       self.message = message ?? "Add an error message"
+      self.file = file
+      self.line = line
     }
 
     enum Reason: Swift.Error {

@@ -18,7 +18,17 @@ do {
 
   let tokens = try Lexer.tokenize(file)
 
-  print(tokens)
+  var lastLine: UInt = 0
+  for token in tokens {
+    if token.filePosition.line == lastLine {
+      print(token, terminator: " ")
+    } else {
+      lastLine += 1
+      print(token)
+    }
+  }
+
+  print("Done lexing\n")
 
   //var parser = Parser(tokens)
 

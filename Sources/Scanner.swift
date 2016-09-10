@@ -39,6 +39,12 @@ extension Scanner {
     defer { pointer = pointer.advanced(by: 1) }
     return pointer.pointee
   }
+
+  mutating func pop(_ n: Int) {
+    for _ in 0..<n {
+      pop()
+    }
+  }
 }
 
 extension Scanner {
