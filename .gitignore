@@ -2,6 +2,3 @@
 /.build
 /Packages
 /*.xcodeproj
-build.sh
-run.sh
-.atom-build.yml

@@ -1,0 +1,14 @@
+cmd: "$(pwd)/build.sh"
+name: "Build script"
+sh: true,
+errorMatch:
+  - "(?<file>[\\/0-9a-zA-Z\\.\\+_]+):(?<line>\\d+):(?<col>\\d+): error: (?<message>.+)"
+warningMatch:
+  - "(?<file>[\\/0-9a-zA-Z\\.\\+_]+):(?<line>\\d+):(?<col>\\d+): warning: (?<message>.+)"
+targets:
+  "Run Script":
+    sh: true
+    cmd: "$(pwd)/run.sh"
+  "Run Script with main.kai":
+    sh: true
+    cmd: "$(pwd)/run.sh samples/main.kai"
