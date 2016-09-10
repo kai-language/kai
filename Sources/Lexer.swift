@@ -52,7 +52,7 @@ extension Lexer {
       // Ensure we can traverse our Trie to the next node
       guard let nextNode = currentNode[char] else {
 
-        if let tokenType = currentNode.value, whitespace.contains(char) {
+        if let tokenType = currentNode.value {
           scanner.pop(peeked)
           return token(tokenType, value: partial)
         } else {

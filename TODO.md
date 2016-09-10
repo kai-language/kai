@@ -17,7 +17,8 @@
 - [ ] Unions
 
 ## Small Features
-- [ ] Sort out valid variable names mainly the heads for identifiers (`[a-zA-Z_][a-zA-Z0-9_]`) Then unicode characters
+- [x] Sort out valid variable names mainly the heads for identifiers (`[a-zA-Z_][a-zA-Z0-9_]`)
+- [ ] Add unicode characters support. [ref](https://developer.apple.com/library/ios/documentation/Swift/Conceptual/Swift_Programming_Language/LexicalStructure.html)
 
 ## Syntax
 - [ ] Review Forcing the user to wrap multiple input and output types for procedures in parenthesis
@@ -29,7 +30,6 @@
 # Lexer
 
 - [ ] Tests
-  - [ ] `parseNumber`
   - [ ] `parseNumber`
 
 ## Compilation steps for executables

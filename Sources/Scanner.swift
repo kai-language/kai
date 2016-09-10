@@ -41,6 +41,13 @@ extension Scanner {
   }
 }
 
+extension Scanner {
+
+  var isEmpty: Bool {
+    return pointer == elements.endAddress
+  }
+
+}
 
 struct ScannerError: Swift.Error {
   let position: UInt

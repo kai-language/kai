@@ -128,7 +128,7 @@ struct Parser {
       while let token = scanner.peek() {
 
         if case .comma = token.type {
-          guard wasComma else { throw Error(.invalidSyntax, "Duplicate comma") }
+          guard !wasComma else { throw Error(.invalidSyntax, "Duplicate comma") }
           wasComma = false
           scanner.pop()
           continue

@@ -36,6 +36,7 @@ struct AST {
       case type
       case typeList
       case procedure
+      case parameterList
       case procedureReturn
       case scope
       case returnStatement

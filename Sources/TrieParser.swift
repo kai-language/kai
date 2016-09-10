@@ -41,16 +41,17 @@ struct TrieParser {
     // TODO(vdka): Handle adding actual file nodes.
     let fileNode = AST.Node(.unknown)
 
-    while let node = try parser.nextASTNode() {
+    while !parser.scanner.isEmpty {
       // print("\(input.name)(\(token.filePosition.line):\(token.filePosition.column)): \(token)")
 
+      let node = try parser.nextASTNode()
       fileNode.children.append(node)
     }
 
     return fileNode
   }
 
-  mutating func nextASTNode() throws -> AST.Node? {
+  mutating func nextASTNode() throws -> AST.Node {
 
     var currentNode = parserGrammar
 
@@ -76,7 +77,7 @@ struct TrieParser {
       }
     }
 
-    throw Error(.invalidSyntax)
+    return AST.Node(.unknown)
   }
 
   mutating func parseScope() throws -> AST.Node {
@@ -145,7 +146,40 @@ struct TrieParser {
   }
 
   mutating func parseTuple() throws -> AST.Node {
-    unimplemented()
+    let t = scanner.pop()
+    precondition(t.type == .openParentheses, "\(t)")
+
+    let tuple = AST.Node(.tuple)
+
+    var wasComma = false
+    while let token = scanner.peek() {
+
+      if case .comma = token.type {
+        guard !wasComma else { throw Error(.invalidSyntax, "Duplicate comma") }
+        wasComma = true
+        scanner.pop()
+        continue
+      } else {
+        wasComma = false
+      }
+
+      if case .closeParentheses = token.type {
+        guard !wasComma else { throw Error(.invalidSyntax, "Trailing comma in Type list") }
+
+        scanner.pop()
+
+        return tuple
+      }
+
+      guard case .identifier = token.type else { throw Error(.invalidSyntax, "Expected Type") }
+      scanner.pop()
+
+      let type = AST.Node(.type, name: token.value)
+
+      tuple.children.append(type)
+    }
+
+    throw Error(.invalidSyntax, "Expected ')' too match")
   }
 
   mutating func parseStruct() throws -> AST.Node {
@@ -207,43 +241,13 @@ struct TrieParser {
 
     case .openParentheses: // multi argument
 
-      return try parseTuple()
-      scanner.pop()
-
-      var wasComma = false
-      while let token = scanner.peek() {
-
-        if case .comma = token.type {
-          guard wasComma else { throw Error(.invalidSyntax, "Duplicate comma") }
-          wasComma = false
-          scanner.pop()
-          continue
-        } else {
-          wasComma = true
-        }
-
-        if case .closeParentheses = token.type {
-          // guard !wasComma else { throw Error(.invalidSyntax, "Trailing comma in Type list") }
-          scanner.pop()
-
-          return list
-        }
-
-        guard case .identifier = token.type else {
-          throw Error(.invalidSyntax, "Expected Type")
-        }
-        scanner.pop()
-
-        let node = AST.Node(.type, name: token.value)
-
-        list.children.append(node)
-      }
+      let argumentList = try parseTuple()
+      argumentList.kind = .parameterList
+      return argumentList
 
     default:
       throw Error(.invalidSyntax)
     }
-
-    throw Error(.unknown)
   }
 }
 
