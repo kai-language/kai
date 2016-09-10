@@ -4,31 +4,6 @@
 // This component validates that the program structure is actually correct.
 // IE: Is a token of type N followed by a token of type M valid?
 
-var parserGrammar: Trie<[Lexer.TokenType], (inout Parser) -> () throws -> AST.Node> = {
-
-  func just(node: AST.Node) -> (_ parser: inout Parser) -> () throws -> AST.Node {
-
-    return { _ in
-      return {
-        return node
-      }
-    }
-  }
-
-  var parserGrammar: Trie<[Lexer.TokenType], (inout Parser) -> () throws -> AST.Node> = Trie(key: .unknown)
-
-  parserGrammar.insert(Parser.parseImport, forKeyPath: [.importKeyword, .string])
-  parserGrammar.insert(Parser.parseReturnExpression, forKeyPath: [.returnKeyword])
-
-  // this will end up being a `call_expr` node. (as it's called in Swift)
-  parserGrammar.insert(just(node: AST.Node(.unknown)), forKeyPath: [.identifier, .openParentheses])
-
-  // `parseStaticDeclaration determines if the following value is a type name, `
-  parserGrammar.insert(Parser.parseStaticDeclaration, forKeyPath: [.identifier, .staticDeclaration])
-
-  return parserGrammar
-}()
-
 struct Parser {
 
   var scanner: Scanner<Lexer.Token>

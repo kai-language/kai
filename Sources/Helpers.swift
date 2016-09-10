@@ -40,10 +40,10 @@ extension ExpressibleByStringLiteral where StringLiteralType == StaticString {
   }
 }
 
-func unimplemented(_ featureName: String) -> Never {
-  fatalError("Unimplemented feature \(featureName).")
+func unimplemented(_ featureName: String, file: StaticString = #file, line: UInt = #line) -> Never {
+  fatalError("\(file):\(line): Unimplemented feature \(featureName).")
 }
 
-func unimplemented() -> Never {
-  fatalError("Unimplemented feature.")
+func unimplemented(file: StaticString = #file, line: UInt = #line) -> Never {
+  fatalError("\(file):\(line): Unimplemented feature.")
 }

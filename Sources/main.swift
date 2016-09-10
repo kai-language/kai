@@ -14,17 +14,26 @@ let kaiRoot = "/" + #file.characters
 // TODO(vdka): Read this from the arguments
 let file = File(path: kaiRoot + "/" + fileName)!
 
-let tokens = try Lexer.tokenize(file)
+do {
 
-var parser = Parser(tokens)
+  let tokens = try Lexer.tokenize(file)
 
-let ast = try parser.parse()
+  print(tokens)
 
-print(ast.pretty())
-print()
+  //var parser = Parser(tokens)
 
-let ir = IRBuilder.getIR(for: ast)
+  //let ast = try parser.parse()
 
-print(ir)
+  let ast = try TrieParser.parse(tokens)
+
+  print(ast.pretty())
+  print()
+
+  let ir = IRBuilder.getIR(for: ast)
+
+  print(ir)
+} catch {
+  print("error: \(error)")
+}
 
 // print(parserGrammer.pretty())
