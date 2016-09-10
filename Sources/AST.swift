@@ -21,11 +21,12 @@ struct AST {
 
     var children: [Node] = []
 
-    init(_ kind: Kind, name: ByteString? = nil, value: ByteString? = nil, type: KaiType? = nil) {
+    init(_ kind: Kind, name: ByteString? = nil, value: ByteString? = nil, type: KaiType? = nil, children: [AST.Node] = []) {
       self.kind = kind
       self.name = name
       self.value = value
       self.type = type
+      self.children = children
     }
 
     enum Kind {
@@ -38,7 +39,10 @@ struct AST {
       case procedureReturn
       case scope
       case returnStatement
+      case tuple
       case integer
+      case real
+      case string
       case staticDeclaration
     }
   }
@@ -67,5 +71,53 @@ extension AST.Node {
     guard case .procedure = kind else { return nil }
 
     return children[2]
+  }
+
+  func pretty(depth: Int = 0) -> String {
+    var description = ""
+
+    let indentation = (0...depth).reduce("\n", { $0.0 + " " })
+
+    description += indentation + "(" + String(describing: kind)
+
+    if let name = name {
+      description += " "
+      description += "name: '\(String(name))'"
+    }
+
+    if let value = value {
+      description += " "
+      description += "value: '\(String(value))'"
+    }
+
+    // if let type = type {
+    //   description += " "
+    //   description += "type: '\(String(type))'"
+    // }
+
+    let childDescriptions = self.children
+//      .sorted { $0.1.value < $1.1.value }
+      .map { $0.pretty(depth: depth + 1) }
+      .reduce("", { $0 + $1})
+
+    // let pretty = "- \(key)\(payload)" + "\n" + "\(children)"
+
+    // if !childDescriptions.isEmpty {
+    //   for childDescription in childDescriptions {
+    //     description += "\n"
+    //     description += indentation
+    //     description += childDescription
+    //   }
+    //
+    //   description += "\n"
+    //   description += indentation
+    // }
+
+    description += childDescriptions
+
+    description += ")"
+
+
+    return description
   }
 }

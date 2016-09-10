@@ -4,6 +4,31 @@
 // This component validates that the program structure is actually correct.
 // IE: Is a token of type N followed by a token of type M valid?
 
+var parserGrammar: Trie<[Lexer.TokenType], (inout Parser) -> () throws -> AST.Node> = {
+
+  func just(node: AST.Node) -> (_ parser: inout Parser) -> () throws -> AST.Node {
+
+    return { _ in
+      return {
+        return node
+      }
+    }
+  }
+
+  var parserGrammar: Trie<[Lexer.TokenType], (inout Parser) -> () throws -> AST.Node> = Trie(key: .unknown)
+
+  parserGrammar.insert(Parser.parseImport, forKeyPath: [.importKeyword, .string])
+  parserGrammar.insert(Parser.parseReturnExpression, forKeyPath: [.returnKeyword])
+
+  // this will end up being a `call_expr` node. (as it's called in Swift)
+  parserGrammar.insert(just(node: AST.Node(.unknown)), forKeyPath: [.identifier, .openParentheses])
+
+  // `parseStaticDeclaration determines if the following value is a type name, `
+  parserGrammar.insert(Parser.parseStaticDeclaration, forKeyPath: [.identifier, .staticDeclaration])
+
+  return parserGrammar
+}()
+
 struct Parser {
 
   var scanner: Scanner<Lexer.Token>
@@ -189,16 +214,95 @@ struct Parser {
     return AST.Node(.fileImport, value: fileName)
   }
 
+  mutating func parseStaticDeclaration() throws -> AST.Node {
+
+    let identifier = scanner.pop()
+    scanner.pop()
+    guard let next = scanner.peek() else { throw Error(.invalidSyntax) }
+
+    switch next.type {
+    case .string:
+      return AST.Node(.string, value: next.value)
+
+    case .integer:
+      return AST.Node(.integer, value: next.value)
+
+    case .real:
+      return AST.Node(.real, value: next.value)
+
+    case .openParentheses: // peek until we find the matching close, if the next tokenType after that is a '->' then we have a procedure, otherwise it's a tuple
+      var peeked = 1
+      while let next = scanner.peek(aheadBy: peeked) {
+        defer { peeked += 1 }
+
+        if case .closeParentheses = next.type {
+          if case .returnOperator? = scanner.peek(aheadBy: peeked + 1)?.type {
+            return try parseProcedure()
+          } else {
+            return try parseTuple()
+          }
+        }
+      }
+
+      throw Error(.invalidSyntax)
+
+    case .structKeyword:
+      return try parseStruct()
+
+    case .enumKeyword:
+      return try parseEnum()
+
+    case .identifier:
+      // will need to do a number of things.
+      // Firstly if the Identifier is not a literal then we need to check to see if the value can be resolved @ compile time.
+      // if the value cannot be resolved at compile time then this program is invalid. The error emitted would be:
+      //   "Error: Runtime expresion in compile time declaration"
+      // Is that clear?
+      unimplemented()
+
+    default:
+      throw Error(.invalidSyntax)
+    }
+  }
+
+  mutating func parseTuple() throws -> AST.Node {
+    unimplemented()
+  }
+
   mutating func parseStruct() throws -> AST.Node {
     unimplemented()
   }
 
   mutating func parseProcedure() throws -> AST.Node {
+
+    _ = scanner.pop()
+    scanner.pop() // ::
+    _ = try parseTypeList(forceParens: true)
+
+    // parseScope(context: .procedure)
+
     unimplemented()
   }
 
   mutating func parseEnum() throws -> AST.Node {
     unimplemented()
+  }
+
+  // TODO(vdka): proper implementation
+  mutating func parseExpression() throws -> AST.Node {
+
+    return AST.Node(.unknown)
+    // unimplemented()
+  }
+
+  // - Precondition: Scanner's first token type *must* be a .returnKeyword
+  mutating func parseReturnExpression() throws -> AST.Node {
+
+    scanner.pop()
+
+    let expressionNode = try parseExpression()
+
+    return AST.Node(.returnStatement, children: [expressionNode])
   }
 }
 

@@ -88,11 +88,9 @@ extension Trie {
   }
 }
 
-extension Trie
-  // where Key: CustomStringConvertible, Value: CustomStringConvertible
-{
-  func pretty(depth: Int = 0) -> String {
+extension Trie {
 
+  func pretty(depth: Int = 0) -> String {
 
     let payload: String
     if let value = self.value {

@@ -46,7 +46,7 @@ extension Lexer {
       // if we have some sort of token where we need to perform a Lexing action then do that
       if let nextAction = currentNode[char]?.value?.nextAction {
 
-        return try nextAction(&self)()
+          return try nextAction(&self)()
       }
 
       // Ensure we can traverse our Trie to the next node
@@ -57,14 +57,13 @@ extension Lexer {
           return token(tokenType, value: partial)
         } else {
 
-          consumeWhile({ !whitespace.contains($0) })
+          consumeIdentifier()
           return token(.identifier, value: partial)
         }
       }
 
       // If the next node has no further children then it's a leaf.
       guard !nextNode.children.isEmpty else {
-        // print("popping \(peeked)")
         scanner.pop(peeked)
         return token(nextNode.value!, value: partial)
       }
@@ -77,11 +76,29 @@ extension Lexer {
       }
       */
 
-
       currentNode = nextNode
     }
 
     return nil
+  }
+
+  /// - Precondition: Scanner should be on the first character in an identifier
+  mutating func consumeIdentifier() {
+
+    let firstChar = scanner.pop()
+
+    partial.append(firstChar)
+
+    while let char = scanner.peek() {
+      guard
+        ("0"..."9").contains(char) ||
+        ("a"..."z").contains(char) ||
+        ("A"..."Z").contains(char)
+        else { return }
+
+      partial.append(char)
+      scanner.pop()
+    }
   }
 
   /// appends the contents of everything consumed to partial

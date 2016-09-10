@@ -12,8 +12,5 @@ $CC build -Xswiftc $SWIFTC_FLAGS
 
 if [ $? -ne 0 ]; then
 
-  echo "Build Failed!"
   exit 1
 fi
-
-echo "Build Succeeded!"

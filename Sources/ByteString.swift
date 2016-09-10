@@ -152,3 +152,10 @@ extension ByteString {
     bytes.removeLast(n)
   }
 }
+
+extension String {
+
+  init(_ byteString: ByteString) {
+    self = String(utf8: byteString.bytes)!
+  }
+}
