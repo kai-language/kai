@@ -217,6 +217,43 @@ struct Parser {
     return AST.Node(.staticDeclaration, name: identifier.value, children: [value])
   }
 
+  mutating func parseProcedureArguments() throws -> AST.Node {
+    expect(.openParentheses, from: scanner.pop())
+
+    let tuple = AST.Node(.tuple)
+
+    var wasComma = false
+    while let token = scanner.peek() {
+
+      if case .comma = token.type {
+        guard !tuple.children.isEmpty else { throw Error(.invalidSyntax, "Trailing Comma") }
+        guard !wasComma else { throw Error(.invalidSyntax, "Duplicate comma") }
+        wasComma = true
+        scanner.pop()
+        continue
+      }
+
+      if case .closeParentheses = token.type {
+        guard !wasComma else { throw Error(.invalidSyntax, "Trailing comma in Type list") }
+
+        scanner.pop()
+
+        return tuple
+      }
+
+      guard case .identifier = token.type else { throw Error(.invalidSyntax, "Expected Type") }
+      scanner.pop()
+
+      let type = AST.Node(.type, name: token.value)
+
+      tuple.add(type)
+
+      wasComma = false
+    }
+
+    throw Error(.invalidSyntax, "Expected ')' too match")
+  }
+
   mutating func parseTuple() throws -> AST.Node {
     let start = scanner.pop()
     expect(.openParentheses, from: start)
