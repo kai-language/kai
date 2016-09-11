@@ -14,16 +14,25 @@ struct AST {
 
     // TODO(vdka): add a file name and position field for Nodes.
 
+    weak var parent: Node?
     var kind: Kind
+    var filePosition: FileScanner.Position?
     var name: ByteString?
     var value: ByteString?
     var type: KaiType?
 
     var children: [Node] = []
 
-    init(_ kind: Kind, name: ByteString? = nil, value: ByteString? = nil, type: KaiType? = nil, children: [AST.Node] = []) {
+    init(_ kind: Kind,
+           name: ByteString? = nil,
+           filePosition: FileScanner.Position? = nil,
+           value: ByteString? = nil,
+           type: KaiType? = nil,
+           children: [AST.Node] = []) {
+
       self.kind = kind
       self.name = name
+      self.filePosition = filePosition
       self.value = value
       self.type = type
       self.children = children
@@ -38,9 +47,15 @@ struct AST {
       case fileImport
       case unknown
       case type
+
+      case identifier
+
+      case declarationReference
+
       case typeList
       case procedure
       case parameterList
+      case procedureArgumentList
       case procedureReturn
       case scope
       case returnStatement
@@ -50,6 +65,14 @@ struct AST {
       case string
       case staticDeclaration
     }
+  }
+}
+
+extension AST.Node {
+
+  func add(_ child: AST.Node) {
+    child.parent = self
+    children.append(child)
   }
 }
 

@@ -56,7 +56,7 @@ struct Parser {
       // print("\(input.name)(\(token.filePosition.line):\(token.filePosition.column)): \(token)")
 
       let node = try parser.nextASTNode()
-      fileNode.children.append(node)
+      fileNode.add(node)
     }
 
     return fileNode
@@ -93,11 +93,14 @@ struct Parser {
       }
     }
 
+    debug("Something went wrong!")
+
     return AST.Node(.unknown)
   }
 
   mutating func parseScope() throws -> AST.Node {
-    precondition(scanner.pop().type == .openBrace)
+    let scopeOpenToken = scanner.pop()
+    expect(.openBrace, from: scopeOpenToken)
 
     var scopeTokens: [Lexer.Token] = []
 
@@ -124,20 +127,20 @@ struct Parser {
 
     let scopeBody = try Parser.parse(scopeTokens)
 
-    let scope = AST.Node(.scope, children: scopeBody.children)
+    let scope = AST.Node(.scope, filePosition: scopeOpenToken.filePosition, children: scopeBody.children)
 
-    precondition(scanner.pop().type == .closeBrace)
+    expect(.closeBrace, from: scanner.pop())
 
     return scope
   }
 
   mutating func parseImport() throws -> AST.Node {
-    assert(scanner.peek()?.type == .importKeyword)
-    scanner.pop()
+    let start = scanner.pop()
+    expect(.importKeyword, from: start)
 
     let fileName = scanner.pop().value
 
-    return AST.Node(.fileImport, value: fileName)
+    return AST.Node(.fileImport, filePosition: start.filePosition, value: fileName)
   }
 
   mutating func parseStaticDeclaration() throws -> AST.Node {
@@ -170,6 +173,8 @@ struct Parser {
 
             return try parseProcedure()
           } else {
+
+            debug()
 
             let nameToken = scanner.pop()
             let node = AST.Node(.staticDeclaration, name: nameToken.value)
@@ -213,8 +218,8 @@ struct Parser {
   }
 
   mutating func parseTuple() throws -> AST.Node {
-    let t = scanner.pop()
-    precondition(t.type == .openParentheses, "\(t)")
+    let start = scanner.pop()
+    expect(.openParentheses, from: start)
 
     let tuple = AST.Node(.tuple)
 
@@ -242,7 +247,7 @@ struct Parser {
 
       let type = AST.Node(.type, name: token.value)
 
-      tuple.children.append(type)
+      tuple.add(type)
 
       wasComma = false
     }
@@ -257,8 +262,10 @@ struct Parser {
   mutating func parseProcedure() throws -> AST.Node {
 
     let identifier = scanner.pop()
-    precondition(scanner.pop().type == .staticDeclaration) // ::
+    expect(.identifier, from: identifier)
+    expect(.staticDeclaration, from: scanner.pop())
     let input = try parseTuple()
+    input.kind = .procedureArgumentList
     scanner.pop() // ->
 
     let output = try parseType()
@@ -295,7 +302,12 @@ struct Parser {
       scanner.pop()
       return AST.Node(.real, value: next.value)
 
+    case .identifier:
+      scanner.pop()
+      return AST.Node(.declarationReference, value: next.value)
+
     default:
+      scanner.pop()
 
       debug("Not yet sure what to do with a \(next) while parsing expression")
       break
@@ -310,9 +322,9 @@ struct Parser {
 
     scanner.pop()
 
-    let expressionNode = try parseExpression()
+    let expression = try parseExpression()
 
-    return AST.Node(.returnStatement, children: [expressionNode])
+    return AST.Node(.returnStatement, children: [expression])
   }
 
   mutating func parseType() throws -> AST.Node {
@@ -328,7 +340,7 @@ struct Parser {
       scanner.pop()
 
       let node = AST.Node(.type, name: token.value)
-      list.children.append(node)
+      list.add(node)
 
       return list
 
@@ -372,7 +384,7 @@ struct Parser {
       let expression = try parseExpression()
       debug(expression)
 
-      call.children.append(expression)
+      call.add(expression)
 
       wasComma = false
     }
@@ -388,6 +400,17 @@ struct Parser {
     while let next = scanner.peek() {
       guard case .newline = next.type else { return }
       scanner.pop()
+    }
+  }
+}
+
+
+// MARK: - Helpers
+
+extension Parser {
+  func expect(_ expected: Lexer.TokenType, from given: Lexer.Token) {
+    guard expected == given.type else {
+      preconditionFailure("Expectations Failed! Expected token of type \(expected), got token \(given)!")
     }
   }
 }
