@@ -31,6 +31,10 @@ struct AST {
 
     enum Kind {
       case file
+      case emptyFile
+
+      case call
+
       case fileImport
       case unknown
       case type

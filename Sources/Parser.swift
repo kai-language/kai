@@ -1,7 +1,7 @@
 
 typealias Action<Input, Output> = (inout Input) -> () throws -> Output
 
-var parserGrammar: Trie<[Lexer.TokenType], Action<TrieParser, AST.Node>> = {
+var parserGrammar: Trie<[Lexer.TokenType], Action<Parser, AST.Node>> = {
 
   func just(node: AST.Node) -> (inout Parser) -> () throws -> AST.Node {
 
@@ -12,22 +12,24 @@ var parserGrammar: Trie<[Lexer.TokenType], Action<TrieParser, AST.Node>> = {
     }
   }
 
-  var parserGrammar: Trie<[Lexer.TokenType], Action<TrieParser, AST.Node>> = Trie(key: .unknown)
+  var parserGrammar: Trie<[Lexer.TokenType], Action<Parser, AST.Node>> = Trie(key: .unknown)
 
-  parserGrammar.insert(TrieParser.parseImport, forKeyPath: [.importKeyword, .string])
-  parserGrammar.insert(TrieParser.parseReturnExpression, forKeyPath: [.returnKeyword])
-  parserGrammar.insert(TrieParser.parseScope, forKeyPath: [.openBrace])
+  parserGrammar.insert(Parser.parseImport,            forKeyPath: [.importKeyword, .string])
+  parserGrammar.insert(Parser.parseReturnExpression,  forKeyPath: [.returnKeyword])
+  parserGrammar.insert(Parser.parseScope,             forKeyPath: [.openBrace])
+
+  parserGrammer.insert(Parser.parseCall,              forKeyPath: [.identifier, .openParentheses])
 
   // this will end up being a `call_expr` node. (as it's called in Swift)
   // parserGrammar.insert(just(node: AST.Node(.unknown)), forKeyPath: [.identifier, .openParentheses])
 
   // `parseStaticDeclaration determines if the following value is a type name, `
-  parserGrammar.insert(TrieParser.parseStaticDeclaration, forKeyPath: [.identifier, .staticDeclaration])
+  parserGrammar.insert(Parser.parseStaticDeclaration, forKeyPath: [.identifier, .staticDeclaration])
 
   return parserGrammar
 }()
 
-struct TrieParser {
+struct Parser {
 
   var scanner: Scanner<Lexer.Token>
 
@@ -37,10 +39,12 @@ struct TrieParser {
 
   static func parse(_ tokens: [Lexer.Token]) throws -> AST.Node {
 
-    var parser = TrieParser(tokens)
+    var parser = Parser(tokens)
+
+    guard let fileName = tokens.first?.filePosition.fileName else { return AST.Node(.emptyFile) }
 
     // TODO(vdka): Handle adding actual file nodes.
-    let fileNode = AST.Node(.unknown)
+    let fileNode = AST.Node(.file, name: ByteString(fileName))
 
     // while !parser.scanner.isEmpty {
     while let next = parser.scanner.peek() {
@@ -62,7 +66,7 @@ struct TrieParser {
 
     var currentNode = parserGrammar
 
-    var lastMatch: Action<TrieParser, AST.Node>? = nil
+    var lastMatch: Action<Parser, AST.Node>? = nil
 
     var peeked = 0
 
@@ -118,7 +122,7 @@ struct TrieParser {
 
     guard depth == 0 else { throw Error(.invalidSyntax, "Unmatched brace") }
 
-    let scopeBody = try TrieParser.parse(scopeTokens)
+    let scopeBody = try Parser.parse(scopeTokens)
 
     let scope = AST.Node(.scope, children: scopeBody.children)
 
@@ -336,6 +340,44 @@ struct TrieParser {
     }
   }
 
+  mutating func parseCall() throws -> AST.Node {
+
+    let procedureName = scanner.pop().value
+
+    guard case .openParentheses? = scanner.peek()?.type else { throw Error(.invalidSyntax) }
+
+    let call = AST.Node(.call)
+
+    var wasComma = false
+    while let token = scanner.peek() {
+
+      if case .comma = token.type {
+        guard !wasComma else { throw Error(.invalidSyntax, "Duplicate comma") }
+        wasComma = true
+        scanner.pop()
+        continue
+      }
+
+      if case .closeParentheses = token.type {
+        guard !wasComma else { throw Error(.invalidSyntax, "Trailing comma in Type list") }
+
+        scanner.pop()
+
+        return tuple
+      }
+
+      guard case .identifier = token.type else { throw Error(.invalidSyntax, "Expected Type") }
+      scanner.pop()
+
+      // NOTE(vdka): here we can have any type of expression
+      let type = AST.Node(.callArguemnt, name: token.value)
+
+      call.children.append(type)
+
+      wasComma = false
+    }
+  }
+
   mutating func skipNewlines() {
 
     while let next = scanner.peek() {
@@ -345,7 +387,7 @@ struct TrieParser {
   }
 }
 
-extension TrieParser {
+extension Parser {
 
   struct Error: Swift.Error {
 

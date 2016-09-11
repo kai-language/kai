@@ -28,13 +28,11 @@ do {
     }
   }
 
-  print("Done lexing\n")
-
   //var parser = Parser(tokens)
 
   //let ast = try parser.parse()
 
-  let ast = try TrieParser.parse(tokens)
+  let ast = try Parser.parse(tokens)
 
   print(ast.pretty())
   print()
@@ -42,6 +40,7 @@ do {
   let ir = IRBuilder.getIR(for: ast)
 
   print(ir)
+  
 } catch {
   print("error: \(error)")
 }

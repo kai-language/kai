@@ -1,5 +1,7 @@
 
 main :: () -> Int {
 
+  print("Hello")
+
   return 5
 }
