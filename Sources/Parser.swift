@@ -18,7 +18,7 @@ var parserGrammar: Trie<[Lexer.TokenType], Action<Parser, AST.Node>> = {
   parserGrammar.insert(Parser.parseReturnExpression,  forKeyPath: [.returnKeyword])
   parserGrammar.insert(Parser.parseScope,             forKeyPath: [.openBrace])
 
-  parserGrammer.insert(Parser.parseCall,              forKeyPath: [.identifier, .openParentheses])
+  parserGrammar.insert(Parser.parseCall,              forKeyPath: [.identifier, .openParentheses])
 
   // this will end up being a `call_expr` node. (as it's called in Swift)
   // parserGrammar.insert(just(node: AST.Node(.unknown)), forKeyPath: [.identifier, .openParentheses])
@@ -198,7 +198,6 @@ struct Parser {
       unimplemented()
 
     default:
-      debug(next)
       throw Error(.invalidSyntax)
     }
   }
@@ -223,6 +222,7 @@ struct Parser {
     while let token = scanner.peek() {
 
       if case .comma = token.type {
+        guard !tuple.children.isEmpty else { throw Error(.invalidSyntax, "Trailing Comma") }
         guard !wasComma else { throw Error(.invalidSyntax, "Duplicate comma") }
         wasComma = true
         scanner.pop()
@@ -296,8 +296,9 @@ struct Parser {
       return AST.Node(.real, value: next.value)
 
     default:
-      break
 
+      debug("Not yet sure what to do with a \(next) while parsing expression")
+      break
     }
 
     return AST.Node(.unknown)
@@ -342,16 +343,18 @@ struct Parser {
 
   mutating func parseCall() throws -> AST.Node {
 
-    let procedureName = scanner.pop().value
-
+    guard let procedureName = scanner.peek()?.value else { throw Error(.invalidSyntax) }
+    scanner.pop()
     guard case .openParentheses? = scanner.peek()?.type else { throw Error(.invalidSyntax) }
+    scanner.pop()
 
-    let call = AST.Node(.call)
+    let call = AST.Node(.call, name: procedureName)
 
     var wasComma = false
     while let token = scanner.peek() {
 
       if case .comma = token.type {
+        guard !call.children.isEmpty else { throw Error(.invalidSyntax, "Trailing Comma") }
         guard !wasComma else { throw Error(.invalidSyntax, "Duplicate comma") }
         wasComma = true
         scanner.pop()
@@ -363,19 +366,21 @@ struct Parser {
 
         scanner.pop()
 
-        return tuple
+        return call
       }
 
-      guard case .identifier = token.type else { throw Error(.invalidSyntax, "Expected Type") }
-      scanner.pop()
+      let expression = try parseExpression()
+      debug(expression)
 
-      // NOTE(vdka): here we can have any type of expression
-      let type = AST.Node(.callArguemnt, name: token.value)
-
-      call.children.append(type)
+      call.children.append(expression)
 
       wasComma = false
     }
+
+    guard case .closeParentheses? = scanner.peek()?.type else { throw Error(.invalidSyntax) }
+    scanner.pop()
+
+    return call
   }
 
   mutating func skipNewlines() {

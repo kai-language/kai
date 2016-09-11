@@ -81,7 +81,7 @@ extension AST.Node {
   func pretty(depth: Int = 0) -> String {
     var description = ""
 
-    let indentation = (0...depth).reduce("\n", { $0.0 + " " })
+    let indentation = (0...depth).reduce("\n", { $0.0 + "  " })
 
     description += indentation + "(" + String(describing: kind)
 
