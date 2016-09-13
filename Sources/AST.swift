@@ -1,10 +1,4 @@
 
-struct KaiType {
-
-  var name: ByteString
-  var members: [(name: ByteString, KaiType)]
-}
-
 struct AST {
 
   // TODO(vdka): The program AST's root Node should be the main function.
@@ -19,7 +13,6 @@ struct AST {
     var filePosition: FileScanner.Position?
     var name: ByteString?
     var value: ByteString?
-    var type: KaiType?
 
     var children: [Node] = []
 
@@ -27,14 +20,12 @@ struct AST {
            name: ByteString? = nil,
            filePosition: FileScanner.Position? = nil,
            value: ByteString? = nil,
-           type: KaiType? = nil,
            children: [AST.Node] = []) {
 
       self.kind = kind
       self.name = name
       self.filePosition = filePosition
       self.value = value
-      self.type = type
       self.children = children
     }
 
@@ -56,6 +47,7 @@ struct AST {
       case procedure
       case parameterList
       case procedureArgumentList
+      case procedureArgument
       case procedureReturn
       case scope
       case returnStatement
@@ -118,28 +110,9 @@ extension AST.Node {
       description += "value: '\(String(value))'"
     }
 
-    // if let type = type {
-    //   description += " "
-    //   description += "type: '\(String(type))'"
-    // }
-
     let childDescriptions = self.children
-//      .sorted { $0.1.value < $1.1.value }
       .map { $0.pretty(depth: depth + 1) }
       .reduce("", { $0 + $1})
-
-    // let pretty = "- \(key)\(payload)" + "\n" + "\(children)"
-
-    // if !childDescriptions.isEmpty {
-    //   for childDescription in childDescriptions {
-    //     description += "\n"
-    //     description += indentation
-    //     description += childDescription
-    //   }
-    //
-    //   description += "\n"
-    //   description += indentation
-    // }
 
     description += childDescriptions
 
@@ -147,5 +120,12 @@ extension AST.Node {
 
 
     return description
+  }
+}
+
+extension AST.Node {
+
+  var description: String {
+    return pretty()
   }
 }

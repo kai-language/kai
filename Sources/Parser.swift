@@ -49,14 +49,15 @@ struct Parser {
     // while !parser.scanner.isEmpty {
     while let next = parser.scanner.peek() {
 
-      guard next.type != .newline else {
+      switch next.type {
+      case .newline, .lineComment, .blockComment:
         parser.scanner.pop()
         continue
-      }
-      // print("\(input.name)(\(token.filePosition.line):\(token.filePosition.column)): \(token)")
 
-      let node = try parser.nextASTNode()
-      fileNode.add(node)
+      default:
+        let node = try parser.nextASTNode()
+        fileNode.add(node)
+      }
     }
 
     return fileNode
@@ -80,7 +81,9 @@ struct Parser {
           continue
         }
 
-        guard let nextAction = lastMatch else { throw Error(.invalidSyntax) }
+        guard let nextAction = lastMatch else {
+          throw Error(.invalidSyntax, "Fell off the Trie at \(token)")
+        }
 
         defer { skipNewlines() }
         return try nextAction(&self)()
@@ -155,10 +158,10 @@ struct Parser {
       return parseStaticLiteral(.string)
 
     case .integer:
-      return parseStaticLiteral(.string)
+      return parseStaticLiteral(.integer)
 
     case .real:
-      return parseStaticLiteral(.string)
+      return parseStaticLiteral(.real)
 
     case .openParentheses: // peek until we find the matching close, if the next tokenType after that is a '->' then we have a procedure, otherwise it's a tuple
       while let next = scanner.peek(aheadBy: seen) {
@@ -217,42 +220,52 @@ struct Parser {
     return AST.Node(.staticDeclaration, name: identifier.value, children: [value])
   }
 
-  mutating func parseProcedureArguments() throws -> AST.Node {
-    expect(.openParentheses, from: scanner.pop())
-
-    let tuple = AST.Node(.tuple)
-
-    var wasComma = false
-    while let token = scanner.peek() {
-
-      if case .comma = token.type {
-        guard !tuple.children.isEmpty else { throw Error(.invalidSyntax, "Trailing Comma") }
-        guard !wasComma else { throw Error(.invalidSyntax, "Duplicate comma") }
-        wasComma = true
-        scanner.pop()
-        continue
-      }
-
-      if case .closeParentheses = token.type {
-        guard !wasComma else { throw Error(.invalidSyntax, "Trailing comma in Type list") }
-
-        scanner.pop()
-
-        return tuple
-      }
-
-      guard case .identifier = token.type else { throw Error(.invalidSyntax, "Expected Type") }
-      scanner.pop()
-
-      let type = AST.Node(.type, name: token.value)
-
-      tuple.add(type)
-
-      wasComma = false
-    }
-
-    throw Error(.invalidSyntax, "Expected ')' too match")
-  }
+  // mutating func parseProcedureArguments() throws -> AST.Node {
+  //   expect(.openParentheses, from: scanner.pop())
+  //
+  //   // there may be 1 or 2 labels.
+  //   // the _last_ label is the symbol binding
+  //   // if there are two labels the first is the label that *must* be provided @ the call site.
+  //   // ':' terminates the lables and *must* be followed by a Type
+  //
+  //   let argumentList = AST.Node(.procedureArgumentList)
+  //
+  //   var expectColon = false
+  //   var expectComma = false
+  //   while let token = scanner.peek() {
+  //
+  //     if expectColon {
+  //       guard case .colon = token.type else { throw Error(.invalidSyntax) }
+  //       expectColon = false
+  //       scanner.pop()
+  //       continue
+  //     } else if expectComma {
+  //       switch token.type {
+  //       case .comma?:
+  //         expectcomma = false
+  //         scanner.pop()
+  //
+  //       case .closeParentheses:
+  //         scanner.pop()
+  //         return argumentList
+  //
+  //       default:
+  //         throw Error(.invalidSyntax)
+  //       }
+  //     }
+  //
+  //     guard case .identifier = token.type else { throw Error(.invalidSyntax, "Expected Identifier") }
+  //     scanner.pop()
+  //
+  //     let type = AST.Node(.type, name: token.value)
+  //
+  //     tuple.add(type)
+  //
+  //     wasComma = false
+  //   }
+  //
+  //   throw Error(.invalidSyntax, "Expected ')' too match")
+  // }
 
   mutating func parseTuple() throws -> AST.Node {
     let start = scanner.pop()

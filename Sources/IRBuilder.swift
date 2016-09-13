@@ -8,6 +8,10 @@ struct IRBuilder {
     var output: ByteString = ""
 
     switch node.kind {
+    case .file:
+      output.append(contentsOf: "; " + ByteString(node.name!))
+      return output
+
     case .procedure:
       // TODO(vdka): Is symbol global or local?
 

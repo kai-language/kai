@@ -261,11 +261,12 @@ extension Lexer {
 extension Lexer.Token: CustomStringConvertible {
 
   var description: String {
-    if case .newline = type {
 
-      return "\(type)('\("\\n")')"
-    } else {
-      return "\(type)('\(value)')"
+    switch type {
+    case .blockComment: return "\(type)('/* ... */')"
+    case .lineComment: return "\(type)('// ...')"
+    case .newline: return "\(type)('\\n')"
+    default: return "\(type)('\(value)')"
     }
   }
 }
