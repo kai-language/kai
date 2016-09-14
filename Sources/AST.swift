@@ -51,7 +51,7 @@ struct Symbol {
 class SymbolTable {
 
   weak var parent: SymbolTable? = nil
-  var table: Trie<ByteString, Symbol> = Trie()
+  var table = Trie<ByteString, Symbol>()
 }
 
 extension SymbolTable {
