@@ -14,4 +14,4 @@ targets:
     cmd: "$(pwd)/run.sh samples/main.kai"
   "Run in iTerm2":
     sh: true
-    cmd: "runInLastITerm.sh \"swift build -C $(pwd) --build-path $(pwd)/.build\""
+    cmd: "runInLastITerm.sh \"pushd $(pwd); ./run.sh; popd\""

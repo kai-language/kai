@@ -1,6 +1,7 @@
 #!/bin/bash
 
 ./build.sh
+echo
 
 if [ $? -ne 0 ]; then
 

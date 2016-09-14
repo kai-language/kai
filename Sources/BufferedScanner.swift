@@ -6,6 +6,18 @@ struct BufferedScanner<Element> {
 
   /// Buffer is always the tokens that follow last `pop` the number depends on how far we have peeked
   var buffer: [Element] = []
+
+  init(_ iterator: AnyIterator<Element>) {
+
+    self.buffer = []
+    self.iterator = iterator
+  }
+
+  init<I: IteratorProtocol>(_ iterator: I) where I.Element == Element {
+
+    self.buffer = []
+    self.iterator = AnyIterator(iterator)
+  }
 }
 
 extension BufferedScanner {

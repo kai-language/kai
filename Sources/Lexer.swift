@@ -8,10 +8,25 @@ struct Lexer {
 
     self.scanner = scanner
   }
+
+  init(file: File) {
+
+    self.scanner = FileScanner(file: file)
+  }
+}
+
+extension Lexer: IteratorProtocol {
+
+  mutating func next() -> Token? {
+    do {
+      return try getToken()
+    } catch { return nil }
+  }
 }
 
 extension Lexer {
 
+  /// Transform an entire file into an array of Tokens
   static func tokenize(_ input: File) throws -> [Token] {
 
     var lexer = Lexer(scanner: FileScanner(file: input))

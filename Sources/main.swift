@@ -16,27 +16,12 @@ let file = File(path: kaiRoot + "/" + fileName)!
 
 do {
 
-  let tokens = try Lexer.tokenize(file)
+  var lexer = Lexer(file: file)
 
-  var lastLine: UInt = 0
-  for token in tokens {
-    if token.filePosition.line == lastLine {
-      print(token, terminator: " ")
-    } else {
-      lastLine += 1
-      print(token)
-    }
-  }
-
-  //var parser = Parser(tokens)
-
-  //let ast = try parser.parse()
-
-  let ast = try Parser.parse(tokens)
+  let ast = try Parser.parse(lexer)
 
   print(ast.pretty())
-  print()
-  
+
 } catch {
   print("error: \(error)")
 }
