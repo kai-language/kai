@@ -17,6 +17,13 @@ class Trie<KeyPath: BidirectionalCollection, Value>
   }
 }
 
+extension Trie where KeyPath.Iterator.Element == Byte {
+  convenience init() {
+    self.key = " "
+    self.value = nil
+  }
+}
+
 extension Trie {
 
   subscript(key: Key) -> Trie.Node? {

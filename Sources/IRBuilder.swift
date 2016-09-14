@@ -1,4 +1,5 @@
 
+/*
 struct IRBuilder {
 
   static func getIR(for node: AST.Node, indentationLevel: Int = 0) -> ByteString {
@@ -66,3 +67,4 @@ struct IRBuilder {
     }
   }
 }
+*/
