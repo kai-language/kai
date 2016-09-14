@@ -15,6 +15,10 @@ class AST {
     self.parent = parent
     self.children = children
     self.filePosition = filePosition
+    for child in children {
+
+      child.parent = self
+    }
   }
 }
 
@@ -23,6 +27,7 @@ extension AST {
   enum Kind {
     case unknown
 
+    case emptyFile(name: ByteString)
     case file(name: ByteString)
     case declaration(Declaration)
 
@@ -61,7 +66,7 @@ extension SymbolTable {
     var currentScope = self
 
     repeat {
-      guard let symbol = currentScope.contains(name) else {
+      guard let symbol = currentScope.table.contains(name) else {
          guard let parent = parent else { return nil }
 
          currentScope = parent

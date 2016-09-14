@@ -19,8 +19,7 @@ class Trie<KeyPath: BidirectionalCollection, Value>
 
 extension Trie where KeyPath.Iterator.Element == Byte {
   convenience init() {
-    self.key = " "
-    self.value = nil
+    self.init(key: " ")
   }
 }
 

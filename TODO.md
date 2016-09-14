@@ -3,13 +3,9 @@
 
 ## Where I left off
 
-- To make my life easier I can make tuple as sort of Anon Structs with the syntax
-- This is our approach to multiple returns. You may create an Anon struct instead.
-- This also allows labeled return values.
-  - `update :: (Key, Value) -> { value: Value, wasError: Bool }`
-  - `value, wasError := update("hello", "Harry")` @ Callsite.
-
 ## Yet to Come but obvious needs
+- [ ] Lex only as we need
+  - by making a buffered scanner where calls to peek will call the mutating `next() -> Element?` and store the input in a Queue. This allows _read as you need_ behavior and still permits arbitrary lookahead
 - [ ] Type checker
   - Idea being that you have an untyped AST and you pass it through the type checker getting back a fully typed AST
 

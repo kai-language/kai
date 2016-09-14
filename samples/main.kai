@@ -1,6 +1,3 @@
 
-main :: () -> Int {
-
-  x :: 5
-  return x
-}
+x :: 5
+y := 6

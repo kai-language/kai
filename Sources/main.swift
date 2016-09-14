@@ -36,10 +36,6 @@ do {
 
   print(ast.pretty())
   print()
-
-  let ir = IRBuilder.getIR(for: ast)
-
-  print(ir)
   
 } catch {
   print("error: \(error)")
