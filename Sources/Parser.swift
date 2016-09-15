@@ -21,9 +21,20 @@ struct Parser {
 
     parser.skipIgnored()
 
-    let node = try parser.nextASTNode()
+    while let token = parser.lexer.peek() {
+      switch token.type {
+      case .newline, .blockComment, .lineComment:
+        parser.lexer.pop()
+        continue
 
-    fileNode.add(node)
+      default:
+        break
+      }
+
+      let node = try parser.nextASTNode()
+
+      fileNode.add(node)
+    }
 
     return fileNode
   }
@@ -80,12 +91,14 @@ struct Parser {
 
     expect(.identifier, from: identifier)
     let symbol: Symbol
+    var flags: Declaration.Flag = []
     switch lexer.pop().type {
     case .declaration:
       symbol = Symbol(identifier.value, kind: .variable)
 
     case .staticDeclaration:
       symbol = Symbol(identifier.value, kind: .variable)
+      flags = .compileTime
 
     case .colon:
       let typeName = lexer.pop()
@@ -99,12 +112,47 @@ struct Parser {
 
     symbols.insert(symbol)
 
-    unimplemented()
+    let rvalue = try parseExpression()
+
+    switch rvalue.kind {
+    case .integerLiteral(let value):
+      symbol.types = [.integer(value)]
+
+    case .stringLiteral(let value):
+      symbol.types = [.string(value)]
+
+    default: // leave the type information empty, it can be filled in a later pass
+      break
+    }
+
+    let declaration = Declaration(symbol, flags: flags)
+
+    return AST.Node(.declaration(declaration))
   }
 
-  func parseExpression(_ expecting: KaiType?) throws -> AST.Node {
+  mutating func parseExpression() throws -> AST.Node {
 
-    unimplemented()
+    guard let token = lexer.peek() else { throw Error(.invalidSyntax, "Expected Expression!") }
+    switch token.type {
+    case .integer:
+      lexer.pop()
+      return AST.Node(.integerLiteral(token.value))
+
+    case .string:
+      lexer.pop()
+      return AST.Node(.stringLiteral(token.value))
+
+    case .real:
+      lexer.pop()
+      return AST.Node(.realLiteral(token.value))
+
+    case .identifier:
+      lexer.pop()
+      return AST.Node(.identifier(token.value))
+
+    default:
+      unimplemented()
+    }
   }
 
   mutating func skipIgnored() {
