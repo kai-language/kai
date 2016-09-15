@@ -2,6 +2,7 @@
 struct Parser {
 
   var lexer: BufferedScanner<Lexer.Token>
+  var symbols = SymbolTable()
 
   init(_ lexer: Lexer) {
     self.lexer = BufferedScanner(lexer)
@@ -18,19 +19,11 @@ struct Parser {
     // TODO(vdka): Handle adding actual file nodes.
     let fileNode = AST.Node(.file(name: ByteString(fileName)))
 
-    /// While we haven't exhaused the lexer of tokens
-    while let next = parser.lexer.peek() {
+    parser.skipIgnored()
 
-      switch next.type {
-      case .newline, .lineComment, .blockComment:
-        parser.lexer.pop()
-        continue
+    let node = try parser.nextASTNode()
 
-      default:
-        let node = try parser.nextASTNode()
-        fileNode.add(node)
-      }
-    }
+    fileNode.add(node)
 
     return fileNode
   }
@@ -41,10 +34,13 @@ struct Parser {
 
     var lastMatch: Action<Parser, AST.Node>? = nil
 
-    var peeked = 0
+    skipIgnored()
 
+    var peeked = 0
     while let token = lexer.peek(aheadBy: peeked) {
       peeked += 1
+
+      debug("Got token: \(token)")
 
       // Ensure we can traverse our Trie to the next node
       guard let nextNode = currentNode[token.type] else {
@@ -57,7 +53,7 @@ struct Parser {
           throw Error(.invalidSyntax, "Fell off the Trie at \(token)")
         }
 
-        defer { skipNewlines() }
+        defer { skipIgnored() }
         return try nextAction(&self)()
       }
 
@@ -73,11 +69,54 @@ struct Parser {
     return AST.Node(.unknown)
   }
 
-  mutating func skipNewlines() {
+  enum DeclarationType {
+    case runTime
+    case compileTime
+  }
+
+  mutating func parseDeclaration() throws -> AST.Node {
+
+    let identifier = lexer.pop()
+
+    expect(.identifier, from: identifier)
+    let symbol: Symbol
+    switch lexer.pop().type {
+    case .declaration:
+      symbol = Symbol(identifier.value, kind: .variable)
+
+    case .staticDeclaration:
+      symbol = Symbol(identifier.value, kind: .variable)
+
+    case .colon:
+      let typeName = lexer.pop()
+      expect(.assign, from: lexer.pop())
+      symbol = Symbol(identifier.value, kind: .variable, type: .other(identifier: typeName.value))
+
+    default:
+      debug()
+      fatalError("We probably shouldn't end up here.")
+    }
+
+    symbols.insert(symbol)
+
+    unimplemented()
+  }
+
+  func parseExpression(_ expecting: KaiType?) throws -> AST.Node {
+
+    unimplemented()
+  }
+
+  mutating func skipIgnored() {
 
     while let next = lexer.peek() {
-      guard case .newline = next.type else { return }
-      lexer.pop()
+      switch next.type {
+      case .newline, .lineComment, .blockComment:
+        lexer.pop()
+
+      default:
+        return
+      }
     }
   }
 }

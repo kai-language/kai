@@ -59,7 +59,7 @@ var lexerGrammer: Trie<ByteString, Lexer.TokenType> = {
   grammer.insert("+",   value: .plus)
 
   grammer.insert(":",   value: .colon)
-  grammer.insert("=",   value: .assignment)
+  grammer.insert("=",   value: .assign)
   grammer.insert("==",  value: .equality)
 
   grammer.insert(".",   value: .dot)
@@ -169,7 +169,7 @@ extension Lexer {
     case doubleQuote
     case singleQuote
 
-    case assignment
+    case assign
     case colon
     case hash
 
@@ -195,7 +195,7 @@ extension Lexer {
       case .closeParentheses:   return ")"
       case .doubleQuote:        return "\""
       case .singleQuote:        return "'"
-      case .assignment:         return "="
+      case .assign:             return "="
       case .colon:              return ":"
       case .hash:               return "#"
       case .equality:           return "=="

@@ -14,6 +14,10 @@ var parserGrammar: Trie<[Lexer.TokenType], Action<Parser, AST.Node>> = {
 
   var parserGrammar: Trie<[Lexer.TokenType], Action<Parser, AST.Node>> = Trie(key: .unknown)
 
+  parserGrammar.insert(Parser.parseDeclaration, forKeyPath: [.identifier, .staticDeclaration])
+  parserGrammar.insert(Parser.parseDeclaration, forKeyPath: [.identifier, .declaration])
+  parserGrammar.insert(Parser.parseDeclaration, forKeyPath: [.identifier, .colon, .identifier, .assign])
+
   // parserGrammar.insert(Parser.parseReturnExpression,  forKeyPath: [.returnKeyword])
 
   // parserGrammar.insert(Parser.parseCall,              forKeyPath: [.identifier, .openParentheses])

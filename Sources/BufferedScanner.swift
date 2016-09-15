@@ -23,7 +23,9 @@ struct BufferedScanner<Element> {
 extension BufferedScanner {
 
   mutating func peek(aheadBy n: Int = 0) -> Element? {
-    guard buffer.count < n else { return buffer[n] }
+    guard buffer.count <= n else {
+      return buffer[n]
+    }
 
     guard let element = iterator.next() else { return nil }
 

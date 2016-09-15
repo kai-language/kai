@@ -41,6 +41,12 @@ struct Symbol {
   var kind: Kind
   var type: KaiType?
 
+  init(_ name: ByteString, kind: Kind, type: KaiType? = nil) {
+    self.name = name
+    self.kind = kind
+    self.type = type
+  }
+
   enum Kind {
     case type
     case variable
@@ -55,8 +61,6 @@ class SymbolTable {
 }
 
 extension SymbolTable {
-
-  static var global = SymbolTable()
 
   func insert(_ symbol: Symbol) {
     table.insert(symbol, forKeyPath: symbol.name)
