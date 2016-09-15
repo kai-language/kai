@@ -33,11 +33,13 @@ extension BufferedScanner {
     return buffer.last
   }
 
+  /// - Precondition: Call to peek first to ensure the underlying sequence has not been exhausted
   @discardableResult
   mutating func pop() -> Element {
-    guard !buffer.isEmpty else { return buffer.removeFirst() }
 
-    guard let element = iterator.next() else { fatalError("Scanner Exhuasted") }
-    return element
+    switch buffer.isEmpty {
+    case true:  return iterator.next()!
+    case false: return buffer.removeFirst()
+    }
   }
 }
