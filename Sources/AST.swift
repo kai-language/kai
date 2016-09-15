@@ -36,15 +36,21 @@ extension AST {
   }
 }
 
-struct Symbol {
-  var name: ByteString
+class Symbol {
+  let name: ByteString
   var kind: Kind
-  var type: KaiType?
+
+  /// - Note: Multiple `Type`s are possible when the kind is a procedure
+  var types: [KaiType]? = []
 
   init(_ name: ByteString, kind: Kind, type: KaiType? = nil) {
     self.name = name
     self.kind = kind
-    self.type = type
+
+    self.types = []
+    if let type = type {
+      self.types?.append(type)
+    }
   }
 
   enum Kind {
@@ -89,8 +95,7 @@ enum KaiType {
 }
 
 struct Declaration {
-  var name: ByteString
-  var type: KaiType
+  var symbol: Symbol
   var flags: Flag
 
   struct Flag: OptionSet {
