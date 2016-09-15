@@ -51,7 +51,7 @@ struct Parser {
     while let token = lexer.peek(aheadBy: peeked) {
       peeked += 1
 
-      debug("Got token: \(token)")
+      // debug("Got token: \(token)")
 
       // Ensure we can traverse our Trie to the next node
       guard let nextNode = currentNode[token.type] else {
@@ -113,6 +113,10 @@ struct Parser {
     symbols.insert(symbol)
 
     let rvalue = try parseExpression()
+    print("rvalue \(rvalue)")
+    print()
+    print("symbols \(symbols)")
+
 
     switch rvalue.kind {
     case .integerLiteral(let value):

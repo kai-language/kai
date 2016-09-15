@@ -26,3 +26,23 @@ extension SymbolTable {
     } while true
   }
 }
+
+extension SymbolTable: CustomStringConvertible {
+
+  var description: String {
+
+    var str = ""
+
+    if let parent = parent {
+      str.append(parent.description)
+      str.append("=======")
+    }
+
+    table.forEach {
+      str.append(String(describing: $0))
+      str.append("\n")
+    }
+
+    return str
+  }
+}

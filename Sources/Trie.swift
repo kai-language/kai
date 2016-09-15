@@ -96,6 +96,18 @@ extension Trie {
 
 extension Trie {
 
+  func forEach(_ call: (Value) -> Void) {
+
+    self.children.forEach {
+      if let value = $0.value {
+        call(value)
+      }
+    }
+  }
+}
+
+extension Trie {
+
   func pretty(depth: Int = 0) -> String {
 
     let payload: String
@@ -106,7 +118,6 @@ extension Trie {
     }
 
     let children = self.children
-//      .sorted { $0.1.value < $1.1.value }
       .map { $0.pretty(depth: depth + 1) }
       .reduce("", { $0 + $1})
 

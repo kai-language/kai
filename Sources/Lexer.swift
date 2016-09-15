@@ -72,7 +72,7 @@ extension Lexer {
           return token(tokenType, value: partial)
         } else {
 
-          consumeIdentifier()
+          try consumeIdentifier()
           return token(.identifier, value: partial)
         }
       }
@@ -98,18 +98,16 @@ extension Lexer {
   }
 
   /// - Precondition: Scanner should be on the first character in an identifier
-  mutating func consumeIdentifier() {
+  mutating func consumeIdentifier() throws {
 
     let firstChar = scanner.pop()
+
+    guard identifierHeads.contains(firstChar) else { throw Error(.invalidIdentifier) }
 
     partial.append(firstChar)
 
     while let char = scanner.peek() {
-      guard
-        ("0"..."9").contains(char) ||
-        ("a"..."z").contains(char) ||
-        ("A"..."Z").contains(char)
-        else { return }
+      guard identifierBody.contains(char) else { return }
 
       partial.append(char)
       scanner.pop()
@@ -335,6 +333,7 @@ extension Lexer {
       case invalidUnicode
       case invalidLiteral
       case invalidEscape
+      case invalidIdentifier
       case fileNotFound
       case endOfFile
     }

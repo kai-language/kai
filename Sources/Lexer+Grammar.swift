@@ -7,6 +7,28 @@ let terminators: Set<UTF8.CodeUnit> =
     "+", "*", "-", "/"
   ]
 
+let identifierHeads: [Byte] = {
+
+  var heads: [Byte] = []
+
+  heads.append("_")
+  heads.append(contentsOf: "a"..."z")
+  heads.append(contentsOf: "A"..."Z")
+
+  return heads
+}()
+
+let identifierBody: [Byte] = {
+
+  var body: [Byte] = []
+
+  body.append(contentsOf: identifierHeads)
+
+  body.append(contentsOf: "0"..."9")
+
+  return body
+}()
+
 let whitespace: Set<UTF8.CodeUnit> = [" ", "\t", "\n"]
 
 var lexerGrammer: Trie<ByteString, Lexer.TokenType> = {
