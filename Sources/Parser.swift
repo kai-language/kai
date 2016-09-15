@@ -150,6 +150,17 @@ struct Parser {
       lexer.pop()
       return AST.Node(.identifier(token.value))
 
+    case .openParentheses:
+      lexer.pop()
+
+      let subExpr = try parseExpression()
+
+      guard let token = lexer.peek() else { throw Error(.expectedCloseParentheses) }
+      expect(.closeParentheses, from: token)
+      lexer.pop()
+
+      return subExpr
+
     default:
       unimplemented()
     }
@@ -201,6 +212,7 @@ extension Parser {
       case unknown
       case missingReturnType
       case invalidSyntax
+      case expectedCloseParentheses
       case loneIdentifier
     }
   }
