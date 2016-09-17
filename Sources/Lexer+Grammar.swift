@@ -29,6 +29,28 @@ let identifierBody: [Byte] = {
   return body
 }()
 
+let operatorBody: [Byte] = {
+
+  var heads: [Byte] = []
+
+  heads.append("/")
+  heads.append("=")
+  heads.append("-")
+  heads.append("+")
+  heads.append("*")
+  heads.append("%")
+  heads.append("<")
+  heads.append(">")
+  heads.append("&")
+  heads.append("|")
+  heads.append("^")
+  heads.append("~")
+  heads.append("!")
+  heads.append("?")
+
+  return heads
+}()
+
 let whitespace: Set<UTF8.CodeUnit> = [" ", "\t", "\n"]
 
 var lexerGrammer: Trie<ByteString, Lexer.TokenType> = {
@@ -38,7 +60,6 @@ var lexerGrammer: Trie<ByteString, Lexer.TokenType> = {
   // MARK: - Keywords
 
   grammer.insert("struct",       value: .structKeyword)
-  grammer.insert("proc",         value: .procedureKeyword)
   grammer.insert("enum",         value: .enumKeyword)
 
   grammer.insert("import",       value: .importKeyword)
@@ -77,8 +98,6 @@ var lexerGrammer: Trie<ByteString, Lexer.TokenType> = {
   grammer.insert("]",   value: .closeBracket)
   grammer.insert("(",   value: .openParentheses)
   grammer.insert(")",   value: .closeParentheses)
-
-  grammer.insert("+",   value: .plus)
 
   grammer.insert(":",   value: .colon)
   grammer.insert("=",   value: .assign)
@@ -147,7 +166,6 @@ extension Lexer {
     case identifier
 
     case structKeyword
-    case procedureKeyword
     case enumKeyword
 
     case importKeyword
@@ -195,11 +213,6 @@ extension Lexer {
     case colon
     case hash
 
-    case solidus
-    case asterisk
-    case plus
-    case minus
-
     case equality
 
     case string
@@ -217,17 +230,15 @@ extension Lexer {
       case .closeParentheses:   return ")"
       case .doubleQuote:        return "\""
       case .singleQuote:        return "'"
-      case .assign:             return "="
+
       case .colon:              return ":"
       case .hash:               return "#"
-      case .equality:           return "=="
+
+      case .declaration:        return ":="
+      case .staticDeclaration:  return "::"
+      case .assign:             return "="
 
       case .returnOperator:     return "->"
-
-      case .solidus:            return "/"
-      case .asterisk:           return "*"
-      case .plus:               return "+"
-      case .minus:              return "-"
 
       case .dot:                return "."
       case .comma:              return ","
@@ -235,7 +246,6 @@ extension Lexer {
       case .newline:            return "\n"
 
       case .structKeyword:      return "struct"
-      case .procedureKeyword:   return "proc"
       case .enumKeyword:        return "enum"
 
       case .importKeyword:      return "import"
@@ -258,9 +268,6 @@ extension Lexer {
       case .nullKeyword:        return "null"
       case .trueKeyword:        return "true"
       case .falseKeyword:       return "false"
-
-      case .declaration:        return ":="
-      case .staticDeclaration:  return "::"
 
       default:                  return nil
       }

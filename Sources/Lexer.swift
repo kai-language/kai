@@ -72,8 +72,12 @@ extension Lexer {
           return token(tokenType, value: partial)
         } else {
 
-          try consumeIdentifier()
-          return token(.identifier, value: partial)
+          if identifierHeads.contains(char) {
+            try consumeIdentifier()
+            return token(.identifier, value: partial)
+          } else if operatorBody.contains(char) {
+            throw Error(.invalidOperator)
+          }
         }
       }
 
@@ -82,14 +86,6 @@ extension Lexer {
         scanner.pop(peeked)
         return token(nextNode.value!, value: partial)
       }
-
-      /*
-      if let tokenType = nextNode.tokenType, whitespace.contains(scanner.peek(aheadBy: peeked) ?? " ") {
-
-        scanner.pop(peeked)
-        return token(tokenType, value: partial)
-      }
-      */
 
       currentNode = nextNode
     }
@@ -334,6 +330,7 @@ extension Lexer {
       case invalidLiteral
       case invalidEscape
       case invalidIdentifier
+      case invalidOperator
       case fileNotFound
       case endOfFile
     }
