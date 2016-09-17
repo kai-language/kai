@@ -51,7 +51,7 @@ struct Parser {
     while let token = lexer.peek(aheadBy: peeked) {
       peeked += 1
 
-      // debug("Got token: \(token)")
+      debug("Got token: \(token)")
 
       // Ensure we can traverse our Trie to the next node
       guard let nextNode = currentNode[token.type] else {
@@ -59,6 +59,8 @@ struct Parser {
         if case .newline = token.type {
           continue
         }
+
+        debug()
 
         guard let nextAction = lastMatch else {
           throw Error(.invalidSyntax, "Fell off the Trie at \(token)")
@@ -75,7 +77,8 @@ struct Parser {
       }
     }
 
-    debug("Something went wrong!")
+    debug("Not sure what to do with \(lexer.pop())")
+
 
     return AST.Node(.unknown)
   }
@@ -113,9 +116,6 @@ struct Parser {
     symbols.insert(symbol)
 
     let rvalue = try parseExpression()
-    print("rvalue \(rvalue)")
-    print()
-    print("symbols \(symbols)")
 
 
     switch rvalue.kind {
@@ -130,6 +130,8 @@ struct Parser {
     }
 
     let declaration = Declaration(symbol, flags: flags)
+
+    print("declaration: \(declaration)")
 
     return AST.Node(.declaration(declaration))
   }
@@ -169,6 +171,11 @@ struct Parser {
       unimplemented()
     }
   }
+
+  // mutating func parseBuiltin() throws -> AST.Node {
+  //
+  //
+  // }
 
   mutating func skipIgnored() {
 

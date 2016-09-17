@@ -32,6 +32,8 @@ extension AST {
     case declaration(Declaration)
     case identifier(ByteString)
 
+    case builtin()
+
     case realLiteral(ByteString)
     case stringLiteral(ByteString)
     case integerLiteral(ByteString)

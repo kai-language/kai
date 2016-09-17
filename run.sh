@@ -1,13 +1,14 @@
 #!/bin/bash
 
 ./build.sh
-echo
 
 if [ $? -ne 0 ]; then
 
   echo "Build Failed!"
   exit 1
 fi
+
+echo
 
 if [ -z "$1" ]; then
 

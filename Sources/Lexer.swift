@@ -51,7 +51,7 @@ extension Lexer {
 
     defer { partial.removeAll(keepingCapacity: true) }
 
-    var currentNode = lexerGrammer
+    var currentNode = lexerGrammar
 
     var peeked = 0
 
@@ -72,11 +72,17 @@ extension Lexer {
           return token(tokenType, value: partial)
         } else {
 
+          // we want to switch on the first character, not the last one.
+          guard let char = scanner.peek() else { fatalError() }
+
           if identifierHeads.contains(char) {
             try consumeIdentifier()
             return token(.identifier, value: partial)
           } else if operatorBody.contains(char) {
-            throw Error(.invalidOperator)
+            try consumeOperator()
+            return token(.operatorIdentitifer, value: partial)
+          } else {
+            throw Error(.invalidCharacter)
           }
         }
       }
@@ -93,6 +99,21 @@ extension Lexer {
     return nil
   }
 
+  mutating func consumeIdentifierOrOperator() throws -> Token {
+
+    guard let char = scanner.peek() else { throw Error.unknown }
+
+    if identifierHeads.contains(char) {
+      try consumeIdentifier()
+      return token(.identifier, value: partial)
+    } else if operatorBody.contains(char) {
+      try consumeOperator()
+      return token(.operatorIdentitifer, value: partial)
+    } else {
+      throw Error(.invalidCharacter)
+    }
+  }
+
   /// - Precondition: Scanner should be on the first character in an identifier
   mutating func consumeIdentifier() throws {
 
@@ -104,6 +125,18 @@ extension Lexer {
 
     while let char = scanner.peek() {
       guard identifierBody.contains(char) else { return }
+
+      partial.append(char)
+      scanner.pop()
+    }
+  }
+
+  mutating func consumeOperator() throws {
+
+    // NOTE(vdka): Potentially will want a seperate list of Operator heads and bodies. Same logic as above
+
+    while let char = scanner.peek() {
+      guard operatorBody.contains(char) else { return }
 
       partial.append(char)
       scanner.pop()
@@ -325,6 +358,7 @@ extension Lexer {
 
     enum Reason: Swift.Error {
       case unknown
+      case invalidCharacter
       case unmatchedToken
       case invalidUnicode
       case invalidLiteral

@@ -1,5 +1,11 @@
 
+/*
++ :: (lhs: Int, rhs: Int) -> Int {
+  return #add("i64", lhs, rhs)
+}
+
 x :: 5
 y := 6
+*/
 
-z := (x)
+z := -(x)
