@@ -71,7 +71,6 @@ extension Lexer {
           scanner.pop(peeked)
           return token(tokenType, value: partial)
         } else {
-
           // we want to switch on the first character, not the last one.
           guard let char = scanner.peek() else { fatalError() }
 

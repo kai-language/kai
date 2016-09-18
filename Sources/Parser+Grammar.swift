@@ -19,6 +19,7 @@ var parserGrammar: Trie<[Lexer.TokenType], Action<Parser, AST.Node>> = {
   parserGrammar.insert(Parser.parseDeclaration, forKeyPath: [.identifier, .staticDeclaration])
   parserGrammar.insert(Parser.parseDeclaration, forKeyPath: [.identifier, .declaration])
   parserGrammar.insert(Parser.parseDeclaration, forKeyPath: [.identifier, .colon, .identifier, .assign])
+  parserGrammar.insert(Parser.parseExpression,  forKeyPath:  [.minus])
 
   // parserGrammar.insert(Parser.parseReturnExpression,  forKeyPath: [.returnKeyword])
 

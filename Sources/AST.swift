@@ -34,6 +34,9 @@ extension AST {
 
     case builtin()
 
+    /// number of child nodes determine the 'arity' of the operator
+    case op(ByteString)
+
     case realLiteral(ByteString)
     case stringLiteral(ByteString)
     case integerLiteral(ByteString)

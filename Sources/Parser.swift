@@ -1,18 +1,18 @@
 
 struct Parser {
 
-  var lexer: BufferedScanner<Lexer.Token>
+  var scanner: BufferedScanner<Lexer.Token>
   var symbols = SymbolTable()
 
   init(_ lexer: Lexer) {
-    self.lexer = BufferedScanner(lexer)
+    self.scanner = BufferedScanner(lexer)
   }
 
   static func parse(_ lexer: Lexer) throws -> AST {
 
     var parser = Parser(lexer)
 
-    guard let fileName = parser.lexer.peek()?.filePosition.fileName else {
+    guard let fileName = parser.scanner.peek()?.filePosition.fileName else {
       return AST.Node(.file(name: "TODO"))
     }
 
@@ -21,10 +21,10 @@ struct Parser {
 
     parser.skipIgnored()
 
-    while let token = parser.lexer.peek() {
+    while let token = parser.scanner.peek() {
       switch token.type {
       case .newline, .blockComment, .lineComment:
-        parser.lexer.pop()
+        parser.scanner.pop()
         continue
 
       default:
@@ -48,7 +48,7 @@ struct Parser {
     skipIgnored()
 
     var peeked = 0
-    while let token = lexer.peek(aheadBy: peeked) {
+    while let token = scanner.peek(aheadBy: peeked) {
       peeked += 1
 
       debug("Got token: \(token)")
@@ -77,7 +77,7 @@ struct Parser {
       }
     }
 
-    debug("Not sure what to do with \(lexer.pop())")
+    debug("Not sure what to do with \(scanner.pop())")
 
 
     return AST.Node(.unknown)
@@ -90,12 +90,12 @@ struct Parser {
 
   mutating func parseDeclaration() throws -> AST.Node {
 
-    let identifier = lexer.pop()
+    let identifier = scanner.pop()
 
     expect(.identifier, from: identifier)
     let symbol: Symbol
     var flags: Declaration.Flag = []
-    switch lexer.pop().type {
+    switch scanner.pop().type {
     case .declaration:
       symbol = Symbol(identifier.value, kind: .variable)
 
@@ -104,8 +104,8 @@ struct Parser {
       flags = .compileTime
 
     case .colon:
-      let typeName = lexer.pop()
-      expect(.assign, from: lexer.pop())
+      let typeName = scanner.pop()
+      expect(.assign, from: scanner.pop())
       symbol = Symbol(identifier.value, kind: .variable, type: .other(identifier: typeName.value))
 
     default:
@@ -116,7 +116,6 @@ struct Parser {
     symbols.insert(symbol)
 
     let rvalue = try parseExpression()
-
 
     switch rvalue.kind {
     case .integerLiteral(let value):
@@ -138,51 +137,19 @@ struct Parser {
 
   mutating func parseExpression() throws -> AST.Node {
 
-    guard let token = lexer.peek() else { throw Error(.invalidSyntax, "Expected Expression!") }
-    switch token.type {
-    case .integer:
-      lexer.pop()
-      return AST.Node(.integerLiteral(token.value))
+    // NOTE(vdka): This `inout` isn't working correctly. Best approach is to add the
+    // functions to parse expressions into the core parser
+    var exprParser = ExpressionParser(&scanner)
 
-    case .string:
-      lexer.pop()
-      return AST.Node(.stringLiteral(token.value))
-
-    case .real:
-      lexer.pop()
-      return AST.Node(.realLiteral(token.value))
-
-    case .identifier:
-      lexer.pop()
-      return AST.Node(.identifier(token.value))
-
-    case .openParentheses:
-      lexer.pop()
-
-      let subExpr = try parseExpression()
-
-      guard let token = lexer.peek() else { throw Error(.expectedCloseParentheses) }
-      expect(.closeParentheses, from: token)
-      lexer.pop()
-
-      return subExpr
-
-    default:
-      unimplemented()
-    }
+    return try exprParser.parseExpression()
   }
-
-  // mutating func parseBuiltin() throws -> AST.Node {
-  //
-  //
-  // }
 
   mutating func skipIgnored() {
 
-    while let next = lexer.peek() {
+    while let next = scanner.peek() {
       switch next.type {
       case .newline, .lineComment, .blockComment:
-        lexer.pop()
+        scanner.pop()
 
       default:
         return
