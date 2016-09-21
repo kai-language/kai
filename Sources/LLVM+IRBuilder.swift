@@ -1,0 +1,5 @@
+struct IRBuilder {
+	enum Entity {
+		
+	}
+}
