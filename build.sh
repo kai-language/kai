@@ -6,7 +6,7 @@ CC=`/usr/local/bin/swiftenv which swift`
 #echo "Using $CC"
 export SDKROOT=$(xcrun --show-sdk-path --sdk macosx)
 
-SWIFTC_FLAGS="-DDebug"
+SWIFTC_FLAGS="-DDebug -Xcc -I/usr/local/opt/llvm/include/ -Xlinker -L/usr/local/opt/llvm/lib/"
 
 $CC build -Xswiftc $SWIFTC_FLAGS
 
