@@ -9,6 +9,9 @@ let kaiRoot = "/" + #file.characters
   .map(String.init)
   .joined(separator: "/")
 
+
+makeLLVMSumTest()
+
 // print(grammer)
 
 // TODO(vdka): Read this from the arguments
