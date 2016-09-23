@@ -6,5 +6,6 @@ let package = Package(
     .Package(url: "https://github.com/vdka/ByteHashable.git", majorVersion: 1),
     .Package(url: "https://github.com/vapor/console.git", majorVersion: 1),
     .Package(url: "https://github.com/kai-language/CLLVM.git", majorVersion: 0, minor: 0),
+    .Package(url: "https://github.com/vapor/console.git", majorVersion: 1),
   ]
 )
