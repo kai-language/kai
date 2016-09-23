@@ -136,12 +136,7 @@ struct Parser {
   }
 
   mutating func parseExpression() throws -> AST.Node {
-
-    // NOTE(vdka): This `inout` isn't working correctly. Best approach is to add the
-    // functions to parse expressions into the core parser
-    var exprParser = ExpressionParser(&scanner)
-
-    return try exprParser.parseExpression()
+    unimplemented()
   }
 
   mutating func skipIgnored() {

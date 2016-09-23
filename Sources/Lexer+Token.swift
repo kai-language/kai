@@ -76,14 +76,9 @@ extension Lexer {
     case dot
     case comma
 
-    case plus
-    case minus
-    case asterisk
-    case solidus
+    case op
 
     case assign
-
-    case equality
 
     case openBrace
     case closeBrace
@@ -120,11 +115,6 @@ extension Lexer {
 
       case .dot:                return "."
       case .comma:              return ","
-
-      case .plus:               return "+"
-      case .minus:              return "-"
-      case .asterisk:           return "*"
-      case .solidus:            return "/"
 
       case .newline:            return "\n"
 

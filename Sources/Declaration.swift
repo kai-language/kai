@@ -22,3 +22,11 @@ extension Declaration: CustomStringConvertible {
     return flags.isEmpty ? symbol.description : "compileTime \(symbol)"
   }
 }
+
+extension Declaration: Equatable {
+
+  static func == (lhs: Declaration, rhs: Declaration) -> Bool {
+
+    return lhs.flags == rhs.flags && lhs.symbol === rhs.symbol
+  }
+}

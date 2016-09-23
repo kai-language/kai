@@ -99,15 +99,8 @@ var lexerGrammar: Trie<ByteString, Lexer.TokenType> = {
 
   grammar.insert(":",   value: .colon)
   grammar.insert("=",   value: .assign)
-  grammar.insert("==",  value: .equality)
-
   grammar.insert(".",   value: .dot)
   grammar.insert(",",   value: .comma)
-
-  grammar.insert("+",   value: .plus)
-  grammar.insert("-",   value: .minus)
-  grammar.insert("*",   value: .asterisk)
-  grammar.insert("/",   value: .solidus)
 
   grammar.insert(":=",  value: .declaration)
   grammar.insert("::",  value: .staticDeclaration)

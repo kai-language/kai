@@ -20,6 +20,7 @@ class Symbol {
     case type
     case variable
     case procedure
+    case `operator`
   }
 }
 
