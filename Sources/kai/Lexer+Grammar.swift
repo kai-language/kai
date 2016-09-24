@@ -43,7 +43,6 @@ let operatorBody: [Byte] = {
   return body
 }()
 
-let whitespace: Set<UTF8.CodeUnit> = [" ", "\t", "\n"]
 
 //var lexerGrammar: Trie<ByteString, Lexer.TokenType> = {
 //

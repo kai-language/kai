@@ -1,7 +1,9 @@
 
 let digits      = Array<Byte>("1234567890".utf8)
-let identChars  = Array<Byte>("_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".utf8)
 let opChars     = Array<Byte>("~!%^&*-+=<>|?".utf8)
+let identChars  = Array<Byte>("_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".utf8)
+let whitespace  = Array<Byte>(" \t\n".utf8)
+
 
 struct Lexer: IteratorProtocol {
 
