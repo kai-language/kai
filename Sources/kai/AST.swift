@@ -25,6 +25,7 @@ class AST {
 extension AST {
 
   enum Kind {
+    case empty
     case unknown
 
     case emptyFile(name: ByteString)
@@ -32,13 +33,11 @@ extension AST {
     case declaration(Declaration)
     case identifier(ByteString)
 
-    case builtin()
-
     /// number of child nodes determine the 'arity' of the operator
-    case op(ByteString)
+    case `operator`(ByteString)
 
-    case realLiteral(ByteString)
-    case stringLiteral(ByteString)
-    case integerLiteral(ByteString)
+    case real(ByteString)
+    case string(ByteString)
+    case integer(ByteString)
   }
 }

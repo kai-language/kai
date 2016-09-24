@@ -1,394 +1,130 @@
 
-struct Lexer {
+let digits      = Array<Byte>("1234567890".utf8)
+let identChars  = Array<Byte>("_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".utf8)
+let opChars     = Array<Byte>("~!%^&*-+=<>|?".utf8)
+
+struct Lexer: IteratorProtocol {
 
   var scanner: FileScanner
-  var partial: ByteString = ""
 
-  init(scanner: FileScanner) {
-
-    self.scanner = scanner
-  }
-
-  init(file: File) {
+  init(_ file: File) {
 
     self.scanner = FileScanner(file: file)
   }
-}
 
-extension Lexer: IteratorProtocol {
-
+  // TODO(vdka): The Parser will need to know file positions a little better to report errors when they occur.
   mutating func next() -> Token? {
     do {
-      return try getToken()
+      try skipWhitespace()
     } catch { return nil }
-  }
-}
 
-extension Lexer {
+    //        print("Getting token from \(scanner.peek())")
 
-  /// Transform an entire file into an array of Tokens
-  static func tokenize(_ input: File) throws -> [Token] {
+    guard let char = scanner.peek() else { return nil }
 
-    var lexer = Lexer(scanner: FileScanner(file: input))
+    switch char {
+    case _ where identChars.contains(char):
+      let symbol = consume(with: identChars)
+      if let keyword = Token.Keyword(rawValue: symbol) { return .keyword(keyword) }
+      else { return .identifier(symbol) }
 
-    var tokens: [Lexer.Token] = []
+    case _ where opChars.contains(char):
+      let symbol = consume(with: opChars)
+      if let keyword = Token.Keyword(rawValue: symbol) { return .keyword(keyword) }
+      else { return .operator(symbol) }
 
-    while let token = try lexer.getToken() {
-      // print("\(input.name)(\(token.filePosition.line):\(token.filePosition.column)): \(token)")
+      // TODO(vdka): Correctly consume (and validate) number literals (real and integer)
+    case _ where digits.contains(char):
+      let number = consume(with: digits)
+      return .integer(number)
 
-      tokens.append(token)
-    }
-
-    return tokens
-  }
-}
-
-extension Lexer {
-
-  mutating func getToken() throws -> Token? {
-
-    skipWhitespace()
-
-    defer { partial.removeAll(keepingCapacity: true) }
-
-    var currentNode = lexerGrammar
-
-    var peeked = 0
-
-    while let char = scanner.peek(aheadBy: peeked) {
-      peeked += 1
-
-      // if we have some sort of token where we need to perform a Lexing action then do that
-      if let nextAction = currentNode[char]?.value?.nextAction {
-
-          return try nextAction(&self)()
-      }
-
-      // Ensure we can traverse our Trie to the next node
-      guard let nextNode = currentNode[char] else {
-
-        if let tokenType = currentNode.value {
-          scanner.pop(peeked)
-          return token(tokenType, value: partial)
-        } else {
-          // we want to switch on the first character, not the last one.
-          guard let char = scanner.peek() else { fatalError() }
-
-          if identifierHeads.contains(char) {
-            try consumeIdentifier()
-            return token(.identifier, value: partial)
-          } else if operatorBody.contains(char) {
-            try consumeOperator()
-            return token(.operatorIdentitifer, value: partial)
-          } else {
-            throw Error(.invalidCharacter)
-          }
-        }
-      }
-
-      // If the next node has no further children then it's a leaf.
-      guard !nextNode.children.isEmpty else {
-        scanner.pop(peeked)
-        return token(nextNode.value!, value: partial)
-      }
-
-      currentNode = nextNode
-    }
-
-    return nil
-  }
-
-  mutating func consumeIdentifierOrOperator() throws -> Token {
-
-    guard let char = scanner.peek() else { throw Error.unknown }
-
-    if identifierHeads.contains(char) {
-      try consumeIdentifier()
-      return token(.identifier, value: partial)
-    } else if operatorBody.contains(char) {
-      try consumeOperator()
-      return token(.operatorIdentitifer, value: partial)
-    } else {
-      throw Error(.invalidCharacter)
-    }
-  }
-
-  /// - Precondition: Scanner should be on the first character in an identifier
-  mutating func consumeIdentifier() throws {
-
-    let firstChar = scanner.pop()
-
-    guard identifierHeads.contains(firstChar) else { throw Error(.invalidIdentifier) }
-
-    partial.append(firstChar)
-
-    while let char = scanner.peek() {
-      guard identifierBody.contains(char) else { return }
-
-      partial.append(char)
-      scanner.pop()
-    }
-  }
-
-  mutating func consumeOperator() throws {
-
-    // NOTE(vdka): Potentially will want a seperate list of Operator heads and bodies. Same logic as above
-
-    while let char = scanner.peek() {
-      guard operatorBody.contains(char) else { return }
-
-      partial.append(char)
-      scanner.pop()
-    }
-  }
-
-  /// appends the contents of everything consumed to partial
-  mutating func consumeWhile(_ predicate: (Byte) -> Bool) {
-
-    while let char = scanner.peek(), predicate(char) {
-      partial.append(char)
-      scanner.pop()
-    }
-  }
-}
-
-extension Lexer {
-
-  mutating func skipWhitespace() {
-
-    while let char = scanner.peek(), char == "\t" || char == " " {
-      scanner.pop()
-    }
-  }
-
-  mutating func parseString() throws -> Token {
-    assert(scanner.peek() == "\"")
-    partial.removeAll()
-    scanner.pop()
-
-    while let char = scanner.peek() {
-
-      switch char {
-      case "\\":
-
-        switch scanner.peek() {
-        case "\""?:
-          partial.append("\"")
-
-        case "\\"?:
-          partial.append("\\")
-
-        default:
-          throw Error.Reason.invalidEscape
-        }
-
-      case "\"":
+      case "(":
         scanner.pop()
-        return token(.string, value: partial)
+        return .lparen
 
-      default:
-        partial.append(char)
-      }
+      case ")":
+        scanner.pop()
+        return .rparen
 
-      scanner.pop()
+    default:
+      return nil
     }
-
-    throw Error.unknown
   }
 
-  mutating func parseNumber() throws -> Token {
+  mutating func consume(with chars: [Byte]) -> ByteString {
 
-    // TODO(vdka): Do float stuff
-
-    let digits: CountableClosedRange<Byte> = "0"..."9"
-    let alphaNumerics: Set<Byte> = Set("a"..."f", "A"..."F")
-
-    let numberChars: Set<Byte>
-    switch scanner.prefix(2) {
-    case "0x": numberChars = Set(digits).union(alphaNumerics).union(["x", "_"])
-    case "0b": numberChars = ["b", "0", "1", "_"]
-    default:   numberChars = Set(digits).union([".", "_", "e", "E", "+", "-"])
+    var str: ByteString = ""
+    while let char = scanner.peek(), chars.contains(char) {
+      scanner.pop()
+      str.append(char)
     }
 
-    /*
-      Valid (floats)
-      9.
-      .6
-      -.4
-      2.99e8
-      1.00e-5
-      -.12e-5
+    return str
+  }
+}
 
-      Invalid (floats)
-      0.-1
-      --01
-    */
+extension Lexer {
 
-    var sightings = NumberParsingSightings(rawValue: 0)
-
-    while let char = scanner.peek(), numberChars.contains(char) {
+  mutating func skipWhitespace() throws {
+    while let char = scanner.peek() {
 
       switch char {
-      case "-", "+":
+      case "/":
+        if scanner.peek(aheadBy: 1) == "*" { try skipBlockComment() }
+        else if scanner.peek(aheadBy: 1) == "/" { skipLineComment() }
 
-        if sightings.contains(.decimal) && !sightings.contains(.exponent) {
+      case _ where whitespace.contains(char):
+        scanner.pop()
 
-          throw Error(.invalidLiteral, "Cannot provide a negative component for the mantisa")
-        } else if sightings.contains(.exponentSign) {
-
-          throw Error(.invalidLiteral, "Too many signs in exponent")
-        } else if sightings.contains(.exponent) {
-
-          sightings.insert(.exponentSign)
-        }
-
-      case ".":
-
-        guard !sightings.contains(.decimal) else {
-          throw Error(.invalidLiteral, "Too many decimal points in number")
-        }
-        sightings.insert(.decimal)
-
-      case "e", "E":
-
-        guard !sightings.contains(.exponent) else { throw Error(.invalidLiteral, "Too many exponent characters") }
-        sightings.insert(.exponent)
-
-      case digits:
-
-        if sightings.contains(.decimal) && !sightings.contains(.exponent) {
-          sightings.insert(.decimalDigit)
-        } else if sightings.contains(.exponent) {
-          sightings.insert(.exponentDigit)
-        }
-
-      default:
-        break
+      default: return
       }
-      partial.append(char)
-      scanner.pop()
     }
-
-    return token(sightings.indicatesReal ? .real : .integer, value: partial)
   }
 
-  mutating func parseBlockComment() throws -> Token {
+  mutating func skipBlockComment() throws {
     assert(scanner.hasPrefix("/*"))
-
-    let startPosition = scanner.position
 
     var depth: UInt = 0
     repeat {
 
-      guard let char = scanner.peek() else {
-        throw Error(.unmatchedToken, "Missing match block comment's not matched")
+      guard scanner.peek() != nil else {
+        throw error(.unmatchedBlockComment)
       }
 
-      if scanner.hasPrefix("*/") {
+      if scanner.hasPrefix("*/") { depth -= 1 }
+      else if scanner.hasPrefix("/*") { depth += 1 }
 
-        depth -= 1
-      } else if scanner.hasPrefix("/*") {
-
-        depth += 1
-      }
-
-      partial.append(char)
       scanner.pop()
 
       if depth == 0 { break }
     } while depth > 0
-
-    // I beleive this means we have an unmatched '/*' token
-    guard depth == 0 else { throw Error(.unmatchedToken) }
-
-    partial.append(scanner.pop())
-
-    return Token(type: .blockComment, value: partial, filePosition: startPosition)
+    scanner.pop()
   }
 
-  mutating func parseLineComment() throws -> Token {
+  mutating func skipLineComment() {
     assert(scanner.hasPrefix("//"))
 
-    while let char = scanner.peek(), char != "\n" {
-
-      partial.append(char)
-      scanner.pop()
-    }
-
-    return token(.lineComment, value: partial)
+    while let char = scanner.peek(), char != "\n" { scanner.pop() }
   }
 }
 
-
-// MARK: - Helpers
-
 extension Lexer {
 
-  /// - Precondition: Multiline tokens must have their position specified
-  func token(_ type: TokenType, value: ByteString? = nil) -> Token {
-
-    var position = scanner.position
-
-    position.column -= numericCast(type.defaultValue?.count ?? value?.count ?? 0)
-
-    return Token(type: type, value: value, filePosition: position)
+  func error(_ reason: Error.Reason, message: ByteString? = nil) -> Swift.Error {
+    return Error(reason: reason, message: message, filePosition: scanner.position)
   }
-
-  /// - Note: This is really just here for consistency
-  func token(_ type: TokenType, value: ByteString, position: FileScanner.Position) -> Token {
-    return Token(type: type, value: value, filePosition: position)
-  }
-}
-
-
-// MARK: - Error
-
-extension Lexer {
 
   struct Error: Swift.Error {
 
+
     var reason: Reason
-    var message: String
-
-    init(_ reason: Reason, _ message: String? = nil) {
-      self.reason = reason
-      self.message = message ?? "Add an error message"
-    }
-
-    enum Reason: Swift.Error {
-      case unknown
-      case invalidCharacter
-      case unmatchedToken
-      case invalidUnicode
-      case invalidLiteral
-      case invalidEscape
-      case invalidIdentifier
-      case invalidOperator
-      case fileNotFound
-      case endOfFile
+    var message: ByteString?
+    var filePosition: FileScanner.Position
+    
+    enum Reason {
+      case unmatchedBlockComment
+      case unmatchedToken(Token)
+      case invalidCharacter(Byte)
     }
   }
-}
-
-struct NumberParsingSightings: OptionSet {
-  let rawValue: UInt8
-  init(rawValue: UInt8) { self.rawValue = rawValue }
-
-  static let none           = NumberParsingSightings(rawValue: 0b0000_0000)
-  static let decimal        = NumberParsingSightings(rawValue: 0b0000_0001)
-  static let decimalDigit   = NumberParsingSightings(rawValue: 0b0000_0010)
-  static let exponent       = NumberParsingSightings(rawValue: 0b0000_0100)
-  static let exponentSign   = NumberParsingSightings(rawValue: 0b0000_1000)
-  static let exponentDigit  = NumberParsingSightings(rawValue: 0b0001_0000)
-
-  var indicatesReal: Bool {
-    return self.rawValue != 0
-  }
-}
-
-
-
-extension Lexer.Error {
-
-  static let unknown = Reason.unknown
 }

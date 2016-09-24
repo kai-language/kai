@@ -30,12 +30,17 @@ if fileManager.fileExists(atPath: currentDirectory + "/" + fileName) {
     fatalError("\(fileName) not found")
 }
 
-// TODO(vdka): Read this from the arguments
+try Operator.prefix("-")
+try Operator.infix("+", bindingPower: 50)
+try Operator.infix("-", bindingPower: 50)
+try Operator.infix("*", bindingPower: 60)
+try Operator.infix("/", bindingPower: 60)
+
 let file = File(path: filePath)!
 
 do {
     
-    var lexer = Lexer(file: file)
+    var lexer = Lexer(file)
     
     let ast = try Parser.parse(lexer)
     

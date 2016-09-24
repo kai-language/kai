@@ -1,11 +1,3 @@
 
-/*
-+ :: (lhs: Int, rhs: Int) -> Int {
-  return #add("i64", lhs, rhs)
-}
+-5 + 3 * 4 * -5 + 5
 
-x :: 5
-y := 6
-*/
-
-z := -(x)
