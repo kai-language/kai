@@ -2,14 +2,16 @@
 class Symbol {
   let name: ByteString
   var kind: Kind
+  let position: FileScanner.Position
   var flags: Flag
 
   /// - Note: Multiple `Type`s are possible when the kind is a procedure
   var types: [KaiType] = []
 
-  init(_ name: ByteString, kind: Kind, type: KaiType? = nil, flags: Flag = []) {
+  init(_ name: ByteString, kind: Kind, filePosition: FileScanner.Position, type: KaiType? = nil, flags: Flag = []) {
     self.name = name
     self.kind = kind
+    self.position = filePosition
     self.types = []
     self.flags = flags
 

@@ -2,7 +2,6 @@
 class SymbolTable {
 
   weak var parent: SymbolTable? = nil
-//  var table = Trie<ByteString, Symbol>() // Let's try a regular array first and see if we want/need a more complex trie
   var table: [Symbol] = []
 
   /// The top most symbol table. Things exported from file scope are here.
@@ -14,7 +13,7 @@ extension SymbolTable {
 
   func insert(_ symbol: Symbol) throws {
     guard table.index(where: { symbol.name == $0.name }) == nil else {
-      throw Error(.redefinition, message: "Redefinition of \(symbol.name)")
+      throw Error(.redefinition, message: "Redefinition of \(symbol.name)", filePosition: symbol.position)
     }
     table.append(symbol)
   }
@@ -54,10 +53,12 @@ extension SymbolTable {
   struct Error: CompilerError {
     var reason: Reason
     var message: String?
+    var filePosition: FileScanner.Position
 
-    init(_ reason: Reason, message: String) {
+    init(_ reason: Reason, message: String, filePosition: FileScanner.Position) {
       self.reason = reason
       self.message = message
+      self.filePosition = filePosition
     }
 
     enum Reason: Swift.Error {
@@ -71,20 +72,5 @@ extension SymbolTable: CustomStringConvertible {
   var description: String {
 
     return "scope"
-    /*
-    var str = ""
-
-    if let parent = parent {
-      str.append(parent.description)
-      str.append("=======")
-    }
-
-    table.forEach {
-      str.append(String(describing: $0))
-      str.append("\n")
-    }
-
-    return str
-    */
   }
 }

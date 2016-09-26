@@ -54,10 +54,8 @@ do {
     
     print(ast.pretty())
     
-} catch let error as CompilerError {
-  print("error: \(error.message ?? String(describing: error))")
 } catch {
-  print("error: \(error)")
+  print(error)
 }
 
 // print(parserGrammer.pretty())

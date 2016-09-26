@@ -15,8 +15,7 @@ struct FileScanner {
   init(file: File) {
 
     self.file = file
-    // TODO(vdka): this should start at line number 1 but that puts it all off by 1 :S
-    self.position = Position(line: 0, column: 1, fileName: file.path)
+    self.position = Position(line: 1, column: 1, fileName: file.path)
     self.scanner = BufferedScanner(file.makeIterator())
   }
 }

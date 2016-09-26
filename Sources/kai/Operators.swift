@@ -181,13 +181,12 @@ extension Lexer.Token {
       return { parser, lvalue in
         guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
 
+        let position = parser.lexer.filePosition
         let rhs = try parser.expression(self.lbp!)
 
-        let symbol = Symbol(id, kind: .variable)
+        let symbol = Symbol(id, kind: .variable, filePosition: position)
 
         try SymbolTable.current.insert(symbol)
-
-        print("inserted symbol \(symbol) into symbol table")
 
         return AST.Node(.declaration(symbol), children: [lvalue, rhs])
       }
@@ -197,13 +196,13 @@ extension Lexer.Token {
       return { parser, lvalue in
         guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
 
+        let position = parser.lexer.filePosition
+
         let rhs = try parser.expression(self.lbp!)
 
-        let symbol = Symbol(id, kind: .variable, flags: .compileTime)
+        let symbol = Symbol(id, kind: .variable, filePosition: position, flags: .compileTime)
 
         try SymbolTable.current.insert(symbol)
-
-        print("inserted symbol \(symbol) into symbol table")
 
         return AST.Node(.declaration(symbol), children: [lvalue, rhs])
       }
