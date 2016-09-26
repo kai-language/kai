@@ -14,6 +14,22 @@ extension AST: CustomStringConvertible {
     return pretty()
   }
 
+  func mathy() -> String {
+    var description = ""
+
+    switch (kind, children.count) {
+    case (.integer(let n), 0): description += n.description
+    case (.identifier(let i), 0): description += i.description
+    case (.operator(let symbol), 1): description += symbol.description + "(" + children.first!.mathy() + ")"
+    case (.operator(let symbol), 2): description += "(" + children[0].mathy() + " " + symbol.description + " " + children[1].mathy() + ")"
+    case (.assignment, 2): description += "(" + children[0].mathy() + " = " + children[1].mathy() + ")"
+    case (.declaration, 2): description += "(" + children[0].mathy() + " := " + children[1].mathy() + ")"
+    case (.file(_), 0...Int.max): return children.reduce("", { str, node in str + node.mathy() + "\n" })
+    default: fatalError()
+    }
+    return description
+  }
+
   func pretty(depth: Int = 0) -> String {
     var description = ""
 

@@ -18,7 +18,7 @@ struct Lexer: IteratorProtocol {
   mutating func next() -> Token? {
     do {
       try skipWhitespace()
-    } catch { return nil }
+    } catch { return nil } // TODO(vdka): This will cause bugs.
 
     //        print("Getting token from \(scanner.peek())")
 
@@ -40,23 +40,47 @@ struct Lexer: IteratorProtocol {
       let number = consume(with: digits)
       return .integer(number)
 
-      case "(":
-        scanner.pop()
-        return .lparen
+    case "(":
+      consume(with: "(")
+      return .lparen
 
-      case ")":
-        scanner.pop()
-        return .rparen
+    case ")":
+      consume(with: ")")
+      return .rparen
+
+    case ":":
+      let symbol = consume(with: ":=")
+
+      if symbol == ":=" { return .keyword(.declaration) }
+      else if symbol == ":" { return .colon }
+      else { return nil } // TODO(vdka): Iterator here has the weakness of being non throwing
+
+    case ",":
+      consume(with: ",")
+      return .comma
 
     default:
       return nil
     }
   }
 
+  @discardableResult
   mutating func consume(with chars: [Byte]) -> ByteString {
 
     var str: ByteString = ""
     while let char = scanner.peek(), chars.contains(char) {
+      scanner.pop()
+      str.append(char)
+    }
+
+    return str
+  }
+
+  @discardableResult
+  mutating func consume(with chars: ByteString) -> ByteString {
+
+    var str: ByteString = ""
+    while let char = scanner.peek(), chars.bytes.contains(char) {
       scanner.pop()
       str.append(char)
     }

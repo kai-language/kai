@@ -30,8 +30,10 @@ extension AST {
 
     case emptyFile(name: ByteString)
     case file(name: ByteString)
-    case declaration(Declaration)
     case identifier(ByteString)
+
+    case declaration(Declaration)
+    case assignment(ByteString)
 
     /// number of child nodes determine the 'arity' of the operator
     case `operator`(ByteString)
@@ -39,5 +41,18 @@ extension AST {
     case real(ByteString)
     case string(ByteString)
     case integer(ByteString)
+  }
+}
+
+extension AST.Node.Kind: Equatable {
+
+  static func == (lhs: AST.Node.Kind, rhs: AST.Node.Kind) -> Bool {
+    switch (lhs, rhs) {
+    case (.empty, .empty): return true
+    case (.unknown, .unknown): return true
+    // TODO(vdka): all the rest
+
+    default: return false
+    }
   }
 }

@@ -30,6 +30,7 @@ if fileManager.fileExists(atPath: currentDirectory + "/" + fileName) {
     fatalError("\(fileName) not found")
 }
 
+try Operator.assignment("=")
 try Operator.prefix("-")
 try Operator.infix("+", bindingPower: 50)
 try Operator.infix("-", bindingPower: 50)
@@ -44,7 +45,7 @@ do {
     
     let ast = try Parser.parse(lexer)
     
-    print(ast.pretty())
+    print(ast.mathy())
     
 } catch {
     print("error: \(error)")

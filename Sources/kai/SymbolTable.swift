@@ -2,28 +2,43 @@
 class SymbolTable {
 
   weak var parent: SymbolTable? = nil
-  var table = Trie<ByteString, Symbol>()
+//  var table = Trie<ByteString, Symbol>() // Let's try a regular array first and see if we want/need a more complex trie
+  var table: [Symbol] = []
 }
 
 extension SymbolTable {
 
-  func insert(_ symbol: Symbol) {
-    table.insert(symbol, forKeyPath: symbol.name)
+  func insert(_ symbol: Symbol) throws {
+    guard table.index(where: { symbol.name == $0.name }) == nil else {
+      throw Error(.redefinition, message: "Redefinition of \(symbol.name)")
+    }
+    table.append(symbol)
   }
 
   func lookup(_ name: ByteString) -> Symbol? {
-    var currentScope = self
 
-    repeat {
-      guard let symbol = currentScope.table.contains(name) else {
-         guard let parent = parent else { return nil }
-
-         currentScope = parent
-         continue
-      }
-
+    if let symbol = table.first(where: { $0.name == name }) {
       return symbol
-    } while true
+    } else {
+      return parent?.lookup(name)
+    }
+  }
+}
+
+extension SymbolTable {
+
+  struct Error: Swift.Error {
+    var reason: Reason
+    var message: String
+
+    init(_ reason: Reason, message: String) {
+      self.reason = reason
+      self.message = message
+    }
+
+    enum Reason: Swift.Error {
+      case redefinition
+    }
   }
 }
 

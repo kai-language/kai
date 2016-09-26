@@ -12,17 +12,24 @@ struct Parser {
 
     var parser = Parser(lexer)
 
-    return try parser.expression()
+    let node = AST.Node(.file(name: "main.kai"))
+
+    while true {
+      let expr = try parser.expression()
+      guard expr.kind != .empty else { return node }
+
+      node.children.append(expr)
+    }
   }
 
-  mutating func expression(_ rbp: Int16 = 0) throws -> AST.Node {
+  mutating func expression(_ rbp: UInt8 = 0) throws -> AST.Node {
     guard let token = scanner.peek() else { return AST.Node(.empty) }
     scanner.pop()
 
     guard var left = try token.nud?(&self) else { throw error(.expectedAtom) }
 
-    while let token = scanner.peek(), let bindingPower = token.bindingPower,
-      rbp < bindingPower
+    while let token = scanner.peek(), let lbp = token.lbp,
+      rbp < lbp
     {
 
       scanner.pop()
@@ -39,6 +46,13 @@ struct Parser {
 
 extension Parser {
 
+  mutating func consume(_ expected: Lexer.Token) throws {
+    guard let token = scanner.peek(), token == expected else {
+      throw error(.expected(expected))
+    }
+    scanner.pop()
+  }
+
   func error(_ reason: Error.Reason, message: String? = nil) -> Swift.Error {
     return Error(reason: reason, message: message)
   }
@@ -52,8 +66,24 @@ extension Parser {
     var message: String?
 
     enum Reason: Swift.Error {
+      case expected(Lexer.Token)
       case expectedAtom
       case nonInfixOperator
+      case badlvalue
+    }
+  }
+}
+
+extension Parser.Error.Reason: Equatable {
+
+  static func == (lhs: Parser.Error.Reason, rhs: Parser.Error.Reason) -> Bool {
+
+    switch (lhs, rhs) {
+    case (.expected(let l), .expected(let r)): return l == r
+    case (.expectedAtom, .expectedAtom): return true
+    case (.nonInfixOperator, .nonInfixOperator): return true
+    case (.badlvalue, .badlvalue): return true
+    default: return false
     }
   }
 }

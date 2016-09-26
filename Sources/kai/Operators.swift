@@ -4,19 +4,19 @@ struct Operator {
   enum Associativity { case left, right }
 
   let symbol: ByteString
-  let bindingPower: Int16
+  let lbp: UInt8
   let associativity: Associativity
 
   var nud: ((inout Parser) throws -> AST.Node)?
   var led: ((inout Parser, _ left: AST.Node) throws -> AST.Node)?
 
 
-  init(_ symbol: ByteString, bindingPower: Int16, associativity: Associativity = .left,
+  init(_ symbol: ByteString, lbp: UInt8, associativity: Associativity = .left,
        nud: ((inout Parser) throws -> AST.Node)?,
        led: ((inout Parser, _ left: AST.Node) throws -> AST.Node)?) {
 
     self.symbol = symbol
-    self.bindingPower = bindingPower
+    self.lbp = lbp
     self.associativity = associativity
 
     self.nud = nud
@@ -28,13 +28,13 @@ extension Operator {
 
   static var table: [Operator] = []
 
-  static func infix(_ symbol: ByteString, bindingPower: Int16, associativity: Associativity = .left,
+  static func infix(_ symbol: ByteString, bindingPower lbp: UInt8, associativity: Associativity = .left,
                     led: ((inout Parser, _ left: AST.Node) throws -> AST.Node)? = nil) throws
   {
 
     let led = led ?? { parser, left in
       let node = AST.Node(.operator(symbol))
-      let bp = (associativity == .left) ? bindingPower : bindingPower - 1
+      let bp = (associativity == .left) ? lbp : lbp - 1
       let rhs = try parser.expression(bp)
       node.add(children: [left, rhs])
 
@@ -47,7 +47,7 @@ extension Operator {
       table[index].led = led
     } else {
 
-      let op = Operator(symbol, bindingPower: bindingPower, associativity: associativity, nud: nil, led: led)
+      let op = Operator(symbol, lbp: lbp, associativity: associativity, nud: nil, led: led)
       table.append(op)
     }
   }
@@ -65,8 +65,24 @@ extension Operator {
       table[index].nud = nud
     } else {
 
-      let op = Operator(symbol, bindingPower: 70, associativity: .right, nud: nud, led: nil)
+      let op = Operator(symbol, lbp: 70, associativity: .right, nud: nud, led: nil)
       table.append(op)
+    }
+  }
+
+  static func assignment(_ symbol: ByteString) throws {
+
+    try infix(symbol, bindingPower: 10, associativity: .right) { parser, lvalue in
+
+      let node = AST.Node(.assignment(symbol))
+      // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
+      //   This can probably be done by handling `,` as a _special_ operator similar to languages like C
+      guard case .identifier(_) = lvalue.kind else { throw Error.badlvalue }
+
+      let rvalue = try parser.expression(9)
+      node.add(children: [lvalue, rvalue])
+
+      return node
     }
   }
 }
@@ -74,16 +90,27 @@ extension Operator {
 extension Operator {
 
   enum Error: Swift.Error {
+    case badlvalue
     case redefinition(ByteString)
   }
 }
 
 extension Lexer.Token {
 
-  var bindingPower: Int16? {
-    // TODO(vdka): Determine if we need to have more than just a default of -1 for non operators
-    guard case .operator(let symbol) = self else { return -1 }
-    return Operator.table.first(where: { $0.symbol == symbol })?.bindingPower
+  var lbp: UInt8? {
+    switch self {
+    case .identifier(_), .integer(_), .real(_), .string(_):
+      return 0
+
+    case .operator(let symbol):
+      return Operator.table.first(where: { $0.symbol == symbol })?.lbp
+
+    case .keyword(.declaration):
+      return 10
+
+    default:
+      return 0
+    }
   }
 
   var nud: ((inout Parser) throws -> AST.Node)? {
@@ -114,6 +141,25 @@ extension Lexer.Token {
     switch self {
     case .operator(let symbol):
       return Operator.table.first(where: { $0.symbol == symbol })?.led
+
+    case .keyword(.declaration):
+      // NOTE(vdka): This declaration is defined at a language level
+      // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
+      return { parser, lvalue in
+        guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
+
+        let rhs = try parser.expression(self.lbp!)
+
+        let symbol = Symbol(id, kind: .variable)
+
+        try parser.symbols.insert(symbol)
+
+        print("inserted symbol \(symbol) into symbol table")
+
+        let declaration = Declaration(symbol)
+        
+        return AST.Node(.declaration(declaration), children: [lvalue, rhs])
+      }
       
     default:
       return nil
