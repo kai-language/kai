@@ -55,7 +55,7 @@ do {
     print(ast.pretty())
     
 } catch {
-    print("error: \(error)")
+  print(error)
 }
 
 // print(parserGrammer.pretty())

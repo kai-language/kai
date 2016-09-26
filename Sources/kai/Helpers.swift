@@ -1,4 +1,25 @@
 
+protocol CompilerError: Swift.Error, CustomStringConvertible {
+  var message: String? { get }
+  var filePosition: FileScanner.Position { get }
+}
+
+extension CompilerError {
+
+  var description: String {
+
+    return "error[\(filePosition)]: \(message ?? String(describing: self))"
+  }
+}
+
+extension FileScanner.Position: CustomStringConvertible {
+
+  var description: String {
+    let baseName = fileName.characters.split(separator: "/").map(String.init).last!
+    return "\(baseName):\(line):\(column)"
+  }
+}
+
 typealias Byte = UInt8
 
 /*

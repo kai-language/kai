@@ -25,7 +25,7 @@ struct Parser {
     guard let token = try lexer.peek() else { return AST.Node(.empty) }
     try lexer.pop()
 
-    guard var left = try token.nud?(&self) else { throw error(.expectedAtom) }
+    guard var left = try token.nud?(&self) else { throw error(.expectedExpression, message: "Expected expression") }
 
     while let token = try lexer.peek(), let lbp = token.lbp,
       rbp < lbp
@@ -47,26 +47,28 @@ extension Parser {
 
   mutating func consume(_ expected: Lexer.Token) throws {
     guard let token = try lexer.peek(), token == expected else {
-      throw error(.expected(expected))
+      throw error(.expected(expected), message: "expected \(expected)")
     }
     try lexer.pop()
   }
 
   func error(_ reason: Error.Reason, message: String? = nil) -> Swift.Error {
-    return Error(reason: reason, message: message)
+    return Error(reason: reason, filePosition: lexer.filePosition, message: message)
   }
 }
 
 extension Parser {
 
-  struct Error: Swift.Error {
+  struct Error: CompilerError {
 
     var reason: Reason
+    var filePosition: FileScanner.Position
     var message: String?
 
     enum Reason: Swift.Error {
       case expected(Lexer.Token)
-      case expectedAtom
+      case undefinedIdentifier(ByteString)
+      case expectedExpression
       case nonInfixOperator
       case badlvalue
     }
@@ -79,10 +81,8 @@ extension Parser.Error.Reason: Equatable {
 
     switch (lhs, rhs) {
     case (.expected(let l), .expected(let r)): return l == r
-    case (.expectedAtom, .expectedAtom): return true
-    case (.nonInfixOperator, .nonInfixOperator): return true
-    case (.badlvalue, .badlvalue): return true
-    default: return false
+    case (.undefinedIdentifier(let l), .undefinedIdentifier(let r)): return l == r
+    default: return isMemoryEquivalent(lhs, rhs)
     }
   }
 }
