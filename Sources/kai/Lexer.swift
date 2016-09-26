@@ -5,22 +5,36 @@ let identChars  = Array<Byte>("_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV
 let whitespace  = Array<Byte>(" \t\n".utf8)
 
 
-struct Lexer: IteratorProtocol {
+struct Lexer {
 
   var scanner: FileScanner
+  var buffer: [Token] = []
+
+  var filePosition: FileScanner.Position { return scanner.position }
 
   init(_ file: File) {
 
     self.scanner = FileScanner(file: file)
   }
 
-  // TODO(vdka): The Parser will need to know file positions a little better to report errors when they occur.
-  mutating func next() -> Token? {
-    do {
-      try skipWhitespace()
-    } catch { return nil } // TODO(vdka): This will cause bugs.
+  mutating func peek(aheadBy n: Int = 0) throws -> Token? {
+    guard buffer.count <= n else { return buffer[n] }
 
-    //        print("Getting token from \(scanner.peek())")
+    guard let token = try next() else { return nil }
+
+    buffer.append(token)
+
+    return token
+  }
+
+  @discardableResult
+  mutating func pop() throws -> Token {
+    if buffer.isEmpty { return try next()! }
+    else { return buffer.removeFirst() }
+  }
+
+  mutating func next() throws -> Token? {
+    try skipWhitespace()
 
     guard let char = scanner.peek() else { return nil }
 
@@ -69,7 +83,9 @@ struct Lexer: IteratorProtocol {
       return .comma
 
     default:
-      return nil
+      let suspect = consume(upTo: whitespace.contains)
+
+      throw error(.invalidToken(suspect), message: "The token \(suspect) is unrecognized")
     }
   }
 
@@ -90,6 +106,18 @@ struct Lexer: IteratorProtocol {
 
     var str: ByteString = ""
     while let char = scanner.peek(), chars.bytes.contains(char) {
+      scanner.pop()
+      str.append(char)
+    }
+
+    return str
+  }
+
+  @discardableResult
+  mutating func consume(upTo predicate: (Byte) -> Bool) -> ByteString {
+
+    var str: ByteString = ""
+    while let char = scanner.peek(), predicate(char) {
       scanner.pop()
       str.append(char)
     }
@@ -145,7 +173,7 @@ extension Lexer {
 
 extension Lexer {
 
-  func error(_ reason: Error.Reason, message: ByteString? = nil) -> Swift.Error {
+  func error(_ reason: Error.Reason, message: String? = nil) -> Swift.Error {
     return Error(reason: reason, message: message, filePosition: scanner.position)
   }
 
@@ -153,11 +181,12 @@ extension Lexer {
 
 
     var reason: Reason
-    var message: ByteString?
+    var message: String?
     var filePosition: FileScanner.Position
     
     enum Reason {
       case unmatchedBlockComment
+      case invalidToken(ByteString)
       case unmatchedToken(Token)
       case invalidCharacter(Byte)
     }

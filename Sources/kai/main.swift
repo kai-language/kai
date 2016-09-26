@@ -50,7 +50,7 @@ do {
     
     var lexer = Lexer(file)
     
-    let ast = try Parser.parse(lexer)
+    let ast = try Parser.parse(&lexer)
     
     print(ast.pretty())
     
