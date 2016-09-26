@@ -42,6 +42,7 @@ extension AST {
     /// number of child nodes determine the 'arity' of the operator
     case `operator`(ByteString)
 
+    case boolean(Bool)
     case real(ByteString)
     case string(ByteString)
     case integer(ByteString)

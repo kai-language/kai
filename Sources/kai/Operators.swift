@@ -131,6 +131,12 @@ extension Lexer.Token {
     case .string(let literal):
       return { _ in AST.Node(.string(literal)) }
 
+    case .keyword(.true):
+      return { _ in AST.Node(.boolean(true)) }
+
+    case .keyword(.false):
+      return { _ in AST.Node(.boolean(false)) }
+
     case .lparen:
       return { parser in
         let expr = try parser.expression()
