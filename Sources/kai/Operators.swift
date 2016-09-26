@@ -77,7 +77,7 @@ extension Operator {
       let node = AST.Node(.assignment(symbol))
       // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
       //   This can probably be done by handling `,` as a _special_ operator similar to languages like C
-      guard case .identifier(_) = lvalue.kind else { throw Error.badlvalue }
+      guard case .identifier(let id) = lvalue.kind, parser.symbols.lookup(id) != nil else { throw Error.badlvalue }
 
       let rvalue = try parser.expression(9)
       node.add(children: [lvalue, rvalue])
@@ -156,9 +156,7 @@ extension Lexer.Token {
 
         print("inserted symbol \(symbol) into symbol table")
 
-        let declaration = Declaration(symbol)
-        
-        return AST.Node(.declaration(declaration), children: [lvalue, rhs])
+        return AST.Node(.declaration(symbol), children: [lvalue, rhs])
       }
       
     default:

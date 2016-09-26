@@ -2,14 +2,16 @@
 class Symbol {
   let name: ByteString
   var kind: Kind
+  var flags: Flag
 
   /// - Note: Multiple `Type`s are possible when the kind is a procedure
   var types: [KaiType] = []
 
-  init(_ name: ByteString, kind: Kind, type: KaiType? = nil) {
+  init(_ name: ByteString, kind: Kind, type: KaiType? = nil, flags: Flag = []) {
     self.name = name
     self.kind = kind
     self.types = []
+    self.flags = flags
 
     if let type = type {
       self.types.append(type)
@@ -21,6 +23,13 @@ class Symbol {
     case variable
     case procedure
     case `operator`
+  }
+
+  struct Flag: OptionSet {
+    let rawValue: UInt8
+    init(rawValue: UInt8) { self.rawValue = rawValue }
+
+    static let compileTime = Flag(rawValue: 0b0001)
   }
 }
 

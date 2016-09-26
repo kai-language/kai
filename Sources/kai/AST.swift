@@ -32,7 +32,7 @@ extension AST {
     case file(name: ByteString)
     case identifier(ByteString)
 
-    case declaration(Declaration)
+    case declaration(Symbol)
     case assignment(ByteString)
 
     /// number of child nodes determine the 'arity' of the operator
