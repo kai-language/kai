@@ -36,6 +36,13 @@ try Operator.infix("+", bindingPower: 50)
 try Operator.infix("-", bindingPower: 50)
 try Operator.infix("*", bindingPower: 60)
 try Operator.infix("/", bindingPower: 60)
+try Operator.infix("?", bindingPower: 20) { parser, conditional in
+
+  let thenExpression = try parser.expression()
+  try parser.consume(.colon)
+  let elseExpression = try parser.expression()
+  return AST.Node(.conditional, children: [conditional, thenExpression, elseExpression])
+}
 
 let file = File(path: filePath)!
 
@@ -45,7 +52,7 @@ do {
     
     let ast = try Parser.parse(lexer)
     
-    print(ast.mathy())
+    print(ast.pretty())
     
 } catch {
     print("error: \(error)")

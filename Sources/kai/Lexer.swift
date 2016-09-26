@@ -52,6 +52,7 @@ struct Lexer: IteratorProtocol {
       let symbol = consume(with: ":=")
 
       if symbol == ":=" { return .keyword(.declaration) }
+      else if symbol == "::" { return .keyword(.compilerDeclaration) }
       else if symbol == ":" { return .colon }
       else { return nil } // TODO(vdka): Iterator here has the weakness of being non throwing
 

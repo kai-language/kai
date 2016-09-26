@@ -99,13 +99,10 @@ extension Lexer.Token {
 
   var lbp: UInt8? {
     switch self {
-    case .identifier(_), .integer(_), .real(_), .string(_):
-      return 0
-
     case .operator(let symbol):
       return Operator.table.first(where: { $0.symbol == symbol })?.lbp
 
-    case .keyword(.declaration):
+    case .keyword(.declaration), .keyword(.compilerDeclaration):
       return 10
 
     default:
@@ -131,6 +128,21 @@ extension Lexer.Token {
     case .string(let literal):
       return { _ in AST.Node(.string(literal)) }
 
+    case .keyword(.if):
+      return { parser in
+
+        let conditionExpression = try parser.expression()
+        let thenExpression = try parser.expression()
+
+        guard case .keyword(.else)? = parser.scanner.peek() else {
+          return AST.Node(.conditional, children: [conditionExpression, thenExpression])
+        }
+
+        try parser.consume(.keyword(.else))
+        let elseExpression = try parser.expression()
+        return AST.Node(.conditional, children: [conditionExpression, thenExpression, elseExpression])
+      }
+
     default:
       return nil
     }
@@ -142,8 +154,9 @@ extension Lexer.Token {
     case .operator(let symbol):
       return Operator.table.first(where: { $0.symbol == symbol })?.led
 
+    // NOTE(vdka): Everything below here can be considered a language construct
+
     case .keyword(.declaration):
-      // NOTE(vdka): This declaration is defined at a language level
       // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
       return { parser, lvalue in
         guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
@@ -158,7 +171,23 @@ extension Lexer.Token {
 
         return AST.Node(.declaration(symbol), children: [lvalue, rhs])
       }
-      
+
+    case .keyword(.compilerDeclaration):
+      // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
+      return { parser, lvalue in
+        guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
+
+        let rhs = try parser.expression(self.lbp!)
+
+        let symbol = Symbol(id, kind: .variable, flags: .compileTime)
+
+        try parser.symbols.insert(symbol)
+
+        print("inserted symbol \(symbol) into symbol table")
+
+        return AST.Node(.declaration(symbol), children: [lvalue, rhs])
+      }
+
     default:
       return nil
     }

@@ -40,6 +40,29 @@ extension ExpressibleByStringLiteral where StringLiteralType == StaticString {
   }
 }
 
+// NOTE(vdka): This should only be used in development, there are better ways to do things.
+func isMemoryEquivalent<A, B>(_ lhs: A, _ rhs: B) -> Bool {
+  var (lhs, rhs) = (lhs, rhs)
+
+  guard MemoryLayout<A>.size == MemoryLayout<B>.size else { return false }
+
+  let lhsPointer = withUnsafePointer(to: &lhs) { $0 }
+  let rhsPointer = withUnsafePointer(to: &rhs) { $0 }
+
+  let lhsFirstByte = unsafeBitCast(lhsPointer, to: UnsafePointer<Byte>.self)
+  let rhsFirstByte = unsafeBitCast(rhsPointer, to: UnsafePointer<Byte>.self)
+
+  let lhsBytes = UnsafeBufferPointer(start: lhsFirstByte, count: MemoryLayout<A>.size)
+  let rhsBytes = UnsafeBufferPointer(start: rhsFirstByte, count: MemoryLayout<B>.size)
+
+  for (leftByte, rightByte) in zip(lhsBytes, rhsBytes) {
+    guard leftByte == rightByte else { return false }
+  }
+
+  return true
+
+}
+
 import Darwin
 
 func unimplemented(_ featureName: String, file: StaticString = #file, line: UInt = #line) -> Never {

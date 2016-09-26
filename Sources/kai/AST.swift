@@ -35,6 +35,8 @@ extension AST {
     case declaration(Symbol)
     case assignment(ByteString)
 
+    case conditional
+
     /// number of child nodes determine the 'arity' of the operator
     case `operator`(ByteString)
 
@@ -50,9 +52,7 @@ extension AST.Node.Kind: Equatable {
     switch (lhs, rhs) {
     case (.empty, .empty): return true
     case (.unknown, .unknown): return true
-    // TODO(vdka): all the rest
-
-    default: return false
+    default: return isMemoryEquivalent(lhs, rhs)
     }
   }
 }
