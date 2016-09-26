@@ -24,7 +24,7 @@ extension AST: CustomStringConvertible {
     case (.operator(let symbol), 2): description += "(" + children[0].mathy() + " " + symbol.description + " " + children[1].mathy() + ")"
     case (.assignment, 2): description += "(" + children[0].mathy() + " = " + children[1].mathy() + ")"
     case (.declaration, 2): description += "(" + children[0].mathy() + " := " + children[1].mathy() + ")"
-    case (.file(_), 0...Int.max): return children.reduce("", { str, node in str + node.mathy() + "\n" })
+    case (.file(_), _): return children.reduce("", { str, node in str + node.mathy() + "\n" })
     default: fatalError()
     }
     return description

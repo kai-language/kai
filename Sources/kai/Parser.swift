@@ -2,7 +2,6 @@
 struct Parser {
 
   var scanner: BufferedScanner<Lexer.Token>
-  var symbols = SymbolTable()
 
   init(_ lexer: Lexer) {
     self.scanner = BufferedScanner(lexer)

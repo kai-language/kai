@@ -77,7 +77,7 @@ extension Operator {
       let node = AST.Node(.assignment(symbol))
       // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
       //   This can probably be done by handling `,` as a _special_ operator similar to languages like C
-      guard case .identifier(let id) = lvalue.kind, parser.symbols.lookup(id) != nil else { throw Error.badlvalue }
+      guard case .identifier(let id) = lvalue.kind, SymbolTable.current.lookup(id) != nil else { throw Error.badlvalue }
 
       let rvalue = try parser.expression(9)
       node.add(children: [lvalue, rvalue])
@@ -143,6 +143,23 @@ extension Lexer.Token {
         return AST.Node(.conditional, children: [conditionExpression, thenExpression, elseExpression])
       }
 
+    case .lbracket:
+      return { parser in
+
+        // TODO(vdka): Traverse the AST upward, looking for parent scopes. if there are none, our parent is the global scope.
+
+        let scopeSymbols = SymbolTable.push()
+
+        let node = AST.Node(.scope(scopeSymbols))
+        while let next = parser.scanner.peek(), next != .rbracket {
+          let expr = try parser.expression()
+          node.add(expr)
+        }
+        try parser.consume(.rbracket)
+
+        return node
+      }
+
     default:
       return nil
     }
@@ -165,7 +182,7 @@ extension Lexer.Token {
 
         let symbol = Symbol(id, kind: .variable)
 
-        try parser.symbols.insert(symbol)
+        try SymbolTable.current.insert(symbol)
 
         print("inserted symbol \(symbol) into symbol table")
 
@@ -181,7 +198,7 @@ extension Lexer.Token {
 
         let symbol = Symbol(id, kind: .variable, flags: .compileTime)
 
-        try parser.symbols.insert(symbol)
+        try SymbolTable.current.insert(symbol)
 
         print("inserted symbol \(symbol) into symbol table")
 

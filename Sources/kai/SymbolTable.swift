@@ -4,6 +4,10 @@ class SymbolTable {
   weak var parent: SymbolTable? = nil
 //  var table = Trie<ByteString, Symbol>() // Let's try a regular array first and see if we want/need a more complex trie
   var table: [Symbol] = []
+
+  /// The top most symbol table. Things exported from file scope are here.
+  static var global = SymbolTable()
+  static var current = global
 }
 
 extension SymbolTable {
@@ -22,6 +26,26 @@ extension SymbolTable {
     } else {
       return parent?.lookup(name)
     }
+  }
+}
+
+extension SymbolTable {
+
+  @discardableResult
+  static func push() -> SymbolTable {
+    let newTable = SymbolTable()
+    newTable.parent = SymbolTable.current
+
+    return newTable
+  }
+
+  @discardableResult
+  static func pop() -> SymbolTable {
+    guard let parent = SymbolTable.current.parent else { fatalError("SymbolTable has been over pop'd") }
+
+    defer { SymbolTable.current = parent }
+
+    return SymbolTable.current
   }
 }
 
@@ -46,6 +70,8 @@ extension SymbolTable: CustomStringConvertible {
 
   var description: String {
 
+    return "scope"
+    /*
     var str = ""
 
     if let parent = parent {
@@ -59,5 +85,6 @@ extension SymbolTable: CustomStringConvertible {
     }
 
     return str
+    */
   }
 }

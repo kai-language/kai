@@ -48,6 +48,14 @@ struct Lexer: IteratorProtocol {
       consume(with: ")")
       return .rparen
 
+    case "{":
+      scanner.pop()
+      return .lbracket
+
+    case "}":
+      scanner.pop()
+      return .rbracket
+
     case ":":
       let symbol = consume(with: ":=")
 

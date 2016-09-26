@@ -14,6 +14,9 @@ extension Lexer {
 
     case lparen
     case rparen
+    case lbracket
+    case rbracket
+
     case colon
     case comma
 

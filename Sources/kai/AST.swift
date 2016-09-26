@@ -32,6 +32,8 @@ extension AST {
     case file(name: ByteString)
     case identifier(ByteString)
 
+    case scope(SymbolTable)
+
     case declaration(Symbol)
     case assignment(ByteString)
 

@@ -7,8 +7,9 @@ z := y + x
 
 a :: 5 ? 5 : 0
 
-if 5
+if 5 {
   x = 5
-else
+} else {
   x = 0
+}
 
