@@ -59,7 +59,7 @@ extension Parser {
 
 extension Parser {
 
-  struct Error: Swift.Error {
+  struct Error: CompilerError {
 
     var reason: Reason
     var message: String?

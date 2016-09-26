@@ -51,9 +51,9 @@ extension SymbolTable {
 
 extension SymbolTable {
 
-  struct Error: Swift.Error {
+  struct Error: CompilerError {
     var reason: Reason
-    var message: String
+    var message: String?
 
     init(_ reason: Reason, message: String) {
       self.reason = reason

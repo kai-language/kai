@@ -59,7 +59,7 @@ extension FileScanner {
 
     for (index, char) in prefix.enumerated() {
 
-      guard self.peek(aheadBy: index) == char else { return false }
+      guard peek(aheadBy: index) == char else { return false }
     }
 
     return true

@@ -77,7 +77,10 @@ extension Operator {
       let node = AST.Node(.assignment(symbol))
       // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
       //   This can probably be done by handling `,` as a _special_ operator similar to languages like C
-      guard case .identifier(let id) = lvalue.kind, SymbolTable.current.lookup(id) != nil else { throw Error.badlvalue }
+      guard case .identifier(let id) = lvalue.kind else { throw Error.badlvalue }
+      guard SymbolTable.current.lookup(id) != nil else {
+        throw parser.error(.badlvalue, message: "'\(id)' was not declared in this scope")
+      }
 
       let rvalue = try parser.expression(9)
       node.add(children: [lvalue, rvalue])

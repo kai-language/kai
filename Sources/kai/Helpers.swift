@@ -1,4 +1,8 @@
 
+protocol CompilerError: Swift.Error {
+  var message: String? { get }
+}
+
 typealias Byte = UInt8
 
 /*

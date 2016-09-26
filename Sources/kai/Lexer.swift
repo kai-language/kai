@@ -177,7 +177,7 @@ extension Lexer {
     return Error(reason: reason, message: message, filePosition: scanner.position)
   }
 
-  struct Error: Swift.Error {
+  struct Error: CompilerError {
 
 
     var reason: Reason
