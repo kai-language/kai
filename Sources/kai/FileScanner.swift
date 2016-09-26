@@ -10,20 +10,20 @@ struct FileScanner {
 
   var file: File
   var position: Position
-  var scanner: ByteScanner
+  var scanner: BufferedScanner<Byte>
 
   init(file: File) {
 
     self.file = file
     // TODO(vdka): this should start at line number 1 but that puts it all off by 1 :S
     self.position = Position(line: 0, column: 1, fileName: file.path)
-    self.scanner = ByteScanner(Array(file))
+    self.scanner = BufferedScanner(file.makeIterator())
   }
 }
 
 extension FileScanner {
 
-  func peek(aheadBy n: Int = 0) -> Byte? {
+  mutating func peek(aheadBy n: Int = 0) -> Byte? {
 
     return scanner.peek(aheadBy: n)
   }
@@ -32,22 +32,6 @@ extension FileScanner {
   mutating func pop() -> Byte {
 
     let byte = scanner.pop()
-
-    if byte == "\n" {
-      position.line   += 1
-      position.column  = 1
-    } else {
-      position.column += 1
-    }
-
-    return byte
-  }
-
-
-  @discardableResult
-  mutating func attemptPop() throws -> Byte {
-
-    let byte = try scanner.attemptPop()
 
     if byte == "\n" {
       position.line   += 1
@@ -67,17 +51,11 @@ extension FileScanner {
 
     for _ in 0..<n { pop() }
   }
-
-  @discardableResult
-  mutating func attemptPop(_ n: Int) throws {
-
-    for _ in 0..<n { try attemptPop() }
-  }
 }
 
 extension FileScanner {
 
-  func hasPrefix(_ prefix: ByteString) -> Bool {
+  mutating func hasPrefix(_ prefix: ByteString) -> Bool {
 
     for (index, char) in prefix.enumerated() {
 
@@ -87,7 +65,7 @@ extension FileScanner {
     return true
   }
 
-  func prefix(_ n: Int) -> ByteString {
+  mutating func prefix(_ n: Int) -> ByteString {
 
     var bytes: [Byte] = []
 

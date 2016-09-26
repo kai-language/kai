@@ -1,15 +1,15 @@
 
 struct Parser {
 
-  var scanner: BufferedScanner<Lexer.Token>
+  var lexer: Lexer
 
-  init(_ lexer: Lexer) {
-    self.scanner = BufferedScanner(lexer)
+  init(_ lexer: inout Lexer) {
+    self.lexer = lexer
   }
 
-  static func parse(_ lexer: Lexer) throws -> AST {
+  static func parse(_ lexer: inout Lexer) throws -> AST {
 
-    var parser = Parser(lexer)
+    var parser = Parser(&lexer)
 
     let node = AST.Node(.file(name: "main.kai"))
 
@@ -22,16 +22,16 @@ struct Parser {
   }
 
   mutating func expression(_ rbp: UInt8 = 0) throws -> AST.Node {
-    guard let token = scanner.peek() else { return AST.Node(.empty) }
-    scanner.pop()
+    guard let token = try lexer.peek() else { return AST.Node(.empty) }
+    try lexer.pop()
 
     guard var left = try token.nud?(&self) else { throw error(.expectedAtom) }
 
-    while let token = scanner.peek(), let lbp = token.lbp,
+    while let token = try lexer.peek(), let lbp = token.lbp,
       rbp < lbp
     {
 
-      scanner.pop()
+      try lexer.pop()
       guard let led = token.led else { throw error(.nonInfixOperator) }
       left = try led(&self, left)
     }
@@ -46,10 +46,10 @@ struct Parser {
 extension Parser {
 
   mutating func consume(_ expected: Lexer.Token) throws {
-    guard let token = scanner.peek(), token == expected else {
+    guard let token = try lexer.peek(), token == expected else {
       throw error(.expected(expected))
     }
-    scanner.pop()
+    try lexer.pop()
   }
 
   func error(_ reason: Error.Reason, message: String? = nil) -> Swift.Error {

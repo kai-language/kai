@@ -134,7 +134,7 @@ extension Lexer.Token {
         let conditionExpression = try parser.expression()
         let thenExpression = try parser.expression()
 
-        guard case .keyword(.else)? = parser.scanner.peek() else {
+        guard case .keyword(.else)? = try parser.lexer.peek() else {
           return AST.Node(.conditional, children: [conditionExpression, thenExpression])
         }
 
@@ -151,7 +151,7 @@ extension Lexer.Token {
         let scopeSymbols = SymbolTable.push()
 
         let node = AST.Node(.scope(scopeSymbols))
-        while let next = parser.scanner.peek(), next != .rbracket {
+        while let next = try parser.lexer.peek(), next != .rbracket {
           let expr = try parser.expression()
           node.add(expr)
         }
