@@ -1,7 +1,7 @@
 
 class SymbolTable {
 
-  weak var parent: SymbolTable? = nil
+  var parent: SymbolTable? = nil
   var table: [Symbol] = []
 
   /// The top most symbol table. Things exported from file scope are here.
@@ -34,6 +34,7 @@ extension SymbolTable {
   static func push() -> SymbolTable {
     let newTable = SymbolTable()
     newTable.parent = SymbolTable.current
+    SymbolTable.current = newTable
 
     return newTable
   }

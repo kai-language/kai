@@ -32,6 +32,11 @@ extension Lexer {
       case `else`
       case `return`
 
+      case `operator`
+      case infix
+      case prefix
+      case postfix
+
       case returnType = "->"
       case declaration = ":="
       case compilerDeclaration = "::"
