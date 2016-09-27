@@ -1,6 +1,7 @@
-language: objective-c
+language: generic
 osx_image: xcode8
+install:
+  - brew install llvm
 script:
   - set -o pipefail
-  - swift build
-
+  - swift build -Xcc -I/usr/local/opt/llvm/include/ -Xlinker -L/usr/local/opt/llvm/lib/"
