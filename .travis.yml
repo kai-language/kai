@@ -9,4 +9,4 @@ install:
   - brew install llvm
 script:
   - set -o pipefail
-  - swift build -Xcc -I/usr/local/opt/llvm/include/ -Xlinker -L/usr/local/opt/llvm/lib/
+  - swift build -Xcc -I/usr/local/opt/llvm/include -Xlinker -L/usr/local/opt/llvm/lib
