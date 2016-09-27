@@ -6,7 +6,7 @@ osx_image: xcode8
 before_install:
   - brew update
 install:
-  - brew install homebrew/versions/llvm36
+  - brew install llvm
 script:
   - set -o pipefail
-  - swift build -Xswiftc -I/usr/local/opt/llvm/include -Xlinker -L/usr/local/opt/llvm/lib
+  - swift build -Xcc -I/usr/local/opt/llvm/include -Xlinker -L/usr/local/opt/llvm/lib
