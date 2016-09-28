@@ -18,6 +18,10 @@ extension Lexer {
     case lbracket
     case rbracket
 
+    case infixOperator
+    case prefixOperator
+    case postfixOperator
+
     case colon
     case comma
 
@@ -31,11 +35,6 @@ extension Lexer {
       case `if`
       case `else`
       case `return`
-
-      case `operator`
-      case infix
-      case prefix
-      case postfix
 
       case returnType = "->"
       case declaration = ":="

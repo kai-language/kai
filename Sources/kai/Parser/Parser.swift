@@ -102,9 +102,8 @@ extension Lexer.Token {
         return AST.Node(.conditional, children: [conditionExpression, thenExpression, elseExpression])
       }
 
-    case .keyword(.prefix):
+    case .prefixOperator:
       return { parser in
-        try parser.consume(.keyword(.operator))
 
         guard case .operator(let symbol)? = try parser.lexer.peek() else { throw parser.error(.expectedOperator, message: "Expected an operator") }
         try parser.consume()
@@ -114,9 +113,8 @@ extension Lexer.Token {
         return AST.Node(.prefixOperator(symbol))
       }
 
-    case .keyword(.postfix):
+    case .postfixOperator:
       return { parser in
-        try parser.consume(.keyword(.operator))
 
         guard case .operator(let symbol)? = try parser.lexer.peek() else { throw parser.error(.expectedOperator, message: "Expected an operator") }
         try parser.consume()
@@ -128,9 +126,8 @@ extension Lexer.Token {
         return AST.Node(.postfixOperator(symbol))
       }
 
-    case .keyword(.infix):
+    case .infixOperator:
       return { parser in
-        try parser.consume(.keyword(.operator))
 
         guard case .operator(let symbol)? = try parser.lexer.peek() else { throw parser.error(.expectedOperator, message: "Expected an operator") }
         try parser.consume()
