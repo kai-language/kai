@@ -74,11 +74,10 @@ struct Lexer {
 
     case "{":
       scanner.pop()
-      return .lbracket
-
+      return .lbrace
     case "}":
       scanner.pop()
-      return .rbracket
+      return .rbrace
 
     case ":":
       let symbol = consume(with: ":=")

@@ -1,11 +1,7 @@
 
-/// Matches procedures with the signature `(T) -> T` | `(*T)`
-prefix operator -
-
-infix operator + //{ associativity left precedence 50 }
-infix operator - //{ associativity left precedence 50 }
-//infix operator * //{ associativity left precedence 60 }
-//infix operator / //{ associativity left precedence 60 }
+- :: prefix operator
++ :: infix operator { precedence 50 }
+- :: infix operator { precedence 50 }
 
 x := 0
 if true { x = 5 }

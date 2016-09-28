@@ -15,8 +15,8 @@ extension Lexer {
 
     case lparen
     case rparen
-    case lbracket
-    case rbracket
+    case lbrace
+    case rbrace
 
     case infixOperator
     case prefixOperator

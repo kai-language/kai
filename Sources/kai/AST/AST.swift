@@ -46,6 +46,9 @@ extension AST {
     /// number of child nodes determine the 'arity' of the operator
     case `operator`(ByteString)
 
+    /// This declares an operator but doesn't produce an implementation, as such this give no semantic value.
+    case operatorDeclaration
+
     case boolean(Bool)
     case real(ByteString)
     case string(ByteString)
