@@ -44,13 +44,15 @@ let file = File(path: filePath)!
 do {
 
     var lexer = Lexer(file)
-
-    let ast = try Parser.parse(&lexer)
-
+    console.warning("-----------------Parser-----------------")
+    var ast = try Parser.parse(&lexer)
     print(ast.pretty())
-
-} catch {
-  print(error)
+    console.warning("---------------Type Solver--------------")
+    try TypeSolver.run(on: &ast)
+    print(ast.pretty())
+    
+} catch let error as CompilerError {
+  console.error(error.description)
 }
 
 // print(parserGrammer.pretty())
