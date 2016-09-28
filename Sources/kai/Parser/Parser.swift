@@ -168,6 +168,7 @@ extension Lexer.Token {
 
     switch self {
     case .operator(let symbol):
+      guard try parser.lexer.peek() != .keyword(.compilerDeclaration) else { return CompileTimeParser.parseCompilerDeclaration }
       return Operator.table.first(where: { $0.symbol == symbol })?.led
 
       // NOTE(vdka): Everything below here can be considered a language construct
@@ -189,20 +190,8 @@ extension Lexer.Token {
 
     case .keyword(.compilerDeclaration):
       // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
-      return { parser, lvalue in
-        guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
+      return CompileTimeParser.parseCompilerDeclaration
 
-        let position = parser.lexer.filePosition
-
-        let rhs = try parser.expression(self.lbp!)
-        
-        let symbol = Symbol(id, kind: .variable, filePosition: position, flags: .compileTime)
-        
-        try SymbolTable.current.insert(symbol)
-        
-        return AST.Node(.declaration(symbol), children: [lvalue, rhs])
-      }
-      
     default:
       return nil
     }
