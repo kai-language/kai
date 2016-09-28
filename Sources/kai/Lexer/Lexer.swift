@@ -42,6 +42,9 @@ struct Lexer {
     case _ where identChars.contains(char):
       let symbol = consume(with: identChars)
       if let keyword = Token.Keyword(rawValue: symbol) { return .keyword(keyword) }
+      else if symbol == "infix", case .identifier("operator")? = try peek() { try pop(); return .infixOperator }
+      else if symbol == "prefix", case .identifier("operator")? = try peek() { try pop(); return .prefixOperator }
+      else if symbol == "postfix", case .identifier("operator")? = try peek() { try pop(); return .postfixOperator }
       else { return .identifier(symbol) }
 
     case _ where opChars.contains(char):

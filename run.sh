@@ -17,3 +17,4 @@ else
 
   .build/debug/kai $1
 fi
+

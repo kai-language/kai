@@ -18,6 +18,10 @@ extension Lexer {
     case lbracket
     case rbracket
 
+    case infixOperator
+    case prefixOperator
+    case postfixOperator
+
     case colon
     case comma
 

@@ -6,13 +6,20 @@ CC=`/usr/local/bin/swiftenv which swift`
 #echo "Using $CC"
 export SDKROOT=$(xcrun --show-sdk-path --sdk macosx)
 
-SWIFTC_FLAGS="-DDebug -Xcc -I/usr/local/opt/llvm/include/ -Xlinker -L/usr/local/opt/llvm/lib/"
+FLAGS="-Xswiftc -DDebug -Xcc -I/usr/local/opt/llvm/include/ -Xlinker -L/usr/local/opt/llvm/lib/"
 
-$CC build -Xswiftc $SWIFTC_FLAGS
+# No args, just build.
+if [ -z "$1" ]; then
 
-if [ $? -ne 0 ]; then
+  $CC build $FLAGS
 
-  exit 1
+  if [ $? -ne 0 ]; then
+
+    exit 1
+  fi
+else
+
+  $CC $1 $FLAGS
 fi
 
 cp .build/debug/kai $HOME/.dotfiles/bin/

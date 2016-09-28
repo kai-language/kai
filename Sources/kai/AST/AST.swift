@@ -28,11 +28,15 @@ extension AST {
     case empty
     case unknown
 
-    case emptyFile(name: ByteString)
-    case file(name: ByteString)
+    case emptyFile(name: String)
+    case file(name: String)
     case identifier(ByteString)
 
     case scope(SymbolTable)
+
+    case infixOperator(ByteString)
+    case prefixOperator(ByteString)
+    case postfixOperator(ByteString)
 
     case declaration(Symbol)
     case assignment(ByteString)
