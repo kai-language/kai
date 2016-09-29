@@ -62,6 +62,10 @@ extension Parser {
 
   mutating func nud(for token: Lexer.Token) throws -> ((inout Parser) throws -> AST.Node)? {
 
+    if case .keyword(.compilerDeclaration)? = try lexer.peek(aheadBy: 1) {
+      return try parseCompileTimeDeclaration(bindingTo: token)
+    }
+
     switch token {
     case .operator(let symbol):
       // If we have `+ ::` then parse that as a Definition | Declaration of an operator
@@ -201,6 +205,7 @@ extension Parser {
 
         let position = parser.lexer.filePosition
         let rhs = try parser.expression(parser.lbp(for: token)!)
+        
 
         let symbol = Symbol(id, kind: .variable, filePosition: position)
 
@@ -276,6 +281,7 @@ extension Parser {
       case expectedOperator
       case expectedExpression
       case nonInfixOperator
+      case invalidDeclaration
       case badlvalue
     }
   }

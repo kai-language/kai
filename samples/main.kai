@@ -3,9 +3,10 @@
 + :: infix operator { precedence 50 }
 - :: infix operator { precedence 50 }
 
++ :: (Int, Int) -> Int #foreign(LLVM) 'add'
+
 x := 0
 if true { x = 5 }
 else { x = 8 }
 
 y := -x + 5
-

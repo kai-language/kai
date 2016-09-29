@@ -8,7 +8,7 @@ extension CompilerError {
 
   var description: String {
 
-    return "error[\(filePosition)]: \(message ?? String(describing: self))"
+    return "error[\(filePosition)]: \(message ?? "Something went wrong")"
   }
 }
 
