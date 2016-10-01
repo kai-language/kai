@@ -59,7 +59,21 @@ extension Parser {
       }
 
     case .lparen:
-      unimplemented("Parsing either tuples or procedure types is a tomorrow goal")
+      // TODO(vdka): I forgot to add support _here_ for tuples
+      return { parser in
+        let type = try parser.parseType()
+        // next should be a new scope '{' or a foreign body
+        guard let token = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
+        if case .lbrace = token { unimplemented("procedure bodies not yet ready") }
+        else if case .directive(.foreignLLVM) = token {
+          try parser.consume()
+          guard case .string(let symbol)? = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration) }
+          try parser.consume()
+          return AST.Node(.foreign(.llvm, type: type, symbol))
+        }
+
+        throw parser.error(.invalidDeclaration, message: "Expected a procedure body")
+      }
 
     case .keyword(.struct), .keyword(.enum):
       unimplemented("Defining data structures is not yet implemented")

@@ -1,26 +1,25 @@
 #!/bin/bash
 
-# Must have swiftenv installed here. Default for homebrew
-CC="swift"
-
-#echo "Using $CC"
 export SDKROOT=$(xcrun --show-sdk-path --sdk macosx)
 
 FLAGS="-Xswiftc -DDebug -Xcc -I/usr/local/opt/llvm/include/ -Xlinker -L/usr/local/opt/llvm/lib/"
 
 # No args, just build.
-if [ -z "$1" ]; then
+swift build $FLAGS
 
-  $CC build $FLAGS
+if [ $? -ne 0 ]; then
 
-  if [ $? -ne 0 ]; then
-
-    exit 1
-  fi
-else
-
-  $CC $1 $FLAGS
+  exit 1
 fi
 
 cp .build/debug/kai $HOME/.dotfiles/bin/
 
+if [ "$1" == "run" ]; then
+  if [ -z "$2" ]; then
+    .build/debug/kai samples/main.kai
+  else 
+    .build/debug/kai $2
+  fi
+fi
+
+echo "done"

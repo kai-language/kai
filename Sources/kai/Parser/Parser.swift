@@ -282,6 +282,7 @@ extension Parser {
       case expectedExpression
       case nonInfixOperator
       case invalidDeclaration
+      case syntaxError
       case badlvalue
     }
   }

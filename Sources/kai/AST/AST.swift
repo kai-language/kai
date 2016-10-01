@@ -32,6 +32,13 @@ extension AST {
     case file(name: String)
     case identifier(ByteString)
 
+    enum ForeignSource { case llvm }
+    case foreign(ForeignSource, type: KaiType, ByteString)
+
+    case type(KaiType)
+
+    case procedure(Symbol)
+
     case scope(SymbolTable)
 
     case infixOperator(ByteString)

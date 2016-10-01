@@ -3,7 +3,8 @@
 + :: infix operator { precedence 50 }
 - :: infix operator { precedence 50 }
 
-+ :: (Int, Int) -> Int #foreign(LLVM) 'add'
++ :: (Int, Int) -> Int #foreign(LLVM) "add"
+- :: (Int, Int) -> Int #foreign(LLVM) "sub"
 
 x := 0
 if true { x = 5 }
