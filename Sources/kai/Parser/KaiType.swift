@@ -4,6 +4,9 @@ enum KaiType {
   case boolean
   case float
   case string
+
+  /// The type all Type's have
+  case type
   case unknown(ByteString)
   case tuple([KaiType])
   case other(ByteString)

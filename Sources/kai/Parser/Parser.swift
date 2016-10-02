@@ -204,7 +204,7 @@ extension Parser {
         let rhs = try parser.expression(parser.lbp(for: token)!)
         
 
-        let symbol = Symbol(id, kind: .variable, filePosition: position)
+        let symbol = Symbol(id, filePosition: position)
 
         try SymbolTable.current.insert(symbol)
 
@@ -222,7 +222,7 @@ extension Parser {
 
         let rhs = try parser.expression(parser.lbp(for: token)!)
 
-        let symbol = Symbol(id, kind: .variable, filePosition: position, flags: .compileTime)
+        let symbol = Symbol(id, filePosition: position, flags: .compileTime)
 
         try SymbolTable.current.insert(symbol)
 
