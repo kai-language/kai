@@ -1,4 +1,6 @@
 
+Int :: struct #foreign(LLVM) "i64"
+
 - :: prefix operator
 + :: infix operator { precedence 50 }
 - :: infix operator { precedence 50 }

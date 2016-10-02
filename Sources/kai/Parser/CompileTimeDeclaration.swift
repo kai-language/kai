@@ -3,6 +3,9 @@ extension Parser {
 
   mutating func parseCompileTimeDeclaration(bindingTo token: Lexer.Token) throws -> (inout Parser) throws -> AST.Node {
     try consume(.keyword(.compilerDeclaration))
+    // NOTE(vdka): this still isn't the perfect file position. Ultimately I would like to use the position of the first char of the identifier
+    //  currently this will use the first char of the '::' following it. Close enough. For now.
+    let position = lexer.filePosition
 
     let identifier: ByteString
     switch token {
@@ -61,7 +64,6 @@ extension Parser {
     case .lparen:
       // TODO(vdka): I forgot to add support _here_ for tuples
       return { parser in
-        let position = parser.lexer.filePosition
         let type = try parser.parseType()
 
         if case .tuple(_) = type { throw parser.error(.syntaxError) }
@@ -70,7 +72,7 @@ extension Parser {
         if case .lbrace = token { unimplemented("procedure bodies not yet ready") }
         else if case .directive(.foreignLLVM) = token {
           try parser.consume()
-          guard case .string(let foreignName)? = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration) }
+          guard case .string(let foreignName)? = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration, message: "Expected foreign symbol name") }
           try parser.consume()
 
           let symbol: Symbol
@@ -83,6 +85,7 @@ extension Parser {
             symbol = Symbol(identifier, kind: .procedure, filePosition: position, flags: .compileTime)
             symbol.source = .llvm
             symbol.types.append(type)
+            // TODO(vdka): I should think about this. For regular procedure's the current table makes complete sense, however for operator's does it? 
             try SymbolTable.global.insert(symbol)
           }
 
@@ -92,8 +95,28 @@ extension Parser {
         throw parser.error(.invalidDeclaration, message: "Expected a procedure body")
       }
 
-    case .keyword(.struct), .keyword(.enum):
-      unimplemented("Defining data structures is not yet implemented")
+    case .keyword(.struct):
+      return { parser in
+        try parser.consume(.keyword(.struct))
+        guard let token = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
+        if case .lbrace = token { unimplemented("Custom struct's are not ready") }
+        else if case .directive(.foreignLLVM) = token {
+          try parser.consume()
+          guard case .string(let foreignName)? = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration, message: "Expected foreign symbol name") }
+          try parser.consume()
+
+          // TODO(vdka): Not sure what to do for defining this as a symbol yet. Gotta talk with Brett
+          let symbol = Symbol(identifier, kind: .type, filePosition: position, flags: .compileTime)
+          symbol.source = .llvm
+          try SymbolTable.current.insert(symbol)
+
+          return AST.Node(.declaration(symbol), children: [AST.Node(.string(foreignName))])
+        } 
+        else { throw parser.error(.syntaxError, message: "Expected struct Body") }
+      }
+
+    case .keyword(.enum):
+      unimplemented("enum's not yet supported'")
 
     default:
       throw error(.invalidDeclaration, message: "Unknown compile time declaration type \(token)")

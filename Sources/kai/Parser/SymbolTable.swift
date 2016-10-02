@@ -12,6 +12,10 @@ class SymbolTable {
 extension SymbolTable {
 
   func insert(_ symbol: Symbol) throws {
+    // TODO(vdka): Depending on the discussion around #10 this check will need to be based off of the insert type.
+    // IE: if it's a procedure and the arguement's do not match then the insert is allowed as it is an overload,
+    // if it's a procedure and the argument's don't match then it's an invalid redefinition and we shoudl throw
+    // if it's a Type then we should throw.
     guard table.index(where: { symbol.name == $0.name }) == nil else {
       throw Error(.redefinition, message: "Redefinition of \(symbol.name)", filePosition: symbol.position)
     }
