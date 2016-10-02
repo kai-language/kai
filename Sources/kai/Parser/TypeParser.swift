@@ -72,9 +72,6 @@ extension Parser {
           } else { return .tuple(types) }
         }
 
-
-        types.append(type)
-
         if case .keyword(.returnType)? = try lexer.peek() {
           // now we just need to parse the return type and construct the AST.Node
 

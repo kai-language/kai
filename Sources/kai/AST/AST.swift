@@ -32,9 +32,6 @@ extension AST {
     case file(name: String)
     case identifier(ByteString)
 
-    enum ForeignSource { case llvm }
-    case foreign(ForeignSource, type: KaiType, ByteString)
-
     case type(KaiType)
 
     case procedure(Symbol)
@@ -53,8 +50,8 @@ extension AST {
     /// number of child nodes determine the 'arity' of the operator
     case `operator`(ByteString)
 
-    /// This declares an operator but doesn't produce an implementation, as such this give no semantic value.
-    case operatorDeclaration
+    /// This is the symbol of a compilerDeclaration that provides no information
+    case compilerDeclaration
 
     case boolean(Bool)
     case real(ByteString)

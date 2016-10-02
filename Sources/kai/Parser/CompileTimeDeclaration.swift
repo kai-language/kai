@@ -32,7 +32,7 @@ extension Parser {
           try parser.consume(.rbrace)
 
           try Operator.infix(identifier, bindingPower: precedence)
-          return AST.Node(.operatorDeclaration)
+          return AST.Node(.compilerDeclaration)
 
         case .identifier("associativity")?:
           unimplemented("associativity is yet to be implemented")
@@ -47,7 +47,7 @@ extension Parser {
         try parser.consume()
         guard try parser.lexer.peek() != .lbrace else { throw parser.error(.unaryOperatorBodyForbidden) }
         try Operator.prefix(identifier)
-        return AST.Node(.operatorDeclaration)
+        return AST.Node(.compilerDeclaration)
       }
 
     case .postfixOperator:
@@ -62,14 +62,33 @@ extension Parser {
       // TODO(vdka): I forgot to add support _here_ for tuples
       return { parser in
         let type = try parser.parseType()
+
+        if case .tuple(_) = type { throw parser.error(.syntaxError) }
         // next should be a new scope '{' or a foreign body
         guard let token = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
         if case .lbrace = token { unimplemented("procedure bodies not yet ready") }
         else if case .directive(.foreignLLVM) = token {
           try parser.consume()
-          guard case .string(let symbol)? = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration) }
+          guard case .string(let foreignName)? = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration) }
           try parser.consume()
-          return AST.Node(.foreign(.llvm, type: type, symbol))
+
+          // TODO(vdka): FilePosition should be the start of the decl
+          // TODO(vdka): What are the semantic diferences between a procedure and a variable. Should they even exist?  
+
+          let symbol: Symbol
+          if let existingSymbol = SymbolTable.global.lookup(identifier) {
+            symbol = existingSymbol
+            symbol.types.append(type)
+            // TODO(vdka): This 'source' needs to be a per overload thing.
+            symbol.source = .llvm
+          } else {
+            symbol = Symbol(identifier, kind: .procedure, filePosition: parser.lexer.filePosition, flags: .compileTime)
+            symbol.source = .llvm
+            symbol.types.append(type)
+            try SymbolTable.global.insert(symbol)
+          }
+
+          return AST.Node(.declaration(symbol), children: [AST.Node(.string(foreignName))])
         }
 
         throw parser.error(.invalidDeclaration, message: "Expected a procedure body")

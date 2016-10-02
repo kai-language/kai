@@ -2,6 +2,8 @@
 class Symbol {
   let name: ByteString
   var kind: Kind
+  // TODO(vdka): Needs to be per overload
+  var source: Source
   let position: FileScanner.Position
   var flags: Flag
 
@@ -11,6 +13,7 @@ class Symbol {
   init(_ name: ByteString, kind: Kind, filePosition: FileScanner.Position, type: KaiType? = nil, flags: Flag = []) {
     self.name = name
     self.kind = kind
+    self.source = .native
     self.position = filePosition
     self.types = []
     self.flags = flags
@@ -20,11 +23,17 @@ class Symbol {
     }
   }
 
+  // NOTE(vdka): I am still not sure Kind is required
   enum Kind {
     case type
     case variable
     case procedure
     case `operator`
+  }
+
+  enum Source {
+    case native
+    case llvm
   }
 
   struct Flag: OptionSet {
@@ -49,6 +58,6 @@ extension Symbol: CustomStringConvertible {
     case nil:
       typeDescription = "unknown"
     }
-    return "\(kind) \(typeDescription) '\(name)'"
+    return "\(source == .native ? "" : String(describing: source)) \(kind) '\(name)' \(typeDescription)"
   }
 }

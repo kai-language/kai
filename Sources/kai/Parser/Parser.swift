@@ -27,7 +27,8 @@ struct Parser {
     try lexer.pop()
 
     guard var left = try nud(for: token)?(&self) else { throw error(.expectedExpression, message: "Expected Expression but got \(token)") }
-    if case .operatorDeclaration = left.kind { return left }
+    if case .declaration(_) = left.kind { return left }
+    else if case .compilerDeclaration = left.kind { return left }
 
     while let token = try lexer.peek(), let lbp = lbp(for: token),
       rbp < lbp
@@ -80,7 +81,7 @@ extension Parser {
             guard case .lbrace? = try parser.lexer.peek() else {
               try Operator.infix(symbol, bindingPower: 50)
               // TODO(vdka): We can reasonably default an operator to non-associative. But what about precedence?
-              return AST.Node(.operatorDeclaration)
+              return AST.Node(.compilerDeclaration)
             }
             try parser.consume()
             switch try parser.lexer.peek() {
@@ -96,7 +97,7 @@ extension Parser {
               try parser.consume(.rbrace)
 
               try Operator.infix(symbol, bindingPower: precedence)
-              return AST.Node(.operatorDeclaration)
+              return AST.Node(.compilerDeclaration)
 
               // TODO(vdka): we should support { associativty left precedence 50 } & { precedence 50 }
 
@@ -108,7 +109,7 @@ extension Parser {
             try parser.consume()
             guard try parser.lexer.peek() != .lbrace else { throw parser.error(.unaryOperatorBodyForbidden) }
             try Operator.prefix(symbol)
-            return AST.Node(.operatorDeclaration)
+            return AST.Node(.compilerDeclaration)
 
           case .postfixOperator?:
             try parser.consume()
