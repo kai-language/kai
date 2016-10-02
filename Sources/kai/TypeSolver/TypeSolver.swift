@@ -17,14 +17,14 @@ class TypeSolver {
             //types and functions calls
             case .assignment:
                 break
-            case .declaration(let symbol) where symbol.types.first == nil:
+            case .declaration(let symbol) where symbol.type == nil:
                 guard child.children.count > 0 else { print("what no children!!!"); continue }
                 guard let type = try solve(given: child.children, in: symbol) else {
                     print("unable to solve type")
                     return
                 }
                 
-                symbol.types = [type]
+                symbol.type = type
             case .scope:
                 try check(&child)
             default:
@@ -50,7 +50,7 @@ class TypeSolver {
 
                 //this is either a user defined type or an error
                 case .identifier(let name) where index != 0:
-                    guard let type = try findSymbol(named: name, in: scope)?.types.first else {
+                    guard let type = try findSymbol(named: name, in: scope)?.type else {
                         print("unidentified symbol: \(name) \(node.parent)")
                         return nil
                     }
@@ -88,7 +88,7 @@ class TypeSolver {
        //an index for their location in `SymbolTable.symbols`
         guard 
             let symbol = SymbolTable.global.lookup(name),
-            let type = symbol.types.first
+            let type = symbol.type
         else { return nil }
 
         switch type {
