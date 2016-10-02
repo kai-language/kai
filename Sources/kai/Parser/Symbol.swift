@@ -32,7 +32,7 @@ class Symbol {
 
   enum Source {
     case native
-    case llvm
+    case llvm(symbol: ByteString)
   }
 
   struct Flag: OptionSet {
@@ -57,6 +57,6 @@ extension Symbol: CustomStringConvertible {
     case nil:
       typeDescription = "unknown"
     }
-    return "\(source == .native ? "" : String(describing: source)) \(kind) '\(name)' \(typeDescription)"
+    return "\(source) \(kind) '\(name)' \(typeDescription)"
   }
 }

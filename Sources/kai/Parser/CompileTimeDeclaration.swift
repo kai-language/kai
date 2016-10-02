@@ -80,16 +80,16 @@ extension Parser {
             symbol = existingSymbol
             symbol.types.append(type)
             // TODO(vdka): #10 This 'source' needs to be a per overload thing.
-            symbol.source = .llvm
+            symbol.source = .llvm(symbol: foreignName)
           } else {
             symbol = Symbol(identifier, kind: .procedure, filePosition: position, flags: .compileTime)
-            symbol.source = .llvm
+            symbol.source = .llvm(symbol: foreignName)
             symbol.types.append(type)
             // TODO(vdka): I should think about this. For regular procedure's the current table makes complete sense, however for operator's does it? 
             try SymbolTable.global.insert(symbol)
           }
 
-          return AST.Node(.declaration(symbol), children: [AST.Node(.string(foreignName))])
+          return AST.Node(.declaration(symbol))
         }
 
         throw parser.error(.invalidDeclaration, message: "Expected a procedure body")
@@ -107,10 +107,10 @@ extension Parser {
 
           // TODO(vdka): Not sure what to do for defining this as a symbol yet. Gotta talk with Brett
           let symbol = Symbol(identifier, kind: .type, filePosition: position, flags: .compileTime)
-          symbol.source = .llvm
+          symbol.source = .llvm(symbol: foreignName)
           try SymbolTable.current.insert(symbol)
 
-          return AST.Node(.declaration(symbol), children: [AST.Node(.string(foreignName))])
+          return AST.Node(.declaration(symbol))
         } 
         else { throw parser.error(.syntaxError, message: "Expected struct Body") }
       }
