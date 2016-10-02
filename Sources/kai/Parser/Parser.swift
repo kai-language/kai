@@ -169,12 +169,8 @@ extension Parser {
     case .lbrace:
       return { parser in
 
-        // TODO(vdka): Traverse the AST upward, looking for parent scopes. if there are none, our parent is the global scope.
-
         let scopeSymbols = SymbolTable.push()
-        defer {
-          SymbolTable.pop()
-        }
+        defer { SymbolTable.pop() }
 
         let node = AST.Node(.scope(scopeSymbols))
         while let next = try parser.lexer.peek(), next != .rbrace {

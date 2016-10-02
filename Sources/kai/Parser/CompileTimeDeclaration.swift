@@ -61,6 +61,7 @@ extension Parser {
     case .lparen:
       // TODO(vdka): I forgot to add support _here_ for tuples
       return { parser in
+        let position = parser.lexer.filePosition
         let type = try parser.parseType()
 
         if case .tuple(_) = type { throw parser.error(.syntaxError) }
@@ -72,17 +73,14 @@ extension Parser {
           guard case .string(let foreignName)? = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration) }
           try parser.consume()
 
-          // TODO(vdka): FilePosition should be the start of the decl
-          // TODO(vdka): What are the semantic diferences between a procedure and a variable. Should they even exist?  
-
           let symbol: Symbol
           if let existingSymbol = SymbolTable.global.lookup(identifier) {
             symbol = existingSymbol
             symbol.types.append(type)
-            // TODO(vdka): This 'source' needs to be a per overload thing.
+            // TODO(vdka): #10 This 'source' needs to be a per overload thing.
             symbol.source = .llvm
           } else {
-            symbol = Symbol(identifier, kind: .procedure, filePosition: parser.lexer.filePosition, flags: .compileTime)
+            symbol = Symbol(identifier, kind: .procedure, filePosition: position, flags: .compileTime)
             symbol.source = .llvm
             symbol.types.append(type)
             try SymbolTable.global.insert(symbol)
