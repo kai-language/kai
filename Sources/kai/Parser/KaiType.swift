@@ -36,6 +36,7 @@ extension KaiType: Equatable {
       return isMemoryEquivalent(lhs, rhs)
     }
   }
+
 }
 
 extension KaiType: CustomStringConvertible {
@@ -63,4 +64,5 @@ extension KaiType: CustomStringConvertible {
       return desc
     }
   }
+
 }

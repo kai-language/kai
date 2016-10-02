@@ -37,6 +37,7 @@ class TypeSolver {
         var makingProgress = true
         while makingProgress {
             makingProgress = false
+
             for (index, node) in nodes.enumerated() {
                 switch node.kind {
                 case .integer(_): return KaiType.integer
@@ -54,6 +55,7 @@ class TypeSolver {
                         return nil
                     }
                     return type
+
                 default:
                     continue
                 }
