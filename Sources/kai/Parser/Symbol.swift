@@ -1,30 +1,35 @@
 
 class Symbol {
   let name: ByteString
-  var kind: Kind
+  var source: Source
   let position: FileScanner.Position
   var flags: Flag
 
-  /// - Note: Multiple `Type`s are possible when the kind is a procedure
-  var types: [KaiType] = []
+  var type: KaiType?
 
-  init(_ name: ByteString, kind: Kind, filePosition: FileScanner.Position, type: KaiType? = nil, flags: Flag = []) {
-    self.name = name
-    self.kind = kind
-    self.position = filePosition
-    self.types = []
-    self.flags = flags
+  /// - Precondition: The current symbol table must align with where this symbol is defined.
+  /// - Returns: An array of other overload's for type that are overloadable, nil otherwise
+  var overloads: [Symbol]? {
+    switch type {
+    case .procedure(labels: _, arguments: _, returnType: _)?: 
+      return SymbolTable.current.table.filter({ $0.name == name })
 
-    if let type = type {
-      self.types.append(type)
+    default: 
+      return nil
     }
   }
 
-  enum Kind {
-    case type
-    case variable
-    case procedure
-    case `operator`
+  init(_ name: ByteString, filePosition: FileScanner.Position, type: KaiType? = nil, flags: Flag = []) {
+    self.name = name
+    self.source = .native
+    self.position = filePosition
+    self.type = type
+    self.flags = flags
+  }
+
+  enum Source {
+    case native
+    case llvm(ByteString)
   }
 
   struct Flag: OptionSet {
@@ -38,17 +43,6 @@ class Symbol {
 extension Symbol: CustomStringConvertible {
 
   var description: String {
-    let typeDescription: String
-    switch types.first {
-    case .some(_) where types.count > 1:
-      typeDescription = "overloaded"
-
-    case let type?:
-      typeDescription = String(describing: type)
-
-    case nil:
-      typeDescription = "unknown"
-    }
-    return "\(kind) \(typeDescription) '\(name)'"
+    return "\(name): \(type) (\(source))"
   }
 }

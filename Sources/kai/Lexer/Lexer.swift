@@ -52,10 +52,17 @@ struct Lexer {
       if let keyword = Token.Keyword(rawValue: symbol) { return .keyword(keyword) }
       else { return .operator(symbol) }
 
-      // TODO(vdka): Correctly consume (and validate) number literals (real and integer)
+    // TODO(vdka): Correctly consume (and validate) number literals (real and integer)
     case _ where digits.contains(char):
       let number = consume(with: digits)
       return .integer(number)
+
+    case "\"":
+      consume(with: "\"")
+      let string = consume(upTo: "\"")
+      // FIXME(vdka): This code has a bug, when a string is not terminated. I think.
+      consume(with: "\"")
+      return .string(string)
 
     case "(":
       consume(with: "(")
@@ -67,11 +74,10 @@ struct Lexer {
 
     case "{":
       scanner.pop()
-      return .lbracket
-
+      return .lbrace
     case "}":
       scanner.pop()
-      return .rbracket
+      return .rbrace
 
     case ":":
       let symbol = consume(with: ":=")
@@ -84,6 +90,15 @@ struct Lexer {
     case ",":
       consume(with: ",")
       return .comma
+
+    case "#":
+      consume(with: "#")
+      let identifier = consume(upTo: { !whitespace.contains($0) })
+      guard let directive = Token.Directive(rawValue: identifier) else {
+        throw error(.unknownDirective, message: "The directive '\(identifier)' is unknown!")
+      }
+
+      return .directive(directive)
 
     default:
       let suspect = consume(upTo: whitespace.contains)
@@ -124,9 +139,20 @@ struct Lexer {
       scanner.pop()
       str.append(char)
     }
-
     return str
   }
+
+  @discardableResult
+  mutating func consume(upTo target: Byte) -> ByteString {
+
+    var str: ByteString = ""
+    while let char = scanner.peek(), char != target {
+      scanner.pop()
+      str.append(char)
+    }
+    return str
+  }
+
 }
 
 extension Lexer {
@@ -186,8 +212,9 @@ extension Lexer {
     var reason: Reason
     var message: String?
     var filePosition: FileScanner.Position
-    
-    enum Reason {
+
+    enum Reason: Swift.Error {
+      case unknownDirective
       case unmatchedBlockComment
       case invalidToken(ByteString)
       case unmatchedToken(Token)

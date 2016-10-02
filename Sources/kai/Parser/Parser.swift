@@ -26,14 +26,18 @@ struct Parser {
     guard let token = try lexer.peek() else { return AST.Node(.empty) }
     try lexer.pop()
 
-    guard var left = try token.nud?(&self) else { throw error(.expectedExpression, message: "Expected expression") }
+    guard var left = try nud(for: token)?(&self) else { throw error(.expectedExpression, message: "Expected Expression but got \(token)") }
+    if case .declaration(_) = left.kind { return left }
+    else if case .compilerDeclaration = left.kind { return left }
 
-    while let token = try lexer.peek(), let lbp = token.lbp,
+    while let token = try lexer.peek(), let lbp = lbp(for: token),
       rbp < lbp
     {
 
       try lexer.pop()
-      guard let led = token.led else { throw error(.nonInfixOperator) }
+      guard let led = try led(for: token) else {
+        throw error(.nonInfixOperator)
+      }
       left = try led(&self, left)
     }
 
@@ -41,10 +45,11 @@ struct Parser {
   }
 }
 
-extension Lexer.Token {
+extension Parser {
 
-  var lbp: UInt8? {
-    switch self {
+  func lbp(for token: Lexer.Token) -> UInt8? {
+
+    switch token {
     case .operator(let symbol):
       return Operator.table.first(where: { $0.symbol == symbol })?.lbp
 
@@ -56,11 +61,70 @@ extension Lexer.Token {
     }
   }
 
-  var nud: ((inout Parser) throws -> AST.Node)? {
+  mutating func nud(for token: Lexer.Token) throws -> ((inout Parser) throws -> AST.Node)? {
 
-    switch self {
+    if case .keyword(.compilerDeclaration)? = try lexer.peek(aheadBy: 1) {
+      return try parseCompileTimeDeclaration(bindingTo: token)
+    }
+
+    switch token {
     case .operator(let symbol):
-      return Operator.table.first(where: { $0.symbol == symbol })?.nud
+      // If we have `+ ::` then parse that as a Definition | Declaration of an operator
+      if case .keyword(.compilerDeclaration)? = try lexer.peek(aheadBy: 1) {
+        return { (parser: inout Parser) in
+          // parse + :: infix operator { associatvity left precedence 50 }
+          try parser.consume(.keyword(.compilerDeclaration))
+
+          switch try parser.lexer.peek() {
+          case .infixOperator?:
+            try parser.consume()
+            guard case .lbrace? = try parser.lexer.peek() else {
+              try Operator.infix(symbol, bindingPower: 50)
+              // TODO(vdka): We can reasonably default an operator to non-associative. But what about precedence?
+              return AST.Node(.compilerDeclaration)
+            }
+            try parser.consume()
+            switch try parser.lexer.peek() {
+            case .identifier(let id)? where id == "precedence":
+              try parser.consume()
+              
+              guard case .integer(let value)? = try parser.lexer.peek() else { throw parser.error(.expectedPrecedence) }
+
+              try parser.consume()
+
+              guard let precedence = UInt8(value.description) else { throw parser.error(.expectedPrecedence) }
+
+              try parser.consume(.rbrace)
+
+              try Operator.infix(symbol, bindingPower: precedence)
+              return AST.Node(.compilerDeclaration)
+
+              // TODO(vdka): we should support { associativty left precedence 50 } & { precedence 50 }
+
+            default:
+              fatalError()
+            }
+
+          case .prefixOperator?:
+            try parser.consume()
+            guard try parser.lexer.peek() != .lbrace else { throw parser.error(.unaryOperatorBodyForbidden) }
+            try Operator.prefix(symbol)
+            return AST.Node(.compilerDeclaration)
+
+          case .postfixOperator?:
+            try parser.consume()
+            guard try parser.lexer.peek() != .lbrace else { throw parser.error(.unaryOperatorBodyForbidden) }
+            unimplemented()
+//            return AST.Node(.operatorDeclaration)
+
+          default:
+            throw parser.error(.expectedOperator)
+          }
+        }
+      } else {
+
+        return Operator.table.first(where: { $0.symbol == symbol })?.nud
+      }
 
     case .identifier(let symbol):
       return { _ in AST.Node(.identifier(symbol)) }
@@ -102,72 +166,31 @@ extension Lexer.Token {
         return AST.Node(.conditional, children: [conditionExpression, thenExpression, elseExpression])
       }
 
-    case .prefixOperator:
+    case .lbrace:
       return { parser in
-
-        guard case .operator(let symbol)? = try parser.lexer.peek() else { throw parser.error(.expectedOperator, message: "Expected an operator") }
-        try parser.consume()
-
-        try Operator.prefix(symbol)
-
-        return AST.Node(.prefixOperator(symbol))
-      }
-
-    case .postfixOperator:
-      return { parser in
-
-        guard case .operator(let symbol)? = try parser.lexer.peek() else { throw parser.error(.expectedOperator, message: "Expected an operator") }
-        try parser.consume()
-
-        // TODO(vdka): Add support for postfix operators
-        // NOTE(vdka): For now we shall parse them but do nothing with them.
-        //        try Operator.postfix(symbol)
-
-        return AST.Node(.postfixOperator(symbol))
-      }
-
-    case .infixOperator:
-      return { parser in
-
-        guard case .operator(let symbol)? = try parser.lexer.peek() else { throw parser.error(.expectedOperator, message: "Expected an operator") }
-        try parser.consume()
-
-        // TODO(vdka): Parse the body '{ associativity left precedence 50 }' instead of defaulting
-        try Operator.infix(symbol, bindingPower: 50)
-
-        return AST.Node(.infixOperator(symbol))
-      }
-
-
-    case .lbracket:
-      return { parser in
-
-        // TODO(vdka): Traverse the AST upward, looking for parent scopes. if there are none, our parent is the global scope.
 
         let scopeSymbols = SymbolTable.push()
-        defer {
-          SymbolTable.pop()
-        }
+        defer { SymbolTable.pop() }
 
         let node = AST.Node(.scope(scopeSymbols))
-        while let next = try parser.lexer.peek(), next != .rbracket {
+        while let next = try parser.lexer.peek(), next != .rbrace {
           let expr = try parser.expression()
           node.add(expr)
         }
-        try parser.consume(.rbracket)
-
+        try parser.consume(.rbrace)
+        
         return node
       }
 
-    default:
-      return nil
+    default: return nil
     }
   }
 
-  var led: ((inout Parser, _ left: AST.Node) throws -> AST.Node)? {
+  mutating func led(for token: Lexer.Token) throws -> ((inout Parser, AST.Node) throws -> AST.Node)? {
 
-    switch self {
+    switch token {
     case .operator(let symbol):
+
       return Operator.table.first(where: { $0.symbol == symbol })?.led
 
       // NOTE(vdka): Everything below here can be considered a language construct
@@ -178,9 +201,10 @@ extension Lexer.Token {
         guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
 
         let position = parser.lexer.filePosition
-        let rhs = try parser.expression(self.lbp!)
+        let rhs = try parser.expression(parser.lbp(for: token)!)
+        
 
-        let symbol = Symbol(id, kind: .variable, filePosition: position)
+        let symbol = Symbol(id, filePosition: position)
 
         try SymbolTable.current.insert(symbol)
 
@@ -189,17 +213,19 @@ extension Lexer.Token {
 
     case .keyword(.compilerDeclaration):
       // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
+
       return { parser, lvalue in
+
         guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
 
         let position = parser.lexer.filePosition
 
-        let rhs = try parser.expression(self.lbp!)
-        
-        let symbol = Symbol(id, kind: .variable, filePosition: position, flags: .compileTime)
-        
+        let rhs = try parser.expression(parser.lbp(for: token)!)
+
+        let symbol = Symbol(id, filePosition: position, flags: .compileTime)
+
         try SymbolTable.current.insert(symbol)
-        
+
         return AST.Node(.declaration(symbol), children: [lvalue, rhs])
       }
       
@@ -247,9 +273,13 @@ extension Parser {
       case expected(Lexer.Token)
       case undefinedIdentifier(ByteString)
       case operatorRedefinition
+      case unaryOperatorBodyForbidden
+      case expectedPrecedence
       case expectedOperator
       case expectedExpression
       case nonInfixOperator
+      case invalidDeclaration
+      case syntaxError
       case badlvalue
     }
   }

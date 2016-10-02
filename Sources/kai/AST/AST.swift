@@ -32,6 +32,10 @@ extension AST {
     case file(name: String)
     case identifier(ByteString)
 
+    case type(KaiType)
+
+    case procedure(Symbol)
+
     case scope(SymbolTable)
 
     case infixOperator(ByteString)
@@ -45,6 +49,9 @@ extension AST {
 
     /// number of child nodes determine the 'arity' of the operator
     case `operator`(ByteString)
+
+    /// This is the symbol of a compilerDeclaration that provides no information
+    case compilerDeclaration
 
     case boolean(Bool)
     case real(ByteString)

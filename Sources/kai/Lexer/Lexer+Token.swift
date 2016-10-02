@@ -4,19 +4,19 @@ extension Lexer {
   enum Token {
     case unknown
 
+    case directive(Directive)
     case keyword(Keyword)
     case identifier(ByteString)
     case `operator`(ByteString)
 
-    case boolean(Bool)
     case string(ByteString)
     case integer(ByteString)
     case real(ByteString)
 
     case lparen
     case rparen
-    case lbracket
-    case rbracket
+    case lbrace
+    case rbrace
 
     case infixOperator
     case prefixOperator
@@ -40,6 +40,10 @@ extension Lexer {
       case declaration = ":="
       case compilerDeclaration = "::"
     }
+
+    enum Directive: ByteString {
+      case foreignLLVM = "foreign(LLVM)"
+    }
   }
 }
 
@@ -50,7 +54,6 @@ extension Lexer.Token: Equatable {
     case (.keyword(let l), .keyword(let r)): return l == r
     case (.identifier(let l), .identifier(let r)): return l == r
     case (.operator(let l), .operator(let r)): return l == r
-    case (.boolean(let l), .boolean(let r)): return l == r
     case (.string(let l), .string(let r)): return l == r
     case (.integer(let l), .identifier(let r)): return l == r
     case (.real(let l), .real(let r)): return l == r
