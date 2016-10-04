@@ -69,62 +69,7 @@ extension Parser {
 
     switch token {
     case .operator(let symbol):
-      // If we have `+ ::` then parse that as a Definition | Declaration of an operator
-      if case .keyword(.compilerDeclaration)? = try lexer.peek(aheadBy: 1) {
-        return { (parser: inout Parser) in
-          // parse + :: infix operator { associatvity left precedence 50 }
-          try parser.consume(.keyword(.compilerDeclaration))
-
-          switch try parser.lexer.peek() {
-          case .infixOperator?:
-            try parser.consume()
-            guard case .lbrace? = try parser.lexer.peek() else {
-              try Operator.infix(symbol, bindingPower: 50)
-              // TODO(vdka): We can reasonably default an operator to non-associative. But what about precedence?
-              return AST.Node(.compilerDeclaration)
-            }
-            try parser.consume()
-            switch try parser.lexer.peek() {
-            case .identifier(let id)? where id == "precedence":
-              try parser.consume()
-              
-              guard case .integer(let value)? = try parser.lexer.peek() else { throw parser.error(.expectedPrecedence) }
-
-              try parser.consume()
-
-              guard let precedence = UInt8(value.description) else { throw parser.error(.expectedPrecedence) }
-
-              try parser.consume(.rbrace)
-
-              try Operator.infix(symbol, bindingPower: precedence)
-              return AST.Node(.compilerDeclaration)
-
-              // TODO(vdka): we should support { associativty left precedence 50 } & { precedence 50 }
-
-            default:
-              fatalError()
-            }
-
-          case .prefixOperator?:
-            try parser.consume()
-            guard try parser.lexer.peek() != .lbrace else { throw parser.error(.unaryOperatorBodyForbidden) }
-            try Operator.prefix(symbol)
-            return AST.Node(.compilerDeclaration)
-
-          case .postfixOperator?:
-            try parser.consume()
-            guard try parser.lexer.peek() != .lbrace else { throw parser.error(.unaryOperatorBodyForbidden) }
-            unimplemented()
-//            return AST.Node(.operatorDeclaration)
-
-          default:
-            throw parser.error(.expectedOperator)
-          }
-        }
-      } else {
-
-        return Operator.table.first(where: { $0.symbol == symbol })?.nud
-      }
+      return Operator.table.first(where: { $0.symbol == symbol })?.nud
 
     case .identifier(let symbol):
       return { _ in AST.Node(.identifier(symbol)) }
