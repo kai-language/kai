@@ -25,20 +25,35 @@ extension Parser {
 
         try parser.consume(.lbrace)
 
+        var associativity = Operator.Associativity.none
         switch try parser.lexer.peek() {
-        case .identifier("precedence")?:
+        case .identifier("associativity")?:
+          try parser.consume(.identifier("associativity"))
+          switch try parser.lexer.peek() {
+          case .identifier("left")?:
+            associativity = .left
+
+          case .identifier("right")?:
+            associativity = .left
+
+          default:
+            throw parser.error(.syntaxError)
+          }
+          
           try parser.consume()
+
+          fallthrough
+
+        case .identifier("precedence")?:
+          try parser.consume(.identifier("precedence"))
           guard case .integer(let value)? = try parser.lexer.peek() else { throw parser.error(.expectedPrecedence) }
           try parser.consume()
 
           guard let precedence = UInt8(value.description) else { throw parser.error(.expectedPrecedence) }
           try parser.consume(.rbrace)
 
-          try Operator.infix(identifier, bindingPower: precedence)
+          try Operator.infix(identifier, bindingPower: precedence, associativity: associativity)
           return AST.Node(.compilerDeclaration)
-
-        case .identifier("associativity")?:
-          unimplemented("associativity is yet to be implemented")
 
         default:
           throw parser.error(.expectedPrecedence)

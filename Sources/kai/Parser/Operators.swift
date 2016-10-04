@@ -1,7 +1,7 @@
 
 struct Operator {
 
-  enum Associativity { case left, right }
+  enum Associativity { case none, left, right }
 
   let symbol: ByteString
   let lbp: UInt8
