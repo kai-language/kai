@@ -30,12 +30,6 @@ if fileManager.fileExists(atPath: currentDirectory + "/" + fileName) {
     fatalError("\(fileName) not found")
 }
 
-try Operator.assignment("=")
-//try Operator.prefix("-")
-//try Operator.infix("+", bindingPower: 50)
-//try Operator.infix("-", bindingPower: 50)
-//try Operator.infix("*", bindingPower: 60)
-//try Operator.infix("/", bindingPower: 60)
 try Operator.infix("?", bindingPower: 20) { parser, conditional in
 
   let thenExpression = try parser.expression()

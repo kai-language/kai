@@ -1,4 +1,5 @@
 
+
 struct Parser {
 
   var lexer: Lexer
@@ -27,17 +28,13 @@ struct Parser {
     try lexer.pop()
 
     guard var left = try nud(for: token)?(&self) else { throw error(.expectedExpression, message: "Expected Expression but got \(token)") }
-    if case .declaration(_) = left.kind { return left }
-    else if case .compilerDeclaration = left.kind { return left }
 
     while let token = try lexer.peek(), let lbp = lbp(for: token),
       rbp < lbp
     {
 
       try lexer.pop()
-      guard let led = try led(for: token) else {
-        throw error(.nonInfixOperator)
-      }
+      guard let led = try led(for: token) else { throw error(.nonInfixOperator) }
       left = try led(&self, left)
     }
 
@@ -53,8 +50,9 @@ extension Parser {
     case .operator(let symbol):
       return Operator.table.first(where: { $0.symbol == symbol })?.lbp
 
-    case .keyword(.declaration), .keyword(.compilerDeclaration):
-      return 10
+      // TODO(vdka): what lbp do I want here?
+    case .colon, .comma:
+      return UInt8.max
 
     default:
       return 0
@@ -63,16 +61,18 @@ extension Parser {
 
   mutating func nud(for token: Lexer.Token) throws -> ((inout Parser) throws -> AST.Node)? {
 
-    if case .keyword(.compilerDeclaration)? = try lexer.peek(aheadBy: 1) {
-      return try parseCompileTimeDeclaration(bindingTo: token)
-    }
-
     switch token {
     case .operator(let symbol):
-      return Operator.table.first(where: { $0.symbol == symbol })?.nud
+      // If the next token is a colon then this should be a declaration
+      if case .colon? = try lexer.peek() { return { _ in AST.Node(.operator(symbol)) } }
+      else { return Operator.table.first(where: { $0.symbol == symbol })?.nud }
 
     case .identifier(let symbol):
-      return { _ in AST.Node(.identifier(symbol)) }
+      return { parser in
+        let node = AST.Node(.identifier(symbol))
+
+        return node
+      }
 
     case .integer(let literal):
       return { _ in AST.Node(.integer(literal)) }
@@ -140,34 +140,50 @@ extension Parser {
 
       // NOTE(vdka): Everything below here can be considered a language construct
 
-    case .keyword(.declaration):
-      // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
+    case .comma:
       return { parser, lvalue in
-        guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
 
-        let position = parser.lexer.filePosition
-        let rhs = try parser.expression(parser.lbp(for: token)!)
-        
+        let rhs = try parser.expression(UInt8.max)
 
-        let symbol = Symbol(id, filePosition: position)
+        if case .multiple = lvalue.kind { lvalue.children.append(rhs) }
+        else { return AST.Node(.multiple, children: [lvalue, rhs], filePosition: lvalue.filePosition) }
 
-        try SymbolTable.current.insert(symbol)
-
-        return AST.Node(.declaration(symbol), children: [lvalue, rhs])
+        return lvalue
       }
 
-    case .keyword(.compilerDeclaration):
-      // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
-
+    case .colon:
+      if case .colon? = try lexer.peek(aheadBy: 1) { return Parser.parseCompileTimeDeclaration }
       return { parser, lvalue in
 
-        guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
+        try parser.consume(.colon)
+
+        switch lvalue.kind {
+        case .identifier(let id):
+          let symbol = Symbol(id, filePosition: parser.lexer.filePosition)
+          try SymbolTable.current.insert(symbol)
+
+        case .multiple:
+          let symbols = try lvalue.children.map { node in
+            guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
+            let symbol = Symbol(id, filePosition: lvalue.filePosition!)
+            try SymbolTable.current.insert(symbol)
+
+            return symbol
+          }
+
+          let no = AST.init(.declaration, parent: <#T##AST.Node?#>, children: <#T##[AST.Node]#>, filePosition: <#T##FileScanner.Position?#>)
+
+        case .operator(let op):
+          unimplemented()
+
+        default:
+          fatalError("bad lvalue?")
+        }
 
         let position = parser.lexer.filePosition
-
         let rhs = try parser.expression(parser.lbp(for: token)!)
 
-        let symbol = Symbol(id, filePosition: position, flags: .compileTime)
+        let symbol = Symbol(id, filePosition: position)
 
         try SymbolTable.current.insert(symbol)
 

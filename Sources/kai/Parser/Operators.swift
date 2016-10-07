@@ -32,6 +32,8 @@ extension Operator {
                     led: ((inout Parser, _ left: AST.Node) throws -> AST.Node)? = nil) throws
   {
 
+    guard symbol != "=" else { throw Error.invalidSymbol }
+
     let led = led ?? { parser, left in
       let node = AST.Node(.operator(symbol))
       let bp = (associativity == .left) ? lbp : lbp - 1
@@ -54,6 +56,8 @@ extension Operator {
 
   static func prefix(_ symbol: ByteString, nud: ((inout Parser) throws -> AST.Node)? = nil) throws {
 
+    guard symbol != "=" else { throw Error.invalidSymbol }
+
     let nud = nud ?? { parser in
       let operand = try parser.expression(70)
       return AST.Node(.operator(symbol), children: [operand])
@@ -71,6 +75,8 @@ extension Operator {
   }
 
   static func assignment(_ symbol: ByteString) throws {
+
+    guard symbol != "=" else { throw Error.invalidSymbol }
 
     try infix(symbol, bindingPower: 10, associativity: .right) { parser, lvalue in
 
@@ -94,6 +100,7 @@ extension Operator {
 
   enum Error: Swift.Error {
     case badlvalue
+    case invalidSymbol
     case redefinition(ByteString)
   }
 }

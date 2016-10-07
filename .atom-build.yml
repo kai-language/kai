@@ -8,10 +8,7 @@ warningMatch:
 targets:
   "Run Script":
     sh: true
-    cmd: "$(pwd)/run.sh"
-  "Run Script with main.kai":
-    sh: true
-    cmd: "$(pwd)/run.sh samples/main.kai"
+    cmd: "$(pwd)/build.sh run"
   "Run in iTerm2":
     sh: true
     cmd: "runInLastITerm.sh \"pushd $(pwd); ./run.sh; popd\""

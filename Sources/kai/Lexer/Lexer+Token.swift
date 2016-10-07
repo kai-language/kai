@@ -22,6 +22,7 @@ extension Lexer {
     case prefixOperator
     case postfixOperator
 
+    case equals
     case colon
     case comma
 
@@ -37,8 +38,8 @@ extension Lexer {
       case `return`
 
       case returnType = "->"
-      case declaration = ":="
-      case compilerDeclaration = "::"
+      // case declaration = ":="
+      // case compilerDeclaration = "::"
     }
 
     enum Directive: ByteString {

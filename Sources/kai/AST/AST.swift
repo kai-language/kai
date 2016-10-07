@@ -32,6 +32,12 @@ extension AST {
     case file(name: String)
     case identifier(ByteString)
 
+    /// this signifies a comma seperates set of values. `x, y = y, x` would parse into
+    ///         =
+    ///      m    m
+    ///     x y  y x
+    case multiple
+
     case type(KaiType)
 
     case procedure(Symbol)

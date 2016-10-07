@@ -50,6 +50,7 @@ struct Lexer {
     case _ where opChars.contains(char):
       let symbol = consume(with: opChars)
       if let keyword = Token.Keyword(rawValue: symbol) { return .keyword(keyword) }
+      else if symbol == "=" { return .equals }
       else { return .operator(symbol) }
 
     // TODO(vdka): Correctly consume (and validate) number literals (real and integer)
@@ -58,6 +59,7 @@ struct Lexer {
       return .integer(number)
 
     case "\"":
+      // TODO(vdka): calling consume here is stupid, it will consume all '"' character's in a row
       consume(with: "\"")
       let string = consume(upTo: "\"")
       // FIXME(vdka): This code has a bug, when a string is not terminated. I think.
@@ -65,34 +67,31 @@ struct Lexer {
       return .string(string)
 
     case "(":
-      consume(with: "(")
+      scanner.pop()
       return .lparen
 
     case ")":
-      consume(with: ")")
+      scanner.pop()
       return .rparen
 
     case "{":
       scanner.pop()
       return .lbrace
+
     case "}":
       scanner.pop()
       return .rbrace
 
     case ":":
-      let symbol = consume(with: ":=")
-
-      if symbol == ":=" { return .keyword(.declaration) }
-      else if symbol == "::" { return .keyword(.compilerDeclaration) }
-      else if symbol == ":" { return .colon }
-      else { return nil } // TODO(vdka): Iterator here has the weakness of being non throwing
+      scanner.pop()
+      return .colon
 
     case ",":
-      consume(with: ",")
+      scanner.pop()
       return .comma
 
     case "#":
-      consume(with: "#")
+      scanner.pop()
       let identifier = consume(upTo: { !whitespace.contains($0) })
       guard let directive = Token.Directive(rawValue: identifier) else {
         throw error(.unknownDirective, message: "The directive '\(identifier)' is unknown!")
