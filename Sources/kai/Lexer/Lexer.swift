@@ -10,30 +10,70 @@ struct Lexer {
   var scanner: FileScanner
   var buffer: [Token] = []
 
-  var filePosition: FileScanner.Position { return scanner.position }
+  var sizeOfLastToken = 0
+
+  var filePosition: FileScanner.Position {
+    var scannerPosition = scanner.position
+    scannerPosition.column -= numericCast(sizeOfLastToken)
+    // let's hope we stay single line for all token's at least for now.
+    return scannerPosition
+  }
 
   init(_ file: File) {
 
     self.scanner = FileScanner(file: file)
   }
 
+  // TODO(vdka): Something is wrong in here
   mutating func peek(aheadBy n: Int = 0) throws -> Token? {
     guard buffer.count <= n else { return buffer[n] }
+    for _ in 0...n {
+      guard let token = try next() else { return nil }
+      buffer.append(token)
+    }
 
-    guard let token = try next() else { return nil }
+    print("You peeking up \(n) gon get \(buffer.last!)")
 
-    buffer.append(token)
-
-    return token
+    return buffer.last
   }
 
   @discardableResult
   mutating func pop() throws -> Token {
-    if buffer.isEmpty { return try next()! }
-    else { return buffer.removeFirst() }
+    let token: Token
+    if buffer.isEmpty { token = try next()! }
+    else { token = buffer.removeFirst() }
+
+    switch token {
+    case .colon, .comma, .equals, .lparen, .rparen, .lbrace, .rbrace:
+      sizeOfLastToken = 1
+
+    // FIXME(vdka): This code doesn't support Unicode length
+    case .string(let str):
+      sizeOfLastToken = str.bytes.count + 2
+
+    case .integer(let val), .real(let val), .identifier(let val), .operator(let val):
+      sizeOfLastToken = val.bytes.count
+
+    case .keyword(.if), .keyword(.returnType):
+      sizeOfLastToken = 2
+
+    case .keyword(.enum), .keyword(.true), .keyword(.else):
+      sizeOfLastToken = 4
+
+    case .keyword(.false):
+      sizeOfLastToken = 5
+
+    case .keyword(.struct), .keyword(.return):
+      sizeOfLastToken = 6
+
+    case .directive(let directive):
+      sizeOfLastToken = directive.rawValue.bytes.count + 1 // + 1 for the '#'
+    }
+    
+    return token
   }
 
-  mutating func next() throws -> Token? {
+  internal mutating func next() throws -> Token? {
     try skipWhitespace()
 
     guard let char = scanner.peek() else { return nil }
@@ -42,9 +82,6 @@ struct Lexer {
     case _ where identChars.contains(char):
       let symbol = consume(with: identChars)
       if let keyword = Token.Keyword(rawValue: symbol) { return .keyword(keyword) }
-      else if symbol == "infix", case .identifier("operator")? = try peek() { try pop(); return .infixOperator }
-      else if symbol == "prefix", case .identifier("operator")? = try peek() { try pop(); return .prefixOperator }
-      else if symbol == "postfix", case .identifier("operator")? = try peek() { try pop(); return .postfixOperator }
       else { return .identifier(symbol) }
 
     case _ where opChars.contains(char):
@@ -107,7 +144,7 @@ struct Lexer {
   }
 
   @discardableResult
-  mutating func consume(with chars: [Byte]) -> ByteString {
+  private mutating func consume(with chars: [Byte]) -> ByteString {
 
     var str: ByteString = ""
     while let char = scanner.peek(), chars.contains(char) {
@@ -119,7 +156,7 @@ struct Lexer {
   }
 
   @discardableResult
-  mutating func consume(with chars: ByteString) -> ByteString {
+  private mutating func consume(with chars: ByteString) -> ByteString {
 
     var str: ByteString = ""
     while let char = scanner.peek(), chars.bytes.contains(char) {
@@ -131,7 +168,7 @@ struct Lexer {
   }
 
   @discardableResult
-  mutating func consume(upTo predicate: (Byte) -> Bool) -> ByteString {
+  private mutating func consume(upTo predicate: (Byte) -> Bool) -> ByteString {
 
     var str: ByteString = ""
     while let char = scanner.peek(), predicate(char) {
@@ -142,7 +179,7 @@ struct Lexer {
   }
 
   @discardableResult
-  mutating func consume(upTo target: Byte) -> ByteString {
+  private mutating func consume(upTo target: Byte) -> ByteString {
 
     var str: ByteString = ""
     while let char = scanner.peek(), char != target {
@@ -156,7 +193,7 @@ struct Lexer {
 
 extension Lexer {
 
-  mutating func skipWhitespace() throws {
+  fileprivate mutating func skipWhitespace() throws {
     while let char = scanner.peek() {
 
       switch char {
@@ -172,7 +209,7 @@ extension Lexer {
     }
   }
 
-  mutating func skipBlockComment() throws {
+  private mutating func skipBlockComment() throws {
     assert(scanner.hasPrefix("/*"))
 
     var depth: UInt = 0
@@ -192,7 +229,7 @@ extension Lexer {
     scanner.pop()
   }
 
-  mutating func skipLineComment() {
+  private mutating func skipLineComment() {
     assert(scanner.hasPrefix("//"))
 
     while let char = scanner.peek(), char != "\n" { scanner.pop() }

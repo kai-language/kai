@@ -3,7 +3,6 @@ extension Parser {
 
   static func parseCompileTimeDeclaration(parser: inout Parser, lvalue: AST.Node) throws -> AST.Node {
     try parser.consume(.colon)
-    try parser.consume(.colon)
 
     let position = parser.lexer.filePosition
     let identifier: ByteString
@@ -18,60 +17,7 @@ extension Parser {
 
     guard let token = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration, message: "Expected a type for this declaration") }
     switch token {
-    case .infixOperator:
-      try parser.consume(.infixOperator)
-      try parser.consume(.lbrace)
-
-      var associativity = Operator.Associativity.none
-      switch try parser.lexer.peek() {
-      case .identifier("associativity")?:
-        try parser.consume()
-
-        switch try parser.lexer.peek() {
-        case .identifier("left")?:
-          associativity = .left
-
-        case .identifier("right")?:
-          associativity = .right
-
-        default:
-          throw parser.error(.syntaxError)
-        }
-
-        try parser.consume()
-
-        fallthrough
-
-      case .identifier("precedence")?:
-        try parser.consume(.identifier("precedence"))
-        guard case .integer(let value)? = try parser.lexer.peek() else { throw parser.error(.expectedPrecedence) }
-        try parser.consume()
-
-        guard let precedence = UInt8(value.description) else { throw parser.error(.expectedPrecedence) }
-        try parser.consume(.rbrace)
-
-        try Operator.infix(identifier, bindingPower: precedence, associativity: associativity)
-        return AST.Node(.compilerDeclaration)
-
-      default:
-        throw parser.error(.expectedPrecedence)
-      }
-
-
-    case .prefixOperator:
-      try parser.consume()
-      guard try parser.lexer.peek() != .lbrace else { throw parser.error(.unaryOperatorBodyForbidden) }
-      try Operator.prefix(identifier)
-      return AST.Node(.compilerDeclaration)
-
-
-    case .postfixOperator:
-        try parser.consume()
-        guard try parser.lexer.peek() != .lbrace else { throw parser.error(.unaryOperatorBodyForbidden) }
-        try Operator.prefix(identifier)
-        unimplemented()
-
-
+    // procedure type's
     case .lparen:
       let type = try parser.parseType()
 
@@ -93,8 +39,6 @@ extension Parser {
 
         return AST.Node(.declaration(symbol))
       }
-
-
     case .keyword(.struct):
       try parser.consume(.keyword(.struct))
       guard let token = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
@@ -127,4 +71,3 @@ extension Parser {
     fatalError("TODO: What happened here")
   }
 }
-

@@ -1,16 +1,26 @@
 
 # TODO
 
-## Where I left off
-
-## Yet to Come but obvious needs
-- [ ] Lex only as we need
-  - by making a buffered scanner where calls to peek will call the mutating `next() -> Element?` and store the input in a Queue. This allows _read as you need_ behavior and still permits arbitrary lookahead
-- [ ] Type checker
-  - Idea being that you have an untyped AST and you pass it through the type checker getting back a fully typed AST
-
 ## Big Features
 - [ ] Unions
+- [ ] Go style interfaces?
+  - @ compile time a so called _`interface`_ could be declared that basically would just define a set of field's available.
+  - Because these can only be created @ compile time and we know what field's everything have we can use interface'd type's to allow more flexibility about what could be passed into functions.
+  - `ErrorType :: interface { message: String }`
+  - Go seems to retain the ability to do this type @ runtime because it's how you handle JSON:
+```go
+import "json" .
+var json interface { }
+error := Unmarshal(bytes, &json)
+/*
+bool, for JSON booleans
+float64, for JSON numbers
+string, for JSON strings
+[]interface{}, for JSON arrays
+map[string]interface{}, for JSON objects
+nil for JSON null
+*/
+```
 
 ## Small Features
 - [x] Sort out valid variable names mainly the heads for identifiers (`[a-zA-Z_][a-zA-Z0-9_]`)

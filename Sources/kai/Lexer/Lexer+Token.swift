@@ -2,8 +2,6 @@
 extension Lexer {
 
   enum Token {
-    case unknown
-
     case directive(Directive)
     case keyword(Keyword)
     case identifier(ByteString)
@@ -17,10 +15,6 @@ extension Lexer {
     case rparen
     case lbrace
     case rbrace
-
-    case infixOperator
-    case prefixOperator
-    case postfixOperator
 
     case equals
     case colon
@@ -38,8 +32,6 @@ extension Lexer {
       case `return`
 
       case returnType = "->"
-      // case declaration = ":="
-      // case compilerDeclaration = "::"
     }
 
     enum Directive: ByteString {

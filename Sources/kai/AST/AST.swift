@@ -10,11 +10,13 @@ class AST {
 
   var kind: Kind
 
+  /// - Note: If you create a node without a filePosition it defaults to that if it's first child, should if have children
   init(_ kind: Kind, parent: Node? = nil, children: [Node] = [], filePosition: FileScanner.Position? = nil) {
     self.kind = kind
     self.parent = parent
     self.children = children
-    self.filePosition = filePosition
+    self.filePosition = filePosition ?? children.first?.filePosition
+
     for child in children {
 
       child.parent = self
@@ -56,8 +58,8 @@ extension AST {
     /// number of child nodes determine the 'arity' of the operator
     case `operator`(ByteString)
 
-    /// This is the symbol of a compilerDeclaration that provides no information
-    case compilerDeclaration
+    /// This is the symbol of a operatorDeclaration that provides no information
+    case operatorDeclaration
 
     case boolean(Bool)
     case real(ByteString)

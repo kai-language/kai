@@ -1,5 +1,7 @@
 
 protocol CompilerError: Swift.Error, CustomStringConvertible {
+  associatedtype Reason
+  var reason: Reason { get }
   var message: String? { get }
   var filePosition: FileScanner.Position { get }
 }
@@ -8,7 +10,7 @@ extension CompilerError {
 
   var description: String {
 
-    return "error[\(filePosition)]: \(message ?? "Something went wrong")"
+    return "error[\(filePosition)]: \(message ?? "Something went wrong, reason: \(reason)")"
   }
 }
 
