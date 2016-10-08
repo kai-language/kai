@@ -53,6 +53,9 @@ extension AST {
     case declaration(Symbol)
     case assignment(ByteString)
 
+    case multipleDeclaration([Symbol])
+    case multipleAssignment([ByteString])
+
     case conditional
 
     /// number of child nodes determine the 'arity' of the operator

@@ -210,15 +210,13 @@ extension Parser {
             return symbol
           }
 
-          // turn the array of identifier's into an array of symbols (declarations)
-          let lvalues = AST.Node(.multiple, children: symbols.map({ AST.Node(.declaration($0)) }), filePosition: parser.lexer.filePosition)
-
           switch try parser.lexer.peek() {
           case .equals?: // We will need to infer the type. The AST returned will have 2 child nodes.
             try parser.consume()
             let rvalue = try parser.expression()
+            // TODO(vdka): Pull the rvalue's children onto the generated node assuming it is a multiple node.
 
-            return AST.Node(.multiple, children: [lvalues, rvalue], filePosition: lvalues.filePosition)
+            return AST.Node(.multipleDeclaration(symbols), children: [rvalue], filePosition: parser.lexer.filePosition)
 
           case .identifier?:
             unimplemented()

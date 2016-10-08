@@ -43,6 +43,11 @@ class Symbol {
 extension Symbol: CustomStringConvertible {
 
   var description: String {
-    return "\(name): \(type) (\(source))"
+    if case .native = source {
+      if let type = type { return "(\(name): \(type))" }
+      else { return "(\(name): ??)" }
+    } else {
+      return "\(name): \(type) (\(source))"
+    }
   }
 }
