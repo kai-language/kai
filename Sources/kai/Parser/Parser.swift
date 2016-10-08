@@ -219,7 +219,7 @@ extension Parser {
             return AST.Node(.multipleDeclaration(symbols), children: [rvalue], filePosition: parser.lexer.filePosition)
 
           case .identifier?:
-            unimplemented()
+            unimplemented("Explicit types in multiple declaration's is not yet implemented")
 
           default:
             throw parser.error(.syntaxError)

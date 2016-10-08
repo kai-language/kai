@@ -77,7 +77,7 @@ struct Lexer {
 
     switch char {
     case _ where identChars.contains(char):
-      let symbol = consume(with: identChars)
+      let symbol = consume(with: identChars + digits)
       if let keyword = Token.Keyword(rawValue: symbol) { return .keyword(keyword) }
       else { return .identifier(symbol) }
 
