@@ -24,16 +24,13 @@ struct Lexer {
     self.scanner = FileScanner(file: file)
   }
 
-  // TODO(vdka): Something is wrong in here
   mutating func peek(aheadBy n: Int = 0) throws -> Token? {
-    guard buffer.count <= n else { return buffer[n] }
-    for _ in 0...n {
+    if n < buffer.count { return buffer[n] }
+
+    for _ in buffer.count...n {
       guard let token = try next() else { return nil }
       buffer.append(token)
     }
-
-    print("You peeking up \(n) gon get \(buffer.last!)")
-
     return buffer.last
   }
 

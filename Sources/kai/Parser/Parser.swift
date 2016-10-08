@@ -30,7 +30,9 @@ struct Parser {
     guard var left = try nud(for: token)?(&self) else {
       throw error(.expectedExpression, message: "Expected Expression but got \(token)")
     }
+    // operatorImplementation's need to be skipped too.
     if case .operatorDeclaration = left.kind { return left }
+    else if case .declaration(_) = left.kind { return left }
 
     while let nextToken = try lexer.peek(), let lbp = lbp(for: nextToken),
       rbp < lbp
@@ -72,7 +74,7 @@ extension Parser {
       // If the next token is a colon then this should be a declaration
       switch try (lexer.peek(), lexer.peek(aheadBy: 1)) {
       case (.colon?, .colon?):
-        return Parser.parseOperatorDeclaration(for: symbol)
+        return Parser.parseOperatorDeclaration(for: symbol, at: lexer.filePosition)
 
       default:
         return Operator.table.first(where: { $0.symbol == symbol })?.nud
@@ -291,6 +293,7 @@ extension Parser {
       case undefinedIdentifier(ByteString)
       case operatorRedefinition
       case unaryOperatorBodyForbidden
+      case expectedBody
       case expectedPrecedence
       case expectedOperator
       case expectedExpression

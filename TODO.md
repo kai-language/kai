@@ -1,6 +1,9 @@
 
 # TODO
 
+## Current
+- [ ] fix Directive.foreignLLVM by making it a single case that contains the foreign source. (Symbol.Source)-esque
+
 ## Big Features
 - [ ] Unions
 - [ ] Go style interfaces?
@@ -28,15 +31,6 @@ nil for JSON null
 
 ## Syntax
 - [ ] Review Forcing the user to wrap multiple input and output types for procedures in parenthesis
-
-## Thoughts
-
-- [ ] In order to have a decent incremental compilation mechanism we should serialize one of the AST's to disk.
-
-# Lexer
-
-- [ ] Tests
-  - [ ] `parseNumber`
 
 ## Compilation steps for executables
 

@@ -26,15 +26,10 @@ extension Parser {
       guard let token = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
       if case .lbrace = token { unimplemented("procedure bodies not yet ready") }
       else if case .directive(.foreignLLVM) = token {
-        try parser.consume()
-        guard case .string(let foreignName)? = try parser.lexer.peek() else {
-          throw parser.error(.invalidDeclaration, message: "Expected foreign symbol name")
-        }
-        try parser.consume()
 
         let symbol = Symbol(identifier, filePosition: position, flags: .compileTime)
         symbol.type = type
-        symbol.source = .llvm(foreignName)
+        symbol.source = try parser.parseForeignBody()
         try SymbolTable.current.insert(symbol)
 
         return AST.Node(.declaration(symbol))

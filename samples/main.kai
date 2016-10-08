@@ -12,8 +12,5 @@ Int :: struct #foreign(LLVM) "i64"
 + :: (Int, Int) -> Int #foreign(LLVM) "add"
 - :: (Int, Int) -> Int #foreign(LLVM) "sub"
 
-x := 0
 if true { x = 5 }
 else { x = 8 }
-
-y := -x + 5
