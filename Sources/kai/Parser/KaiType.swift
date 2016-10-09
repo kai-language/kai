@@ -36,3 +36,35 @@ extension KaiType: Equatable {
     }
   }
 }
+
+extension KaiType: CustomStringConvertible {
+
+  var description: String {
+    switch self {
+    case .boolean: return "Bool"
+    case .integer: return "Int"
+    case .float: return "Float"
+    case .string: return "String"
+    case .type: return "Type"
+    case .other(let val): return val.description
+    case .unknown(let val): return val.description
+    case .tuple(let vals): return "(" + vals.map(String.init(describing:)).joined(separator: ", ") + ")"
+    case .procedure(labels: let labels, arguments: let arguments, returnType: let returnType):
+
+      var desc = "("
+      if let labels = labels {
+        desc += zip(labels, arguments)
+          .map { label, type in label.description + ": " + type.description }
+          .joined(separator: ",")
+        desc += ")"
+      } else {
+        desc += arguments.map(String.init(describing:)).joined(separator: ", ") + ")"
+      }
+
+      desc += " -> "
+      desc += returnType.description
+
+      return desc
+    }
+  }
+}

@@ -1,4 +1,5 @@
 
+
 struct Parser {
 
   var lexer: Lexer
@@ -26,18 +27,19 @@ struct Parser {
     guard let token = try lexer.peek() else { return AST.Node(.empty) }
     try lexer.pop()
 
-    guard var left = try nud(for: token)?(&self) else { throw error(.expectedExpression, message: "Expected Expression but got \(token)") }
-    if case .declaration(_) = left.kind { return left }
-    else if case .compilerDeclaration = left.kind { return left }
+    guard var left = try nud(for: token)?(&self) else {
+      throw error(.expectedExpression, message: "Expected Expression but got \(token)")
+    }
+    // operatorImplementation's need to be skipped too.
+    if case .operatorDeclaration = left.kind { return left }
+    else if case .declaration(_) = left.kind { return left }
 
-    while let token = try lexer.peek(), let lbp = lbp(for: token),
+    while let nextToken = try lexer.peek(), let lbp = lbp(for: nextToken),
       rbp < lbp
     {
 
       try lexer.pop()
-      guard let led = try led(for: token) else {
-        throw error(.nonInfixOperator)
-      }
+      guard let led = try led(for: nextToken) else { throw error(.nonInfixOperator) }
       left = try led(&self, left)
     }
 
@@ -53,7 +55,11 @@ extension Parser {
     case .operator(let symbol):
       return Operator.table.first(where: { $0.symbol == symbol })?.lbp
 
-    case .keyword(.declaration), .keyword(.compilerDeclaration):
+      // TODO(vdka): what lbp do I want here?
+    case .colon, .comma:
+      return UInt8.max
+
+    case .equals:
       return 10
 
     default:
@@ -63,16 +69,19 @@ extension Parser {
 
   mutating func nud(for token: Lexer.Token) throws -> ((inout Parser) throws -> AST.Node)? {
 
-    if case .keyword(.compilerDeclaration)? = try lexer.peek(aheadBy: 1) {
-      return try parseCompileTimeDeclaration(bindingTo: token)
-    }
-
     switch token {
     case .operator(let symbol):
-      return Operator.table.first(where: { $0.symbol == symbol })?.nud
+      // If the next token is a colon then this should be a declaration
+      switch try (lexer.peek(), lexer.peek(aheadBy: 1)) {
+      case (.colon?, .colon?):
+        return Parser.parseOperatorDeclaration(for: symbol, at: lexer.filePosition)
+
+      default:
+        return Operator.table.first(where: { $0.symbol == symbol })?.nud
+      }
 
     case .identifier(let symbol):
-      return { _ in AST.Node(.identifier(symbol)) }
+      return { parser in AST.Node(.identifier(symbol), filePosition: parser.lexer.filePosition) }
 
     case .integer(let literal):
       return { _ in AST.Node(.integer(literal)) }
@@ -123,7 +132,7 @@ extension Parser {
           node.add(expr)
         }
         try parser.consume(.rbrace)
-        
+
         return node
       }
 
@@ -140,40 +149,106 @@ extension Parser {
 
       // NOTE(vdka): Everything below here can be considered a language construct
 
-    case .keyword(.declaration):
-      // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
+    case .comma:
       return { parser, lvalue in
-        guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
 
+        let rhs = try parser.expression(UInt8.max)
+
+        if case .multiple = lvalue.kind { lvalue.children.append(rhs) }
+        else { return AST.Node(.multiple, children: [lvalue, rhs]) }
+
+        return lvalue
+      }
+
+    case .equals:
+      return { parser, lvalue in
+
+        let rhs = try parser.expression(10)
+
+        switch lvalue.kind {
+        case .identifier(_), .declaration(_), .multiple: // TODO(vdka): Ensure the multiple's children are declarations
+          return AST.Node(.multipleAssignment, children: [lvalue, rhs])
+
+        default:
+          throw parser.error(.badlvalue)
+        }
+      }
+
+    case .colon:
+      if case .colon? = try lexer.peek() { return Parser.parseCompileTimeDeclaration } // '::'
+      return { parser, lvalue in
+        // ':' 'id' | ':' '=' 'expr'
+
+//        try parser.consume(.colon)
+
+        switch lvalue.kind {
+        case .identifier(let id):
+          // single
+          let symbol = Symbol(id, filePosition: parser.lexer.filePosition)
+          try SymbolTable.current.insert(symbol)
+
+          switch try parser.lexer.peek() {
+          case .equals?: // type infered
+            let rhs = try parser.expression()
+            return AST.Node(.declaration(symbol), children: [rhs], filePosition: lvalue.filePosition)
+
+          default: // type provided
+            let type = try parser.parseType()
+            symbol.type = type
+
+            try parser.consume(.equals)
+            let rhs = try parser.expression()
+            return AST.Node(.declaration(symbol), children: [rhs])
+          }
+
+        case .multiple:
+          let symbols: [Symbol] = try lvalue.children.map { node in
+            guard case .identifier(let id) = node.kind else { throw parser.error(.badlvalue) }
+            let symbol = Symbol(id, filePosition: node.filePosition!)
+            try SymbolTable.current.insert(symbol)
+
+            return symbol
+          }
+
+          switch try parser.lexer.peek() {
+          case .equals?:
+            // We will need to infer the type. The AST returned will have 2 child nodes.
+            try parser.consume()
+            let rvalue = try parser.expression()
+            // TODO(vdka): Pull the rvalue's children onto the generated node assuming it is a multiple node.
+
+            let lvalue = AST.Node(.multiple, children: symbols.map({ AST.Node(.declaration($0), filePosition: $0.position) }))
+
+            return AST.Node(.multipleDeclaration, children: [lvalue, rvalue], filePosition: symbols.first?.position)
+
+          case .identifier?:
+            unimplemented("Explicit types in multiple declaration's is not yet implemented")
+
+          default:
+            throw parser.error(.syntaxError)
+          }
+
+        case .operator(let op):
+          unimplemented()
+
+        default:
+          fatalError("bad lvalue?")
+        }
+
+        unimplemented()
+
+        /*
         let position = parser.lexer.filePosition
         let rhs = try parser.expression(parser.lbp(for: token)!)
-        
 
         let symbol = Symbol(id, filePosition: position)
 
         try SymbolTable.current.insert(symbol)
 
         return AST.Node(.declaration(symbol), children: [lvalue, rhs])
+        */
       }
 
-    case .keyword(.compilerDeclaration):
-      // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
-
-      return { parser, lvalue in
-
-        guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
-
-        let position = parser.lexer.filePosition
-
-        let rhs = try parser.expression(parser.lbp(for: token)!)
-
-        let symbol = Symbol(id, filePosition: position, flags: .compileTime)
-
-        try SymbolTable.current.insert(symbol)
-
-        return AST.Node(.declaration(symbol), children: [lvalue, rhs])
-      }
-      
     default:
       return nil
     }
@@ -196,7 +271,7 @@ extension Parser {
     }
 
     guard let token = try lexer.peek(), token == expected else {
-      throw error(.expected(expected), message: "expected \(expected)")
+      throw error(.expected(expected), message: "expected \(expected)") // TODO(vdka): expected \(thing) @ location
     }
     try lexer.pop()
   }
@@ -219,6 +294,7 @@ extension Parser {
       case undefinedIdentifier(ByteString)
       case operatorRedefinition
       case unaryOperatorBodyForbidden
+      case expectedBody
       case expectedPrecedence
       case expectedOperator
       case expectedExpression

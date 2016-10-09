@@ -37,14 +37,23 @@ extension Parser {
         labels.append(label)
         types.append(type)
 
+        if case .rparen? = try lexer.peek() {
+          try consume()
+          guard case .keyword(.returnType)? = try lexer.peek() else {
+            throw error(.expected(.keyword(.returnType)), message: "Expected a return type")
+          }
+          try consume()
+          let returnType = try parseType()
+
+          return KaiType.procedure(labels: labels, arguments: types, returnType: returnType)
+        }
+
         if case .keyword(.returnType)? = try lexer.peek() {
           // now we just need to parse the return type and construct the AST.Node
 
           let returnType = try parseType()
 
-          return KaiType.procedure(labels: labels,
-                                       arguments: types,
-                                       returnType: returnType)
+          return KaiType.procedure(labels: labels, arguments: types, returnType: returnType)
         }
       }
     } else {
