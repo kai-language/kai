@@ -53,8 +53,8 @@ extension AST {
     case declaration(Symbol)
     case assignment(ByteString)
 
-    case multipleDeclaration([Symbol])
-    case multipleAssignment([ByteString])
+    case multipleDeclaration
+    case multipleAssignment
 
     case conditional
 

@@ -167,7 +167,7 @@ extension Parser {
 
         switch lvalue.kind {
         case .identifier(_), .declaration(_), .multiple: // TODO(vdka): Ensure the multiple's children are declarations
-          return AST.Node(.assignment("="), children: [lvalue, rhs])
+          return AST.Node(.multipleAssignment, children: [lvalue, rhs])
 
         default:
           throw parser.error(.badlvalue)
@@ -211,12 +211,15 @@ extension Parser {
           }
 
           switch try parser.lexer.peek() {
-          case .equals?: // We will need to infer the type. The AST returned will have 2 child nodes.
+          case .equals?:
+            // We will need to infer the type. The AST returned will have 2 child nodes.
             try parser.consume()
             let rvalue = try parser.expression()
             // TODO(vdka): Pull the rvalue's children onto the generated node assuming it is a multiple node.
 
-            return AST.Node(.multipleDeclaration(symbols), children: [rvalue], filePosition: parser.lexer.filePosition)
+            let lvalue = AST.Node(.multiple, children: symbols.map({ AST.Node(.declaration($0), filePosition: $0.position) }))
+
+            return AST.Node(.multipleDeclaration, children: [lvalue, rvalue], filePosition: symbols.first?.position)
 
           case .identifier?:
             unimplemented("Explicit types in multiple declaration's is not yet implemented")
