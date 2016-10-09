@@ -163,14 +163,16 @@ extension Parser {
     case .equals:
       return { parser, lvalue in
 
-        let rhs = try parser.expression(10)
+        // TODO(vdka): I would like to actually allow x = y = z to be valid.
+        let rhs = try parser.expression(9)
 
         switch lvalue.kind {
         case .identifier(_), .declaration(_), .multiple: // TODO(vdka): Ensure the multiple's children are declarations
-          return AST.Node(.multipleAssignment, children: [lvalue, rhs])
+          return AST.Node(.assignment("="), children: [lvalue, rhs])
 
         default:
-          throw parser.error(.badlvalue)
+
+          throw parser.error(.badlvalue, message: "The expression '\(lvalue.mathy())' cannot be assigned to")
         }
       }
 
@@ -294,6 +296,7 @@ extension Parser {
       case undefinedIdentifier(ByteString)
       case operatorRedefinition
       case unaryOperatorBodyForbidden
+      case ambigiousOperatorUse
       case expectedBody
       case expectedPrecedence
       case expectedOperator

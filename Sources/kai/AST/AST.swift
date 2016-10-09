@@ -54,7 +54,6 @@ extension AST {
     case assignment(ByteString)
 
     case multipleDeclaration
-    case multipleAssignment
 
     case conditional
 
@@ -71,13 +70,31 @@ extension AST {
   }
 }
 
+extension AST {
+
+  var isStandalone: Bool {
+    switch self.kind {
+    case .operatorDeclaration, .declaration(_): return true
+    default: return false
+    }
+  }
+}
+
 extension AST.Node.Kind: Equatable {
 
   static func == (lhs: AST.Node.Kind, rhs: AST.Node.Kind) -> Bool {
     switch (lhs, rhs) {
-    case (.empty, .empty): return true
-    case (.unknown, .unknown): return true
-    default: return isMemoryEquivalent(lhs, rhs)
+    case
+      (.operator(let l), .operator(let r)),
+      (.identifier(let l), .identifier(let r)),
+      (.infixOperator(let l), .infixOperator(let r)),
+      (.prefixOperator(let l), .prefixOperator(let r)),
+      (.postfixOperator(let l), .postfixOperator(let r)):
+
+      return l == r
+
+    default:
+      return isMemoryEquivalent(lhs, rhs)
     }
   }
 }

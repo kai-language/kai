@@ -28,6 +28,10 @@ extension Operator {
 
   static var table: [Operator] = []
 
+  static func lookup(_ symbol: ByteString) -> Operator? {
+    return table.first(where: { $0.symbol == symbol })
+  }
+
   static func infix(_ symbol: ByteString, bindingPower lbp: UInt8, associativity: Associativity = .left,
                     led: ((inout Parser, _ left: AST.Node) throws -> AST.Node)? = nil) throws
   {
@@ -38,6 +42,13 @@ extension Operator {
       let node = AST.Node(.operator(symbol))
       let bp = (associativity == .left) ? lbp : lbp - 1
       let rhs = try parser.expression(bp)
+
+      if case .none = associativity,
+         case .operator(let symbol) = rhs.kind,
+         case .none? = Operator.lookup(symbol)?.associativity {
+        throw parser.error(.ambigiousOperatorUse, message: "The use of the operator '\(symbol)' is ambigious")
+      }
+
       node.add(children: [left, rhs])
 
       return node
@@ -81,9 +92,8 @@ extension Operator {
     try infix(symbol, bindingPower: 10, associativity: .right) { parser, lvalue in
 
       let node = AST.Node(.assignment(symbol))
-      // TODO(vdka): This needs more logic to handle multiple assignment ala go `a, b = b, a`
-      //   This can probably be done by handling `,` as a _special_ operator similar to languages like C
-      guard case .identifier(let id) = lvalue.kind else { throw Error.badlvalue }
+      // TODO(vdka): @subscripts Another valid lvalue. Pointer stuff too.
+      guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
       guard SymbolTable.current.lookup(id) != nil else {
         throw parser.error(.badlvalue, message: "'\(id)' was not declared in this scope")
       }
@@ -98,8 +108,8 @@ extension Operator {
 
 extension Operator {
 
+  // TODO(vdka): These need to become CompilerError's @ some point
   enum Error: Swift.Error {
-    case badlvalue
     case invalidSymbol
     case redefinition(ByteString)
   }
