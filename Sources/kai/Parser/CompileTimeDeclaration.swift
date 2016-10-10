@@ -3,6 +3,7 @@ extension Parser {
 
   static func parseCompileTimeDeclaration(parser: inout Parser, lvalue: AST.Node) throws -> AST.Node {
     try parser.consume(.colon)
+    try parser.consume(.colon)
 
     let position = parser.lexer.filePosition
     let identifier: ByteString

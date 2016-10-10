@@ -25,7 +25,6 @@ struct Parser {
   mutating func expression(_ rbp: UInt8 = 0) throws -> AST.Node {
     // TODO(vdka): This should probably throw instead of returning an empty node. What does an empty AST.Node even mean.
     guard let token = try lexer.peek() else { return AST.Node(.empty) }
-    try lexer.pop()
 
     guard let nud = try nud(for: token) else { throw error(.expectedExpression, message: "Expected Expression but got \(token)") }
 
@@ -38,8 +37,6 @@ struct Parser {
     while let nextToken = try lexer.peek(), let lbp = lbp(for: nextToken),
       rbp < lbp
     {
-
-      try lexer.pop() // TODO(vdka): This should be done within the led for a little more clarity.
       guard let led = try led(for: nextToken) else { throw error(.nonInfixOperator) }
 
       left = try led(&self, left)
@@ -74,33 +71,41 @@ extension Parser {
     switch token {
     case .operator(let symbol):
       // If the next token is a colon then this should be a declaration
-      switch try (lexer.peek(), lexer.peek(aheadBy: 1)) {
+      switch try (lexer.peek(aheadBy: 1), lexer.peek(aheadBy: 2)) {
       case (.colon?, .colon?):
-        return Parser.parseOperatorDeclaration(for: symbol, at: lexer.filePosition)
+        return Parser.parseOperatorDeclaration
 
       default:
+        try consume()
         return Operator.table.first(where: { $0.symbol == symbol })?.nud
       }
 
     case .identifier(let symbol):
+      try consume()
       return { parser in AST.Node(.identifier(symbol), filePosition: parser.lexer.filePosition) }
 
     case .integer(let literal):
+      try consume()
       return { _ in AST.Node(.integer(literal)) }
 
     case .real(let literal):
+      try consume()
       return { _ in AST.Node(.real(literal)) }
 
     case .string(let literal):
+      try consume()
       return { _ in AST.Node(.string(literal)) }
 
     case .keyword(.true):
+      try consume()
       return { _ in AST.Node(.boolean(true)) }
 
     case .keyword(.false):
+      try consume()
       return { _ in AST.Node(.boolean(false)) }
 
     case .lparen:
+      try consume()
       return { parser in
         let expr = try parser.expression()
         try parser.consume(.rparen)
@@ -108,6 +113,7 @@ extension Parser {
       }
 
     case .keyword(.if):
+      try consume()
       return { parser in
 
         let conditionExpression = try parser.expression()
@@ -123,6 +129,7 @@ extension Parser {
       }
 
     case .lbrace:
+      try consume()
       return { parser in
 
         let scopeSymbols = SymbolTable.push()
@@ -138,7 +145,8 @@ extension Parser {
         return node
       }
 
-    default: return nil
+    default:
+      return nil
     }
   }
 
@@ -146,12 +154,14 @@ extension Parser {
 
     switch token {
     case .operator(let symbol):
+      try consume()
 
       return Operator.table.first(where: { $0.symbol == symbol })?.led
 
       // NOTE(vdka): Everything below here can be considered a language construct
 
     case .comma:
+      try consume()
       return { parser, lvalue in
 
         let rhs = try parser.expression(UInt8.max)
@@ -163,6 +173,8 @@ extension Parser {
       }
 
     case .equals:
+      try consume()
+
       return { parser, lvalue in
 
         // TODO(vdka): I would like to actually allow x = y = z to be valid.
@@ -179,11 +191,12 @@ extension Parser {
       }
 
     case .colon:
-      if case .colon? = try lexer.peek() { return Parser.parseCompileTimeDeclaration } // '::'
+
+      if case .colon? = try lexer.peek(aheadBy: 1) { return Parser.parseCompileTimeDeclaration } // '::'
       return { parser, lvalue in
         // ':' 'id' | ':' '=' 'expr'
 
-//        try parser.consume(.colon)
+        try parser.consume(.colon)
 
         switch lvalue.kind {
         case .identifier(let id):
@@ -233,7 +246,7 @@ extension Parser {
             throw parser.error(.syntaxError)
           }
 
-        case .operator(let op):
+        case .operator(_):
           unimplemented()
 
         default:
@@ -265,20 +278,20 @@ extension Parser {
 
 extension Parser {
 
-  mutating func consume(_ expected: Lexer.Token? = nil) throws {
+  @discardableResult
+  mutating func consume(_ expected: Lexer.Token? = nil) throws -> Lexer.Token {
     guard let expected = expected else {
       // Seems we exhausted the token stream
       // TODO(vdka): Fix this up with a nice error message
       guard try lexer.peek() != nil else { fatalError() }
-      try lexer.pop()
-
-      return
+      return try lexer.pop()
     }
 
     guard let token = try lexer.peek(), token == expected else {
       throw error(.expected(expected), message: "expected \(expected)") // TODO(vdka): expected \(thing) @ location
     }
-    try lexer.pop()
+
+    return try lexer.pop()
   }
 
   func error(_ reason: Error.Reason, message: String? = nil) -> Swift.Error {

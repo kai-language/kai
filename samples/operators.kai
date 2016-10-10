@@ -1,0 +1,42 @@
+
+- :: prefix operator
+! :: prefix operator
+~ :: prefix operator
++ :: infix operator { associativity left precedence 50 }
+- :: infix operator { associativity left precedence 50 }
+* :: infix operator { associativity left precedence 60 }
+/ :: infix operator { associativity left precedence 60 }
+% :: infix operator { associativity left precedence 60 }
+<< :: infix operator { associativity left precedence 70 }
+>> :: infix operator { associativity left precedence 70 }
+< :: infix operator { associativity left precedence 80 }
+<= :: infix operator { associativity left precedence 80 }
+> :: infix operator { associativity left precedence 80 }
+>= :: infix operator { associativity left precedence 80 }
+== :: infix operator { associativity left precedence 90 }
+!= :: infix operator { associativity left precedence 90 }
+& :: infix operator { associativity left precedence 100 }
+^ :: infix operator { associativity left precedence 110 }
+| :: infix operator { associativity left precedence 120 }
+&& :: infix operator { associativity left precedence 130 }
+|| :: infix operator { associativity left precedence 140 }
+
++= :: infix operator { associativity left precedence 160 }
+-= :: infix operator { associativity left precedence 160 }
+*= :: infix operator { associativity left precedence 160 }
+/= :: infix operator { associativity left precedence 160 }
+%= :: infix operator { associativity left precedence 160 }
+>>= :: infix operator { associativity left precedence 160 }
+<<= :: infix operator { associativity left precedence 160 }
+&= :: infix operator { associativity left precedence 160 }
+^= :: infix operator { associativity left precedence 160 }
+|= :: infix operator { associativity left precedence 160 }
+
+a := ~(5 + 8 | 2 - 7 * -2) << 5
+b := ~(5 + 10 - 7 * -2) << 5
+c := ~(5 + 10 - -14) << 5
+d := ~(5 + 24) << 5
+e := ~(29) << 5
+f := -30 << 5
+g := -960
+

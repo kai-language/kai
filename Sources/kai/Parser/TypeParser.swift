@@ -6,12 +6,11 @@ extension Parser {
     /**
      valid type's will be one of the following forms:
        - [x] id
-       - [x] '(' type | [ ',' type ] ')'
-       - [x] '(' type | [ ',' type ] ')' '->' type
-       - [x] '(' id ':' type | [ ',' id ':' type ] ')' '->' '(' [ type ] ')'
+       - [x] '(' type { ',' type } ')'
+       - [x] '(' id ':' type { ',' id ':' type } ')' '->' type
     */
 
-    if case .identifier(let id)? = try lexer.peek() {
+    if case .identifier(let id)? = try lexer.peek() { // id
       try consume()
 
       return .unknown(id)
@@ -24,7 +23,7 @@ extension Parser {
       // followed by a ':' we can look ahead and see what follow's to determine
       // the next action
       // We are parsing the following case.
-      // '(' id ':' type | [ ',' id ':' type ] ')' '->' '(' [ type ] ')'
+      // '(' id ':' type { ',' id ':' type } ')' '->' type
 
       var labels: [ByteString] = []
       var types: [KaiType] = []
@@ -60,8 +59,8 @@ extension Parser {
 
       /**
        we are parsing for one of the following cases
-         - '(' type | [ ',' type ] ')'
-         - '(' type | [ ',' type ] ')' '->' type
+         - '(' type { ',' type } ')'
+         - '(' type { ',' type } ')' '->' type
       */
 
       var types: [KaiType] = []

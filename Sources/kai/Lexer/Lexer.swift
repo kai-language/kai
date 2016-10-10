@@ -1,6 +1,6 @@
 
 let digits      = Array<Byte>("1234567890".utf8)
-let opChars     = Array<Byte>("~!%^&*-+=<>|?".utf8)
+let opChars     = Array<Byte>("~!%^&+-*/=<>|?".utf8)
 let identChars  = Array<Byte>("_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".utf8)
 let whitespace  = Array<Byte>(" \t\n".utf8)
 
@@ -14,6 +14,8 @@ struct Lexer {
 
   var filePosition: FileScanner.Position {
     var scannerPosition = scanner.position
+    // NOTE(vdka): Temp solution FileScanner.Position will be replaced
+    guard scannerPosition.column > numericCast(sizeOfLastToken) else { return scannerPosition }
     scannerPosition.column -= numericCast(sizeOfLastToken)
     // let's hope we stay single line for all token's at least for now.
     return scannerPosition
@@ -197,11 +199,13 @@ extension Lexer {
       case "/":
         if scanner.peek(aheadBy: 1) == "*" { try skipBlockComment() }
         else if scanner.peek(aheadBy: 1) == "/" { skipLineComment() }
+        return
 
       case _ where whitespace.contains(char):
         scanner.pop()
 
-      default: return
+      default:
+        return
       }
     }
   }
@@ -209,7 +213,9 @@ extension Lexer {
   private mutating func skipBlockComment() throws {
     assert(scanner.hasPrefix("/*"))
 
-    var depth: UInt = 0
+    scanner.pop(2)
+
+    var depth: UInt = 1
     repeat {
 
       guard scanner.peek() != nil else {
