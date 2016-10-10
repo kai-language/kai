@@ -27,9 +27,10 @@ struct Parser {
     guard let token = try lexer.peek() else { return AST.Node(.empty) }
     try lexer.pop()
 
-    guard var left = try nud(for: token)?(&self) else {
-      throw error(.expectedExpression, message: "Expected Expression but got \(token)")
-    }
+    guard let nud = try nud(for: token) else { throw error(.expectedExpression, message: "Expected Expression but got \(token)") }
+
+    var left = try nud(&self)
+
     // operatorImplementation's need to be skipped too.
     if case .operatorDeclaration = left.kind { return left }
     else if case .declaration(_) = left.kind { return left }
@@ -38,8 +39,9 @@ struct Parser {
       rbp < lbp
     {
 
-      try lexer.pop()
+      try lexer.pop() // TODO(vdka): This should be done within the led for a little more clarity.
       guard let led = try led(for: nextToken) else { throw error(.nonInfixOperator) }
+
       left = try led(&self, left)
     }
 
@@ -191,6 +193,7 @@ extension Parser {
 
           switch try parser.lexer.peek() {
           case .equals?: // type infered
+            try parser.consume()
             let rhs = try parser.expression()
             return AST.Node(.declaration(symbol), children: [rhs], filePosition: lvalue.filePosition)
 
