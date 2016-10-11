@@ -15,6 +15,8 @@ extension Lexer {
     case rparen
     case lbrace
     case rbrace
+    case lbrack
+    case rbrack
 
     case equals
     case colon

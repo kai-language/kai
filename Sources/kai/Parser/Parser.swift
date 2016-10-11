@@ -22,7 +22,7 @@ struct Parser {
     }
   }
 
-  mutating func expression(_ rbp: UInt8 = 0) throws -> AST.Node {
+  mutating func expression(_ rbp: UInt8 = 0, disallowMultiples: Bool = false) throws -> AST.Node {
     // TODO(vdka): This should probably throw instead of returning an empty node. What does an empty AST.Node even mean.
     guard let (token, location) = try lexer.peek() else { return AST.Node(.empty) }
 
@@ -34,6 +34,7 @@ struct Parser {
     // operatorImplementation's need to be skipped too.
     if case .operatorDeclaration = left.kind { return left }
     else if case .declaration(_) = left.kind { return left }
+    else if case .comma? = try lexer.peek()?.kind, disallowMultiples { return left }
 
     while let (nextToken, _) = try lexer.peek(), let lbp = lbp(for: nextToken),
       rbp < lbp
@@ -60,7 +61,10 @@ extension Parser {
       return UInt8.max
 
     case .equals:
-      return 10
+      return 160
+
+    case .lbrack, .lparen:
+      return 20
 
     default:
       return 0
@@ -106,27 +110,27 @@ extension Parser {
       return { _ in AST.Node(.boolean(false)) }
 
     case .lparen:
-      try consume()
       return { parser in
+        try parser.consume(.lparen)
         let expr = try parser.expression()
         try parser.consume(.rparen)
         return expr
       }
 
     case .keyword(.if):
-      try consume()
       return { parser in
+        let (_, startLocation) = try parser.consume(.keyword(.if))
 
         let conditionExpression = try parser.expression()
         let thenExpression = try parser.expression()
 
         guard case .keyword(.else)? = try parser.lexer.peek()?.kind else {
-          return AST.Node(.conditional, children: [conditionExpression, thenExpression])
+          return AST.Node(.conditional, children: [conditionExpression, thenExpression], location: startLocation)
         }
 
         try parser.consume(.keyword(.else))
         let elseExpression = try parser.expression()
-        return AST.Node(.conditional, children: [conditionExpression, thenExpression, elseExpression])
+        return AST.Node(.conditional, children: [conditionExpression, thenExpression, elseExpression], location: startLocation)
       }
 
     case .lbrace:
@@ -176,22 +180,31 @@ extension Parser {
         return lvalue
       }
 
+    case .lbrack:
+      return { parser, lvalue in
+        let (_, startLocation) = try parser.consume(.lbrack)
+        let expr = try parser.expression()
+        try parser.consume(.rbrack)
+
+        return AST.Node(.subscript, children: [lvalue, expr], location: startLocation)
+      }
+
+    case .lparen:
+      // @correctness
+      // TODO(vdka): Do I need to ensure my lvalue is a identifier here to be sure this is a call?
+      // Probably
+      return Parser.parseProcedureCall
+
     case .equals:
-      try consume()
 
       return { parser, lvalue in
+        let (_, location) = try parser.consume(.equals)
 
-        // TODO(vdka): I would like to actually allow x = y = z to be valid.
+        // @understand
+        // TODO(vdka): I don't recall why I have the rbp set to 9 here
         let rhs = try parser.expression(9)
 
-        switch lvalue.kind {
-        case .identifier(_), .declaration(_), .multiple: // TODO(vdka): Ensure the multiple's children are declarations
-          return AST.Node(.assignment("="), children: [lvalue, rhs])
-
-        default:
-
-          throw parser.error(.badlvalue, message: "The expression '\(lvalue.mathy())' cannot be assigned to")
-        }
+        return AST.Node(.assignment("="), children: [lvalue, rhs], location: location)
       }
 
     case .colon:

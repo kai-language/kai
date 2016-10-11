@@ -61,6 +61,11 @@ extension AST {
     case multipleDeclaration
 
     case conditional
+    case `subscript`
+
+    /// The first child is that which is being called
+    case procedureCall
+    case argumentLabel(ByteString)
 
     /// number of child nodes determine the 'arity' of the operator
     case `operator`(ByteString)

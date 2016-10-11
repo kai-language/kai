@@ -30,8 +30,16 @@ struct Lexer {
 
   @discardableResult
   mutating func pop() throws -> (kind: Token, location: SourceLocation) {
-    if buffer.isEmpty { return try next()! }
-    else { return buffer.removeFirst() }
+    if buffer.isEmpty {
+      let token = try next()!
+      lastLocation = token.location
+      return token
+    }
+    else {
+      let token = buffer.removeFirst()
+      lastLocation = token.location
+      return token
+    }
   }
 
   internal mutating func next() throws -> (kind: Token, location: SourceLocation)? {
@@ -40,7 +48,6 @@ struct Lexer {
     guard let char = scanner.peek() else { return nil }
 
     let location = scanner.position
-    lastLocation = scanner.position
 
     switch char {
     case _ where identChars.contains(char):
@@ -74,6 +81,14 @@ struct Lexer {
     case ")":
       scanner.pop()
       return (.rparen, location)
+
+    case "[":
+      scanner.pop()
+      return (.lbrack, location)
+
+    case "]":
+      scanner.pop()
+      return (.rbrack, location)
 
     case "{":
       scanner.pop()
