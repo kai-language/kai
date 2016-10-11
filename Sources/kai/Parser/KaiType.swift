@@ -10,7 +10,9 @@ enum KaiType {
   case unknown(ByteString)
   case tuple([KaiType])
   case other(ByteString)
-  indirect case procedure(labels: [ByteString]?, arguments: [KaiType], returnType: KaiType)
+
+  /// - Note: There must be bindings if the procedure is native.
+  indirect case procedure(labels: [(callsite: ByteString?, binding: ByteString)]?, types: [KaiType], returnType: KaiType)
 }
 
 extension KaiType: Equatable {
@@ -27,9 +29,8 @@ extension KaiType: Equatable {
     case (.other(let l), .other(let r)):
       return l == r
 
-    // TODO(vdka): Currently we do not compare the labels to see if they are equal
-    case let (.procedure(labels: _, arguments: largs, returnType: lreturns), .procedure(labels: _, arguments: rargs, returnType: rreturns)):
-      return largs == rargs && lreturns == rreturns
+    case (.procedure(_, let lTypes, let lReturnType), .procedure(_, let rTypes, let rReturnType)):
+      return lTypes.elementsEqual(rTypes) && lReturnType == rReturnType
 
     default:
       return isMemoryEquivalent(lhs, rhs)
@@ -49,17 +50,12 @@ extension KaiType: CustomStringConvertible {
     case .other(let val): return val.description
     case .unknown(let val): return val.description
     case .tuple(let vals): return "(" + vals.map(String.init(describing:)).joined(separator: ", ") + ")"
-    case .procedure(labels: let labels, arguments: let arguments, returnType: let returnType):
+//    case .procedure(labels: let labels, arguments: let arguments, returnType: let returnType):
+    case .procedure(_, let types, let returnType):
 
       var desc = "("
-      if let labels = labels {
-        desc += zip(labels, arguments)
-          .map { label, type in label.description + ": " + type.description }
-          .joined(separator: ",")
-        desc += ")"
-      } else {
-        desc += arguments.map(String.init(describing:)).joined(separator: ", ") + ")"
-      }
+      desc += types.map({ $0.description }).joined(separator: ", ")
+      desc += ")"
 
       desc += " -> "
       desc += returnType.description

@@ -53,6 +53,7 @@ struct Lexer {
     case _ where identChars.contains(char):
       let symbol = consume(with: identChars + digits)
       if let keyword = Token.Keyword(rawValue: symbol) { return (.keyword(keyword), location) }
+      else if symbol == "_" { return (.underscore, location) }
       else { return (.identifier(symbol), location) }
 
     case _ where opChars.contains(char):

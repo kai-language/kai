@@ -24,14 +24,15 @@ if fileManager.fileExists(atPath: currentDirectory + "/" + fileName) {
     guard let absolutePath = fileManager.absolutePath(for: fileName) else {
         fatalError("\(fileName) not found")
     }
-    
+
     filePath = absolutePath
 } else { // `fileName` doesn't exist
     fatalError("\(fileName) not found")
 }
 
 try Operator.infix("?", bindingPower: 20) { parser, conditional in
-
+  try parser.consume(.operator("?"))
+  
   let thenExpression = try parser.expression()
   try parser.consume(.colon)
   let elseExpression = try parser.expression()
@@ -41,13 +42,13 @@ try Operator.infix("?", bindingPower: 20) { parser, conditional in
 let file = File(path: filePath)!
 
 do {
-    
+
     var lexer = Lexer(file)
-    
+
     let ast = try Parser.parse(&lexer)
-    
+
     print(ast.pretty())
-    
+
 } catch {
   print(error)
 }

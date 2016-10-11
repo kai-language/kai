@@ -81,7 +81,6 @@ extension Parser {
         return Parser.parseOperatorDeclaration
 
       default:
-        try consume()
         return Operator.table.first(where: { $0.symbol == symbol })?.nud
       }
 
@@ -162,11 +161,7 @@ extension Parser {
 
     switch token {
     case .operator(let symbol):
-      try consume()
-
       return Operator.table.first(where: { $0.symbol == symbol })?.led
-
-      // NOTE(vdka): Everything below here can be considered a language construct
 
     case .comma:
       try consume()
@@ -271,17 +266,6 @@ extension Parser {
         }
 
         unimplemented()
-
-        /*
-        let position = parser.lexer.location
-        let rhs = try parser.expression(parser.lbp(for: token)!)
-
-        let symbol = Symbol(id, location: position)
-
-        try SymbolTable.current.insert(symbol)
-
-        return AST.Node(.declaration(symbol), children: [lvalue, rhs])
-        */
       }
 
     default:

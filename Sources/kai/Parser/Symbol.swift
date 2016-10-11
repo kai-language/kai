@@ -11,7 +11,7 @@ class Symbol {
   /// - Returns: An array of other overload's for type that are overloadable, nil otherwise
   var overloads: [Symbol]? {
     switch type {
-    case .procedure(labels: _, arguments: _, returnType: _)?: 
+    case .procedure(labels: _, types: _, returnType: _)?:
       return SymbolTable.current.table.filter({ $0.name == name })
 
     default: 

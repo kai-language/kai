@@ -39,7 +39,8 @@ extension Operator {
     guard symbol != "=" else { throw Error.invalidSymbol }
 
     let led = led ?? { parser, left in
-      let node = AST.Node(.operator(symbol))
+      let (_, location) = try parser.consume()
+      let node = AST.Node(.operator(symbol), location: location)
       let bp = (associativity == .left) ? lbp : lbp - 1
       let rhs = try parser.expression(bp)
 
@@ -70,8 +71,9 @@ extension Operator {
     guard symbol != "=" else { throw Error.invalidSymbol }
 
     let nud = nud ?? { parser in
+      let (_, location) = try parser.consume()
       let operand = try parser.expression(70)
-      return AST.Node(.operator(symbol), children: [operand])
+      return AST.Node(.operator(symbol), children: [operand], location: location)
     }
 
     if let index = table.index(where: { $0.symbol == symbol }) {
@@ -90,15 +92,9 @@ extension Operator {
     guard symbol != "=" else { throw Error.invalidSymbol }
 
     try infix(symbol, bindingPower: 10, associativity: .right) { parser, lvalue in
+      let (_, location) = try parser.consume()
 
-      let node = AST.Node(.assignment(symbol))
-      // TODO(vdka): @subscripts Another valid lvalue. Pointer stuff too.
-      // NOTE(vkda): Perhaps we don't want to actually deal with symbol resolution until Semantic analysis
-      //  This would allow the use of just the Parser for syntax highlighting generation
-      guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
-      guard SymbolTable.current.lookup(id) != nil else {
-        throw parser.error(.badlvalue, message: "'\(id)' was not declared in this scope")
-      }
+      let node = AST.Node(.assignment(symbol), location: location)
 
       let rvalue = try parser.expression(9)
       node.add(children: [lvalue, rvalue])

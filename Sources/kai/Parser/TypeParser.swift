@@ -3,14 +3,9 @@ extension Parser {
 
   mutating func parseType() throws -> KaiType {
 
-    /**
-     valid type's will be one of the following forms:
-       - [x] id
-       - [x] '(' type { ',' type } ')'
-       - [x] '(' id ':' type { ',' id ':' type } ')' '->' type
-    */
-
-    if case .identifier(let id)? = try lexer.peek()?.kind { // id
+    // TODO(vdka): How would dynamic procedure creation work?
+    //  somethingStrange :: (x: Int, y: typeof(someFoo)) -> Int { /* ... */ }
+    if case .identifier(let id)? = try lexer.peek()?.kind {
       try consume()
 
       return .unknown(id)
@@ -18,81 +13,99 @@ extension Parser {
 
     try consume(.lparen)
 
-    if case .colon? = try lexer.peek(aheadBy: 1)?.kind {
-      // next valid things are a type or an argument, because an argument must be
-      // followed by a ':' we can look ahead and see what follow's to determine
-      // the next action
-      // We are parsing the following case.
-      // '(' id ':' type { ',' id ':' type } ')' '->' type
+    var wasComma = false
 
-      var labels: [ByteString] = []
-      var types: [KaiType] = []
-      while let token = try lexer.peek() {
-        guard case .identifier(let label) = token.kind else { throw error(.syntaxError) }
-        try consume()
+
+    // TODO(vdka): no need for the bool here, either we expect to have label's or not.
+    var labels: [(callsite: ByteString?, binding: ByteString)]? = []
+    if case (.identifier(_)?, .comma?) = try (lexer.peek()?.kind, lexer.peek(aheadBy: 1)?.kind) {
+      labels = nil // we do not expect any labels.
+    }
+
+    var types: [KaiType] = []
+    while let token = try lexer.peek(), token.kind != .rparen {
+      if case .comma = token.kind {
+
+        if types.isEmpty || wasComma { throw error(.syntaxError, message: "Unexpected comma") }
+
+        wasComma = true
+
+        try consume(.comma)
+      } else if case .underscore = token.kind,
+        case .identifier(let binding)? = try lexer.peek(aheadBy: 1)?.kind,
+        case .colon? = try lexer.peek(aheadBy: 2)?.kind {
+
+        if types.isEmpty && wasComma { throw error(.syntaxError, message: "Unexpected comma") }
+        if !types.isEmpty && !wasComma { throw error(.syntaxError, message: "Expected comma") }
+        if labels == nil { throw error(.syntaxError) } // TODO(vdka): Better message
+
+        wasComma = false
+
+        try consume(.underscore)
+        try consume() // .identifier(_)
         try consume(.colon)
+
+        labels?.append((callsite: nil, binding: binding))
+
         let type = try parseType()
-
-        labels.append(label)
         types.append(type)
+      } else if case .identifier(let callsite) = token.kind,
+        case .identifier(let binding)? = try lexer.peek(aheadBy: 1)?.kind,
+        case .colon? = try lexer.peek(aheadBy: 2)?.kind {
 
-        if case .rparen? = try lexer.peek()?.kind {
-          try consume()
-          guard case .keyword(.returnType)? = try lexer.peek()?.kind else {
-            throw error(.expected(.keyword(.returnType)), message: "Expected a return type")
-          }
-          try consume()
-          let returnType = try parseType()
+        if types.isEmpty && wasComma { throw error(.syntaxError, message: "Unexpected comma") }
+        else if !types.isEmpty && !wasComma { throw error(.syntaxError, message: "Expected comma") }
+        if labels == nil { throw error(.syntaxError) } // TODO(vdka): Better message
 
-          return KaiType.procedure(labels: labels, arguments: types, returnType: returnType)
-        }
+        wasComma = false
 
-        if case .keyword(.returnType)? = try lexer.peek()?.kind {
-          // now we just need to parse the return type and construct the AST.Node
+        try consume() // .identifier(_)
+        try consume() // .identifier(_)
+        try consume(.colon)
 
-          let returnType = try parseType()
+        labels?.append((callsite: callsite, binding: binding))
 
-          return KaiType.procedure(labels: labels, arguments: types, returnType: returnType)
-        }
-      }
-    } else {
-
-      /**
-       we are parsing for one of the following cases
-         - '(' type { ',' type } ')'
-         - '(' type { ',' type } ')' '->' type
-      */
-
-      var types: [KaiType] = []
-      while true {
         let type = try parseType()
-
         types.append(type)
+      } else if case .identifier(let binding) = token.kind,
+        case .colon? = try lexer.peek(aheadBy: 1)?.kind {
 
-        guard let token = try lexer.peek() else { throw error(.syntaxError) }
-        if case .comma = token.kind { try consume(.comma) }
-        else if case .rparen = token.kind {
-          try consume(.rparen)
-          if case .keyword(.returnType)? = try lexer.peek()?.kind {
-            try consume(.keyword(.returnType))
-            let returnType = try parseType()
-            return .procedure(labels: nil, arguments: types, returnType: returnType)
-          } else { return .tuple(types) }
-        }
+        if types.isEmpty && wasComma { throw error(.syntaxError, message: "Unexpected comma") }
+        else if !types.isEmpty && !wasComma { throw error(.syntaxError, message: "Expected comma") }
+        if labels == nil { throw error(.syntaxError) } // TODO(vdka): Better message
 
-        if case .keyword(.returnType)? = try lexer.peek()?.kind {
-          // now we just need to parse the return type and construct the AST.Node
+        wasComma = false
 
-          let returnType = try parseType()
+        try consume() // .identifier(_)
+        try consume(.colon)
 
-          return KaiType.procedure(labels: nil,
-                                   arguments: types,
-                                   returnType: returnType)
-        }
+        labels?.append((callsite: binding, binding: binding))
+
+        let type = try parseType()
+        types.append(type)
+      } else {
+
+        if types.isEmpty && wasComma { throw error(.syntaxError, message: "Unexpected comma") }
+        else if !types.isEmpty && !wasComma { throw error(.syntaxError, message: "Expected comma") }
+
+        wasComma = false
+
+        let type = try parseType()
+        types.append(type)
       }
     }
 
-    // TODO(vdka): I forget what is unimplemented here. That's awkward.
-    unimplemented()
+    if wasComma { throw error(.syntaxError, message: "Unexpected comma") }
+
+    try consume(.rparen)
+    if case .keyword(.returnType)? = try lexer.peek()?.kind {
+      try consume(.keyword(.returnType))
+
+      let returnType = try parseType()
+      return .procedure(labels: labels, types: types, returnType: returnType)
+    } else {
+
+      unimplemented("Tuple are not yet supported")
+    }
   }
 }

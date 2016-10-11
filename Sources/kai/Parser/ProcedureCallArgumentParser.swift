@@ -10,26 +10,27 @@ extension Parser {
 
     let callNode = AST.Node(.procedureCall, children: [lvalue], location: startLocation)
 
-    var seenComma = false
-    var seenLabel = false
+    var wasComma = false
+    var wasLabel = false
 
     while let token = try parser.lexer.peek(), token.kind != .rparen {
 
       if case (.comma, let location) = token {
 
-        guard !seenComma else { throw parser.error(.syntaxError, message: "Unexpected comma", location: location) }
+        guard !wasComma else { throw parser.error(.syntaxError, message: "Unexpected comma", location: location) }
+        guard callNode.children.count > 2 else { throw parser.error(.syntaxError, message: "Unexpected colon") }
 
-        seenComma = true
-        seenLabel = false
+        wasComma = true
+        wasLabel = false
 
         try parser.consume(.comma)
       } else if case .identifier(let label) = token.kind,
         case .colon? = try parser.lexer.peek(aheadBy: 1)?.kind {
 
-        if callNode.children.count > 2, !seenComma { throw parser.error(.expected(.comma), message: "Expected comma") }
+        if callNode.children.count > 2, !wasComma { throw parser.error(.expected(.comma), message: "Expected comma") }
 
-        seenComma = false
-        seenLabel = true
+        wasComma = false
+        wasLabel = true
 
         try parser.consume() // ident
         try parser.consume(.colon)
@@ -38,15 +39,17 @@ extension Parser {
         callNode.add(labelNode)
       } else {
 
-        if callNode.children.count > 2, !seenComma && !seenLabel { throw parser.error(.expected(.comma), message: "Expected comma") }
+        if callNode.children.count > 2, !wasComma && !wasLabel { throw parser.error(.expected(.comma), message: "Expected comma") }
 
-        seenComma = false
-        seenLabel = false
+        wasComma = false
+        wasLabel = false
 
         let exprNode = try parser.expression(disallowMultiples: true)
         callNode.add(exprNode)
       }
     }
+
+    if wasComma { throw parser.error(.syntaxError, message: "Unexpected comma") }
 
     try parser.consume(.rparen)
 

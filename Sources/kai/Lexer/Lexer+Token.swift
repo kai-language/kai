@@ -18,6 +18,7 @@ extension Lexer {
     case lbrack
     case rbrack
 
+    case underscore
     case equals
     case colon
     case comma
