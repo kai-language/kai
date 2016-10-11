@@ -10,7 +10,7 @@ extension Parser {
        - [x] '(' id ':' type { ',' id ':' type } ')' '->' type
     */
 
-    if case .identifier(let id)? = try lexer.peek() { // id
+    if case .identifier(let id)? = try lexer.peek()?.kind { // id
       try consume()
 
       return .unknown(id)
@@ -18,7 +18,7 @@ extension Parser {
 
     try consume(.lparen)
 
-    if case .colon? = try lexer.peek(aheadBy: 1) {
+    if case .colon? = try lexer.peek(aheadBy: 1)?.kind {
       // next valid things are a type or an argument, because an argument must be
       // followed by a ':' we can look ahead and see what follow's to determine
       // the next action
@@ -28,7 +28,7 @@ extension Parser {
       var labels: [ByteString] = []
       var types: [KaiType] = []
       while let token = try lexer.peek() {
-        guard case .identifier(let label) = token else { throw error(.syntaxError) }
+        guard case .identifier(let label) = token.kind else { throw error(.syntaxError) }
         try consume()
         try consume(.colon)
         let type = try parseType()
@@ -36,9 +36,9 @@ extension Parser {
         labels.append(label)
         types.append(type)
 
-        if case .rparen? = try lexer.peek() {
+        if case .rparen? = try lexer.peek()?.kind {
           try consume()
-          guard case .keyword(.returnType)? = try lexer.peek() else {
+          guard case .keyword(.returnType)? = try lexer.peek()?.kind else {
             throw error(.expected(.keyword(.returnType)), message: "Expected a return type")
           }
           try consume()
@@ -47,7 +47,7 @@ extension Parser {
           return KaiType.procedure(labels: labels, arguments: types, returnType: returnType)
         }
 
-        if case .keyword(.returnType)? = try lexer.peek() {
+        if case .keyword(.returnType)? = try lexer.peek()?.kind {
           // now we just need to parse the return type and construct the AST.Node
 
           let returnType = try parseType()
@@ -70,17 +70,17 @@ extension Parser {
         types.append(type)
 
         guard let token = try lexer.peek() else { throw error(.syntaxError) }
-        if case .comma = token { try consume(.comma) }
-        else if case .rparen = token {
+        if case .comma = token.kind { try consume(.comma) }
+        else if case .rparen = token.kind {
           try consume(.rparen)
-          if case .keyword(.returnType)? = try lexer.peek() {
+          if case .keyword(.returnType)? = try lexer.peek()?.kind {
             try consume(.keyword(.returnType))
             let returnType = try parseType()
             return .procedure(labels: nil, arguments: types, returnType: returnType)
           } else { return .tuple(types) }
         }
 
-        if case .keyword(.returnType)? = try lexer.peek() {
+        if case .keyword(.returnType)? = try lexer.peek()?.kind {
           // now we just need to parse the return type and construct the AST.Node
 
           let returnType = try parseType()

@@ -12,7 +12,7 @@ struct Parser {
 
     var parser = Parser(&lexer)
 
-    let node = AST.Node(.file(name: lexer.filePosition.fileName))
+    let node = AST.Node(.file(name: lexer.scanner.file.name))
 
     while true {
       let expr = try parser.expression()
@@ -24,17 +24,18 @@ struct Parser {
 
   mutating func expression(_ rbp: UInt8 = 0) throws -> AST.Node {
     // TODO(vdka): This should probably throw instead of returning an empty node. What does an empty AST.Node even mean.
-    guard let token = try lexer.peek() else { return AST.Node(.empty) }
+    guard let (token, location) = try lexer.peek() else { return AST.Node(.empty) }
 
     guard let nud = try nud(for: token) else { throw error(.expectedExpression, message: "Expected Expression but got \(token)") }
 
     var left = try nud(&self)
+    left.location = location
 
     // operatorImplementation's need to be skipped too.
     if case .operatorDeclaration = left.kind { return left }
     else if case .declaration(_) = left.kind { return left }
 
-    while let nextToken = try lexer.peek(), let lbp = lbp(for: nextToken),
+    while let (nextToken, _) = try lexer.peek(), let lbp = lbp(for: nextToken),
       rbp < lbp
     {
       guard let led = try led(for: nextToken) else { throw error(.nonInfixOperator) }
@@ -71,7 +72,7 @@ extension Parser {
     switch token {
     case .operator(let symbol):
       // If the next token is a colon then this should be a declaration
-      switch try (lexer.peek(aheadBy: 1), lexer.peek(aheadBy: 2)) {
+      switch try (lexer.peek(aheadBy: 1)?.kind, lexer.peek(aheadBy: 2)?.kind) {
       case (.colon?, .colon?):
         return Parser.parseOperatorDeclaration
 
@@ -82,7 +83,7 @@ extension Parser {
 
     case .identifier(let symbol):
       try consume()
-      return { parser in AST.Node(.identifier(symbol), filePosition: parser.lexer.filePosition) }
+      return { parser in AST.Node(.identifier(symbol)) }
 
     case .integer(let literal):
       try consume()
@@ -119,7 +120,7 @@ extension Parser {
         let conditionExpression = try parser.expression()
         let thenExpression = try parser.expression()
 
-        guard case .keyword(.else)? = try parser.lexer.peek() else {
+        guard case .keyword(.else)? = try parser.lexer.peek()?.kind else {
           return AST.Node(.conditional, children: [conditionExpression, thenExpression])
         }
 
@@ -129,18 +130,21 @@ extension Parser {
       }
 
     case .lbrace:
-      try consume()
       return { parser in
+        let (_, startLocation) = try parser.consume(.lbrace)
 
         let scopeSymbols = SymbolTable.push()
         defer { SymbolTable.pop() }
 
         let node = AST.Node(.scope(scopeSymbols))
-        while let next = try parser.lexer.peek(), next != .rbrace {
+        while let next = try parser.lexer.peek()?.kind, next != .rbrace {
           let expr = try parser.expression()
           node.add(expr)
         }
-        try parser.consume(.rbrace)
+
+        let (_, endLocation) = try parser.consume(.rbrace)
+
+        node.sourceRange = startLocation..<endLocation
 
         return node
       }
@@ -192,7 +196,7 @@ extension Parser {
 
     case .colon:
 
-      if case .colon? = try lexer.peek(aheadBy: 1) { return Parser.parseCompileTimeDeclaration } // '::'
+      if case .colon? = try lexer.peek(aheadBy: 1)?.kind { return Parser.parseCompileTimeDeclaration } // '::'
       return { parser, lvalue in
         // ':' 'id' | ':' '=' 'expr'
 
@@ -201,14 +205,14 @@ extension Parser {
         switch lvalue.kind {
         case .identifier(let id):
           // single
-          let symbol = Symbol(id, filePosition: parser.lexer.filePosition)
+          let symbol = Symbol(id, location: lvalue.location!)
           try SymbolTable.current.insert(symbol)
 
-          switch try parser.lexer.peek() {
+          switch try parser.lexer.peek()?.kind {
           case .equals?: // type infered
             try parser.consume()
             let rhs = try parser.expression()
-            return AST.Node(.declaration(symbol), children: [rhs], filePosition: lvalue.filePosition)
+            return AST.Node(.declaration(symbol), children: [rhs], location: lvalue.location)
 
           default: // type provided
             let type = try parser.parseType()
@@ -222,22 +226,22 @@ extension Parser {
         case .multiple:
           let symbols: [Symbol] = try lvalue.children.map { node in
             guard case .identifier(let id) = node.kind else { throw parser.error(.badlvalue) }
-            let symbol = Symbol(id, filePosition: node.filePosition!)
+            let symbol = Symbol(id, location: node.location!)
             try SymbolTable.current.insert(symbol)
 
             return symbol
           }
 
-          switch try parser.lexer.peek() {
+          switch try parser.lexer.peek()?.kind {
           case .equals?:
             // We will need to infer the type. The AST returned will have 2 child nodes.
             try parser.consume()
             let rvalue = try parser.expression()
             // TODO(vdka): Pull the rvalue's children onto the generated node assuming it is a multiple node.
 
-            let lvalue = AST.Node(.multiple, children: symbols.map({ AST.Node(.declaration($0), filePosition: $0.position) }))
+            let lvalue = AST.Node(.multiple, children: symbols.map({ AST.Node(.declaration($0), location: $0.location) }))
 
-            return AST.Node(.multipleDeclaration, children: [lvalue, rvalue], filePosition: symbols.first?.position)
+            return AST.Node(.multipleDeclaration, children: [lvalue, rvalue], location: symbols.first?.location)
 
           case .identifier?:
             unimplemented("Explicit types in multiple declaration's is not yet implemented")
@@ -256,10 +260,10 @@ extension Parser {
         unimplemented()
 
         /*
-        let position = parser.lexer.filePosition
+        let position = parser.lexer.location
         let rhs = try parser.expression(parser.lbp(for: token)!)
 
-        let symbol = Symbol(id, filePosition: position)
+        let symbol = Symbol(id, location: position)
 
         try SymbolTable.current.insert(symbol)
 
@@ -279,7 +283,7 @@ extension Parser {
 extension Parser {
 
   @discardableResult
-  mutating func consume(_ expected: Lexer.Token? = nil) throws -> Lexer.Token {
+  mutating func consume(_ expected: Lexer.Token? = nil) throws -> (kind: Lexer.Token, location: SourceLocation) {
     guard let expected = expected else {
       // Seems we exhausted the token stream
       // TODO(vdka): Fix this up with a nice error message
@@ -287,15 +291,21 @@ extension Parser {
       return try lexer.pop()
     }
 
-    guard let token = try lexer.peek(), token == expected else {
-      throw error(.expected(expected), message: "expected \(expected)") // TODO(vdka): expected \(thing) @ location
+    guard try lexer.peek()?.kind == expected else {
+      let message: String
+      switch expected {
+      case .identifier(let val): message = val.description
+
+      default: message = String(describing: expected)
+      }
+      throw error(.expected(expected), message: "expected \(message)", location: try lexer.peek()!.location)
     }
 
     return try lexer.pop()
   }
 
-  func error(_ reason: Error.Reason, message: String? = nil) -> Swift.Error {
-    return Error(reason: reason, filePosition: lexer.filePosition, message: message)
+  func error(_ reason: Error.Reason, message: String? = nil, location: SourceLocation? = nil) -> Swift.Error {
+    return Error(reason: reason, message: message, location: location ?? lexer.lastLocation)
   }
 }
 
@@ -304,8 +314,8 @@ extension Parser {
   struct Error: CompilerError {
 
     var reason: Reason
-    var filePosition: FileScanner.Position
     var message: String?
+    var location: SourceLocation
 
     enum Reason: Swift.Error {
       case expected(Lexer.Token)

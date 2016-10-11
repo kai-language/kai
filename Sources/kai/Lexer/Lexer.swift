@@ -8,25 +8,17 @@ let whitespace  = Array<Byte>(" \t\n".utf8)
 struct Lexer {
 
   var scanner: FileScanner
-  var buffer: [Token] = []
+  var buffer: [(kind: Token, location: SourceLocation)] = []
 
-  var sizeOfLastToken = 0
-
-  var filePosition: FileScanner.Position {
-    var scannerPosition = scanner.position
-    // NOTE(vdka): Temp solution FileScanner.Position will be replaced
-    guard scannerPosition.column > numericCast(sizeOfLastToken) else { return scannerPosition }
-    scannerPosition.column -= numericCast(sizeOfLastToken)
-    // let's hope we stay single line for all token's at least for now.
-    return scannerPosition
-  }
+  var lastLocation: SourceLocation
 
   init(_ file: File) {
 
     self.scanner = FileScanner(file: file)
+    self.lastLocation = scanner.position
   }
 
-  mutating func peek(aheadBy n: Int = 0) throws -> Token? {
+  mutating func peek(aheadBy n: Int = 0) throws -> (kind: Token, location: SourceLocation)? {
     if n < buffer.count { return buffer[n] }
 
     for _ in buffer.count...n {
@@ -37,62 +29,35 @@ struct Lexer {
   }
 
   @discardableResult
-  mutating func pop() throws -> Token {
-    let token: Token
-    if buffer.isEmpty { token = try next()! }
-    else { token = buffer.removeFirst() }
-
-    switch token {
-    case .colon, .comma, .equals, .lparen, .rparen, .lbrace, .rbrace:
-      sizeOfLastToken = 1
-
-    // FIXME(vdka): This code doesn't support Unicode length
-    case .string(let str):
-      sizeOfLastToken = str.bytes.count + 2
-
-    case .integer(let val), .real(let val), .identifier(let val), .operator(let val):
-      sizeOfLastToken = val.bytes.count
-
-    case .keyword(.if), .keyword(.returnType):
-      sizeOfLastToken = 2
-
-    case .keyword(.enum), .keyword(.true), .keyword(.else):
-      sizeOfLastToken = 4
-
-    case .keyword(.false):
-      sizeOfLastToken = 5
-
-    case .keyword(.struct), .keyword(.return):
-      sizeOfLastToken = 6
-
-    case .directive(let directive):
-      sizeOfLastToken = directive.rawValue.bytes.count + 1 // + 1 for the '#'
-    }
-    
-    return token
+  mutating func pop() throws -> (kind: Token, location: SourceLocation) {
+    if buffer.isEmpty { return try next()! }
+    else { return buffer.removeFirst() }
   }
 
-  internal mutating func next() throws -> Token? {
+  internal mutating func next() throws -> (kind: Token, location: SourceLocation)? {
     try skipWhitespace()
 
     guard let char = scanner.peek() else { return nil }
 
+    let location = scanner.position
+    lastLocation = scanner.position
+
     switch char {
     case _ where identChars.contains(char):
       let symbol = consume(with: identChars + digits)
-      if let keyword = Token.Keyword(rawValue: symbol) { return .keyword(keyword) }
-      else { return .identifier(symbol) }
+      if let keyword = Token.Keyword(rawValue: symbol) { return (.keyword(keyword), location) }
+      else { return (.identifier(symbol), location) }
 
     case _ where opChars.contains(char):
       let symbol = consume(with: opChars)
-      if let keyword = Token.Keyword(rawValue: symbol) { return .keyword(keyword) }
-      else if symbol == "=" { return .equals }
-      else { return .operator(symbol) }
+      if let keyword = Token.Keyword(rawValue: symbol) { return (.keyword(keyword), location) }
+      else if symbol == "=" { return (.equals, location) }
+      else { return (.operator(symbol), location) }
 
     // TODO(vdka): Correctly consume (and validate) number literals (real and integer)
     case _ where digits.contains(char):
       let number = consume(with: digits)
-      return .integer(number)
+      return (.integer(number), location)
 
     case "\"":
       // TODO(vdka): calling consume here is stupid, it will consume all '"' character's in a row
@@ -100,40 +65,40 @@ struct Lexer {
       let string = consume(upTo: "\"")
       // FIXME(vdka): This code has a bug, when a string is not terminated. I think.
       consume(with: "\"")
-      return .string(string)
+      return (.string(string), location)
 
     case "(":
       scanner.pop()
-      return .lparen
+      return (.lparen, location)
 
     case ")":
       scanner.pop()
-      return .rparen
+      return (.rparen, location)
 
     case "{":
       scanner.pop()
-      return .lbrace
+      return (.lbrace, location)
 
     case "}":
       scanner.pop()
-      return .rbrace
+      return (.rbrace, location)
 
     case ":":
       scanner.pop()
-      return .colon
+      return (.colon, location)
 
     case ",":
       scanner.pop()
-      return .comma
+      return (.comma, location)
 
     case "#":
       scanner.pop()
       let identifier = consume(upTo: { !whitespace.contains($0) })
       guard let directive = Token.Directive(rawValue: identifier) else {
-        throw error(.unknownDirective, message: "The directive '\(identifier)' is unknown!")
+        throw error(.unknownDirective, message: "Unknown directive '\(identifier)'")
       }
 
-      return .directive(directive)
+      return (.directive(directive), location)
 
     default:
       let suspect = consume(upTo: whitespace.contains)
@@ -242,7 +207,7 @@ extension Lexer {
 extension Lexer {
 
   func error(_ reason: Error.Reason, message: String? = nil) -> Swift.Error {
-    return Error(reason: reason, message: message, filePosition: scanner.position)
+    return Error(reason: reason, message: message, location: scanner.position)
   }
 
   struct Error: CompilerError {
@@ -250,7 +215,7 @@ extension Lexer {
 
     var reason: Reason
     var message: String?
-    var filePosition: FileScanner.Position
+    var location: SourceLocation
 
     enum Reason: Swift.Error {
       case unknownDirective

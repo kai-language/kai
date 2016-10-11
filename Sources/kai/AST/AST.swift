@@ -6,16 +6,21 @@ class AST {
   weak var parent: Node?
   var children: [Node]
 
-  var filePosition: FileScanner.Position?
+  var location: SourceLocation?
+  var sourceRange: Range<SourceLocation>? {
+    didSet {
+      location = sourceRange?.lowerBound
+    }
+  }
 
   var kind: Kind
 
   /// - Note: If you create a node without a filePosition it defaults to that if it's first child, should if have children
-  init(_ kind: Kind, parent: Node? = nil, children: [Node] = [], filePosition: FileScanner.Position? = nil) {
+  init(_ kind: Kind, parent: Node? = nil, children: [Node] = [], location: SourceLocation? = nil) {
     self.kind = kind
     self.parent = parent
     self.children = children
-    self.filePosition = filePosition ?? children.first?.filePosition
+    self.location = location ?? children.first?.location
 
     for child in children {
 

@@ -5,8 +5,8 @@ extension Parser {
 
     try consume(.directive(.foreignLLVM)) // hard code it while we have 1 type of foreign
 
-    guard case .string(let foreignName)? = try lexer.peek() else {
-      throw error(.syntaxError, message: "Expected foreign symbol name")
+    guard case .string(let foreignName)? = try lexer.peek()?.kind else {
+      throw error(.syntaxError, message: "Expected string literal for foreign symbol name")
     }
     try consume()
 

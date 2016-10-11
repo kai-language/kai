@@ -1,21 +1,14 @@
 
 struct FileScanner {
 
-  struct Position {
-
-    var line: UInt
-    var column: UInt
-    var fileName: String
-  }
-
   var file: File
-  var position: Position
+  var position: SourceLocation
   var scanner: BufferedScanner<Byte>
 
   init(file: File) {
 
     self.file = file
-    self.position = Position(line: 1, column: 1, fileName: file.path)
+    self.position = SourceLocation(line: 1, column: 1, file: file.path)
     self.scanner = BufferedScanner(file.makeIterator())
   }
 }

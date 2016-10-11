@@ -17,7 +17,7 @@ extension SymbolTable {
     // if it's a procedure and the argument's don't match then it's an invalid redefinition and we shoudl throw
     // if it's a Type then we should throw.
     guard table.index(where: { symbol.name == $0.name }) == nil else {
-      throw Error(.redefinition, message: "Redefinition of \(symbol.name)", filePosition: symbol.position)
+      throw Error(.redefinition, message: "Redefinition of \(symbol.name)", location: symbol.location)
     }
     table.append(symbol)
   }
@@ -58,12 +58,12 @@ extension SymbolTable {
   struct Error: CompilerError {
     var reason: Reason
     var message: String?
-    var filePosition: FileScanner.Position
+    var location: SourceLocation
 
-    init(_ reason: Reason, message: String, filePosition: FileScanner.Position) {
+    init(_ reason: Reason, message: String, location: SourceLocation) {
       self.reason = reason
       self.message = message
-      self.filePosition = filePosition
+      self.location = location
     }
 
     enum Reason: Swift.Error {

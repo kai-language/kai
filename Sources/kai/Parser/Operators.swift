@@ -93,6 +93,8 @@ extension Operator {
 
       let node = AST.Node(.assignment(symbol))
       // TODO(vdka): @subscripts Another valid lvalue. Pointer stuff too.
+      // NOTE(vkda): Perhaps we don't want to actually deal with symbol resolution until Semantic analysis
+      //  This would allow the use of just the Parser for syntax highlighting generation
       guard case .identifier(let id) = lvalue.kind else { throw parser.error(.badlvalue) }
       guard SymbolTable.current.lookup(id) != nil else {
         throw parser.error(.badlvalue, message: "'\(id)' was not declared in this scope")

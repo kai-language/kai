@@ -2,7 +2,7 @@
 class Symbol {
   let name: ByteString
   var source: Source
-  let position: FileScanner.Position
+  let location: SourceLocation
   var flags: Flag
 
   var type: KaiType?
@@ -19,10 +19,10 @@ class Symbol {
     }
   }
 
-  init(_ name: ByteString, filePosition: FileScanner.Position, type: KaiType? = nil, flags: Flag = []) {
+  init(_ name: ByteString, location: SourceLocation, type: KaiType? = nil, flags: Flag = []) {
     self.name = name
     self.source = .native
-    self.position = filePosition
+    self.location = location
     self.type = type
     self.flags = flags
   }

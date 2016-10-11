@@ -3,22 +3,15 @@ protocol CompilerError: Swift.Error, CustomStringConvertible {
   associatedtype Reason
   var reason: Reason { get }
   var message: String? { get }
-  var filePosition: FileScanner.Position { get }
+  var location: SourceLocation { get }
+  // TODO(vdka): We should instead use a full fledged Diagnostic system aot too unlike trill's
 }
 
 extension CompilerError {
 
   var description: String {
 
-    return "error[\(filePosition)]: \(message ?? "Something went wrong, reason: \(reason)")"
-  }
-}
-
-extension FileScanner.Position: CustomStringConvertible {
-
-  var description: String {
-    let baseName = fileName.characters.split(separator: "/").map(String.init).last!
-    return "\(baseName):\(line):\(column)"
+    return "error[\(location)]: \(message ?? "Something went wrong, reason: \(reason)")"
   }
 }
 
