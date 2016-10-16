@@ -89,6 +89,10 @@ extension Parser {
       try consume()
       return { parser in AST.Node(.identifier(symbol)) }
 
+    case .underscore:
+      try consume()
+      return { _ in AST.Node(.dispose) }
+
     case .integer(let literal):
       try consume()
       return { _ in AST.Node(.integer(literal)) }

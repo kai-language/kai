@@ -39,6 +39,9 @@ extension AST {
     case file(name: String)
     case identifier(ByteString)
 
+    /// represents the '_' token
+    case dispose
+
     /// this signifies a comma seperates set of values. `x, y = y, x` would parse into
     ///         =
     ///      m    m
