@@ -32,7 +32,7 @@ if fileManager.fileExists(atPath: currentDirectory + "/" + fileName) {
 
 try Operator.infix("?", bindingPower: 20) { parser, conditional in
   try parser.consume(.operator("?"))
-  
+
   let thenExpression = try parser.expression()
   try parser.consume(.colon)
   let elseExpression = try parser.expression()

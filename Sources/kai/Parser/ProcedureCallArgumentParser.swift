@@ -6,6 +6,8 @@ extension Parser {
   */
   static func parseProcedureCall(parser: inout Parser, lvalue: AST.Node) throws -> AST.Node {
 
+    parser.push(context: .procedureCall)
+
     let (_, startLocation) = try parser.consume(.lparen)
 
     let callNode = AST.Node(.procedureCall, children: [lvalue], location: startLocation)
@@ -44,7 +46,7 @@ extension Parser {
         wasComma = false
         wasLabel = false
 
-        let exprNode = try parser.expression(disallowMultiples: true)
+        let exprNode = try parser.expression()
         callNode.add(exprNode)
       }
     }

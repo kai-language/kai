@@ -3,6 +3,7 @@
 struct Parser {
 
   var lexer: Lexer
+  var context: Context = Context()
 
   init(_ lexer: inout Lexer) {
     self.lexer = lexer
@@ -22,7 +23,7 @@ struct Parser {
     }
   }
 
-  mutating func expression(_ rbp: UInt8 = 0, disallowMultiples: Bool = false) throws -> AST.Node {
+  mutating func expression(_ rbp: UInt8 = 0) throws -> AST.Node {
     // TODO(vdka): This should probably throw instead of returning an empty node. What does an empty AST.Node even mean.
     guard let (token, location) = try lexer.peek() else { return AST.Node(.empty) }
 
@@ -34,7 +35,7 @@ struct Parser {
     // operatorImplementation's need to be skipped too.
     if case .operatorDeclaration = left.kind { return left }
     else if case .declaration(_) = left.kind { return left }
-    else if case .comma? = try lexer.peek()?.kind, disallowMultiples { return left }
+    else if case .comma? = try lexer.peek()?.kind, case .procedureCall = context.state { return left }
 
     while let (nextToken, _) = try lexer.peek(), let lbp = lbp(for: nextToken),
       rbp < lbp

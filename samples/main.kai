@@ -14,7 +14,7 @@ Int :: struct #foreign(LLVM) "i64"
 
 fib :: (_ n: Int) -> Int #foreign(LLVM) "dummy"
 
-fib(n: 11)
+fib(11)
 randBetween(lower: 5, upper: 8)
 
 t := 5
