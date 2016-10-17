@@ -39,6 +39,8 @@ extension Lexer {
     }
 
     enum Directive: ByteString {
+      case file
+      case line
       case `import`
       case foreignLLVM = "foreign(LLVM)"
     }

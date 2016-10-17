@@ -157,6 +157,16 @@ extension Parser {
         return node
       }
 
+    case .directive(.file):
+      let (_, location) = try consume()
+      let wrapped = ByteString(location.file)
+      return { _ in AST.Node(.string(wrapped)) }
+
+    case .directive(.line):
+      let (_, location) = try consume()
+      let wrapped = ByteString(location.line.description)
+      return { _ in AST.Node(.integer(wrapped)) }
+
     case .directive(.import):
       return Parser.parseImportDirective
 
