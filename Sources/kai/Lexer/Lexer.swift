@@ -107,6 +107,10 @@ struct Lexer {
       scanner.pop()
       return (.comma, location)
 
+    case ".":
+      scanner.pop()
+      return (.dot, location)
+
     case "#":
       scanner.pop()
       let identifier = consume(upTo: { !whitespace.contains($0) })
@@ -180,6 +184,7 @@ extension Lexer {
       case "/":
         if scanner.peek(aheadBy: 1) == "*" { try skipBlockComment() }
         else if scanner.peek(aheadBy: 1) == "/" { skipLineComment() }
+        try skipWhitespace()
         return
 
       case _ where whitespace.contains(char):

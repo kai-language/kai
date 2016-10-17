@@ -39,6 +39,8 @@ extension AST {
     case file(name: String)
     case identifier(ByteString)
 
+    case `import`(file: String, namespace: String?)
+
     /// represents the '_' token
     case dispose
 

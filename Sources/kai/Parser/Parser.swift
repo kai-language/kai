@@ -157,6 +157,9 @@ extension Parser {
         return node
       }
 
+    case .directive(.import):
+      return Parser.parseImportDirective
+
     default:
       return nil
     }
@@ -306,7 +309,7 @@ extension Parser {
     return try lexer.pop()
   }
 
-  func error(_ reason: Error.Reason, message: String? = nil, location: SourceLocation? = nil) -> Swift.Error {
+  func error(_ reason: Error.Reason = .syntaxError, message: String? = nil, location: SourceLocation? = nil) -> Swift.Error {
     return Error(reason: reason, message: message, location: location ?? lexer.lastLocation)
   }
 }

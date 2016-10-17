@@ -22,6 +22,7 @@ extension Lexer {
     case equals
     case colon
     case comma
+    case dot
 
     enum Keyword: ByteString {
       case `struct`
@@ -38,6 +39,7 @@ extension Lexer {
     }
 
     enum Directive: ByteString {
+      case `import`
       case foreignLLVM = "foreign(LLVM)"
     }
   }
