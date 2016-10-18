@@ -52,7 +52,8 @@ do {
     print(ast.pretty())
     
 } catch let error as CompilerError {
-  console.error(error.description)
+    console.error(error.description)
+    console.error(file.generateVerboseLineOf(error: error.filePosition))
 }
 
 // print(parserGrammer.pretty())

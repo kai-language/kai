@@ -60,3 +60,45 @@ extension File: IteratorProtocol, Sequence {
     return pointer.pointee
   }
 }
+
+extension File {
+    func generateVerboseLineOf(error position: FileScanner.Position) -> String {
+        let line = position.line
+        let column = position.column
+
+        var currentLine: UInt = 1
+        var startIndex = 0
+        var endIndex = 0
+        var peeked = 0
+
+        //reset filepointer back to the beginning
+        self.pointer = basePointer
+        var scanner = FileScanner(file: self)
+        
+        var isConsuming = false
+        var consumed: ByteString = ""
+        while let byte = scanner.peek(aheadBy: peeked) {
+            peeked += 1
+            
+            if byte == "\n" { 
+                currentLine += 1
+                if isConsuming {
+                    endIndex = peeked - 1
+                    break
+                }
+            }
+
+            if isConsuming {
+                consumed.append(byte)
+            }
+
+            if currentLine == line && !isConsuming {
+                startIndex = peeked + 1
+                isConsuming = true
+            }
+        }
+        let count = column - 1
+        let pointerString = String(repeating: " ", count: Int(count))
+        return "\t\(String(consumed))" + "\n\t\(pointerString)^"
+    }
+}
