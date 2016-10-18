@@ -62,7 +62,7 @@ extension File: IteratorProtocol, Sequence {
 }
 
 extension File {
-    func generateVerboseLineOf(error position: FileScanner.Position) -> String {
+    func generateVerboseLineOf(error position: SourceLocation) -> String {
         let line = position.line
         let column = position.column
 

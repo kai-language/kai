@@ -104,7 +104,7 @@ extension TypeSolver {
     struct Error: CompilerError {
         var reason: Reason
         var message: String?
-        var filePosition: FileScanner.Position
+        var location: SourceLocation
         
         enum Reason {
             case unidentifiedSymbol

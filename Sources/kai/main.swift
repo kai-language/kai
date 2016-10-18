@@ -53,7 +53,7 @@ do {
     
 } catch let error as CompilerError {
     console.error(error.description)
-    console.error(file.generateVerboseLineOf(error: error.filePosition))
+    console.error(file.generateVerboseLineOf(error: error.location))
 }
 
 // print(parserGrammer.pretty())
