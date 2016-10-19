@@ -97,8 +97,22 @@ extension File {
                 isConsuming = true
             }
         }
-        let count = column - 1
-        let pointerString = String(repeating: " ", count: Int(count))
-        return "\t\(String(consumed))" + "\n\t\(pointerString)^"
+
+        let TERM_WIDTH = 80
+
+        let sourceLineLength = consumed.count
+        let sourceLineString: String
+
+        if sourceLineLength > TERM_WIDTH {
+            // _ _ X _ _ _ _ _ _
+            // _ _ _ _ X _ _ _ _
+            // _ _ _ _ _ _ X _ _
+        } else {
+            sourceLineString = String(consumed)
+        }
+
+
+
+        return "    \(String(consumed))" + "\n    \(pointerString)^"
     }
 }
