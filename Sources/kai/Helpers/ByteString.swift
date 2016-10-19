@@ -1,6 +1,4 @@
 
-import ByteHashable
-
 struct ByteString {
 
   var bytes: [Byte]
