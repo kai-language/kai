@@ -44,6 +44,9 @@ extension AST {
     /// represents the '_' token
     case dispose
 
+    /// represents a . between this Node's two children
+    case memberAccess
+
     /// this signifies a comma seperates set of values. `x, y = y, x` would parse into
     ///         =
     ///      m    m

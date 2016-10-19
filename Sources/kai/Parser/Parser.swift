@@ -67,6 +67,9 @@ extension Parser {
     case .lbrack, .lparen:
       return 20
 
+    case .dot:
+      return 20
+
     default:
       return 0
     }
@@ -181,9 +184,18 @@ extension Parser {
     case .operator(let symbol):
       return Operator.table.first(where: { $0.symbol == symbol })?.led
 
-    case .comma:
-      try consume()
+    case .dot:
       return { parser, lvalue in
+        let (_, location) = try parser.consume(.dot)
+
+        let rvalue = try parser.expression()
+
+        return AST.Node(.memberAccess, children: [lvalue, rvalue], location: location)
+      }
+
+    case .comma:
+      return { parser, lvalue in
+        try parser.consume()
 
         let rhs = try parser.expression(UInt8.max)
 
