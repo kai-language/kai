@@ -7,6 +7,7 @@ extension Parser {
   static func parseProcedureCall(parser: inout Parser, lvalue: AST.Node) throws -> AST.Node {
 
     parser.push(context: .procedureCall)
+    defer { parser.popContext() }
 
     let (_, startLocation) = try parser.consume(.lparen)
 

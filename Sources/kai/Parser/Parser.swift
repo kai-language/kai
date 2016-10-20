@@ -58,16 +58,16 @@ extension Parser {
       return Operator.table.first(where: { $0.symbol == symbol })?.lbp
 
       // TODO(vdka): what lbp do I want here?
-    case .colon, .comma:
+    case .colon:
       return UInt8.max
+
+    case .comma:
+      return 180
 
     case .equals:
       return 160
 
-    case .lbrack, .lparen:
-      return 20
-
-    case .dot:
+    case .lbrack, .lparen, .dot:
       return 20
 
     default:
@@ -188,7 +188,12 @@ extension Parser {
       return { parser, lvalue in
         let (_, location) = try parser.consume(.dot)
 
-        let rvalue = try parser.expression()
+        guard case let (.identifier(member), memberLocation)? = try parser.lexer.peek() else {
+          throw parser.error(message: "Expected member name following member access")
+        }
+        try parser.consume()
+
+        let rvalue = AST.Node(.identifier(member), location: memberLocation)
 
         return AST.Node(.memberAccess, children: [lvalue, rvalue], location: location)
       }
@@ -197,7 +202,7 @@ extension Parser {
       return { parser, lvalue in
         try parser.consume()
 
-        let rhs = try parser.expression(UInt8.max)
+        let rhs = try parser.expression()
 
         if case .multiple = lvalue.kind { lvalue.children.append(rhs) }
         else { return AST.Node(.multiple, children: [lvalue, rhs]) }
@@ -215,9 +220,7 @@ extension Parser {
       }
 
     case .lparen:
-      // @correctness
-      // TODO(vdka): Do I need to ensure my lvalue is a identifier here to be sure this is a call?
-      // Probably
+
       return Parser.parseProcedureCall
 
     case .equals:
@@ -227,7 +230,7 @@ extension Parser {
 
         // @understand
         // TODO(vdka): I don't recall why I have the rbp set to 9 here
-        let rhs = try parser.expression(9)
+        let rhs = try parser.expression()
 
         return AST.Node(.assignment("="), children: [lvalue, rhs], location: location)
       }
