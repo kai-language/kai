@@ -67,8 +67,6 @@ extension File {
         let column = position.column
 
         var currentLine: UInt = 1
-        var startIndex = 0
-        var endIndex = 0
         var peeked = 0
 
         //reset filepointer back to the beginning
@@ -83,7 +81,6 @@ extension File {
             if byte == "\n" { 
                 currentLine += 1
                 if isConsuming {
-                    endIndex = peeked - 1
                     break
                 }
             }
@@ -93,12 +90,14 @@ extension File {
             }
 
             if currentLine == line && !isConsuming {
-                startIndex = peeked + 1
                 isConsuming = true
             }
         }
 
-        let TERM_WIDTH = 80
+        //TODO(Brett): if an error message is longer than 80 characters take an
+        //80 character chunk (preferably) centred around the `column`
+        let TAB = "    " //4 spaces
+        /*let TERM_WIDTH = 80
 
         let sourceLineLength = consumed.count
         let sourceLineString: String
@@ -109,10 +108,11 @@ extension File {
             // _ _ _ _ _ _ X _ _
         } else {
             sourceLineString = String(consumed)
-        }
+        }*/
 
-
-
-        return "    \(String(consumed))" + "\n    \(pointerString)^"
+        //TODO(Brett): Cleanup creation of String, make some helper functions
+        let count = column - 1
+        let pointerString = String(repeating: " ", count: Int(count))
+        return "\(TAB)\(String(consumed))" + "\n\(TAB)\(pointerString)^"
     }
 }
