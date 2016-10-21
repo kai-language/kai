@@ -11,7 +11,8 @@ extension CompilerError {
 
   var description: String {
 
-    return "error[\(location)]: \(message ?? "Something went wrong, reason: \(reason)")"
+    // (?<file>.+):(?<line>\\d+):(?<col>\\d+):\\s(?<type>warning|error):\\s(?<message>.+)
+    return "\(location): error: \(message ?? "Something went wrong, reason: \(reason)")"
   }
 }
 
