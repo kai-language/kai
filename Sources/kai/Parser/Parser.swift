@@ -202,7 +202,7 @@ extension Parser {
       return { parser, lvalue in
         try parser.consume()
 
-        let rhs = try parser.expression()
+        let rhs = try parser.expression(UInt8.max)
 
         if case .multiple = lvalue.kind { lvalue.children.append(rhs) }
         else { return AST.Node(.multiple, children: [lvalue, rhs]) }
@@ -228,8 +228,6 @@ extension Parser {
       return { parser, lvalue in
         let (_, location) = try parser.consume(.equals)
 
-        // @understand
-        // TODO(vdka): I don't recall why I have the rbp set to 9 here
         let rhs = try parser.expression()
 
         return AST.Node(.assignment("="), children: [lvalue, rhs], location: location)
@@ -245,7 +243,6 @@ extension Parser {
 
         switch lvalue.kind {
         case .identifier(let id):
-          // single
           let symbol = Symbol(id, location: lvalue.location!)
           try SymbolTable.current.insert(symbol)
 
