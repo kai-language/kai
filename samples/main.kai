@@ -1,29 +1,4 @@
 
-#import "operators.kai" as .
+//_, y.arr[0] = 5, 8
 
-/*
-- :: prefix operator
-+ :: infix operator { associativity left precedence 50 }
-- :: infix operator { associativity left precedence 50 }
-*/
-
-Int :: struct #foreign(LLVM) "i64"
-
-+ :: (Int, Int) -> Int #foreign(LLVM) "add"
-- :: (Int, Int) -> Int #foreign(LLVM) "sub"
-
-fib :: (_ n: Int) -> Int #foreign(LLVM) "dummy"
-
-x, y := 5, 6
-_, y = y, x
-
-z := Int.max
-
-fib(11)
-randBetween(lower: 5, upper: 8)
-
-t := 5
-t[0] = 5
-
-if true { x = 5 }
-else { x = 8 }
+x, y = 5, 6

@@ -43,11 +43,17 @@ let file = File(path: filePath)!
 
 do {
 
-    var lexer = Lexer(file)
+  var lexer = Lexer(file)
 
-    let ast = try Parser.parse(&lexer)
+  let ast = try Parser.parse(&lexer)
 
-    print(ast.pretty())
+  try SemanticPass.run(ast)
+
+  for validator in SemanticPass.validators {
+    print("\(validator.name) took \(validator.totalTime)s")
+  }
+
+  print(ast.pretty())
 
 } catch {
   print(error)
