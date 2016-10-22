@@ -35,6 +35,14 @@ struct ASTValidatorOption: OptionSet {
 
 extension ASTValidator {
 
+  static func error(_ reason: SemanticError.Reason, message: String? = nil, location: SourceLocation) -> SemanticError {
+    return SemanticError(reason, message: message, location: location)
+  }
+
+  static func error(_ reason: SemanticError.Reason, message: String? = nil, at node: AST.Node) -> SemanticError {
+    return SemanticError(reason, message: message, location: node.location!)
+  }
+
   static var name: String { return String(describing: Self.self) }
 
   static func validate(_ node: AST.Node, options: ASTValidatorOption) throws {
