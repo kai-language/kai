@@ -50,7 +50,7 @@ extension Parser {
             associativity = .none
 
           default:
-            throw parser.error(.syntaxError)
+            throw parser.error(.unknownAssociativity)
           }
 
           try parser.consume()
@@ -84,11 +84,11 @@ extension Parser {
         unimplemented()
 
       default:
-        throw parser.error(.syntaxError)
+        throw parser.error(.expectedOperator)
       }
 
     default:
-      throw parser.error(.syntaxError)
+      throw parser.error(.expectedOperator)
     }
   }
 }

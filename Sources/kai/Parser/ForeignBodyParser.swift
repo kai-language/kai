@@ -6,7 +6,7 @@ extension Parser {
     try consume(.directive(.foreignLLVM)) // hard code it while we have 1 type of foreign
 
     guard case .string(let foreignName)? = try lexer.peek()?.kind else {
-      throw error(.syntaxError)
+      throw error(.expectedForeignName)
     }
     try consume()
 

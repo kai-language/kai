@@ -45,7 +45,12 @@ do {
 
   var lexer = Lexer(file)
 
-  let ast = try Parser.parse(&lexer)
+  let (ast, errors) = try Parser.parse(&lexer)
+
+  guard errors == 0 else {
+    print("There were \(errors) errors during parsing\nexiting")
+    exit(1)
+  }
 
   try SemanticPass.run(ast)
 
