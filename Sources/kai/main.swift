@@ -7,7 +7,7 @@ let fileManager = FileManager.default
 let currentDirectory = fileManager.currentDirectoryPath
 
 guard let fileName = console.arguments.dropFirst().first else {
-    fatalError("Please provide a file")
+  fatalError("Please provide a file")
 }
 
 let filePath: String
@@ -19,15 +19,15 @@ let filePath: String
 
 // Test to see if fileName is a relative path
 if fileManager.fileExists(atPath: currentDirectory + "/" + fileName) {
-    filePath = currentDirectory + "/" + fileName
+  filePath = currentDirectory + "/" + fileName
 } else if fileManager.fileExists(atPath: fileName) { // Test to see if `fileName` is an absolute path
-    guard let absolutePath = fileManager.absolutePath(for: fileName) else {
-        fatalError("\(fileName) not found")
-    }
-
-    filePath = absolutePath
-} else { // `fileName` doesn't exist
+  guard let absolutePath = fileManager.absolutePath(for: fileName) else {
     fatalError("\(fileName) not found")
+  }
+
+  filePath = absolutePath
+} else { // `fileName` doesn't exist
+  fatalError("\(fileName) not found")
 }
 
 try Operator.infix("?", bindingPower: 20) { parser, conditional in
@@ -58,5 +58,3 @@ do {
 } catch {
   print(error)
 }
-
-// print(parserGrammer.pretty())

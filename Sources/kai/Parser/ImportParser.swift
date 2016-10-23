@@ -23,7 +23,7 @@ extension Parser {
   /// The namespace file entities are imported as can be _aliased_ to another name using 'as alias'
   static func parseImportDirective(parser: inout Parser) throws -> AST.Node {
     try parser.consume(.directive(.import))
-    guard case .string(let fileName)? = try parser.lexer.peek()?.kind else { throw parser.error(.syntaxError, message: "Expected a filename to import") }
+    guard case .string(let fileName)? = try parser.lexer.peek()?.kind else { throw parser.error(.syntaxError) }
 
     try parser.consume()
 
@@ -40,7 +40,7 @@ extension Parser {
         return AST.Node(.import(file: fileName.description, namespace: alias.description))
 
       default:
-        throw parser.error(message: "Expected an identifier or '.' following 'as'")
+        throw parser.error(.syntaxError)
       }
     } else {
       let fileIdentifier = fileName.consume(with: identChars).description

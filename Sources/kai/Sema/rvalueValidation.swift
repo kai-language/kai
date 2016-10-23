@@ -30,7 +30,7 @@ extension AST {
 enum RvalueValidator: ASTValidator {
 
   static func error(_ message: String?, at node: AST.Node) -> SemanticError {
-    return error(.badrvalue, message: message, at: node)
+    return error(.badrvalue, at: node)
   }
 
   static var totalTime: Double = 0
@@ -44,6 +44,9 @@ enum RvalueValidator: ASTValidator {
          throw error("number of rvalues does not match number of lvalues", at: node)
       } else {
         let rvalue = node.children[0]
+
+        // NOTE(vdka): We still will need to inspect the rvalues and if one value has multiple returns
+        //  then we need to work out how many and then ensure the lvalue and rvalue's counts match
         guard rvalue.isValidRvalue else { throw error("rvalue is invalid", at: rvalue) }
       }
 

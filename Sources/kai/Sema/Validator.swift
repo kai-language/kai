@@ -8,15 +8,10 @@ protocol ASTValidator {
 
 struct SemanticError: CompilerError {
 
-  var reason: Reason
+  var severity: Severity
   var message: String?
   var location: SourceLocation
-
-  init(_ reason: Reason, message: String? = nil, location: SourceLocation) {
-    self.reason = reason
-    self.message = message ?? "Something went wrong."
-    self.location = location
-  }
+  var highlights: [SourceRange]
 
   enum Reason: Swift.Error {
     case badrvalue
@@ -35,12 +30,12 @@ struct ASTValidatorOption: OptionSet {
 
 extension ASTValidator {
 
-  static func error(_ reason: SemanticError.Reason, message: String? = nil, location: SourceLocation) -> SemanticError {
-    return SemanticError(reason, message: message, location: location)
+  static func error(_ reason: SemanticError.Reason, location: SourceLocation) -> SemanticError {
+    return SemanticError(severity: .error, message: String(describing: reason), location: location, highlights: [])
   }
 
-  static func error(_ reason: SemanticError.Reason, message: String? = nil, at node: AST.Node) -> SemanticError {
-    return SemanticError(reason, message: message, location: node.location!)
+  static func error(_ reason: SemanticError.Reason, at node: AST.Node) -> SemanticError {
+    return SemanticError(severity: .error, message: String(describing: reason), location: node.location!, highlights: [])
   }
 
   static var name: String { return String(describing: Self.self) }

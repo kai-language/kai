@@ -47,7 +47,7 @@ extension Operator {
       if case .none = associativity,
          case .operator(let symbol) = rhs.kind,
          case .none? = Operator.lookup(symbol)?.associativity {
-        throw parser.error(.ambigiousOperatorUse, message: "The use of the operator '\(symbol)' is ambigious")
+        throw parser.error(.ambigiousOperatorUse)
       }
 
       node.add(children: [left, rhs])

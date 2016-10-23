@@ -27,7 +27,7 @@ struct Parser {
     // TODO(vdka): This should probably throw instead of returning an empty node. What does an empty AST.Node even mean.
     guard let (token, location) = try lexer.peek() else { return AST.Node(.empty) }
 
-    guard let nud = try nud(for: token) else { throw error(.expectedExpression, message: "Expected Expression but got \(token)") }
+    guard let nud = try nud(for: token) else { throw error(.expectedExpression) }
 
     var left = try nud(&self)
     left.location = location
@@ -189,7 +189,7 @@ extension Parser {
         let (_, location) = try parser.consume(.dot)
 
         guard case let (.identifier(member), memberLocation)? = try parser.lexer.peek() else {
-          throw parser.error(message: "Expected member name following member access")
+          throw parser.error(.expectedMemberName)
         }
         try parser.consume()
 
@@ -237,7 +237,7 @@ extension Parser {
 
       if case .colon? = try lexer.peek(aheadBy: 1)?.kind { return Parser.parseCompileTimeDeclaration } // '::'
       return { parser, lvalue in
-        // ':' 'id' | ':' '=' 'expr'
+        // ':' 'id' '=' 'expr' | ':' '=' 'expr'
 
         try parser.consume(.colon)
 
@@ -319,20 +319,14 @@ extension Parser {
     }
 
     guard try lexer.peek()?.kind == expected else {
-      let message: String
-      switch expected {
-      case .identifier(let val): message = val.description
-
-      default: message = String(describing: expected)
-      }
-      throw error(.expected(expected), message: "expected \(message)", location: try lexer.peek()!.location)
+      throw error(.expected("something TODO ln Parser.swift:324"), location: try lexer.peek()!.location)
     }
 
     return try lexer.pop()
   }
 
-  func error(_ reason: Error.Reason = .syntaxError, message: String? = nil, location: SourceLocation? = nil) -> Swift.Error {
-    return Error(reason: reason, message: message, location: location ?? lexer.lastLocation)
+  func error(_ reason: Error.Reason, location: SourceLocation? = nil) -> Swift.Error {
+    return Error(severity: .error, message: reason.description, location: location ?? lexer.lastLocation, highlights: [])
   }
 }
 
@@ -340,12 +334,15 @@ extension Parser {
 
   struct Error: CompilerError {
 
-    var reason: Reason
+    var severity: Severity
     var message: String?
     var location: SourceLocation
+    var highlights: [SourceRange]
 
     enum Reason: Swift.Error {
-      case expected(Lexer.Token)
+      case expectedMemberName
+      case expected(ByteString)
+      case unexpected(ByteString)
       case undefinedIdentifier(ByteString)
       case operatorRedefinition
       case unaryOperatorBodyForbidden
@@ -358,6 +355,17 @@ extension Parser {
       case invalidDeclaration
       case syntaxError
       case badlvalue
+
+      var description: String {
+
+        switch self {
+        case .expectedExpression: return "Expected Expression"
+        case .badlvalue: return "Bad lvalue"
+        case .operatorRedefinition: return "Invalid redefinition"
+
+        default: return "TODO"
+        }
+      }
     }
   }
 }

@@ -1,21 +1,4 @@
 
-protocol CompilerError: Swift.Error, CustomStringConvertible {
-  associatedtype Reason
-  var reason: Reason { get }
-  var message: String? { get }
-  var location: SourceLocation { get }
-  // TODO(vdka): We should instead use a full fledged Diagnostic system aot too unlike trill's
-}
-
-extension CompilerError {
-
-  var description: String {
-
-    // (?<file>.+):(?<line>\\d+):(?<col>\\d+):\\s(?<type>warning|error):\\s(?<message>.+)
-    return "\(location): error: \(message ?? "Something went wrong, reason: \(reason)")"
-  }
-}
-
 typealias Byte = UInt8
 
 /*

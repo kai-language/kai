@@ -20,8 +20,8 @@ extension Parser {
 
       if case (.comma, let location) = token {
 
-        guard !wasComma else { throw parser.error(.syntaxError, message: "Unexpected comma", location: location) }
-        guard callNode.children.count > 2 else { throw parser.error(.syntaxError, message: "Unexpected colon") }
+        guard !wasComma else { throw parser.error(.unexpected("comma")) }
+        guard callNode.children.count > 2 else { throw parser.error(.unexpected("comma"), location: location) }
 
         wasComma = true
         wasLabel = false
@@ -30,7 +30,7 @@ extension Parser {
       } else if case .identifier(let label) = token.kind,
         case .colon? = try parser.lexer.peek(aheadBy: 1)?.kind {
 
-        if callNode.children.count > 2, !wasComma { throw parser.error(.expected(.comma), message: "Expected comma") }
+        if callNode.children.count > 2, !wasComma { throw parser.error(.expected("comma")) }
 
         wasComma = false
         wasLabel = true
@@ -42,7 +42,7 @@ extension Parser {
         callNode.add(labelNode)
       } else {
 
-        if callNode.children.count > 2, !wasComma && !wasLabel { throw parser.error(.expected(.comma), message: "Expected comma") }
+        if callNode.children.count > 2, !wasComma && !wasLabel { throw parser.error(.expected("comma")) }
 
         wasComma = false
         wasLabel = false
@@ -52,7 +52,7 @@ extension Parser {
       }
     }
 
-    if wasComma { throw parser.error(.syntaxError, message: "Unexpected comma") }
+    if wasComma { throw parser.error(.unexpected("comma")) }
 
     try parser.consume(.rparen)
 

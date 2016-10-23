@@ -26,7 +26,7 @@ extension Parser {
     while let token = try lexer.peek(), token.kind != .rparen {
       if case .comma = token.kind {
 
-        if types.isEmpty || wasComma { throw error(.syntaxError, message: "Unexpected comma") }
+        if types.isEmpty || wasComma { throw error(.unexpected("comma")) }
 
         wasComma = true
 
@@ -35,8 +35,8 @@ extension Parser {
         case .identifier(let binding)? = try lexer.peek(aheadBy: 1)?.kind,
         case .colon? = try lexer.peek(aheadBy: 2)?.kind {
 
-        if types.isEmpty && wasComma { throw error(.syntaxError, message: "Unexpected comma") }
-        if !types.isEmpty && !wasComma { throw error(.syntaxError, message: "Expected comma") }
+        if types.isEmpty && wasComma { throw error(.unexpected("comma")) }
+        if !types.isEmpty && !wasComma { throw error(.expected("comma")) }
         if labels == nil { throw error(.syntaxError) } // TODO(vdka): Better message
 
         wasComma = false
@@ -53,8 +53,8 @@ extension Parser {
         case .identifier(let binding)? = try lexer.peek(aheadBy: 1)?.kind,
         case .colon? = try lexer.peek(aheadBy: 2)?.kind {
 
-        if types.isEmpty && wasComma { throw error(.syntaxError, message: "Unexpected comma") }
-        else if !types.isEmpty && !wasComma { throw error(.syntaxError, message: "Expected comma") }
+        if types.isEmpty && wasComma { throw error(.unexpected("comma")) }
+        else if !types.isEmpty && !wasComma { throw error(.expected("comma")) }
         if labels == nil { throw error(.syntaxError) } // TODO(vdka): Better message
 
         wasComma = false
@@ -70,8 +70,8 @@ extension Parser {
       } else if case .identifier(let binding) = token.kind,
         case .colon? = try lexer.peek(aheadBy: 1)?.kind {
 
-        if types.isEmpty && wasComma { throw error(.syntaxError, message: "Unexpected comma") }
-        else if !types.isEmpty && !wasComma { throw error(.syntaxError, message: "Expected comma") }
+        if types.isEmpty && wasComma { throw error(.unexpected("comma")) }
+        else if !types.isEmpty && !wasComma { throw error(.expected("comma")) }
         if labels == nil { throw error(.syntaxError) } // TODO(vdka): Better message
 
         wasComma = false
@@ -85,8 +85,8 @@ extension Parser {
         types.append(type)
       } else {
 
-        if types.isEmpty && wasComma { throw error(.syntaxError, message: "Unexpected comma") }
-        else if !types.isEmpty && !wasComma { throw error(.syntaxError, message: "Expected comma") }
+        if types.isEmpty && wasComma { throw error(.unexpected("comma")) }
+        else if !types.isEmpty && !wasComma { throw error(.expected("comma")) }
 
         wasComma = false
 
@@ -95,7 +95,7 @@ extension Parser {
       }
     }
 
-    if wasComma { throw error(.syntaxError, message: "Unexpected comma") }
+    if wasComma { throw error(.unexpected("comma")) }
 
     try consume(.rparen)
     if case .keyword(.returnType)? = try lexer.peek()?.kind {

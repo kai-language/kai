@@ -1,13 +1,20 @@
 
+typealias SourceRange = Range<SourceLocation>
+
 struct SourceLocation {
 
+  let file: String
   var line: UInt
   var column: UInt
-  let file: String
-}
 
-extension SourceLocation {
-  static let unknown = SourceLocation(line: 0, column: 0, file: "unknown")
+  init(line: UInt, column: UInt, file: String? = nil) {
+    self.line = line
+    self.column = column
+    self.file = file ?? "unknown"
+  }
+
+  static let zero = SourceLocation(line: 0, column: 0)
+  static let unknown = SourceLocation(line: 0, column: 0)
 }
 
 extension SourceLocation: CustomStringConvertible {
