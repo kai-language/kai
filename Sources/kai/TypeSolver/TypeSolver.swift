@@ -7,95 +7,96 @@ class TypeSolver {
     
 	static func run(on root: inout AST) throws {
         let solver = TypeSolver(rootNode: &root)
-        try solver.check(&root)
+        try solver.check(node: &root)
     }
     
-    func check(_ node: inout AST) throws {
+    func check(nodes: inout [AST]) throws {
+        for var node in nodes {
+            try check(node: &node)
+        }
+    }
+
+    func check(node: inout AST) throws {
         for var child in node.children {
+            if !child.children.isEmpty {
+                try check(nodes: &child.children)
+            }
+
             switch child.kind {
-            //TODO(Brett): need to properly handle assignments, function proto-
-            //types and functions calls
-            case .assignment:
-                break
-            case .declaration(let symbol) where symbol.type == nil:
-                guard child.children.count > 0 else { print("what no children!!!"); continue }
-                guard let type = try solve(given: child.children, in: symbol) else {
-                    print("unable to solve type")
-                    return
-                }
-                
-                symbol.type = type
-            case .scope:
-                try check(&child)
-            default:
-                continue
-            }
-        }
-    }
-    
-    func solve(given nodes: [AST], in scope: Symbol) throws -> KaiType? {
-        var makingProgress = true
-        while makingProgress {
-            makingProgress = false
-            
-            for (index, node) in nodes.enumerated() {
-                switch node.kind {
-                case .integer(_): return KaiType.integer
-                case .real(_): return KaiType.float
-                case .string(_): return KaiType.string
-                case .boolean(_): return KaiType.boolean
-                
-                case .operator(let `operator`):
-                    return try solve(given: node.children, in: scope)
-
-                //this is either a user defined type or an error
-                case .identifier(let name) where index != 0:
-                    guard let type = try findSymbol(named: name, in: scope)?.type else {
-                        print("unidentified symbol: \(name) \(node.parent)")
-                        return nil
+            case .declaration(let symbol):
+                if let _ = symbol.type {
+                    guard child.children.count > 0 else {
+                        break
                     }
-                    return type
 
-                default:
-                    continue
+                    try check(node: &child)
+                } else {
+                    if 
+                        let kind = child.parent?.kind,
+                        case .multiple = kind
+                    {
+                        try solveMultipleDeclaration(&child, type: &symbol.type)
+                    } else {
+                        try solveSingleDeclaration(&child, type: &symbol.type)
+                    }
                 }
+
+            default:
+                break
             }
         }
-        return nil
     }
-    
-    func findSymbol(named name: ByteString, in scope: Symbol) throws -> Symbol? {
-        /*guard let symbol = scope.lookup(name) else {
-            return nil
+}
+
+extension TypeSolver {
+    func solveSingleDeclaration(_ node: inout AST, type: inout KaiType?) throws {
+        //TODO(Brett)
+        print("single")
+    }
+}
+
+extension TypeSolver {
+    func solveMultipleDeclaration(_ node: inout AST, type: inout KaiType?) throws {
+        guard let root = node.parent?.parent else {
+            //TODO(Brett): real errors once I finish this algorithm
+            print("error trying to get parents")
+            return
         }
 
-        guard let type = symbol.types.firt else {
-            //FIXME(Brett) needs to do a recursive solve for
-            //undefined symbol
-            return nil
+        guard case .multipleDeclaration = root.kind else {
+            //TODO(Brett): real errors once I finish this algorithm
+            print("expected multiple declaration at: \(root.location)")
+            return
         }
 
-        //make sure type isn't a user-defined type, otherwise
-        //look up the definition of the type and return it
-        switch type {
-        case .identifier:
-            return try findSymbol(named: name, in: scope)
-        default:
-            return symbol
-       }*/
-       
-       //FIXME(Brett): need to modify `Symbol` and `SymbolTable` to be able to hold
-       //an index for their location in `SymbolTable.symbols`
-        guard 
-            let symbol = SymbolTable.global.lookup(name),
-            let type = symbol.type
-        else { return nil }
+        guard root.children.count == 2 else {
+            //TODO(Brett): real errors once I finish this algorithm
+            print("expected 2 children in declaration: \(root.location)")
+            return
+        }
 
-        switch type {
-        //case .other(let parentSymbol):
-          //  return try parentSymbol
-        default:
-            return symbol
+        let rightSideChild = root.children[1]
+        guard case .multiple = rightSideChild.kind else {
+            print("expected multiple in AST: \(root.location)")
+            return
+        }
+
+        for child in rightSideChild.children {
+            //TODO(Brett): make sure all of the multiples have the same type
+            switch child.kind {
+            case .integer:
+                type = .integer
+            case .real:
+                type = .float
+            case .boolean:
+                type = .boolean
+            case .string:
+                type = .string
+            //TODO(Brett): handle user symbols
+            default:
+                print("error unsupported kind: \(child.kind)")
+                return
+            }
         }
     }
 }
