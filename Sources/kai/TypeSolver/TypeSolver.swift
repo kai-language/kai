@@ -63,28 +63,7 @@ extension TypeSolver {
             return
         }
 
-        //FIXME(Brett): put switch into its own method once we solve symbols
-        switch child.kind {
-        case .integer:
-            type = .integer
-        case .real:
-            type = .float
-        case .boolean:
-            type = .boolean
-        case .string:
-            type = .string
-        case .identifier(let name):
-            guard let symbolType = try typeForSymbol(named: name) else {
-                print("failed to find type for symbol: \(name)")
-                return
-            }
-            type = symbolType
-        
-        //TODO(Brett): handle user symbols
-        default:
-            print("error unsupported kind: \(child.kind)")
-            return
-        }
+        type = try extractType(child)
     }
 }
 
@@ -116,20 +95,32 @@ extension TypeSolver {
 
         for child in rightSideChild.children {
             //TODO(Brett): make sure all of the multiples have the same type
-            switch child.kind {
-            case .integer:
-                type = .integer
-            case .real:
-                type = .float
-            case .boolean:
-                type = .boolean
-            case .string:
-                type = .string
-            //TODO(Brett): handle user symbols
-            default:
-                print("error unsupported kind: \(child.kind)")
-                return
+            type = try extractType(child)
+        }
+    }
+}
+
+extension TypeSolver {
+    //FIXME(Brett): remove optional and throw instead
+    func extractType(_ node: AST) throws -> KaiType? {
+        switch node.kind {
+        case .integer:
+            return .integer
+        case .real:
+            return .float
+        case .boolean:
+            return .boolean
+        case .string:
+            return .string
+        case .identifier(let name):
+            guard let symbolType = try typeForSymbol(named: name) else {
+                print("failed to find type for symbol: \(name)")
+                return nil
             }
+            return symbolType
+        default:
+            print("error unsupported kind: \(node.kind)")
+            return nil
         }
     }
 }
