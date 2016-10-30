@@ -38,7 +38,7 @@ struct Parser {
     else if case .declaration(_) = left.kind { return left }
     else if case .comma? = try lexer.peek()?.kind, case .procedureCall = context.state { return left }
 
-    while let (nextToken, _) = try lexer.peek(), let lbp = try lbp(for: nextToken),
+    while let (nextToken, _) = try lexer.peek(), let lbp = lbp(for: nextToken),
       rbp < lbp
     {
       guard let led = try led(for: nextToken) else { throw error(.nonInfixOperator) }
@@ -52,7 +52,7 @@ struct Parser {
 
 extension Parser {
 
-  mutating func lbp(for token: Lexer.Token) throws -> UInt8? {
+  mutating func lbp(for token: Lexer.Token) -> UInt8? {
 
     switch token {
     case .operator(let symbol):
