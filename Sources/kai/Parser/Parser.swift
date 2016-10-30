@@ -24,6 +24,7 @@ struct Parser {
   }
 
   mutating func expression(_ rbp: UInt8 = 0) throws -> AST.Node {
+
     // TODO(vdka): This should probably throw instead of returning an empty node. What does an empty AST.Node even mean.
     guard let (token, location) = try lexer.peek() else { return AST.Node(.empty) }
 
@@ -37,7 +38,7 @@ struct Parser {
     else if case .declaration(_) = left.kind { return left }
     else if case .comma? = try lexer.peek()?.kind, case .procedureCall = context.state { return left }
 
-    while let (nextToken, _) = try lexer.peek(), let lbp = lbp(for: nextToken),
+    while let (nextToken, _) = try lexer.peek(), let lbp = try lbp(for: nextToken),
       rbp < lbp
     {
       guard let led = try led(for: nextToken) else { throw error(.nonInfixOperator) }
@@ -51,13 +52,19 @@ struct Parser {
 
 extension Parser {
 
-  func lbp(for token: Lexer.Token) -> UInt8? {
+  mutating func lbp(for token: Lexer.Token) throws -> UInt8? {
 
     switch token {
     case .operator(let symbol):
-      return Operator.table.first(where: { $0.symbol == symbol })?.lbp
 
-      // TODO(vdka): what lbp do I want here?
+      switch try? (lexer.peek(aheadBy: 1)?.kind, lexer.peek(aheadBy: 2)?.kind) {
+      case (.colon?, .colon?)?:
+        return 0
+
+      default:
+        return Operator.table.first(where: { $0.symbol == symbol })?.lbp
+      }
+
     case .colon:
       return UInt8.max
 

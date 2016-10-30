@@ -1,11 +1,9 @@
 
 #import "operators.kai" as .
 
-/*
 - :: prefix operator
 + :: infix operator { associativity left precedence 50 }
 - :: infix operator { associativity left precedence 50 }
-*/
 
 Int :: struct #foreign(LLVM) "i64"
 
@@ -27,3 +25,5 @@ t[0] = 5
 
 if true { x = 5 }
 else { x = 8 }
+
+k := x + y
