@@ -50,8 +50,34 @@ class TypeSolver {
 
 extension TypeSolver {
     func solveSingleDeclaration(_ node: inout AST, type: inout KaiType?) throws {
-        //TODO(Brett)
-        print("single")
+        //FIXME(Brett, vdka): check for expressions when they're parsable
+        guard node.children.count == 1 else {
+            //TODO(Brett): real errors once I finish this algorithm
+            print("expected 1 child got \(node.children.count)")
+            return
+        }
+
+        guard let child = node.children.first else {
+            //TODO(Brett): real errors once I finish this algorithm
+            print("error unwrapping child")
+            return
+        }
+
+        //FIXME(Brett): put switch into its own method once we solve symbols
+        switch child.kind {
+            case .integer:
+                type = .integer
+            case .real:
+                type = .float
+            case .boolean:
+                type = .boolean
+            case .string:
+                type = .string
+            //TODO(Brett): handle user symbols
+            default:
+                print("error unsupported kind: \(child.kind)")
+                return
+            }
     }
 }
 
