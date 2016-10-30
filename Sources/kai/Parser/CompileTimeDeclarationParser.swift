@@ -12,10 +12,10 @@ extension Parser {
       identifier = id
 
     default:
-      throw parser.error(.badlvalue, message: "The lvalue for a compile time operation must be either an identifier or operator")
+      throw parser.error(.badlvalue)
     }
 
-    guard let token = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration, message: "Expected a type for this declaration") }
+    guard let token = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration) }
     switch token.kind {
     // procedure type's
     case .lparen:
@@ -41,7 +41,7 @@ extension Parser {
       else if case .directive(.foreignLLVM) = token.kind {
         try parser.consume()
         guard case .string(let foreignName)? = try parser.lexer.peek()?.kind else {
-          throw parser.error(.invalidDeclaration, message: "Expected foreign symbol name")
+          throw parser.error(.invalidDeclaration)
         }
         try parser.consume()
 
@@ -52,17 +52,17 @@ extension Parser {
 
         return AST.Node(.declaration(symbol))
       }
-      else { throw parser.error(.syntaxError, message: "Expected struct Body") }
+      else { throw parser.error(.syntaxError) }
 
 
     case .keyword(.enum):
       unimplemented("enum's not yet supported'")
 
     case .identifier("infix"), .identifier("prefix"), .identifier("postfix"):
-      throw parser.error(.syntaxError, message: "'\(identifier)' is not a valid operator")
+      throw parser.error(.syntaxError)
 
     default:
-      throw parser.error(.syntaxError, message: "Expected type declaration type")
+      throw parser.error(.syntaxError)
     }
 
     fatalError("TODO: What happened here")

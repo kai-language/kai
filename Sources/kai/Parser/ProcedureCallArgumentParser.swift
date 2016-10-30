@@ -18,10 +18,9 @@ extension Parser {
 
     while let token = try parser.lexer.peek(), token.kind != .rparen {
 
-      if case (.comma, let location) = token {
+      if case .comma = token.kind {
 
-        guard !wasComma else { throw parser.error(.syntaxError, message: "Unexpected comma", location: location) }
-        guard callNode.children.count > 2 else { throw parser.error(.syntaxError, message: "Unexpected colon") }
+        if wasComma || callNode.children.count <= 2 { try parser.error(.unexpectedComma).recover(with: &parser) }
 
         wasComma = true
         wasLabel = false
@@ -29,8 +28,9 @@ extension Parser {
         try parser.consume(.comma)
       } else if case .identifier(let label) = token.kind,
         case .colon? = try parser.lexer.peek(aheadBy: 1)?.kind {
+          // TODO(vdka): Look ahead here makes recovery more difficult. This is a good scenario for a state machine.
 
-        if callNode.children.count > 2, !wasComma { throw parser.error(.expected(.comma), message: "Expected comma") }
+        if callNode.children.count > 2, !wasComma { try parser.error(.expectedComma).recover(with: &parser) }
 
         wasComma = false
         wasLabel = true
@@ -42,7 +42,7 @@ extension Parser {
         callNode.add(labelNode)
       } else {
 
-        if callNode.children.count > 2, !wasComma && !wasLabel { throw parser.error(.expected(.comma), message: "Expected comma") }
+        if callNode.children.count > 2, !wasComma && !wasLabel { try parser.error(.expectedComma).recover(with: &parser) }
 
         wasComma = false
         wasLabel = false
@@ -52,7 +52,7 @@ extension Parser {
       }
     }
 
-    if wasComma { throw parser.error(.syntaxError, message: "Unexpected comma") }
+    if wasComma { try parser.error(.unexpectedComma).recover(with: &parser) }
 
     try parser.consume(.rparen)
 

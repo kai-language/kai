@@ -114,7 +114,7 @@ struct Lexer {
       scanner.pop()
       let identifier = consume(upTo: { !whitespace.contains($0) })
       guard let directive = Token.Directive(rawValue: identifier) else {
-        throw error(.unknownDirective, message: "Unknown directive '\(identifier)'")
+        throw error(.unknownDirective)
       }
 
       return (.directive(directive), location)
@@ -122,7 +122,7 @@ struct Lexer {
     default:
       let suspect = consume(upTo: whitespace.contains)
 
-      throw error(.invalidToken(suspect), message: "The token \(suspect) is unrecognized")
+      throw error(.invalidToken(suspect))
     }
   }
 
@@ -227,23 +227,31 @@ extension Lexer {
 extension Lexer {
 
   func error(_ reason: Error.Reason, message: String? = nil) -> Swift.Error {
-    return Error(reason: reason, message: message, location: scanner.position)
+    return Error(severity: .error, message: reason.description, location: scanner.position, highlights: [])
   }
 
   struct Error: CompilerError {
+    var severity: Severity
 
-
-    var reason: Reason
     var message: String?
     var location: SourceLocation
+    var highlights: [SourceRange]
 
-    enum Reason: Swift.Error {
+    enum Reason: Swift.Error, CustomStringConvertible {
       case unterminatedString
       case unknownDirective
       case unmatchedBlockComment
       case invalidToken(ByteString)
-      case unmatchedToken(Token)
-      case invalidCharacter(Byte)
+
+      var description: String {
+
+        switch self {
+        case .unterminatedString: return "Unterminated string"
+        case .unknownDirective: return "Unknown directive"
+        case .unmatchedBlockComment: return "Unmatched block comment"
+        case .invalidToken(let culprit): return "The token '\(culprit)' is unrecognized"
+        }
+      }
     }
   }
 }

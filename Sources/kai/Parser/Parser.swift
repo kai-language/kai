@@ -5,22 +5,36 @@ struct Parser {
   var lexer: Lexer
   var context: Context = Context()
 
+  var errors: UInt = 0
+
   init(_ lexer: inout Lexer) {
     self.lexer = lexer
   }
 
-  static func parse(_ lexer: inout Lexer) throws -> AST {
-
-    var parser = Parser(&lexer)
+  mutating func parse() throws -> (AST, errors: UInt) {
 
     let node = AST.Node(.file(name: lexer.scanner.file.name))
 
     while true {
-      let expr = try parser.expression()
-      guard expr.kind != .empty else { return node }
+      let expr: AST.Node
+      do {
+        expr = try expression()
+      } catch let error as Parser.Error {
+        try error.recover(with: &self)
+        continue
+      } catch { throw error }
+
+      guard expr.kind != .empty else { return (node, errors) }
 
       node.children.append(expr)
     }
+  }
+
+  static func parse(_ lexer: inout Lexer) throws -> (AST, errors: UInt) {
+
+    var parser = Parser(&lexer)
+
+    return try parser.parse()
   }
 
   mutating func expression(_ rbp: UInt8 = 0) throws -> AST.Node {
@@ -28,7 +42,7 @@ struct Parser {
     // TODO(vdka): This should probably throw instead of returning an empty node. What does an empty AST.Node even mean.
     guard let (token, location) = try lexer.peek() else { return AST.Node(.empty) }
 
-    guard let nud = try nud(for: token) else { throw error(.expectedExpression, message: "Expected Expression but got \(token)") }
+    guard let nud = try nud(for: token) else { throw error(.expectedExpression) }
 
     var left = try nud(&self)
     left.location = location
@@ -41,7 +55,7 @@ struct Parser {
     while let (nextToken, _) = try lexer.peek(), let lbp = lbp(for: nextToken),
       rbp < lbp
     {
-      guard let led = try led(for: nextToken) else { throw error(.nonInfixOperator) }
+      guard let led = try led(for: nextToken) else { throw error(.nonInfixOperator(nextToken)) }
 
       left = try led(&self, left)
     }
@@ -195,9 +209,7 @@ extension Parser {
       return { parser, lvalue in
         let (_, location) = try parser.consume(.dot)
 
-        guard case let (.identifier(member), memberLocation)? = try parser.lexer.peek() else {
-          throw parser.error(message: "Expected member name following member access")
-        }
+        guard case let (.identifier(member), memberLocation)? = try parser.lexer.peek() else { throw parser.error(.expectedMemberName) }
         try parser.consume()
 
         let rvalue = AST.Node(.identifier(member), location: memberLocation)
@@ -244,7 +256,7 @@ extension Parser {
 
       if case .colon? = try lexer.peek(aheadBy: 1)?.kind { return Parser.parseCompileTimeDeclaration } // '::'
       return { parser, lvalue in
-        // ':' 'id' | ':' '=' 'expr'
+        // ':' 'id' '=' 'expr' | ':' '=' 'expr'
 
         try parser.consume(.colon)
 
@@ -270,6 +282,9 @@ extension Parser {
 
         case .multiple:
           let symbols: [Symbol] = try lvalue.children.map { node in
+            // NOTE(vdka): Unfortunately, and go falls into this trap also, if your _infered_ assignment operators
+            //  lvalue is predefined it must be redefined. This makes no sense for anything other than a identifier
+            // TODO(vdka): Need to really work out the finicky behaviour of the ':=' operator
             guard case .identifier(let id) = node.kind else { throw parser.error(.badlvalue) }
             let symbol = Symbol(id, location: node.location!)
             try SymbolTable.current.insert(symbol)
@@ -326,57 +341,9 @@ extension Parser {
     }
 
     guard try lexer.peek()?.kind == expected else {
-      let message: String
-      switch expected {
-      case .identifier(let val): message = val.description
-
-      default: message = String(describing: expected)
-      }
-      throw error(.expected(expected), message: "expected \(message)", location: try lexer.peek()!.location)
+      throw error(.expected("something TODO ln Parser.swift:324"), location: try lexer.peek()!.location)
     }
 
     return try lexer.pop()
-  }
-
-  func error(_ reason: Error.Reason = .syntaxError, message: String? = nil, location: SourceLocation? = nil) -> Swift.Error {
-    return Error(reason: reason, message: message, location: location ?? lexer.lastLocation)
-  }
-}
-
-extension Parser {
-
-  struct Error: CompilerError {
-
-    var reason: Reason
-    var message: String?
-    var location: SourceLocation
-
-    enum Reason: Swift.Error {
-      case expected(Lexer.Token)
-      case undefinedIdentifier(ByteString)
-      case operatorRedefinition
-      case unaryOperatorBodyForbidden
-      case ambigiousOperatorUse
-      case expectedBody
-      case expectedPrecedence
-      case expectedOperator
-      case expectedExpression
-      case nonInfixOperator
-      case invalidDeclaration
-      case syntaxError
-      case badlvalue
-    }
-  }
-}
-
-extension Parser.Error.Reason: Equatable {
-
-  static func == (lhs: Parser.Error.Reason, rhs: Parser.Error.Reason) -> Bool {
-
-    switch (lhs, rhs) {
-    case (.expected(let l), .expected(let r)): return l == r
-    case (.undefinedIdentifier(let l), .undefinedIdentifier(let r)): return l == r
-    default: return isMemoryEquivalent(lhs, rhs)
-    }
   }
 }

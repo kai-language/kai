@@ -1,25 +1,30 @@
-class TypeSolver {
-    private var rootNode: AST
+
+class TypeSolver: ASTValidator {
+
+    static let name: String = "Type solving"
+    static var totalTime: Double = 0
+
+    private let rootNode: AST
     
-    init(rootNode: inout AST) {
+    init(rootNode: AST) {
         self.rootNode = rootNode
     }
     
-	static func run(on root: inout AST) throws {
-        let solver = TypeSolver(rootNode: &root)
-        try solver.check(node: &root)
+    static func run(_ root: AST) throws {
+        let solver = TypeSolver(rootNode: root)
+        try solver.check(node: root)
     }
     
-    func check(nodes: inout [AST]) throws {
-        for var node in nodes {
-            try check(node: &node)
+    func check(nodes: [AST]) throws {
+        for node in nodes {
+            try check(node: node)
         }
     }
 
-    func check(node: inout AST) throws {
-        for var child in node.children {
+    func check(node: AST) throws {
+        for child in node.children {
             if !child.children.isEmpty {
-                try check(nodes: &child.children)
+                try check(nodes: child.children)
             }
 
             switch child.kind {
@@ -29,15 +34,15 @@ class TypeSolver {
                         break
                     }
 
-                    try check(node: &child)
+                    try check(node: child)
                 } else {
                     if 
                         let kind = child.parent?.kind,
                         case .multiple = kind
                     {
-                        try solveMultipleDeclaration(&child, type: &symbol.type)
+                        try solveMultipleDeclaration(child, type: &symbol.type)
                     } else {
-                        try solveSingleDeclaration(&child, type: &symbol.type)
+                        try solveSingleDeclaration(child, type: &symbol.type)
                     }
                 }
 
@@ -49,7 +54,7 @@ class TypeSolver {
 }
 
 extension TypeSolver {
-    func solveSingleDeclaration(_ node: inout AST, type: inout KaiType?) throws {
+    func solveSingleDeclaration(_ node: AST, type: inout KaiType?) throws {
         //FIXME(Brett, vdka): check for expressions when they're parsable
         guard node.children.count == 1 else {
             //TODO(Brett): real errors once I finish this algorithm
@@ -68,7 +73,7 @@ extension TypeSolver {
 }
 
 extension TypeSolver {
-    func solveMultipleDeclaration(_ node: inout AST, type: inout KaiType?) throws {
+    func solveMultipleDeclaration(_ node: AST, type: inout KaiType?) throws {
         guard let root = node.parent?.parent else {
             //TODO(Brett): real errors once I finish this algorithm
             print("error trying to get parents")
@@ -142,13 +147,16 @@ extension TypeSolver {
 }
 
 extension TypeSolver {
-    struct Error: CompilerError {
-        var reason: Reason
-        var message: String?
-        var location: SourceLocation
-        
-        enum Reason {
-            case unidentifiedSymbol
-        }
+  struct Error: CompilerError {
+
+
+    var severity: Severity
+    var message: String?
+    var location: SourceLocation
+    var highlights: [SourceRange]
+
+    enum Reason {
+      case unidentifiedSymbol
     }
+  }
 }

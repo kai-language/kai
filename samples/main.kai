@@ -1,5 +1,5 @@
 
-#import "operators.kai" as .
+//_, y.arr[0] = 5, 8
 
 - :: prefix operator
 + :: infix operator { associativity left precedence 50 }

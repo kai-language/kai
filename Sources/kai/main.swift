@@ -7,7 +7,7 @@ let fileManager = FileManager.default
 let currentDirectory = fileManager.currentDirectoryPath
 
 guard let fileName = console.arguments.dropFirst().first else {
-    fatalError("Please provide a file")
+  fatalError("Please provide a file")
 }
 
 let filePath: String
@@ -19,15 +19,15 @@ let filePath: String
 
 // Test to see if fileName is a relative path
 if fileManager.fileExists(atPath: currentDirectory + "/" + fileName) {
-    filePath = currentDirectory + "/" + fileName
+  filePath = currentDirectory + "/" + fileName
 } else if fileManager.fileExists(atPath: fileName) { // Test to see if `fileName` is an absolute path
-    guard let absolutePath = fileManager.absolutePath(for: fileName) else {
-        fatalError("\(fileName) not found")
-    }
-
-    filePath = absolutePath
-} else { // `fileName` doesn't exist
+  guard let absolutePath = fileManager.absolutePath(for: fileName) else {
     fatalError("\(fileName) not found")
+  }
+
+  filePath = absolutePath
+} else { // `fileName` doesn't exist
+  fatalError("\(fileName) not found")
 }
 
 try Operator.infix("?", bindingPower: 20) { parser, conditional in
@@ -43,17 +43,25 @@ let file = File(path: filePath)!
 
 do {
 
-    var lexer = Lexer(file)
-    console.warning("-----------------Parser-----------------")
-    var ast = try Parser.parse(&lexer)
-    print(ast.pretty())
-    console.warning("---------------Type Solver--------------")
-    try TypeSolver.run(on: &ast)
-    print(ast.pretty())
-    
-} catch let error as CompilerError {
-    console.error(error.description)
-    console.error(file.generateVerboseLineOf(error: error.location))
-}
+  var lexer = Lexer(file)
 
-// print(parserGrammer.pretty())
+  var (ast, errors) = try Parser.parse(&lexer)
+
+  guard errors == 0 else {
+    print("There were \(errors) errors during parsing\nexiting")
+    exit(1)
+  }
+
+  try SemanticPass.run(ast)
+
+  for validator in SemanticPass.validators {
+    print("\(validator.name) took \(validator.totalTime)s")
+  }
+
+  try TypeSolver.run(ast)
+  print(ast.pretty())
+
+} catch let error as CompilerError {
+  console.error(error.description)
+  console.error(file.generateVerboseLineOf(error: error.location))
+}

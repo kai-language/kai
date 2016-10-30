@@ -9,13 +9,13 @@ extension Parser {
     try parser.consume(.colon)
     try parser.consume(.colon)
 
-    guard let token = try parser.lexer.peek() else { throw parser.error(.expectedOperator, message: "Expected operator declaration or implementation") }
+    guard let token = try parser.lexer.peek() else { throw parser.error(.expectedOperator) }
     switch token.kind {
     case .lparen:
       let type = try parser.parseType()
 
       // We should now expect a body meaning we should have '{' | '#foreign' next
-      guard let token = try parser.lexer.peek() else { throw parser.error(.syntaxError, message: "Expected operator body") }
+      guard let token = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
       if case .lbrace = token.kind { unimplemented("Operator bodies not yet implemented") } // TODO(vdka): also check for labels
       else if case .directive(.foreignLLVM) = token.kind {
 
@@ -25,7 +25,7 @@ extension Parser {
         try SymbolTable.current.insert(symbol)
 
         return AST.Node(.declaration(symbol))
-      } else { throw parser.error(.expectedBody, message: "Expected a body for the declaration") }
+      } else { throw parser.error(.expectedBody) }
 
     case .identifier(_):
       try parser.consume()
@@ -50,7 +50,7 @@ extension Parser {
             associativity = .none
 
           default:
-            throw parser.error(.syntaxError, message: "Expected keyword: [left | right | none]")
+            throw parser.error(.unknownAssociativity)
           }
 
           try parser.consume()
@@ -84,11 +84,11 @@ extension Parser {
         unimplemented()
 
       default:
-        throw parser.error(.syntaxError, message: "Expected keyword: [prefix | infix | postfix]")
+        throw parser.error(.expectedOperator)
       }
 
     default:
-      throw parser.error(.syntaxError, message: "Expected keyword: [prefix | infix | postfix] or Procedure type")
+      throw parser.error(.expectedOperator)
     }
   }
 }
