@@ -29,7 +29,7 @@ extension AST {
 
 enum RvalueValidator: ASTValidator {
 
-  static func error(_ message: String?, at node: AST.Node) -> SemanticError {
+  static func error(_ message: String?, at node: AST.Node) -> ValidationError {
     return error(.badrvalue, at: node)
   }
 

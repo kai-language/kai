@@ -1,5 +1,5 @@
 
-protocol Pass {
+protocol Pass: ASTValidator {
 
   static var name: String { get }
   static func run(_ node: AST.Node) throws
@@ -12,11 +12,7 @@ extension Pass {
     return String(describing: type)
   }
 
-  static func runTimed(_ node: AST.Node) throws {
-    let (_, time) = try measure {
-      try run(node)
-    }
-
-    print("\(Self.name) pass took \(time)s")
+  static var timing: String {
+    return "\(name) took \(totalTime)s"
   }
 }

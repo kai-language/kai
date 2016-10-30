@@ -52,13 +52,11 @@ do {
     exit(1)
   }
 
-  try SemanticPass.run(ast)
+  try SemanticPass.run(ast, options: .timed)
+  print(SemanticPass.timing)
 
-  for validator in SemanticPass.validators {
-    print("\(validator.name) took \(validator.totalTime)s")
-  }
-
-  try TypeSolver.run(ast)
+  try TypeSolver.run(ast, options: .timed)
+  print(TypeSolver.timing)
   print(ast.pretty())
 
 } catch let error as CompilerError {

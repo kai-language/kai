@@ -6,7 +6,7 @@ protocol ASTValidator {
   static func run(_ node: AST) throws
 }
 
-struct SemanticError: CompilerError {
+struct ValidationError: CompilerError {
 
   var severity: Severity
   var message: String?
@@ -30,12 +30,12 @@ struct ASTValidatorOption: OptionSet {
 
 extension ASTValidator {
 
-  static func error(_ reason: SemanticError.Reason, location: SourceLocation) -> SemanticError {
-    return SemanticError(severity: .error, message: String(describing: reason), location: location, highlights: [])
+  static func error(_ reason: ValidationError.Reason, location: SourceLocation) -> ValidationError {
+    return ValidationError(severity: .error, message: String(describing: reason), location: location, highlights: [])
   }
 
-  static func error(_ reason: SemanticError.Reason, at node: AST.Node) -> SemanticError {
-    return SemanticError(severity: .error, message: String(describing: reason), location: node.location!, highlights: [])
+  static func error(_ reason: ValidationError.Reason, at node: AST.Node) -> ValidationError {
+    return ValidationError(severity: .error, message: String(describing: reason), location: node.location!, highlights: [])
   }
 
   static var name: String { return String(describing: Self.self) }

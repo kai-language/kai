@@ -1,20 +1,31 @@
 
-enum SemanticPass {
+enum SemanticPass: Pass {
+
+  static let name: String = "Semantic Analysis"
+
+  static var totalTime: Double = 0
 
   static let validators: [ASTValidator.Type] = [RvalueValidator.self]
 
   static func run(_ node: AST.Node) throws {
 
-    try performValidations(on: node)
+    for validator in SemanticPass.validators {
+      try validator.run(node)
+    }
+
     for child in node.children {
-      try SemanticPass.run( child)
+      try SemanticPass.run(child)
     }
   }
 
-  static func performValidations(on node: AST.Node) throws {
+  static func run(_ node: AST.Node, options: ASTValidatorOption) throws {
 
     for validator in SemanticPass.validators {
-      try validator.run(node, options: .timed)
+      try validator.run(node, options: options)
+    }
+
+    for child in node.children {
+      try SemanticPass.run(child, options: options)
     }
   }
 }

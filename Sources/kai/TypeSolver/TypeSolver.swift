@@ -1,5 +1,5 @@
 
-class TypeSolver: ASTValidator {
+struct TypeSolver: Pass, ASTValidator {
 
     static let name: String = "Type solving"
     static var totalTime: Double = 0
