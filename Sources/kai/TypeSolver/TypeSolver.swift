@@ -65,19 +65,26 @@ extension TypeSolver {
 
         //FIXME(Brett): put switch into its own method once we solve symbols
         switch child.kind {
-            case .integer:
-                type = .integer
-            case .real:
-                type = .float
-            case .boolean:
-                type = .boolean
-            case .string:
-                type = .string
-            //TODO(Brett): handle user symbols
-            default:
-                print("error unsupported kind: \(child.kind)")
+        case .integer:
+            type = .integer
+        case .real:
+            type = .float
+        case .boolean:
+            type = .boolean
+        case .string:
+            type = .string
+        case .identifier(let name):
+            guard let symbolType = try typeForSymbol(named: name) else {
+                print("failed to find type for symbol: \(name)")
                 return
             }
+            type = symbolType
+        
+        //TODO(Brett): handle user symbols
+        default:
+            print("error unsupported kind: \(child.kind)")
+            return
+        }
     }
 }
 
@@ -124,6 +131,22 @@ extension TypeSolver {
                 return
             }
         }
+    }
+}
+
+extension TypeSolver {
+    //FIXME(Brett): remove optional and throw instead
+    func typeForSymbol(named name: ByteString) throws -> KaiType? {
+        //TODO(Brett): need proper symbol table traversal and lookup but that
+        //requires me to keep track of the current table while traversing the
+        //AST
+        guard let symbol = SymbolTable.global.lookup(name) else {
+            print("undefined symbol: \(name)")
+            return nil
+        }
+
+        //FIXME: if the symbol is `nil`, attempt to solve it first
+        return symbol.type
     }
 }
 
