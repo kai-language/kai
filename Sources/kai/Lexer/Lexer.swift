@@ -68,11 +68,10 @@ struct Lexer {
       return (.integer(number), location)
 
     case "\"":
-      // TODO(vdka): calling consume here is stupid, it will consume all '"' character's in a row
-      consume(with: "\"")
+      scanner.pop()
       let string = consume(upTo: "\"")
-      // FIXME(vdka): This code has a bug, when a string is not terminated. I think.
-      consume(with: "\"")
+      guard case "\""? = scanner.peek() else { throw error(.unterminatedString) }
+      scanner.pop()
       return (.string(string), location)
 
     case "(":
@@ -239,6 +238,7 @@ extension Lexer {
     var location: SourceLocation
 
     enum Reason: Swift.Error {
+      case unterminatedString
       case unknownDirective
       case unmatchedBlockComment
       case invalidToken(ByteString)
