@@ -4,3 +4,4 @@
 /*.xcodeproj
 *.bc
 *.ll
+.vscode

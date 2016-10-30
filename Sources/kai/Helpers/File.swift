@@ -60,3 +60,59 @@ extension File: IteratorProtocol, Sequence {
     return pointer.pointee
   }
 }
+
+extension File {
+    func generateVerboseLineOf(error position: SourceLocation) -> String {
+        let line = position.line
+        let column = position.column
+
+        var currentLine: UInt = 1
+        var peeked = 0
+
+        //reset filepointer back to the beginning
+        self.pointer = basePointer
+        var scanner = FileScanner(file: self)
+        
+        var isConsuming = false
+        var consumed: ByteString = ""
+        while let byte = scanner.peek(aheadBy: peeked) {
+            peeked += 1
+            
+            if byte == "\n" { 
+                currentLine += 1
+                if isConsuming {
+                    break
+                }
+            }
+
+            if isConsuming {
+                consumed.append(byte)
+            }
+
+            if currentLine == line && !isConsuming {
+                isConsuming = true
+            }
+        }
+
+        //TODO(Brett): if an error message is longer than 80 characters take an
+        //80 character chunk (preferably) centred around the `column`
+        let TAB = "    " //4 spaces
+        /*let TERM_WIDTH = 80
+
+        let sourceLineLength = consumed.count
+        let sourceLineString: String
+
+        if sourceLineLength > TERM_WIDTH {
+            // _ _ X _ _ _ _ _ _
+            // _ _ _ _ X _ _ _ _
+            // _ _ _ _ _ _ X _ _
+        } else {
+            sourceLineString = String(consumed)
+        }*/
+
+        //TODO(Brett): Cleanup creation of String, make some helper functions
+        let count = column - 1
+        let pointerString = String(repeating: " ", count: Int(count))
+        return "\(TAB)\(String(consumed))" + "\n\(TAB)\(pointerString)^"
+    }
+}

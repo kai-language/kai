@@ -4,7 +4,7 @@ enum KaiType {
   case boolean
   case float
   case string
-
+  
   /// The type all Type's have
   case type
   case unknown(ByteString)
@@ -36,6 +36,7 @@ extension KaiType: Equatable {
       return isMemoryEquivalent(lhs, rhs)
     }
   }
+
 }
 
 extension KaiType: CustomStringConvertible {
@@ -63,4 +64,5 @@ extension KaiType: CustomStringConvertible {
       return desc
     }
   }
+
 }
