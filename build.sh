@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 export SDKROOT=$(xcrun --show-sdk-path --sdk macosx)
 
 FLAGS="-Xswiftc -DDebug -Xcc -I/usr/local/opt/llvm/include/ -Xlinker -L/usr/local/opt/llvm/lib/"
@@ -18,9 +20,14 @@ if [ "$1" == "run" ]; then
   if [ -z "$2" ]; then
     .build/debug/kai samples/main.kai
     clang -o main main.o
-  else 
+  else
     .build/debug/kai $2
   fi
+
+  echo
+
+  ./main
+  echo
 fi
 
 echo "done"
