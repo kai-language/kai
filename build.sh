@@ -16,18 +16,23 @@ fi
 
 cp .build/debug/kai $HOME/.dotfiles/bin/
 
-if [ "$1" == "run" ]; then
-  if [ -z "$2" ]; then
-    .build/debug/kai samples/main.kai
-    clang -o main main.o
-  else
-    .build/debug/kai $2
-  fi
+case "$1" in
+run)
 
-  echo
+    if [ -z "$2" ]; then
+        .build/debug/kai samples/main.kai
+        clang -o main main.o
+    else
+        .build/debug/kai $2
+    fi
 
-  ./main
-  echo
-fi
+    echo
+    ./main
+    echo
+;;
+xcode)
+    swift package generate-xcodeproj $FLAGS
+;;
+esac
 
 echo "done"
