@@ -1,46 +1,46 @@
 
 let identifierHeads: [Byte] = {
 
-  var heads: [Byte] = []
+    var heads: [Byte] = []
 
-  heads.append("_")
-  heads.append(contentsOf: "a"..."z")
-  heads.append(contentsOf: "A"..."Z")
+    heads.append("_")
+    heads.append(contentsOf: "a"..."z")
+    heads.append(contentsOf: "A"..."Z")
 
-  return heads
+    return heads
 }()
 
 let identifierBody: [Byte] = {
 
-  var body: [Byte] = []
+    var body: [Byte] = []
 
-  body.append(contentsOf: identifierHeads)
+    body.append(contentsOf: identifierHeads)
 
-  body.append(contentsOf: "0"..."9")
+    body.append(contentsOf: "0"..."9")
 
-  return body
+    return body
 }()
 
 let operatorBody: [Byte] = {
 
-  var body: [Byte] = []
+    var body: [Byte] = []
 
-  body.append("/")
-  body.append("=")
-  body.append("-")
-  body.append("+")
-  body.append("*")
-  body.append("%")
-  body.append("<")
-  body.append(">")
-  body.append("&")
-  body.append("|")
-  body.append("^")
-  body.append("~")
-  body.append("!")
-  body.append("?")
+    body.append("/")
+    body.append("=")
+    body.append("-")
+    body.append("+")
+    body.append("*")
+    body.append("%")
+    body.append("<")
+    body.append(">")
+    body.append("&")
+    body.append("|")
+    body.append("^")
+    body.append("~")
+    body.append("!")
+    body.append("?")
 
-  return body
+    return body
 }()
 
 
@@ -50,46 +50,46 @@ let operatorBody: [Byte] = {
 //
 //  // MARK: - Keywords
 //
-//  grammar.insert("struct",       value: .structKeyword)
-//  grammar.insert("enum",         value: .enumKeyword)
+//  grammar.insert("struct",             value: .structKeyword)
+//  grammar.insert("enum",               value: .enumKeyword)
 //
-//  grammar.insert("inline",       value: .inlineKeyword)
+//  grammar.insert("inline",             value: .inlineKeyword)
 //
-//  grammar.insert("import",       value: .importKeyword)
-//  grammar.insert("using",        value: .usingKeyword)
-//  grammar.insert("return",       value: .returnKeyword)
-//  grammar.insert("defer",        value: .deferKeyword)
+//  grammar.insert("import",             value: .importKeyword)
+//  grammar.insert("using",              value: .usingKeyword)
+//  grammar.insert("return",             value: .returnKeyword)
+//  grammar.insert("defer",              value: .deferKeyword)
 //
-//  grammar.insert("infix",        value: .infixKeyword)
-//  grammar.insert("prefix",       value: .prefixKeyword)
-//  grammar.insert("postfix",      value: .postfixKeyword)
+//  grammar.insert("infix",              value: .infixKeyword)
+//  grammar.insert("prefix",             value: .prefixKeyword)
+//  grammar.insert("postfix",            value: .postfixKeyword)
 //
-//  grammar.insert("if",           value: .ifKeyword)
-//  grammar.insert("else",         value: .elseKeyword)
+//  grammar.insert("if",                     value: .ifKeyword)
+//  grammar.insert("else",               value: .elseKeyword)
 //
-//  grammar.insert("switch",       value: .switchKeyword)
-//  grammar.insert("case",         value: .caseKeyword)
-//  grammar.insert("break",        value: .breakKeyword)
-//  grammar.insert("default",      value: .defaultKeyword)
+//  grammar.insert("switch",             value: .switchKeyword)
+//  grammar.insert("case",               value: .caseKeyword)
+//  grammar.insert("break",              value: .breakKeyword)
+//  grammar.insert("default",            value: .defaultKeyword)
 //  grammar.insert("fallthrough",  value: .fallthroughKeyword)
 //
-//  grammar.insert("for",          value: .forKeyword)
-//  grammar.insert("continue",     value: .continueKeyword)
+//  grammar.insert("for",                    value: .forKeyword)
+//  grammar.insert("continue",       value: .continueKeyword)
 //
-//  grammar.insert("null",         value: .nullKeyword)
-//  grammar.insert("true",         value: .trueKeyword)
-//  grammar.insert("false",        value: .falseKeyword)
+//  grammar.insert("null",               value: .nullKeyword)
+//  grammar.insert("true",               value: .trueKeyword)
+//  grammar.insert("false",              value: .falseKeyword)
 //
 //  // MARK: - Non keyword
 //
-//  grammar.insert("\"",  value: .string)
+//  grammar.insert("\"",    value: .string)
 //
 //  /*
-//    NOTE(vdka):
-//    Seems like parsing numbers using my Trie mechanism isn't _wonderful_
-//    Thinking maybe it could be fixed when I approach the issue of
-//    defining a set of acceptable _identifier_ & _operator_? starts
+//      NOTE(vdka):
+//      Seems like parsing numbers using my Trie mechanism isn't _wonderful_
+//      Thinking maybe it could be fixed when I approach the issue of
+//      defining a set of acceptable _identifier_ & _operator_? starts
 //  */
 //
-//    return grammar
+//      return grammar
 //}()

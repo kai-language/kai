@@ -17,6 +17,7 @@ cp .build/debug/kai $HOME/.dotfiles/bin/
 if [ "$1" == "run" ]; then
   if [ -z "$2" ]; then
     .build/debug/kai samples/main.kai
+    clang -o main main.o
   else 
     .build/debug/kai $2
   fi

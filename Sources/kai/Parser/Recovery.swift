@@ -1,9 +1,9 @@
 
 extension Parser {
 
-  enum RecoveryStrategy {
+    enum RecoveryStrategy {
 
-    static let `continue`: (inout Parser) throws -> Void = { _ in }
-    static let consumeAndContinue: (inout Parser) throws -> Void = { parser in try parser.consume() }
-  }
+        static let `continue`: (inout Parser) throws -> Void = { _ in }
+        static let consumeAndContinue: (inout Parser) throws -> Void = { parser in try parser.consume() }
+    }
 }

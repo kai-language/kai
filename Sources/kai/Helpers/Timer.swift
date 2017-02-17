@@ -3,19 +3,19 @@ import Darwin
 
 func gettime() -> Double {
 
-  var tv = timeval()
-  gettimeofday(&tv, nil)
+    var tv = timeval()
+    gettimeofday(&tv, nil)
 
-  return Double(tv.tv_sec) + Double(tv.tv_usec) / 1000000
+    return Double(tv.tv_sec) + Double(tv.tv_usec) / 1000000
 }
 
 func measure<R>(_ closure: () throws -> R) rethrows -> (R, Double) {
 
-  let begin = gettime()
+    let begin = gettime()
 
-  let result = try closure()
+    let result = try closure()
 
-  let end = gettime()
+    let end = gettime()
 
-  return (result, end - begin)
+    return (result, end - begin)
 }

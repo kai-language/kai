@@ -1,31 +1,31 @@
 
 extension Parser {
 
-  class Context {
+    class Context {
 
-    var parent: Context? = nil
+        var parent: Context? = nil
 
-    var state: State = .global
+        var state: State = .global
 
-    enum State {
-      case global
+        enum State {
+            case global
 
-      case procedureBody
-      case structureBody
-      case enumerationBody
+            case procedureBody
+            case structureBody
+            case enumerationBody
 
-      case procedureCall
+            case procedureCall
+        }
     }
-  }
 
-  mutating func push(context state: Context.State) {
-    let newContext = Context()
-    newContext.parent = context
-    newContext.state = state
-    context = newContext
-  }
+    mutating func push(context state: Context.State) {
+        let newContext = Context()
+        newContext.parent = context
+        newContext.state = state
+        context = newContext
+    }
 
-  mutating func popContext() {
-    context = context.parent!
-  }
+    mutating func popContext() {
+        context = context.parent!
+    }
 }

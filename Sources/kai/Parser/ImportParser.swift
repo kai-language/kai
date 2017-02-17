@@ -1,50 +1,50 @@
 
 extension ByteString {
 
-  func consume(with chars: [Byte]) -> ByteString {
+	func consume(with chars: [Byte]) -> ByteString {
 
-    var str: ByteString = ""
+		var str: ByteString = ""
 
-    var iterator = self.bytes.makeIterator()
+		var iterator = self.bytes.makeIterator()
 
-    while let byte = iterator.next(), chars.contains(byte) {
-      str.append(byte)
-    }
+		while let byte = iterator.next(), chars.contains(byte) {
+			str.append(byte)
+		}
 
-    return str
-  }
+		return str
+	}
 }
 
 extension Parser {
 
-  /// Parses the the lexer sequence [.directive(.import), .string(_)].
-  /// Will then declare all of the Operator's in that scope.
-  /// Imported entities have their own _namespace_ by default this is the name of the file.
-  /// The namespace file entities are imported as can be _aliased_ to another name using 'as alias'
-  static func parseImportDirective(parser: inout Parser) throws -> AST.Node {
-    try parser.consume(.directive(.import))
-    guard case .string(let fileName)? = try parser.lexer.peek()?.kind else { throw parser.error(.syntaxError) }
+	/// Parses the the lexer sequence [.directive(.import), .string(_)].
+	/// Will then declare all of the Operator's in that scope.
+	/// Imported entities have their own _namespace_ by default this is the name of the file.
+	/// The namespace file entities are imported as can be _aliased_ to another name using 'as alias'
+	static func parseImportDirective(parser: inout Parser) throws -> AST.Node {
+		try parser.consume(.directive(.import))
+		guard case .string(let fileName)? = try parser.lexer.peek()?.kind else { throw parser.error(.syntaxError) }
 
-    try parser.consume()
+		try parser.consume()
 
-    if case .identifier("as")? = try parser.lexer.peek()?.kind {
-      try parser.consume()
+		if case .identifier("as")? = try parser.lexer.peek()?.kind {
+			try parser.consume()
 
-      switch try parser.lexer.peek()?.kind {
-      case .dot?:
-        try parser.consume()
-        return AST.Node(.import(file: fileName.description, namespace: nil))
+			switch try parser.lexer.peek()?.kind {
+			case .dot?:
+				try parser.consume()
+				return AST.Node(.import(file: fileName.description, namespace: nil))
 
-      case .identifier(let alias)?:
-        try parser.consume()
-        return AST.Node(.import(file: fileName.description, namespace: alias.description))
+			case .identifier(let alias)?:
+				try parser.consume()
+				return AST.Node(.import(file: fileName.description, namespace: alias.description))
 
-      default:
-        throw parser.error(.syntaxError)
-      }
-    } else {
-      let fileIdentifier = fileName.consume(with: identChars).description
-      return AST.Node(.import(file: fileName.description, namespace: fileIdentifier))
-    }
-  }
+			default:
+				throw parser.error(.syntaxError)
+			}
+		} else {
+			let fileIdentifier = fileName.consume(with: identChars).description
+			return AST.Node(.import(file: fileName.description, namespace: fileIdentifier))
+		}
+	}
 }

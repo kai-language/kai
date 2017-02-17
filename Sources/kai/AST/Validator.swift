@@ -1,56 +1,55 @@
 
 protocol ASTValidator {
-
-  static var name: String { get }
-  static var totalTime: Double { get set }
-  static func run(_ node: AST) throws
+    static var name: String { get }
+    static var totalTime: Double { get set }
+    static func run(_ node: AST) throws
 }
 
 struct ValidationError: CompilerError {
+    var severity: Severity
+    var message: String?
+    var location: SourceLocation
+    var highlights: [SourceRange]
 
-  var severity: Severity
-  var message: String?
-  var location: SourceLocation
-  var highlights: [SourceRange]
-
-  enum Reason: Swift.Error {
-    case badrvalue
-    case badlvalue
-  }
+    enum Reason: Swift.Error {
+        case badrvalue
+        case badlvalue
+    }
 }
 
 struct ASTValidatorOption: OptionSet {
+    let rawValue: UInt
 
-  let rawValue: UInt
+    init(rawValue: UInt) {
+        self.rawValue = rawValue
+    }
 
-  init(rawValue: UInt) { self.rawValue = rawValue }
-
-  static let timed = ASTValidatorOption(rawValue: 0b0001)
+     static let timed = ASTValidatorOption(rawValue: 0b0001)
 }
 
 extension ASTValidator {
-
-  static func error(_ reason: ValidationError.Reason, location: SourceLocation) -> ValidationError {
-    return ValidationError(severity: .error, message: String(describing: reason), location: location, highlights: [])
-  }
-
-  static func error(_ reason: ValidationError.Reason, at node: AST.Node) -> ValidationError {
-    return ValidationError(severity: .error, message: String(describing: reason), location: node.location!, highlights: [])
-  }
-
-  static var name: String { return String(describing: Self.self) }
-
-  static func run(_ node: AST.Node, options: ASTValidatorOption) throws {
-
-    if options.contains(.timed) {
-
-      let (_, time) = try measure {
-        try run(node)
-      }
-
-      Self.totalTime += time
-    } else {
-      try run(node)
+    static func error(_ reason: ValidationError.Reason, location: SourceLocation) -> ValidationError {
+        return ValidationError(severity: .error, message: String(describing: reason), location: location, highlights: [])
     }
-  }
+
+    static func error(_ reason: ValidationError.Reason, at node: AST.Node) -> ValidationError {
+        return ValidationError(severity: .error, message: String(describing: reason), location: node.location!, highlights: [])
+    }
+
+    static var name: String {
+        return String(describing: Self.self)
+    }
+
+    static func run(_ node: AST.Node, options: ASTValidatorOption) throws {
+
+        if options.contains(.timed) {
+            let (_, time) = try measure {
+                try run(node)
+            }
+
+            Self.totalTime += time
+        } else {
+            try run(node)
+        }
+    }
 }
