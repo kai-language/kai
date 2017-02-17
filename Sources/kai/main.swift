@@ -39,6 +39,50 @@ try Operator.infix("?", bindingPower: 20) { parser, conditional in
     return AST.Node(.conditional, children: [conditional, thenExpression, elseExpression])
 }
 
+try Operator.prefix("-")
+try Operator.prefix("!")
+try Operator.prefix("~")
+
+    // static func infix(_ symbol: ByteString, bindingPower lbp: UInt8, associativity: Associativity = .left,
+                                        // led: ((inout Parser, _ left: AST.Node) throws -> AST.Node)? = nil) throws
+
+try Operator.infix("+",  bindingPower: 50)
+try Operator.infix("-",  bindingPower: 50)
+try Operator.infix("*",  bindingPower: 60)
+try Operator.infix("/",  bindingPower: 60)
+try Operator.infix("%",  bindingPower: 60)
+
+try Operator.infix("<<", bindingPower: 70)
+try Operator.infix(">>", bindingPower: 70)
+
+try Operator.infix("<",  bindingPower: 80)
+try Operator.infix("<=", bindingPower: 80)
+try Operator.infix(">",  bindingPower: 80)
+try Operator.infix(">=",  bindingPower: 80)
+try Operator.infix("==",  bindingPower: 90)
+try Operator.infix("!=",  bindingPower: 90)
+
+try Operator.infix("&",   bindingPower: 100)
+try Operator.infix("^",   bindingPower: 110)
+try Operator.infix("|",   bindingPower: 120)
+
+try Operator.infix("&&",  bindingPower: 130)
+try Operator.infix("||",  bindingPower: 140)
+
+try Operator.infix("+=",   bindingPower: 160)
+try Operator.infix("-=",   bindingPower: 160)
+try Operator.infix("*=",   bindingPower: 160)
+try Operator.infix("/=",   bindingPower: 160)
+try Operator.infix("%=",   bindingPower: 160)
+
+try Operator.infix(">>=",  bindingPower: 160)
+try Operator.infix("<<=",  bindingPower: 160)
+
+try Operator.infix("&=",   bindingPower: 160)
+try Operator.infix("^=",   bindingPower: 160)
+try Operator.infix("|=",   bindingPower: 160)
+
+
 let file = File(path: filePath)!
 
 do {
