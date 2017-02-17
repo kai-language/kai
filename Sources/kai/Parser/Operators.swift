@@ -8,12 +8,12 @@ struct Operator {
     let associativity: Associativity
 
     var nud: ((inout Parser) throws -> AST.Node)?
-    var led: ((inout Parser, _ left: AST.Node) throws -> AST.Node)?
+    var led: ((inout Parser, _ lvalue: AST.Node) throws -> AST.Node)?
 
 
     init(_ symbol: ByteString, lbp: UInt8, associativity: Associativity = .left,
              nud: ((inout Parser) throws -> AST.Node)?,
-             led: ((inout Parser, _ left: AST.Node) throws -> AST.Node)?) {
+             led: ((inout Parser, _ lvalue: AST.Node) throws -> AST.Node)?) {
 
         self.symbol = symbol
         self.lbp = lbp
@@ -33,7 +33,7 @@ extension Operator {
     }
 
     static func infix(_ symbol: ByteString, bindingPower lbp: UInt8, associativity: Associativity = .left,
-                                        led: ((inout Parser, _ left: AST.Node) throws -> AST.Node)? = nil) throws
+                                        led: ((inout Parser, _ lvalue: AST.Node) throws -> AST.Node)? = nil) throws
     {
 
         guard symbol != "=" else { throw Error.invalidSymbol }

@@ -1,7 +1,7 @@
 
 extension Parser {
 
-    static func parseCompileTimeDeclaration(parser: inout Parser, lvalue: AST.Node) throws -> AST.Node {
+    static func parseCompileTimeDeclaration(_ parser: inout Parser, _ lvalue: AST.Node) throws -> AST.Node {
 
         try parser.consume(.colon)
         try parser.consume(.colon)
@@ -24,10 +24,10 @@ extension Parser {
             if case .tuple(_) = type { throw parser.error(.syntaxError) }
             // next should be a new scope '{' or a foreign body
             guard let token = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
-            
+
             if case .lbrace = token.kind {
                 let symbol = Symbol(identifier, location: lvalue.location!, type: type, flags: .compileTime)
-                
+
                 return AST.Node(
                     .procedure(symbol),
                     location: token.location

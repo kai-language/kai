@@ -1,7 +1,7 @@
 
 extension Parser {
 
-    static func parseOperatorDeclaration(parser: inout Parser) throws -> AST.Node {
+    static func parseOperatorDeclaration(_ parser: inout Parser) throws -> AST.Node {
 
         let operatorToken = try parser.consume()
         guard case .operator(let op) = operatorToken.kind else { preconditionFailure() }

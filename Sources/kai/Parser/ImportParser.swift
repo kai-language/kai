@@ -21,7 +21,7 @@ extension Parser {
 	/// Will then declare all of the Operator's in that scope.
 	/// Imported entities have their own _namespace_ by default this is the name of the file.
 	/// The namespace file entities are imported as can be _aliased_ to another name using 'as alias'
-	static func parseImportDirective(parser: inout Parser) throws -> AST.Node {
+	static func parseImportDirective(_ parser: inout Parser) throws -> AST.Node {
 		try parser.consume(.directive(.import))
 		guard case .string(let fileName)? = try parser.lexer.peek()?.kind else { throw parser.error(.syntaxError) }
 
