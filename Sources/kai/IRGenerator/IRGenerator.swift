@@ -32,7 +32,7 @@ struct IRGenerator {
         case unidentifiedSymbol(String)
         case preconditionNotMet(expected: String, got: String)
     }
-
+    
     let module: Module
     let builder: IRBuilder
     let rootNode: AST
@@ -42,13 +42,13 @@ struct IRGenerator {
         guard case .file(let fileName) = node.kind else {
             throw Error.expectedFileNode
         }
-
+        
         rootNode = node
         module = Module(name: fileName)
         builder = IRBuilder(module: module)
         internalFuncs = InternalFuncs(builder: builder)
     }
-
+    
     static func build(for node: AST.Node) throws {
         let generator = try IRGenerator(node: node)
         try generator.emitGlobals()
@@ -80,27 +80,87 @@ extension IRGenerator {
     }
     
     func emitGlobals() throws {
-        for child in rootNode.children {
-            switch child.kind {
-            case .procedureCall:
-                // procedure calls are allowed, but aren't a global symbol so 
-                // just continue
-                break
-                
-            case .declaration(let symbol):
-                try emitDeclaration(for: symbol)
-                
-            default:
-                print("unsupported node in file-scope: \(child)")
-                continue
-            }
+        try rootNode.procedurePrototypes.forEach {
+            try emitProcedureDefinition($0)
         }
     }
 }
 
 extension IRGenerator {
     @discardableResult
-    func emitDeclaration(for symbol: Symbol) throws -> IRValue? {
+    func emitProcedurePrototype(
+        _ name: String,
+        labels: [(callsite: ByteString?, binding: ByteString)]?,
+        types: [KaiType],
+        returnType: KaiType
+    ) throws -> Function {
+        if let function = module.function(named: name) {
+            return function
+        }
+        
+        let args = try types.map {
+            try $0.canonicalized()
+        }
+        
+        let functionType = FunctionType(
+            argTypes: args,
+            returnType: try returnType.canonicalized()
+        )
+        
+        let function = builder.addFunction(name, type: functionType)
+        
+        if let labels = labels {
+            for (var param, name) in zip(function.parameters, labels) {
+                param.name = name.binding.string
+            }
+        }
+        
+        return function
+    }
+    
+    @discardableResult
+    func emitProcedureDefinition(_ node: AST.Node) throws -> Function {
+        guard
+            case .procedure(let symbol) = node.kind,
+            let type = symbol.type,
+            case .procedure(let labels, let types, let returnType) = type
+        else {
+            throw Error.preconditionNotMet(expected: "procedure", got: "\(node.kind)")
+        }
+        
+        let function = try emitProcedurePrototype(
+            symbol.name.string,
+            labels: labels,
+            types: types,
+            returnType: returnType
+        )
+        
+        switch symbol.source {
+        case .llvm(let funcName):
+            emitLLVMForeignDefinition(funcName, func: function)
+            
+        case .native:
+            guard
+                let scopeChild = node.children.first?.kind,
+                case .scope(let scope) = scopeChild
+                else {
+                    throw Error.preconditionNotMet(expected: "scope", got: "")
+            }
+            
+            SymbolTable.current = scope
+            defer {
+                SymbolTable.pop()
+            }
+        }
+        
+        return function
+        
+        //unimplemented("emitProcedureDefinition")
+    }
+}
+
+extension IRGenerator {
+    func emitDeclaration(for symbol: Symbol) throws -> IRValue {
         guard let type = symbol.type else {
             throw Error.unidentifiedSymbol(symbol.name.string)
         }
@@ -116,10 +176,10 @@ extension IRGenerator {
             break
             
         default:
-            throw Error.unimplemented("emitDeclaration for type: \(type.description)")
+            unimplemented("emitDeclaration for type: \(type.description)")
         }
         
-        return nil
+        unimplemented("emitDeclaration body")
     }
     
     func emitProcedureCall(for node: AST.Node) throws {
@@ -129,11 +189,11 @@ extension IRGenerator {
             node.children.count >= 2,
             let firstNode = node.children.first,
             case .identifier(let identifier) = firstNode.kind
-        else {
-            throw Error.preconditionNotMet(
-                expected: "identifier",
-                got: "\(node.children.first?.kind)"
-            )
+            else {
+                throw Error.preconditionNotMet(
+                    expected: "identifier",
+                    got: "\(node.children.first?.kind)"
+                )
         }
         
         let arguments = node.children[1]
@@ -148,13 +208,6 @@ extension IRGenerator {
         
     }
     
-    func emitStaticString(name: String? = nil, value: ByteString) -> IRValue {
-        return builder.buildGlobalStringPtr(
-            value.string,
-            name: name ?? ""
-        )
-    }
-    
     // FIXME(Brett):
     // TODO(Brett): will be removed when #foreign is supported
     func emitPrintCall(for arguments: AST.Node) throws {
@@ -166,7 +219,7 @@ extension IRGenerator {
         
         switch argument.kind {
         case .string(let string):
-            let stringPtr = emitStaticString(value: string)
+            let stringPtr = emitGlobalString(value: string)
             builder.buildCall(internalFuncs.puts!, args: [stringPtr])
             
         default:
@@ -174,74 +227,3 @@ extension IRGenerator {
         }
     }
 }
-
-
-/*
-struct IRBuilder {
-
-  static func getIR(for node: AST.Node, indentationLevel: Int = 0) -> ByteString {
-
-    let indentation = ByteString(Array(repeating: " ", count: indentationLevel))
-
-    var output: ByteString = ""
-
-    switch node.kind {
-    case .file:
-      output.append(contentsOf: "; " + ByteString(node.name!))
-      return output
-
-    case .procedure:
-      // TODO(vdka): Is symbol global or local?
-
-      output.append(contentsOf: "define")
-      output.append(contentsOf: " " + node.procedureReturnTypeName! + " ")
-
-      /// TODO(vdka): Think about Scoping '@' is global '%' is local
-      output.append(contentsOf: "@" + node.name!)
-
-      // TODO(vdka): Do this properly
-      if node.procedureArgumentTypeNames!.isEmpty {
-        output.append(contentsOf: "() ")
-      } else {
-        unimplemented("Multiple arguments")
-      }
-
-      let irForBody = IRBuilder.getIR(for: node.procedureBody!, indentationLevel: indentationLevel + 2)
-
-      output.append(contentsOf: irForBody)
-
-      return output
-
-    case .scope:
-      output.append("{")
-      output.append("\n")
-
-      for child in node.children {
-        let ir = IRBuilder.getIR(for: child, indentationLevel: indentationLevel)
-        output.append(contentsOf: ir)
-      }
-
-      output.append("\n")
-      output.append("}")
-
-      return output
-
-    case .returnStatement:
-      output.append(contentsOf: indentation)
-      output.append(contentsOf: "ret ")
-
-      return output
-
-    case .integer:
-      output.append(contentsOf: "i64 ")
-
-      output.append(contentsOf: node.value!)
-
-      return output
-
-    default:
-      return ""
-    }
-  }
-}
-*/

@@ -61,6 +61,7 @@ extension AST {
         
         case declaration(Symbol)
         case assignment(ByteString)
+        case `return`(KaiType)
         
         case multipleDeclaration
         
@@ -83,6 +84,7 @@ extension AST {
         case real(ByteString)
         case string(ByteString)
         case integer(ByteString)
+        case void
     }
 }
 
@@ -110,6 +112,21 @@ extension AST.Node.Kind: Equatable {
             default:
                 return isMemoryEquivalent(lhs, rhs)
         }
+    }
+}
+
+extension AST.Node {
+    //NOTE(Brett): consider some nicer cache system? Maybe iterate over the
+    // symbols once and filter them.
+    var procedurePrototypes: [Node] {
+        return children.filter({
+            switch $0.kind {
+            case .procedure:
+                return true
+            default:
+                return false
+            }
+        })
     }
 }
 
@@ -186,6 +203,10 @@ extension AST.Node.Kind: CustomStringConvertible {
             name = "assignment"
             substring = buildSubstring(byteString.string)
             
+        case .return(let type):
+            name = "return"
+            substring = buildSubstring(type.description)
+            
         case .multipleDeclaration:
             name = "multipleDeclaration"
             
@@ -231,8 +252,8 @@ extension AST.Node.Kind: CustomStringConvertible {
             name = "integer"
             substring = buildSubstring(integer.string, includeQuotes: false)
             
-        default:
-            name = "Unknown symbol"
+        case .void:
+            name = "void"
         }
         
         return "\(blue)\(name)\(substring ?? "")\(reset)"

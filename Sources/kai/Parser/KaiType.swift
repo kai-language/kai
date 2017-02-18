@@ -1,5 +1,6 @@
 
 enum KaiType {
+    case void
     case integer
     case boolean
     case float
@@ -16,9 +17,7 @@ enum KaiType {
 }
 
 extension KaiType: Equatable {
-
     static func == (lhs: KaiType, rhs: KaiType) -> Bool {
-
         switch (lhs, rhs) {
         case (.unknown(let l), .unknown(let r)):
             return l == r
@@ -36,13 +35,12 @@ extension KaiType: Equatable {
             return isMemoryEquivalent(lhs, rhs)
         }
     }
-
 }
 
 extension KaiType: CustomStringConvertible {
-
     var description: String {
         switch self {
+        case .void: return "Void"
         case .boolean: return "Bool"
         case .integer: return "Int"
         case .float: return "Float"
@@ -64,5 +62,4 @@ extension KaiType: CustomStringConvertible {
             return desc
         }
     }
-
 }
