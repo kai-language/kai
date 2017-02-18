@@ -50,3 +50,49 @@ extension AST: CustomStringConvertible {
         return description
     }
 }
+
+extension AST.Node {
+    var procedurePrototype: (
+        symbol: Symbol,
+        labels: [(callsite: ByteString?, binding: ByteString)]?,
+        argTypes: [KaiType],
+        returnType: KaiType
+    )? {
+        guard
+            case .procedure(let symbol) = kind,
+            let type = symbol.type,
+            case .procedure(let labels, let types, let returnType) = type
+        else {
+            return nil
+        }
+        
+        return (symbol, labels, types, returnType)
+    }
+    
+    var procedureBody: Node? {
+        guard case .procedure = kind else {
+            return nil
+        }
+        
+        return children.first
+    }
+}
+
+extension AST.Node {
+    var conditionalBodies: (conditional: Node, trueBody: Node, elseBody: Node?)? {
+        guard case .conditional = kind, children.count >= 2 else {
+            return nil
+        }
+        
+        let conditional = children[0]
+        let trueBody = children[1]
+        var elseBody: Node? = nil
+        
+        if children.count > 2 {
+            elseBody = children[2]
+        }
+        
+        return (conditional, trueBody, elseBody)
+        
+    }
+}

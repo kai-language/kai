@@ -16,11 +16,8 @@ extension KaiType {
             return VoidType()
             
         default:
-            // HACK(Brett): this is so I can continue building function definitions
-            // in LLVM
-            return VoidType()
             //TODO(Brett): handle all "native" Kai types.
-            //throw IRGenerator.Error.unimplemented("Cannot canonicalize type: \(self)")
+            throw IRGenerator.Error.unimplemented("Cannot canonicalize type: \(self)")
         }
     }
 }

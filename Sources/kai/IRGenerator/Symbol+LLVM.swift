@@ -1,7 +1,7 @@
 import LLVM
 
 extension Symbol {
-    func canonicalize() throws -> IRType {
+    func canonicalized() throws -> IRType {
         //FIXME(Brett): throw an error message
         guard let type = self.type else {
             print("ERROR: type is nil")
@@ -14,6 +14,8 @@ extension Symbol {
             
         case .llvm(let llvmType):
             switch llvmType {
+                
+            // MARK: - Integer types
             case "i1":
                 return IntType.int1
             case "i8":
@@ -26,6 +28,18 @@ extension Symbol {
                 return IntType.int64
             case "i128":
                 return IntType.int128
+                
+            // MARK: - Real types
+            case "float":
+                return FloatType.float
+            case "double":
+                return FloatType.double
+            case "fp128":
+                return FloatType.fp128
+            case "x86_fp80":
+                return FloatType.x86FP80
+            case "ppc_fp128":
+                return FloatType.ppcFP128
                 
             default:
                 //FIXME(Brett): throw an error message

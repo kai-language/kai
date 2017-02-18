@@ -178,7 +178,7 @@ extension AST.Node.Kind: CustomStringConvertible {
             
         case .procedure(let symbol):
             name = "procedure"
-            substring = buildSubstring(symbol.description)
+            substring = buildSubstring(symbol.description, includeQuotes: false)
             
         case .scope:
             name = "scope"

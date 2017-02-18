@@ -98,13 +98,37 @@ extension IRGenerator {
             return function
         }
         
-        let args = try types.map {
-            try $0.canonicalized()
+        let args = try types.map { arg -> IRType in
+            switch arg {
+            case .unknown(let name):
+                guard let symbol = SymbolTable.current.lookup(name) else {
+                    throw Error.unidentifiedSymbol(name.string)
+                }
+                
+                return try symbol.canonicalized()
+                
+            default:
+                return try arg.canonicalized()
+            }
         }
+        
+        let canonicalizedReturnType: IRType = try {
+            switch returnType {
+            case .unknown(let name):
+                guard let symbol = SymbolTable.current.lookup(name) else {
+                    throw Error.unidentifiedSymbol(name.string)
+                }
+                
+                return try symbol.canonicalized()
+                
+            default:
+                return try returnType.canonicalized()
+            }
+        }()
         
         let functionType = FunctionType(
             argTypes: args,
-            returnType: try returnType.canonicalized()
+            returnType: canonicalizedReturnType
         )
         
         let function = builder.addFunction(name, type: functionType)
@@ -120,12 +144,8 @@ extension IRGenerator {
     
     @discardableResult
     func emitProcedureDefinition(_ node: AST.Node) throws -> Function {
-        guard
-            case .procedure(let symbol) = node.kind,
-            let type = symbol.type,
-            case .procedure(let labels, let types, let returnType) = type
-        else {
-            throw Error.preconditionNotMet(expected: "procedure", got: "\(node.kind)")
+        guard let (symbol, labels, types, returnType) = node.procedurePrototype else {
+            throw Error.preconditionNotMet(expected: "procedure", got: "\(node)")
         }
         
         let function = try emitProcedurePrototype(
