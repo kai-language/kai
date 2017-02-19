@@ -29,6 +29,7 @@ extension Parser {
             case expectedExpression
             case unknownAssociativity
             case nonInfixOperator(Lexer.Token)
+            case keywordNotValid
 
             // old
             case expected(ByteString)

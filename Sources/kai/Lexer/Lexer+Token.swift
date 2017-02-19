@@ -35,6 +35,10 @@ extension Lexer {
             case `else`
             case `return`
 
+            case `for`
+            case `break`
+            case `continue`
+
             case returnType = "->"
         }
 

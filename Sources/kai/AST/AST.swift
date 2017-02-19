@@ -65,6 +65,14 @@ extension AST {
 
         case multipleDeclaration
 
+        /// A loop must have atleast 1 child.
+        /// The last child is the expr that should be looped.
+        /// Should there be 2 or more child expressions then the second
+        ///   to last child is to be treated as a condition.
+        /// All other child expressions are to be executed prior to looping.
+        case loop
+        case `break`
+        case `continue`
         case conditional
         case `subscript`
 
@@ -208,6 +216,15 @@ extension AST.Node.Kind: CustomStringConvertible {
 
         case .multipleDeclaration:
             name = "multipleDeclaration"
+
+        case .loop:
+            name = "loop"
+
+        case .break:
+            name = "break"
+
+        case .continue:
+            name = "continue"
 
         case .conditional:
             name = "conditional"
