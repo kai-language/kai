@@ -99,7 +99,11 @@ extension IRGenerator {
             var resultPtr: IRValue? = nil
             
             builder.positionAtEnd(of: entryBlock)
+<<<<<<< HEAD
             if returnType != .void && !(returnTypeCanonicalized is VoidType) {
+=======
+            if returnType != .void {
+>>>>>>> Getting closer to a real programming language. There are still a lot of hacks to clean up.
                 //TODO(Brett): store result and figure out how to use it later
                 resultPtr = emitEntryBlockAlloca(
                     in: function, type: returnTypeCanonicalized, named: "result"
@@ -121,11 +125,14 @@ extension IRGenerator {
                 
                 //NOTE(Brett): It may be better to add these to the symbol instead
                 //TODO(Brett): Yup! Add these to the symbol table.
+<<<<<<< HEAD
                 try SymbolTable.current.insert(Symbol(
                     labels![i].binding,
                     location: SourceLocation.unknown,
                     pointer: ptr
                 ))
+=======
+>>>>>>> Getting closer to a real programming language. There are still a lot of hacks to clean up.
                 argPointers.append(ptr)
             }
             
@@ -165,17 +172,27 @@ extension IRGenerator {
     }
     
     func emitReturn(for node: AST.Node) throws {
+<<<<<<< HEAD
+=======
+        //TODO(Brett) update this to a call to `emitExpression()`
+>>>>>>> Getting closer to a real programming language. There are still a lot of hacks to clean up.
         guard
             let currentProcedure = currentProcedure
         else {
             fatalError("No current procedure")
         }
+<<<<<<< HEAD
         
         //TODO(Brett) update this to a call to `emitExpression()`
         let value = try emitValue(for: node.children[0])
 
         if !(currentProcedure.returnType is VoidType) {
             builder.buildStore(value, to: currentProcedure.returnValuePointer!)
+=======
+
+        if !(currentProcedure.returnType is VoidType) {
+            builder.buildStore(IntType.int8.constant(0), to: currentProcedure.returnValuePointer!)
+>>>>>>> Getting closer to a real programming language. There are still a lot of hacks to clean up.
         }
         
         builder.buildBr(currentProcedure.returnBlock)

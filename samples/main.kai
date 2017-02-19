@@ -4,7 +4,6 @@ Void :: struct #foreign(LLVM) "void"
 Bool :: struct #foreign(LLVM) "i1"
 String :: struct #foreign(LLVM) "i8*"
 
-
 print_message :: (b: String) -> Void {
     a := "bbb"
     a = "Hey, dude!"
