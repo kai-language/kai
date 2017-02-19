@@ -14,6 +14,9 @@ extension Parser {
             case structureBody
             case enumerationBody
 
+            // allow keywords break & continue
+            case loopBody
+
             case procedureCall
         }
     }
@@ -24,7 +27,7 @@ extension Parser {
         newContext.state = state
         context = newContext
     }
-
+    
     mutating func popContext() {
         context = context.parent!
     }

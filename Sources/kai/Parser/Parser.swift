@@ -156,6 +156,42 @@ extension Parser {
             let elseExpression = try expression()
             return AST.Node(.conditional, children: [conditionExpression, thenExpression, elseExpression], location: startLocation)
 
+        case .keyword(.for):
+            let (_, startLocation) = try consume(.keyword(.for))
+
+            var expressions: [AST.Node] = []
+            while try lexer.peek()?.kind != .lparen {
+                let expr = try expression()
+                expressions.append(expr)
+            }
+
+            push(context: .loopBody)
+            defer { popContext() }
+
+            let body = try expression()
+
+            expressions.append(body)
+
+            return AST.Node(.loop, children: expressions, location: startLocation)
+
+        case .keyword(.break):
+            let (_, startLocation) = try consume(.keyword(.break))
+
+            guard case .loopBody = context.state else {
+                throw error(.nonInfixOperator(token), location: startLocation)
+            }
+
+            return AST.Node(.break, location: startLocation)
+
+        case .keyword(.continue):
+            let (_, startLocation) = try consume(.keyword(.continue))
+
+            guard case .loopBody = context.state else {
+                throw error(.nonInfixOperator(token), location: startLocation)
+            }
+
+            return AST.Node(.continue, location: startLocation)
+
         case .lbrace:
             let (_, startLocation) = try consume(.lbrace)
 
