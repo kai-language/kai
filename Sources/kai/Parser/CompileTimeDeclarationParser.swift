@@ -28,10 +28,13 @@ extension Parser {
             if case .lbrace = token.kind {
                 let symbol = Symbol(identifier, location: lvalue.location!, type: type, flags: .compileTime)
 
-                return AST.Node(
+                let procedure = AST.Node(
                     .procedure(symbol),
                     location: token.location
                 )
+                
+                procedure.children = [try parser.expression()]
+                return procedure
             }
             else if case .directive(.foreignLLVM) = token.kind {
 

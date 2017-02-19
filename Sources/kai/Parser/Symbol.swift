@@ -40,6 +40,18 @@ class Symbol {
     }
 }
 
+extension Symbol.Source: Equatable {
+    static func ==(lhs: Symbol.Source, rhs: Symbol.Source) -> Bool {
+        switch (lhs, rhs) {
+        case (.native, .native), (.llvm, .llvm):
+            return true
+            
+        default:
+            return false
+        }
+    }
+}
+
 extension Symbol: CustomStringConvertible {
 
     var description: String {

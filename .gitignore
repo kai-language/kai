@@ -5,3 +5,5 @@
 *.bc
 *.ll
 .vscode
+main
+main.o
