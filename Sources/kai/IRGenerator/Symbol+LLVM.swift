@@ -14,6 +14,10 @@ extension Symbol {
             
         case .llvm(let llvmType):
             switch llvmType {
+            // MARK: - Void types
+            case "void":
+                return VoidType()
+                
                 
             // MARK: - Integer types
             case "i1":

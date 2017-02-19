@@ -1,6 +1,7 @@
 Int :: struct #foreign(LLVM) "i64"
+Void :: struct #foreign(LLVM) "void"
 
-print_message :: (myVar: Int) -> Int {
+print_message :: (myVar: Int) -> Void {
     if true {
         print("This is my message")
     }

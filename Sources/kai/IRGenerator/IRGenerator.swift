@@ -98,33 +98,8 @@ extension IRGenerator {
             return function
         }
         
-        let args = try types.map { arg -> IRType in
-            switch arg {
-            case .unknown(let name):
-                guard let symbol = SymbolTable.current.lookup(name) else {
-                    throw Error.unidentifiedSymbol(name.string)
-                }
-                
-                return try symbol.canonicalized()
-                
-            default:
-                return try arg.canonicalized()
-            }
-        }
-        
-        let canonicalizedReturnType: IRType = try {
-            switch returnType {
-            case .unknown(let name):
-                guard let symbol = SymbolTable.current.lookup(name) else {
-                    throw Error.unidentifiedSymbol(name.string)
-                }
-                
-                return try symbol.canonicalized()
-                
-            default:
-                return try returnType.canonicalized()
-            }
-        }()
+        let args = try types.map { try $0.canonicalized() }
+        let canonicalizedReturnType = try returnType.canonicalized()
         
         let functionType = FunctionType(
             argTypes: args,
@@ -158,6 +133,7 @@ extension IRGenerator {
         switch symbol.source {
         case .llvm(let funcName):
             emitLLVMForeignDefinition(funcName, func: function)
+            return function
             
         case .native:
             guard
@@ -171,11 +147,47 @@ extension IRGenerator {
             defer {
                 SymbolTable.pop()
             }
+            
+            let entryBlock = function.appendBasicBlock(named: "entry")
+            let returnBlock = function.appendBasicBlock(named: "return")
+            let returnTypeCanonicalized = try returnType.canonicalized()
+            var resultPtr: IRValue? = nil
+            
+            builder.positionAtEnd(of: entryBlock)
+            if returnType != .void {
+                //TODO(Brett): store result and figure out how to use it later
+                resultPtr = emitEntryBlockAlloca(
+                    in: function, type: returnTypeCanonicalized, named: "result"
+                )
+            }
+            
+            let args = try types.map { try $0.canonicalized() }
+            for (i, arg) in args.enumerated() {
+                //TODO(Brett): insert pointers into current symbol table
+                let parameter = function.parameter(at: i)!
+                let name = labels?[i].binding.string ?? ""
+                let ptr = emitEntryBlockAlloca(
+                    in: function,
+                    type: arg,
+                    named: name,
+                    default: parameter
+                )
+            }
+            
+            //TODO(Brett): generate function body
+            
+            
+            returnBlock.moveAfter(function.lastBlock!)
+            builder.positionAtEnd(of: returnBlock)
+            if returnType == .void || returnTypeCanonicalized is VoidType {
+                builder.buildRetVoid()
+            } else {
+                let result = builder.buildLoad(resultPtr!, name: "result")
+                builder.buildRet(result)
+            }
+            
+            return function
         }
-        
-        return function
-        
-        //unimplemented("emitProcedureDefinition")
     }
 }
 
@@ -245,5 +257,15 @@ extension IRGenerator {
         default:
             throw Error.unimplemented("emitPrintCall: \(argument.kind)")
         }
+    }
+}
+
+extension BasicBlock {
+    var hasTerminatingInstruction: Bool {
+        guard let instruction = lastInstruction else {
+            return false
+        }
+        
+        return instruction.isATerminatorInst
     }
 }

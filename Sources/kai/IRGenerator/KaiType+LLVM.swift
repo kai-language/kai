@@ -15,6 +15,13 @@ extension KaiType {
         case .void:
             return VoidType()
             
+        case .unknown(let identifier):
+            guard let symbol = SymbolTable.current.lookup(identifier) else {
+                fallthrough
+            }
+            
+            return try symbol.canonicalized()
+            
         default:
             //TODO(Brett): handle all "native" Kai types.
             throw IRGenerator.Error.unimplemented("Cannot canonicalize type: \(self)")
