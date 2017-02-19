@@ -157,12 +157,14 @@ extension Parser {
             return AST.Node(.conditional, children: [conditionExpression, thenExpression, elseExpression], location: startLocation)
 
         case .keyword(.return):
+            
+            let (_, startLocation) = try consume(.keyword(.return))
 
             // NOTE(vdka): Is it fine if this fails, will it change the parser state?
             if let expr = try? expression() {
-                return AST.Node(.return, children: [expr])
+                return AST.Node(.return, children: [expr], location: startLocation)
             } else {
-                return AST.Node(.return)
+                return AST.Node(.return, location: startLocation)
             }
 
         case .lbrace:
