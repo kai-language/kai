@@ -1,5 +1,4 @@
 i8 :: struct #foreign(LLVM) "i8"
-Int :: struct #foreign(LLVM) "i64"
 Void :: struct #foreign(LLVM) "void"
 Bool :: struct #foreign(LLVM) "i1"
 String :: struct #foreign(LLVM) "i8*"
