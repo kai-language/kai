@@ -61,11 +61,11 @@ extension IRGenerator {
         // TODO: returns: A value representing the logical AND. This isn't what the bitwise operators are.
         case .operator("&"):
             unimplemented()
-            return builder.buildAnd(lvalue, rvalue)
+//            return builder.buildAnd(lvalue, rvalue)
 
         case .operator("|"):
             unimplemented()
-            return builder.buildOr(lvalue, rvalue)
+//            return builder.buildOr(lvalue, rvalue)
 
         case .operator("^"):
             unimplemented()
@@ -76,6 +76,22 @@ extension IRGenerator {
 
         case .operator("||"):
             return builder.buildOr(lvalue, rvalue)
+            
+        case .operator("+="),
+             .operator("-="),
+             .operator("*="),
+             .operator("/="),
+             .operator("%="):
+            unimplemented()
+            
+        case .operator(">>="),
+             .operator("<<="):
+            unimplemented()
+            
+        case .operator("&="),
+             .operator("|="),
+             .operator("^="):
+            unimplemented()
 
 
         case .operator(let op):
