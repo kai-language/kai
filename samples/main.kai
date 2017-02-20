@@ -4,6 +4,8 @@ Void :: struct #foreign(LLVM) "void"
 Bool :: struct #foreign(LLVM) "i1"
 String :: struct #foreign(LLVM) "i8*"
 
+puts :: (String) -> Void #foreign "puts"
+
 print_message :: (b: String) -> String {
     a := "This will be changed."
     c: String = a
@@ -20,3 +22,4 @@ print_wrapper :: () -> Void {
 
 print("test")
 print_wrapper()
+puts("Hello, world")

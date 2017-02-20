@@ -80,6 +80,9 @@ extension IRGenerator {
             emitLLVMForeignDefinition(funcName, func: function)
             return function
             
+        case .extern(_):
+            return function
+            
         case .native:
             guard
                 let scopeChild = node.children.first,
