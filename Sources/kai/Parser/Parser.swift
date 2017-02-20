@@ -96,17 +96,10 @@ extension Parser {
 
         switch token {
         case .operator(let symbol):
-            // If the next token is a colon then this should be a declaration
-            switch try (lexer.peek(aheadBy: 1)?.kind, lexer.peek(aheadBy: 2)?.kind) {
-            case (.colon?, .colon?):
-                return try Parser.parseOperatorDeclaration(&self)
-
-            default:
-                guard let nud = Operator.table.first(where: { $0.symbol == symbol })?.nud else {
-                    throw error(.nonInfixOperator(token))
-                }
-                return try nud(&self)
+            guard let nud = Operator.table.first(where: { $0.symbol == symbol })?.nud else {
+                throw error(.nonInfixOperator(token))
             }
+            return try nud(&self)
 
         case .identifier(let symbol):
             try consume()
