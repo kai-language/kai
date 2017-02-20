@@ -122,7 +122,6 @@ extension IRGenerator {
                 
                 //NOTE(Brett): It may be better to add these to the symbol instead
                 //TODO(Brett): Yup! Add these to the symbol table.
-
                 try SymbolTable.current.insert(Symbol(
                     labels![i].binding,
                     location: SourceLocation.unknown,
