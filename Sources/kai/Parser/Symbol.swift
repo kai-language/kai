@@ -1,3 +1,4 @@
+import LLVM
 
 class Symbol {
     let name: ByteString
@@ -7,6 +8,8 @@ class Symbol {
 
     var type: KaiType?
 
+    var pointer: IRValue?
+    
     /// - Precondition: The current symbol table must align with where this symbol is defined.
     /// - Returns: An array of other overload's for type that are overloadable, nil otherwise
     var overloads: [Symbol]? {
@@ -19,12 +22,19 @@ class Symbol {
         }
     }
 
-    init(_ name: ByteString, location: SourceLocation, type: KaiType? = nil, flags: Flag = []) {
+    init(
+        _ name: ByteString,
+        location: SourceLocation,
+        type: KaiType? = nil,
+        pointer: IRValue? = nil,
+        flags: Flag = []
+    ) {
         self.name = name
         self.source = .native
         self.location = location
         self.type = type
         self.flags = flags
+        self.pointer = pointer
     }
 
     enum Source {
