@@ -12,6 +12,9 @@ extension KaiType {
         case .integer:
             return IntType.int64
             
+        case .string:
+            return PointerType(pointee: IntType.int8)
+            
         case .void:
             return VoidType()
             
