@@ -42,7 +42,7 @@ extension Parser {
                 try parser.consume()
 
                 let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-                symbol.type = .type
+                symbol.type = type
                 symbol.source = .llvm(foreignName)
                 try SymbolTable.current.insert(symbol)
 
@@ -55,7 +55,7 @@ extension Parser {
                 try parser.consume()
 
                 let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-                symbol.type = .type
+                symbol.type = type
                 symbol.source = .extern(foreignName)
                 try SymbolTable.current.insert(symbol)
 
