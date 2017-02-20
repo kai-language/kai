@@ -38,7 +38,8 @@ extension IRGenerator {
         _ name: String,
         labels: [(callsite: ByteString?, binding: ByteString)]?,
         types: [KaiType],
-        returnType: KaiType
+        returnType: KaiType,
+        isNative: Bool
     ) throws -> Function {
         if let function = module.function(named: name) {
             return function
@@ -54,7 +55,7 @@ extension IRGenerator {
         
         let function = builder.addFunction(name, type: functionType)
         
-        if let labels = labels {
+        if let labels = labels, isNative {
             for (var param, name) in zip(function.parameters, labels) {
                 param.name = name.binding.string
             }
@@ -72,7 +73,8 @@ extension IRGenerator {
             symbol.name.string,
             labels: labels,
             types: types,
-            returnType: returnType
+            returnType: returnType,
+            isNative:  symbol.source == .native
         )
         
         switch symbol.source {

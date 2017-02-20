@@ -11,7 +11,7 @@ class IRGenerator {
         
         init(builder: IRBuilder) {
             puts = generatePuts(builder: builder)
-            printf = nil
+            printf = generatePrintf(builder: builder)
         }
         
         func generatePuts(builder: IRBuilder) -> Function {
@@ -23,8 +23,13 @@ class IRGenerator {
             return builder.addFunction("puts", type: putsType)
         }
         
-        func generatePrintf() -> Function? {
-            return nil
+        func generatePrintf(builder: IRBuilder) -> Function {
+            let printfType = FunctionType(
+                argTypes: [PointerType(pointee:IntType.int8)],
+                returnType: IntType.int32,
+                isVarArg: true
+            )
+            return builder.addFunction("printf", type: printfType)
         }
     }
     

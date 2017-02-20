@@ -22,3 +22,4 @@ moon :: () -> Void {
 
 moon()
 print("Fin.")
+printf("Hello, %s! See you in %d days.\n", "James", 5)
