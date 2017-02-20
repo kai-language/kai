@@ -151,7 +151,7 @@ extension IRGenerator {
                 currentProcedure = nil
             }
             
-            try emitScope(for: scopeChild)
+            _ = try emitExpression(for: scopeChild)
             
             let insert = builder.insertBlock!
             if !insert.hasTerminatingInstruction {
@@ -179,7 +179,7 @@ extension IRGenerator {
         }
         
         //TODO(Brett) update this to a call to `emitExpression()`
-        let value = try emitValue(for: node.children[0])
+        let value = try emitExpression(for: node.children[0])
 
         if !(currentProcedure.returnType is VoidType) {
             builder.buildStore(value, to: currentProcedure.returnValuePointer!)

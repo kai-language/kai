@@ -39,7 +39,7 @@ extension IRGenerator {
         defer { builder.position(jmp, block: curBlock) }
 
         // TODO: Generic emit expr (doesn't work for scopes at the moment)
-        let val = try emitValue(for: deferedExpr)
+        let val = try emitExpression(for: deferedExpr)
         if !deferBlock.hasTerminatingInstruction {
             builder.buildBr(returnBlock)
         }

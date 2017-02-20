@@ -12,8 +12,8 @@ extension IRGenerator {
 
         // FIXME: Worse I have limitted it to same type with a precondition
 
-        let lvalue = try emitValue(for: lvalueNode)
-        let rvalue = try emitValue(for: rvalueNode)
+        let lvalue = try emitExpression(for: lvalueNode)
+        let rvalue = try emitExpression(for: rvalueNode)
 
         // @Types
         // FIXME: Once we have types for these nodes we can generate the appropriate calls based off of that.

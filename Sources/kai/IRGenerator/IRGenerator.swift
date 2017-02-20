@@ -80,7 +80,7 @@ extension IRGenerator {
         for child in rootNode.children {
             switch child.kind {
             case .procedureCall:
-                try emitProcedureCall(for: child)
+                _  = try emitProcedureCall(for: child)
                 
             default: break
             }
@@ -97,32 +97,59 @@ extension IRGenerator {
 }
 
 extension IRGenerator {
-    func emitScope(for node: AST.Node) throws {
-        for child in node.children {
-            switch child.kind {
-            case .assignment:
-                _ = try emitAssignment(for: child)
-                
-            case .declaration:
-                _ = try emitDeclaration(for: child)
-                
-            case .procedureCall:
-                try emitProcedureCall(for: child)
-                
-            case .defer:
-                try emitDeferStmt(for: child)
-                
-            case .return:
-                try emitReturn(for: child)
-                
-            default:
-                print("unsupported kind: \(child.kind)")
-                break
+    func emitExpression(for node: AST.Node) throws -> IRValue {
+        switch node.kind {
+        //NOTE(Brett): how do we want to handle different values here, should we
+        // continue to ignore them and just return nil?
+        case .scope(_):
+            for child in node.children {
+                _ = try emitExpression(for: child)
             }
+            return VoidType().null()
+            
+        case .assignment:
+            return try emitAssignment(for: node)
+            
+        case .declaration:
+            return try emitDeclaration(for: node)
+            
+        case .procedureCall:
+            return try emitProcedureCall(for: node)
+            
+        case .defer:
+            return try emitDeferStmt(for: node)
+            
+        case .operator(_):
+            return try emitOperator(for: node)
+            
+        case .return:
+            try emitReturn(for: node)
+            return VoidType().null()
+            
+        case .integer(let valueString):
+            //NOTE(Brett): should this throw?
+            let value = Int(valueString.string) ?? 0
+            return IntType.int64.constant(value)
+            
+        case .boolean(let boolean):
+            return IntType.int1.constant(boolean ? 1 : 0)
+            
+        case .string(let string):
+            return emitGlobalString(value: string)
+            
+        case .identifier(let identifier):
+            guard let symbol = SymbolTable.current.lookup(identifier) else {
+                fallthrough
+            }
+            
+            return builder.buildLoad(symbol.pointer!)
+            
+        default:
+            unimplemented("unsupported kind: \(node.kind)")
         }
     }
     
-    func emitDeclaration(for node: AST.Node) throws -> IRValue? {
+    func emitDeclaration(for node: AST.Node) throws -> IRValue {
         guard
             case .declaration(let symbol) = node.kind,
             let type = symbol.type
@@ -131,14 +158,10 @@ extension IRGenerator {
         }
         
         // what should we do here about forward declarations of foreign variables?
-        guard symbol.source == .native else {
-            return nil
-        }
-        
         var defaultValue: IRValue? = nil
         
         if let valueChild = node.children.first {
-            defaultValue = try emitValue(for: valueChild)
+            defaultValue = try emitExpression(for: valueChild)
         }
         
         let typeCanonicalized = try type.canonicalized()
@@ -170,7 +193,7 @@ extension IRGenerator {
         }
         
         let lvalueSymbol = SymbolTable.current.lookup(identifier)!
-        let rvalue = try emitValue(for: node.children[1])
+        let rvalue = try emitExpression(for: node.children[1])
         
         return builder.buildStore(rvalue, to: lvalueSymbol.pointer!)
     }
@@ -208,7 +231,7 @@ extension IRGenerator {
         let function = module.function(named: identifier.string)!
 
         let args = try argumentList.children.map {
-            try emitValue(for: $0)
+            try emitExpression(for: $0)
         }
         
         return builder.buildCall(function, args: args)
@@ -223,7 +246,7 @@ extension IRGenerator {
         
         let argument = argumentList.children[0]
         
-        let string = try emitValue(for: argument)
+        let string = try emitExpression(for: argument)
         return builder.buildCall(internalFuncs.puts!, args: [string])
     }
 }
