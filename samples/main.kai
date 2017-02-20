@@ -10,12 +10,12 @@ print_message :: (b: String) -> String {
     a = "Hey, dude!"
     print(a)
     print(b)
-    print(c)
     return c
 }
 
 print_wrapper :: () -> Void {
-    print_message("This is b, a String.")
+    c: String = print_message("This is b, a String.")
+    print(c)
 }
 
 print("test")

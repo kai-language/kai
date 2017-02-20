@@ -21,6 +21,9 @@ extension IRGenerator {
             
             return builder.buildLoad(symbol.pointer!)
             
+        case .procedureCall:
+            return try emitProcedureCall(for: node)
+            
         default:
             throw Error.unimplemented("unable to emit value for: \(node.kind)")
         }

@@ -166,7 +166,7 @@ extension IRGenerator {
         return builder.buildStore(rvalue, to: lvalueSymbol.pointer!)
     }
     
-    func emitProcedureCall(for node: AST.Node) throws {
+    func emitProcedureCall(for node: AST.Node) throws -> IRValue {
         assert(node.kind == .procedureCall)
         
         guard
@@ -185,8 +185,7 @@ extension IRGenerator {
         // FIXME(Brett):
         // TODO(Brett): will be removed when #foreign is supported
         if identifier == "print" {
-            try emitPrintCall(for: argumentList)
-            return
+            return try emitPrintCall(for: argumentList)
         }
         
         // FIXME(Brett): why is this lookup failing?
@@ -203,12 +202,12 @@ extension IRGenerator {
             try emitValue(for: $0)
         }
         
-        builder.buildCall(function, args: args)
+        return builder.buildCall(function, args: args)
     }
     
     // FIXME(Brett):
     // TODO(Brett): will be removed when #foreign is supported
-    func emitPrintCall(for argumentList: AST.Node) throws {
+    func emitPrintCall(for argumentList: AST.Node) throws -> IRValue {
         guard argumentList.children.count == 1 else {
             throw Error.preconditionNotMet(expected: "1 argument", got: "\(argumentList.children.count)")
         }
@@ -216,7 +215,7 @@ extension IRGenerator {
         let argument = argumentList.children[0]
         
         let string = try emitValue(for: argument)
-        builder.buildCall(internalFuncs.puts!, args: [string])
+        return builder.buildCall(internalFuncs.puts!, args: [string])
     }
 }
 
