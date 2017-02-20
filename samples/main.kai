@@ -5,16 +5,18 @@ Bool :: struct #foreign(LLVM) "i1"
 String :: struct #foreign(LLVM) "i8*"
 
 
-print_message :: (b: String) -> Void {
-    a := "bbb"
+print_message :: (b: String) -> String {
+    a := "This will be changed."
+    c: String = a
     a = "Hey, dude!"
     print(a)
     print(b)
+    print(c)
+    return c
 }
 
-print_wrapper :: () -> Int {
+print_wrapper :: () -> Void {
     print_message("This is b, a String.")
-    return 5
 }
 
 print("test")
