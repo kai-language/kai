@@ -1,25 +1,12 @@
-i8 :: struct #foreign(LLVM) "i8"
-Int :: struct #foreign(LLVM) "i64"
+
 Void :: struct #foreign(LLVM) "void"
-Bool :: struct #foreign(LLVM) "i1"
 String :: struct #foreign(LLVM) "i8*"
 
-puts :: (String) -> Void #foreign "puts"
-
-print_message :: (b: String) -> String {
-    a := "This will be changed."
-    c: String = a
-    a = "Hey, dude!"
-    print(a)
-    print(b)
-    return c
+moon :: () -> Void {
+    defer print("I was deferred")
+    defer print("So was I!")
+    print("I was not deferred")
 }
 
-print_wrapper :: () -> Void {
-    c: String = print_message("This is b, a String.")
-    print(c)
-}
-
-print("test")
-print_wrapper()
-puts("Hello, world")
+moon()
+print("Fin.")

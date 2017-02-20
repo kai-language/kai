@@ -91,8 +91,8 @@ extension IRGenerator {
 }
 
 extension IRGenerator {
-    func emit(scope: AST.Node) throws {
-        for child in scope.children {
+    func emitScope(for node: AST.Node) throws {
+        for child in node.children {
             switch child.kind {
             case .assignment:
                 _ = try emitAssignment(for: child)
@@ -102,6 +102,9 @@ extension IRGenerator {
                 
             case .procedureCall:
                 try emitProcedureCall(for: child)
+                
+            case .defer:
+                try emitDeferStmt(for: child)
                 
             case .return:
                 try emitReturn(for: child)

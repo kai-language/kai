@@ -24,6 +24,9 @@ extension IRGenerator {
         case .procedureCall:
             return try emitProcedureCall(for: node)
             
+        case .defer:
+            return try emitDeferStmt(for: node)
+            
         default:
             throw Error.unimplemented("unable to emit value for: \(node.kind)")
         }
