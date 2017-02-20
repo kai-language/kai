@@ -1,11 +1,21 @@
 i8 :: struct #foreign(LLVM) "i8"
+Int :: struct #foreign(LLVM) "i64"
 Void :: struct #foreign(LLVM) "void"
+Bool :: struct #foreign(LLVM) "i1"
+String :: struct #foreign(LLVM) "i8*"
 
-test := "Hello, world!"
 
-print_message :: () -> Void {
-    print("Inside of print_message")
+print_message :: (b: String) -> Void {
+    a := "bbb"
+    a = "Hey, dude!"
+    print(a)
+    print(b)
+}
+
+print_wrapper :: () -> Int {
+    print_message("This is b, a String.")
+    return 5
 }
 
 print("test")
-print_message()
+print_wrapper()

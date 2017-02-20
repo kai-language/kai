@@ -31,6 +31,7 @@ class IRGenerator {
     enum Error: Swift.Error {
         case unimplemented(String)
         case expectedFileNode
+        case invalidSyntax
         case unidentifiedSymbol(String)
         case preconditionNotMet(expected: String, got: String)
     }
@@ -93,8 +94,11 @@ extension IRGenerator {
     func emit(scope: AST.Node) throws {
         for child in scope.children {
             switch child.kind {
-            case .declaration(let symbol):
-                _ = try emitDeclaration(for: symbol)
+            case .assignment:
+                _ = try emitAssignment(for: child)
+                
+            case .declaration:
+                _ = try emitDeclaration(for: child)
                 
             case .procedureCall:
                 try emitProcedureCall(for: child)
@@ -109,26 +113,57 @@ extension IRGenerator {
         }
     }
     
-    func emitDeclaration(for symbol: Symbol) throws -> IRValue {
-        guard let type = symbol.type else {
-            throw Error.unidentifiedSymbol(symbol.name.string)
+    func emitDeclaration(for node: AST.Node) throws -> IRValue? {
+        guard
+            case .declaration(let symbol) = node.kind,
+            let type = symbol.type
+        else {
+            throw Error.preconditionNotMet(expected: "declaration", got: "\(node)")
         }
         
-        switch type {
-        case .string:
-            break
-        case .integer:
-            break
-        case .float:
-            break
-        case .boolean:
-            break
-            
-        default:
-            unimplemented("emitDeclaration for type: \(type.description)")
+        // what should we do here about forward declarations of foreign variables?
+        guard symbol.source == .native else {
+            return nil
         }
         
-        unimplemented("emitDeclaration body")
+        var defaultValue: IRValue? = nil
+        
+        if let valueChild = node.children.first {
+            defaultValue = try emitValue(for: valueChild)
+        }
+        
+        let typeCanonicalized = try type.canonicalized()
+        
+        let pointer = emitEntryBlockAlloca(
+            in: currentProcedure!.pointer,
+            type: typeCanonicalized,
+            named: symbol.name.string,
+            default: defaultValue
+        )
+        
+        symbol.pointer = pointer
+        
+        return pointer
+    }
+    
+    func emitAssignment(for node: AST.Node) throws -> IRValue {
+        //FIXME(Brett): will break if it's multiple assignment
+        guard
+            case .assignment(_) = node.kind,
+            node.children.count == 2
+        else {
+            throw Error.preconditionNotMet(expected: "assignment", got: "\(node.kind)")
+        }
+        
+        let lvalue = node.children[0]
+        guard case .identifier(let identifier) = lvalue.kind else {
+            throw Error.preconditionNotMet(expected: "identifier", got: "\(lvalue.kind)")
+        }
+        
+        let lvalueSymbol = SymbolTable.current.lookup(identifier)!
+        let rvalue = try emitValue(for: node.children[1])
+        
+        return builder.buildStore(rvalue, to: lvalueSymbol.pointer!)
     }
     
     func emitProcedureCall(for node: AST.Node) throws {
@@ -145,40 +180,43 @@ extension IRGenerator {
                 )
         }
         
-        let arguments = node.children[1]
+        let argumentList = node.children[1]
         
         // FIXME(Brett):
         // TODO(Brett): will be removed when #foreign is supported
         if identifier == "print" {
-            try emitPrintCall(for: arguments)
+            try emitPrintCall(for: argumentList)
             return
         }
         
-        guard let function = module.function(named: identifier.string) else {
-            unimplemented("lazy-generation of procedure prototypes")
+        // FIXME(Brett): why is this lookup failing?
+        /*guard let symbol = SymbolTable.current.lookup(identifier) else {
+            return
         }
+        guard let function = symbol.pointer else {
+            unimplemented("lazy-generation of procedures")
+        }*/
+        
+        let function = module.function(named: identifier.string)!
 
-        //TODO(Brett): arguments not yet supported
-        builder.buildCall(function, args: [])
+        let args = try argumentList.children.map {
+            try emitValue(for: $0)
+        }
+        
+        builder.buildCall(function, args: args)
     }
     
     // FIXME(Brett):
     // TODO(Brett): will be removed when #foreign is supported
-    func emitPrintCall(for arguments: AST.Node) throws {
-        guard arguments.children.count == 1 else {
-            throw Error.preconditionNotMet(expected: "1 argument", got: "\(arguments.children.count)")
+    func emitPrintCall(for argumentList: AST.Node) throws {
+        guard argumentList.children.count == 1 else {
+            throw Error.preconditionNotMet(expected: "1 argument", got: "\(argumentList.children.count)")
         }
         
-        let argument = arguments.children[0]
+        let argument = argumentList.children[0]
         
-        switch argument.kind {
-        case .string(let string):
-            let stringPtr = emitGlobalString(value: string)
-            builder.buildCall(internalFuncs.puts!, args: [stringPtr])
-            
-        default:
-            throw Error.unimplemented("emitPrintCall: \(argument.kind)")
-        }
+        let string = try emitValue(for: argument)
+        builder.buildCall(internalFuncs.puts!, args: [string])
     }
 }
 

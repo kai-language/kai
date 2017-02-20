@@ -99,7 +99,7 @@ extension IRGenerator {
             var resultPtr: IRValue? = nil
             
             builder.positionAtEnd(of: entryBlock)
-            if returnType != .void {
+            if returnType != .void && !(returnTypeCanonicalized is VoidType) {
                 //TODO(Brett): store result and figure out how to use it later
                 resultPtr = emitEntryBlockAlloca(
                     in: function, type: returnTypeCanonicalized, named: "result"
@@ -121,6 +121,11 @@ extension IRGenerator {
                 
                 //NOTE(Brett): It may be better to add these to the symbol instead
                 //TODO(Brett): Yup! Add these to the symbol table.
+                try SymbolTable.current.insert(Symbol(
+                    labels![i].binding,
+                    location: SourceLocation.unknown,
+                    pointer: ptr
+                ))
                 argPointers.append(ptr)
             }
             
@@ -160,15 +165,17 @@ extension IRGenerator {
     }
     
     func emitReturn(for node: AST.Node) throws {
-        //TODO(Brett) update this to a call to `emitExpression()`
         guard
             let currentProcedure = currentProcedure
         else {
             fatalError("No current procedure")
         }
+        
+        //TODO(Brett) update this to a call to `emitExpression()`
+        let value = try emitValue(for: node.children[0])
 
         if !(currentProcedure.returnType is VoidType) {
-            builder.buildStore(IntType.int8.constant(0), to: currentProcedure.returnValuePointer!)
+            builder.buildStore(value, to: currentProcedure.returnValuePointer!)
         }
         
         builder.buildBr(currentProcedure.returnBlock)
