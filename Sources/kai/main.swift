@@ -43,9 +43,6 @@ try Operator.prefix("-")
 try Operator.prefix("!")
 try Operator.prefix("~")
 
-    // static func infix(_ symbol: ByteString, bindingPower lbp: UInt8, associativity: Associativity = .left,
-                                        // led: ((inout Parser, _ left: AST.Node) throws -> AST.Node)? = nil) throws
-
 try Operator.infix("+",  bindingPower: 50)
 try Operator.infix("-",  bindingPower: 50)
 try Operator.infix("*",  bindingPower: 60)

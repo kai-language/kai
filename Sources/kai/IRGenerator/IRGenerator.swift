@@ -32,6 +32,7 @@ class IRGenerator {
         case unimplemented(String)
         case expectedFileNode
         case invalidSyntax
+        case invalidOperator(String)
         case unidentifiedSymbol(String)
         case preconditionNotMet(expected: String, got: String)
     }
