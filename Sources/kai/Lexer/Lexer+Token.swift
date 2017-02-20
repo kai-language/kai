@@ -35,6 +35,8 @@ extension Lexer {
             case `else`
             case `return`
 
+            case `defer`
+
             case `for`
             case `break`
             case `continue`

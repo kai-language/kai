@@ -202,6 +202,12 @@ extension Parser {
                 return AST.Node(.return, location: startLocation)
             }
 
+        case .keyword(.defer):
+            let (_, startLocation) = try consume(.keyword(.defer))
+
+            let expr = try expression()
+            return AST.Node(.defer, children: [expr], location: startLocation)
+
         case .lbrace:
             let (_, startLocation) = try consume(.lbrace)
 

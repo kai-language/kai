@@ -149,7 +149,7 @@ extension IRGenerator {
                 currentProcedure = nil
             }
             
-            try emit(scope: scopeChild)
+            try emitScope(for: scopeChild)
             
             let insert = builder.insertBlock!
             if !insert.hasTerminatingInstruction {

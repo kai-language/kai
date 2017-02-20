@@ -62,6 +62,7 @@ extension AST {
         case declaration(Symbol)
         case assignment(ByteString)
         case `return`
+        case `defer`
 
         case multipleDeclaration
 
@@ -213,6 +214,9 @@ extension AST.Node.Kind: CustomStringConvertible {
 
         case .return:
             name = "return"
+
+        case .defer:
+            name = "defer"
 
         case .multipleDeclaration:
             name = "multipleDeclaration"
