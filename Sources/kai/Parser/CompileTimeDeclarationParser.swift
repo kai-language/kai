@@ -28,15 +28,13 @@ extension Parser {
             if case .lbrace = token.kind {
                 let symbol = Symbol(identifier, location: lvalue.location!, type: type, flags: .compileTime)
 
-                let procedure = AST.Node(
-                    .procedure(symbol),
-                    location: token.location
-                )
-                
-                procedure.children = [try parser.expression()]
+                let expr = try parser.expression()
+                let procedure = AST.Node(.procedure(symbol), children: [expr], location: token.location)
+
+                try SymbolTable.current.insert(symbol)
+
                 return procedure
-            }
-            else if case .directive(.foreignLLVM) = token.kind {
+            } else if case .directive(.foreignLLVM) = token.kind {
 
                 let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
                 symbol.type = type
@@ -45,6 +43,7 @@ extension Parser {
 
                 return AST.Node(.declaration(symbol))
             }
+
         case .keyword(.struct):
             try parser.consume(.keyword(.struct))
             guard let token = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
