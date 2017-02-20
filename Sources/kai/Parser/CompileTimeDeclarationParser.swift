@@ -35,10 +35,28 @@ extension Parser {
 
                 return procedure
             } else if case .directive(.foreignLLVM) = token.kind {
+                try parser.consume()
+                guard case .string(let foreignName)? = try parser.lexer.peek()?.kind else {
+                    throw parser.error(.invalidDeclaration)
+                }
+                try parser.consume()
 
                 let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-                symbol.type = type
-                symbol.source = try parser.parseForeignBody()
+                symbol.type = .type
+                symbol.source = .llvm(foreignName)
+                try SymbolTable.current.insert(symbol)
+
+                return AST.Node(.declaration(symbol))
+            } else if case .directive(.foreign) = token.kind {
+                try parser.consume()
+                guard case .string(let foreignName)? = try parser.lexer.peek()?.kind else {
+                    throw parser.error(.invalidDeclaration)
+                }
+                try parser.consume()
+
+                let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
+                symbol.type = .type
+                symbol.source = .extern(foreignName)
                 try SymbolTable.current.insert(symbol)
 
                 return AST.Node(.declaration(symbol))
@@ -61,8 +79,7 @@ extension Parser {
                 try SymbolTable.current.insert(symbol)
 
                 return AST.Node(.declaration(symbol))
-            }
-            else if case .directive(.foreign) = token.kind {
+            } else if case .directive(.foreign) = token.kind {
                 try parser.consume()
                 guard case .string(let foreignName)? = try parser.lexer.peek()?.kind else {
                     throw parser.error(.invalidDeclaration)
