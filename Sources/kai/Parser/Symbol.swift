@@ -30,6 +30,7 @@ class Symbol {
     enum Source {
         case native
         case llvm(ByteString)
+        case extern(ByteString)
     }
 
     struct Flag: OptionSet {

@@ -134,6 +134,9 @@ extension IRGenerator {
         case .llvm(let funcName):
             emitLLVMForeignDefinition(funcName, func: function)
             return function
+
+        case .extern(_):
+            unimplemented("Delivered.")
             
         case .native:
             guard

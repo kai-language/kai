@@ -62,6 +62,20 @@ extension Parser {
 
                 return AST.Node(.declaration(symbol))
             }
+            else if case .directive(.foreign) = token.kind {
+                try parser.consume()
+                guard case .string(let foreignName)? = try parser.lexer.peek()?.kind else {
+                    throw parser.error(.invalidDeclaration)
+                }
+                try parser.consume()
+
+                let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
+                symbol.type = .type
+                symbol.source = .extern(foreignName)
+                try SymbolTable.current.insert(symbol)
+
+                return AST.Node(.declaration(symbol))
+            }
             else { throw parser.error(.syntaxError) }
 
 

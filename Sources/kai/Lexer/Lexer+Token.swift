@@ -46,6 +46,7 @@ extension Lexer {
             case file
             case line
             case `import`
+            case foreign = "foreign"
             case foreignLLVM = "foreign(LLVM)"
         }
     }

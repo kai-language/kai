@@ -11,6 +11,9 @@ extension Symbol {
         switch source {
         case .native:
             return try type.canonicalized()
+
+        case .extern(_):
+            unimplemented("Delivered.")
             
         case .llvm(let llvmType):
             switch llvmType {
