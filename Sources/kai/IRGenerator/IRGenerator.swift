@@ -133,7 +133,7 @@ extension IRGenerator {
         }
         
         let typeCanonicalized = try type.canonicalized()
-        
+
         let pointer = emitEntryBlockAlloca(
             in: currentProcedure!.pointer,
             type: typeCanonicalized,
@@ -144,26 +144,6 @@ extension IRGenerator {
         symbol.pointer = pointer
         
         return pointer
-    }
-    
-    func emitAssignment(for node: AST.Node) throws -> IRValue {
-        //FIXME(Brett): will break if it's multiple assignment
-        guard
-            case .assignment(_) = node.kind,
-            node.children.count == 2
-        else {
-            throw Error.preconditionNotMet(expected: "assignment", got: "\(node.kind)")
-        }
-        
-        let lvalue = node.children[0]
-        guard case .identifier(let identifier) = lvalue.kind else {
-            throw Error.preconditionNotMet(expected: "identifier", got: "\(lvalue.kind)")
-        }
-        
-        let lvalueSymbol = SymbolTable.current.lookup(identifier)!
-        let rvalue = try emitValue(for: node.children[1])
-        
-        return builder.buildStore(rvalue, to: lvalueSymbol.pointer!)
     }
     
     func emitAssignment(for node: AST.Node) throws -> IRValue {
