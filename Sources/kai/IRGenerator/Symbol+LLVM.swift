@@ -8,6 +8,7 @@ extension Symbol {
             return VoidType()
         }
         
+        // TODO(Brett): don't hardcode these because pointers make my life hard.
         switch source {
         case .native:
             return try type.canonicalized()
@@ -21,20 +22,39 @@ extension Symbol {
             case "void":
                 return VoidType()
                 
-                
             // MARK: - Integer types
             case "i1":
                 return IntType.int1
+            case "i1*":
+                return PointerType(pointee: IntType.int1)
+                
             case "i8":
                 return IntType.int8
+            case "i8*":
+                return PointerType(pointee: IntType.int8)
+            case "i8**":
+                return PointerType(pointee: PointerType(pointee: IntType.int8))
+                // lol... 👆
+                
             case "i16":
                 return IntType.int16
+            case "i16*":
+                return PointerType(pointee: IntType.int16)
+                
             case "i32":
                 return IntType.int32
+            case "i32*":
+                return PointerType(pointee: IntType.int32)
+                
             case "i64":
                 return IntType.int64
+            case "i64*":
+                return PointerType(pointee: IntType.int64)
+                
             case "i128":
                 return IntType.int128
+            case "i128*":
+                return PointerType(pointee: IntType.int128)
                 
             // MARK: - Real types
             case "float":

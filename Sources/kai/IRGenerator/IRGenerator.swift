@@ -1,6 +1,8 @@
 import LLVM
 
-struct IRGenerator {
+class IRGenerator {
+    var currentProcedure: ProcedurePointer?
+    
     //FIXME(Brett):
     //TODO(Brett): will be removed when #foreign is supported
     struct InternalFuncs {
@@ -29,6 +31,7 @@ struct IRGenerator {
     enum Error: Swift.Error {
         case unimplemented(String)
         case expectedFileNode
+        case invalidSyntax
         case unidentifiedSymbol(String)
         case preconditionNotMet(expected: String, got: String)
     }
@@ -47,6 +50,7 @@ struct IRGenerator {
         module = Module(name: fileName)
         builder = IRBuilder(module: module)
         internalFuncs = InternalFuncs(builder: builder)
+        currentProcedure = nil
     }
     
     static func build(for node: AST.Node) throws {
@@ -81,143 +85,88 @@ extension IRGenerator {
     
     func emitGlobals() throws {
         try rootNode.procedurePrototypes.forEach {
-            try emitProcedureDefinition($0)
+            _ = try emitProcedureDefinition($0)
         }
     }
 }
 
 extension IRGenerator {
-    @discardableResult
-    func emitProcedurePrototype(
-        _ name: String,
-        labels: [(callsite: ByteString?, binding: ByteString)]?,
-        types: [KaiType],
-        returnType: KaiType
-    ) throws -> Function {
-        if let function = module.function(named: name) {
-            return function
-        }
-        
-        let args = try types.map { try $0.canonicalized() }
-        let canonicalizedReturnType = try returnType.canonicalized()
-        
-        let functionType = FunctionType(
-            argTypes: args,
-            returnType: canonicalizedReturnType
-        )
-        
-        let function = builder.addFunction(name, type: functionType)
-        
-        if let labels = labels {
-            for (var param, name) in zip(function.parameters, labels) {
-                param.name = name.binding.string
+    func emit(scope: AST.Node) throws {
+        for child in scope.children {
+            switch child.kind {
+            case .assignment:
+                _ = try emitAssignment(for: child)
+                
+            case .declaration:
+                _ = try emitDeclaration(for: child)
+                
+            case .procedureCall:
+                try emitProcedureCall(for: child)
+                
+            case .return:
+                try emitReturn(for: child)
+                
+            default:
+                print("unsupported kind: \(child.kind)")
+                break
             }
         }
-        
-        return function
     }
     
-    @discardableResult
-    func emitProcedureDefinition(_ node: AST.Node) throws -> Function {
-        guard let (symbol, labels, types, returnType) = node.procedurePrototype else {
-            throw Error.preconditionNotMet(expected: "procedure", got: "\(node)")
+    func emitDeclaration(for node: AST.Node) throws -> IRValue? {
+        guard
+            case .declaration(let symbol) = node.kind,
+            let type = symbol.type
+        else {
+            throw Error.preconditionNotMet(expected: "declaration", got: "\(node)")
         }
         
-        let function = try emitProcedurePrototype(
-            symbol.name.string,
-            labels: labels,
-            types: types,
-            returnType: returnType
+        // what should we do here about forward declarations of foreign variables?
+        guard symbol.source == .native else {
+            return nil
+        }
+        
+        var defaultValue: IRValue? = nil
+        
+        if let valueChild = node.children.first {
+            defaultValue = try emitValue(for: valueChild)
+        }
+        
+        let typeCanonicalized = try type.canonicalized()
+
+        let pointer = emitEntryBlockAlloca(
+            in: currentProcedure!.pointer,
+            type: typeCanonicalized,
+            named: symbol.name.string,
+            default: defaultValue
         )
         
-        switch symbol.source {
-        case .llvm(let funcName):
-            emitLLVMForeignDefinition(funcName, func: function)
-            return function
-
-        case .extern(_):
-            unimplemented("Delivered.")
-            
-        case .native:
-            guard
-                let scopeChild = node.children.first?.kind,
-                case .scope(let scope) = scopeChild
-                else {
-                    throw Error.preconditionNotMet(expected: "scope", got: "")
-            }
-            
-            SymbolTable.current = scope
-            defer {
-                SymbolTable.pop()
-            }
-            
-            let entryBlock = function.appendBasicBlock(named: "entry")
-            let returnBlock = function.appendBasicBlock(named: "return")
-            let returnTypeCanonicalized = try returnType.canonicalized()
-            var resultPtr: IRValue? = nil
-            
-            builder.positionAtEnd(of: entryBlock)
-            if returnType != .void {
-                //TODO(Brett): store result and figure out how to use it later
-                resultPtr = emitEntryBlockAlloca(
-                    in: function, type: returnTypeCanonicalized, named: "result"
-                )
-            }
-            
-            let args = try types.map { try $0.canonicalized() }
-            for (i, arg) in args.enumerated() {
-                //TODO(Brett): insert pointers into current symbol table
-                let parameter = function.parameter(at: i)!
-                let name = labels?[i].binding.string ?? ""
-                let ptr = emitEntryBlockAlloca(
-                    in: function,
-                    type: arg,
-                    named: name,
-                    default: parameter
-                )
-            }
-            
-            //TODO(Brett): generate function body
-            
-            
-            returnBlock.moveAfter(function.lastBlock!)
-            builder.positionAtEnd(of: returnBlock)
-            if returnType == .void || returnTypeCanonicalized is VoidType {
-                builder.buildRetVoid()
-            } else {
-                let result = builder.buildLoad(resultPtr!, name: "result")
-                builder.buildRet(result)
-            }
-            
-            return function
-        }
-    }
-}
-
-extension IRGenerator {
-    func emitDeclaration(for symbol: Symbol) throws -> IRValue {
-        guard let type = symbol.type else {
-            throw Error.unidentifiedSymbol(symbol.name.string)
-        }
+        symbol.pointer = pointer
         
-        switch type {
-        case .string:
-            break
-        case .integer:
-            break
-        case .float:
-            break
-        case .boolean:
-            break
-            
-        default:
-            unimplemented("emitDeclaration for type: \(type.description)")
-        }
-        
-        unimplemented("emitDeclaration body")
+        return pointer
     }
     
-    func emitProcedureCall(for node: AST.Node) throws {
+    func emitAssignment(for node: AST.Node) throws -> IRValue {
+        //FIXME(Brett): will break if it's multiple assignment
+        guard
+            case .assignment(_) = node.kind,
+            node.children.count == 2
+        else {
+            throw Error.preconditionNotMet(expected: "assignment", got: "\(node.kind)")
+        }
+        
+        let lvalue = node.children[0]
+        guard case .identifier(let identifier) = lvalue.kind else {
+            throw Error.preconditionNotMet(expected: "identifier", got: "\(lvalue.kind)")
+        }
+        
+        let lvalueSymbol = SymbolTable.current.lookup(identifier)!
+        let rvalue = try emitValue(for: node.children[1])
+        
+        return builder.buildStore(rvalue, to: lvalueSymbol.pointer!)
+    }
+    
+    func emitProcedureCall(for node: AST.Node) throws -> IRValue {
         assert(node.kind == .procedureCall)
         
         guard
@@ -231,35 +180,42 @@ extension IRGenerator {
                 )
         }
         
-        let arguments = node.children[1]
+        let argumentList = node.children[1]
         
         // FIXME(Brett):
         // TODO(Brett): will be removed when #foreign is supported
         if identifier == "print" {
-            try emitPrintCall(for: arguments)
-        } else {
-            throw Error.unimplemented("emitProcedureCall for :\(node)")
+            return try emitPrintCall(for: argumentList)
         }
         
+        // FIXME(Brett): why is this lookup failing?
+        /*guard let symbol = SymbolTable.current.lookup(identifier) else {
+            return
+        }
+        guard let function = symbol.pointer else {
+            unimplemented("lazy-generation of procedures")
+        }*/
+        
+        let function = module.function(named: identifier.string)!
+
+        let args = try argumentList.children.map {
+            try emitValue(for: $0)
+        }
+        
+        return builder.buildCall(function, args: args)
     }
     
     // FIXME(Brett):
     // TODO(Brett): will be removed when #foreign is supported
-    func emitPrintCall(for arguments: AST.Node) throws {
-        guard arguments.children.count == 1 else {
-            throw Error.preconditionNotMet(expected: "1 argument", got: "\(arguments.children.count)")
+    func emitPrintCall(for argumentList: AST.Node) throws -> IRValue {
+        guard argumentList.children.count == 1 else {
+            throw Error.preconditionNotMet(expected: "1 argument", got: "\(argumentList.children.count)")
         }
         
-        let argument = arguments.children[0]
+        let argument = argumentList.children[0]
         
-        switch argument.kind {
-        case .string(let string):
-            let stringPtr = emitGlobalString(value: string)
-            builder.buildCall(internalFuncs.puts!, args: [stringPtr])
-            
-        default:
-            throw Error.unimplemented("emitPrintCall: \(argument.kind)")
-        }
+        let string = try emitValue(for: argument)
+        return builder.buildCall(internalFuncs.puts!, args: [string])
     }
 }
 
