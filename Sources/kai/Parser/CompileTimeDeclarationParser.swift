@@ -46,7 +46,7 @@ extension Parser {
                 symbol.source = .llvm(foreignName)
                 try SymbolTable.current.insert(symbol)
 
-                return AST.Node(.declaration(symbol))
+                return AST.Node(.procedure(symbol))
             } else if case .directive(.foreign) = token.kind {
                 try parser.consume()
                 guard case .string(let foreignName)? = try parser.lexer.peek()?.kind else {
@@ -59,7 +59,7 @@ extension Parser {
                 symbol.source = .extern(foreignName)
                 try SymbolTable.current.insert(symbol)
 
-                return AST.Node(.declaration(symbol))
+                return AST.Node(.procedure(symbol))
             }
 
         case .keyword(.struct):
