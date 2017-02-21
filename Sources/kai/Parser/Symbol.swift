@@ -6,20 +6,14 @@ class Symbol {
     let location: SourceLocation
     var flags: Flag
 
-    var type: KaiType?
+    var type: TypeRecord?
 
     var pointer: IRValue?
-    
-    /// - Precondition: The current symbol table must align with where this symbol is defined.
-    /// - Returns: An array of other overload's for type that are overloadable, nil otherwise
-    var overloads: [Symbol]? {
-        switch type {
-        case .procedure(labels: _, types: _, returnType: _)?:
-            return SymbolTable.current.table.filter({ $0.name == name })
 
-        default: 
-            return nil
-        }
+    // TODO(vdka): Overloads using the new type system
+
+    init(_ name: ByteString, location: SourceLocation, type: TypeRecord? = nil, pointer: IRValue? = nil, flags: Flag = []) {
+
     }
 
     init(
