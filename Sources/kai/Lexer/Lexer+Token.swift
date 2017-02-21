@@ -41,6 +41,9 @@ extension Lexer {
             case `break`
             case `continue`
 
+            case type
+            case alias
+
             case returnType = "->"
         }
 

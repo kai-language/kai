@@ -1,22 +1,11 @@
 
-Void :: struct #foreign(LLVM) "void"
-String :: struct #foreign(LLVM) "i8*"
-
-add5 :: (a: i8) -> i8 {
-
-    five : i8 = 5
-    b : i8 = a + five
-
-    return b
-}
+Void :: type #foreign(LLVM) "void"
+String :: type #foreign(LLVM) "i8*"
 
 // it's just like main because I call it.
 moon :: () -> Void {
-    a : i8 = 7
-    c : i8 = add5(a)
     defer print("I was deferred")
     defer print("So was I!")
-    printf("I have added five to %d, resulting in %d\n", a, c)
     print("I was not deferred")
 }
 

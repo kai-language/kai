@@ -31,6 +31,8 @@ extension Parser {
             case nonInfixOperator(Lexer.Token)
             case keywordNotValid
 
+            case todo
+
             // old
             case expected(ByteString)
             case unexpected(ByteString)
