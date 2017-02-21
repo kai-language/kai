@@ -52,23 +52,25 @@ extension AST: CustomStringConvertible {
 }
 
 extension AST.Node {
-    var procedurePrototype: (
-        symbol: Symbol,
-        labels: [(callsite: ByteString?, binding: ByteString)]?,
-        argTypes: [KaiType],
-        returnType: KaiType
-    )? {
-        guard
-            case .procedure(let symbol) = kind,
-            let type = symbol.type,
-            case .procedure(let labels, let types, let returnType) = type
-        else {
-            return nil
-        }
-        
-        return (symbol, labels, types, returnType)
-    }
-    
+
+//    var procedurePrototype: (
+//        symbol: Symbol,
+//        labels: [(callsite: ByteString?, binding: ByteString)]?,
+//        argTypes: [KaiType],
+//        returnType: KaiType
+//    )? {
+//
+//        guard
+//            case .procedure(let symbol) = kind,
+//            let type = symbol.type,
+//            case .procedure(let labels, let types, let returnType) = type
+//        else {
+//            return nil
+//        }
+//        
+//        return (symbol, labels, types, returnType)
+//    }
+
     var procedureBody: Node? {
         guard case .procedure = kind else {
             return nil

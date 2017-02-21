@@ -54,7 +54,9 @@ struct TypeSolver: Pass, ASTValidator {
 }
 
 extension TypeSolver {
-    func solveSingleDeclaration(_ node: AST, type: inout KaiType?) throws {
+
+    func solveSingleDeclaration(_ node: AST, type: inout TypeRecord?) throws {
+
         //FIXME(Brett, vdka): check for expressions when they're parsable
         guard node.children.count == 1 else {
             //TODO(Brett): real errors once I finish this algorithm
@@ -73,7 +75,9 @@ extension TypeSolver {
 }
 
 extension TypeSolver {
-    func solveMultipleDeclaration(_ node: AST, type: inout KaiType?) throws {
+
+    func solveMultipleDeclaration(_ node: AST, type: inout TypeRecord?) throws {
+
         guard let root = node.parent?.parent else {
             //TODO(Brett): real errors once I finish this algorithm
             print("error trying to get parents")
@@ -107,37 +111,46 @@ extension TypeSolver {
 
 extension TypeSolver {
     //FIXME(Brett): remove optional and throw instead
-    func extractType(_ node: AST) throws -> KaiType? {
+    func extractType(_ node: AST) throws -> TypeRecord {
+
         switch node.kind {
         case .integer:
-            return .integer
+            return .unconstrInteger
+
         case .real:
-            return .float
+            return .unconstrFloat
+
         case .boolean:
-            return .boolean
+            return .unconstrBoolean
+
         case .string:
-            return .string
+            return .unconstrString
+
         case .identifier(let name):
+
+            // FIXME: would this currently would allow you to use a variable as a type?
             guard let symbolType = try typeForSymbol(named: name) else {
                 print("failed to find type for symbol: \(name)")
-                return nil
+                return .invalid
             }
             return symbolType
+
         default:
-            print("error unsupported kind: \(node.kind)")
-            return nil
+            print("ERROR: Cannot extract type from node of kind: \(node.kind)")
+            return .invalid
         }
     }
 }
 
 extension TypeSolver {
+
     //FIXME(Brett): remove optional and throw instead
-    func typeForSymbol(named name: ByteString) throws -> KaiType? {
+    func typeForSymbol(named name: ByteString) throws -> TypeRecord? {
         //TODO(Brett): need proper symbol table traversal and lookup but that
         //requires me to keep track of the current table while traversing the
         //AST
         guard let symbol = SymbolTable.global.lookup(name) else {
-            print("undefined symbol: \(name)")
+            print("ERROR: undefined symbol during type lookup: \(name)")
             return nil
         }
 

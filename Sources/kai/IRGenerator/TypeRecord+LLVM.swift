@@ -9,6 +9,12 @@ extension TypeRecord {
         switch self.kind {
         case .basic(let basicType):
             switch basicType.kind {
+            case .invalid:
+                fatalError("invalid types should result in an abortion prior to calling \(#function)")
+
+            case .void:
+                return VoidType()
+
             case .bool:
                 return IntType.int1
 

@@ -6,6 +6,8 @@ import LLVM
 /// - Note: This is a reference type.
 class TypeRecord {
 
+    var name: String?
+
     var kind: Kind
 
     var source: Source
@@ -14,7 +16,8 @@ class TypeRecord {
 
     var llvm: IRType?
 
-    init(kind: Kind, source: Source = .native, node: AST.Node? = nil, llvm: IRType? = nil) {
+    init(name: String? = nil, kind: Kind, source: Source = .native, node: AST.Node? = nil, llvm: IRType? = nil) {
+        self.name = name
         self.kind = kind
         self.source = source
         self.node = node
@@ -53,12 +56,28 @@ extension TypeRecord {
 extension TypeRecord {
 
     struct ProcInfo {
-        var scope: AST.Node
+        var scope: AST.Node?
         var labels: [(callsite: ByteString?, binding: ByteString)]?
         var params: [TypeRecord]
-        var results: [TypeRecord]
+        var returns: [TypeRecord]
         var isVariadic: Bool
         var callingConvention: CallingConvention
+
+        init(
+            scope: AST.Node? = nil,
+            labels: [(callsite: ByteString?, binding: ByteString)]?,
+            params: [TypeRecord],
+            returns: [TypeRecord],
+            isVariadic: Bool = false,
+            callingConvention: CallingConvention = .kai) {
+
+            self.scope = scope
+            self.labels = labels
+            self.params = params
+            self.returns = returns
+            self.isVariadic = isVariadic
+            self.callingConvention = callingConvention
+        }
 
         enum CallingConvention {
             case kai
@@ -67,13 +86,11 @@ extension TypeRecord {
     }
 
     struct StructInfo {
-        var name: String?
         var fieldCount: Int
         var fieldTypes: [TypeRecord]
     }
 
     struct EnumInfo {
-        var name: String?
         var caseCount: Int
         var cases: [String]
         var baseType: TypeRecord
@@ -86,11 +103,18 @@ struct BasicType {
     var size: Int64
     var name: String
 
+    static let invalid = BasicType(kind: .invalid, flags: [],         size: 0, name: "invalid")
+    static let boolean = BasicType(kind: .bool,    flags: [.boolean], size: 1, name: "bool")
+
+    static let unconstrBoolean = BasicType(kind: .unconstrained(.bool),    flags: [.boolean, .unconstrained], size: 0, name: "unconstrained bool")
+    static let unconstrInteger = BasicType(kind: .unconstrained(.integer), flags: [.integer, .unconstrained], size: 0, name: "unconstrained integer")
+    static let unconstrFloat   = BasicType(kind: .unconstrained(.float),   flags: [.float,   .unconstrained], size: 0, name: "unconstrained float")
+    static let unconstrString  = BasicType(kind: .unconstrained(.string),  flags: [.string,  .unconstrained], size: 0, name: "unconstrained string")
+    static let unconstrNil     = BasicType(kind: .unconstrained(.nil),     flags:           [.unconstrained], size: 0, name: "unconstrained nil")
+
     static let all: [TypeRecord] = {
 
         let basicTypes = [
-            BasicType(kind: .invalid,  flags: .none,                 size: 0, name: "invalid"),
-            BasicType(kind: .bool,     flags: .boolean,              size: 1, name: "bool"),
             BasicType(kind: .i8,       flags: [.integer],            size: 1, name: "i8"),
             BasicType(kind: .u8,       flags: [.integer, .unsigned], size: 1, name: "u8"),
             BasicType(kind: .i16,      flags: [.integer],            size: 2, name: "i16"),
@@ -106,15 +130,28 @@ struct BasicType {
             BasicType(kind: .rawptr,   flags: [.pointer],            size: -1, name: "rawptr"),
             BasicType(kind: .string,   flags: [.string],             size: -1, name: "string"),
 
-            BasicType(kind: .unconstrained(.bool),    flags: [.boolean, .unconstrained], size: 0, name: "unconstrained bool"),
-            BasicType(kind: .unconstrained(.integer), flags: [.integer, .unconstrained], size: 0, name: "unconstrained integer"),
-            BasicType(kind: .unconstrained(.float),   flags: [.float,   .unconstrained], size: 0, name: "unconstrained float"),
-            BasicType(kind: .unconstrained(.string),  flags: [.string,  .unconstrained], size: 0, name: "unconstrained string"),
-            BasicType(kind: .unconstrained(.nil),     flags:           [.unconstrained], size: 0, name: "unconstrained nil"),
         ]
 
         return basicTypes.map({ TypeRecord(kind: .basic($0), node: nil, llvm: nil) })
     }()
+}
+
+extension TypeRecord {
+
+    convenience init(basicType: BasicType) {
+        self.name = basicType.name
+        self.kind = .basic(basicType)
+        self.source = .llvm("") // FIXME: How do we go about naming these things?
+    }
+
+    // TODO(vdka): Add others
+
+    static let invalid         = TypeRecord(basicType: .invalid)
+    static let unconstrBoolean = TypeRecord(basicType: .unconstrBoolean)
+    static let unconstrInteger = TypeRecord(basicType: .unconstrInteger)
+    static let unconstrFloat   = TypeRecord(basicType: .unconstrFloat)
+    static let unconstrString  = TypeRecord(basicType: .unconstrString)
+    static let unconstrNil     = TypeRecord(basicType: .unconstrNil)
 }
 
 extension BasicType {
@@ -181,9 +218,10 @@ extension BasicType: Equatable {
 extension TypeRecord.ProcInfo: Equatable {
 
     static func == (lhs: TypeRecord.ProcInfo, rhs: TypeRecord.ProcInfo) -> Bool {
-        return lhs.scope === rhs.scope &&
+        return
+            lhs.scope === rhs.scope &&
             lhs.params == rhs.params &&
-            lhs.results == rhs.results &&
+            lhs.returns == rhs.returns &&
             lhs.isVariadic == rhs.isVariadic &&
             isMemoryEquivalent(lhs.callingConvention, rhs.callingConvention)
     }
@@ -192,7 +230,7 @@ extension TypeRecord.ProcInfo: Equatable {
 extension TypeRecord.StructInfo: Equatable {
 
     static func == (lhs: TypeRecord.StructInfo, rhs: TypeRecord.StructInfo) -> Bool {
-        return lhs.name == rhs.name &&
+        return
             lhs.fieldCount == rhs.fieldCount &&
             lhs.fieldTypes == rhs.fieldTypes
     }
@@ -201,7 +239,7 @@ extension TypeRecord.StructInfo: Equatable {
 extension TypeRecord.EnumInfo: Equatable {
 
     static func == (lhs: TypeRecord.EnumInfo, rhs: TypeRecord.EnumInfo) -> Bool {
-        return lhs.name == rhs.name &&
+        return
             lhs.caseCount == rhs.caseCount &&
             lhs.cases == rhs.cases &&
             lhs.baseType == rhs.baseType
@@ -249,11 +287,11 @@ extension TypeRecord: CustomStringConvertible {
         case .basic(let basicType):
             return basicType.name
 
-        case .struct(let structInfo):
-            return structInfo.name ?? "anonymous" + "(struct)"
+        case .struct(_):
+            return "struct"
 
-        case .enum(let enumInfo):
-            return enumInfo.name ?? "anonymous" + "(enum)"
+        case .enum(_):
+            return "enum"
 
         case .proc(let procInfo):
 
@@ -262,7 +300,7 @@ extension TypeRecord: CustomStringConvertible {
             desc += ")"
 
             desc += " -> "
-            desc += procInfo.results.map({ $0.description }).joined(separator: ", ")
+            desc += procInfo.returns.map({ $0.description }).joined(separator: ", ")
 
             return desc
 

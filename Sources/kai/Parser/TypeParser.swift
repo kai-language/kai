@@ -1,14 +1,15 @@
 
 extension Parser {
 
-    mutating func parseType() throws -> KaiType {
+    mutating func parseType() throws -> TypeRecord {
 
         // TODO(vdka): How would dynamic procedure creation work?
         //  somethingStrange :: (x: Int, y: typeof(someFoo)) -> Int { /* ... */ }
         if case .identifier(let id)? = try lexer.peek()?.kind {
             try consume()
 
-            return .unknown(id)
+            // The kind is invalid until it is resolved by the type solver.
+            return TypeRecord(name: id.string, kind: .invalid)
         }
 
         try consume(.lparen)
@@ -16,13 +17,12 @@ extension Parser {
         var wasComma = false
 
 
-        // TODO(vdka): no need for the bool here, either we expect to have label's or not.
         var labels: [(callsite: ByteString?, binding: ByteString)]? = []
         if case (.identifier(_)?, .comma?) = try (lexer.peek()?.kind, lexer.peek(aheadBy: 1)?.kind) {
             labels = nil // we do not expect any labels.
         }
 
-        var types: [KaiType] = []
+        var types: [TypeRecord] = []
         while let token = try lexer.peek(), token.kind != .rparen {
             if case .comma = token.kind {
 
@@ -101,8 +101,12 @@ extension Parser {
         if case .keyword(.returnType)? = try lexer.peek()?.kind {
             try consume(.keyword(.returnType))
 
+            /// TODO(vdka): @multiplereturns
+            /// TODO(vdka): @varargs
             let returnType = try parseType()
-            return .procedure(labels: labels, types: types, returnType: returnType)
+
+            let procInfo = TypeRecord.ProcInfo(labels: labels, params: types, returns: [returnType])
+            return TypeRecord(kind: .proc(procInfo))
         } else {
 
             unimplemented("Tuple are not yet supported")

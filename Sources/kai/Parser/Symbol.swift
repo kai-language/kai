@@ -8,27 +8,17 @@ class Symbol {
 
     var type: TypeRecord?
 
-    var pointer: IRValue?
+    var llvm: IRValue?
 
     // TODO(vdka): Overloads using the new type system
 
-    init(_ name: ByteString, location: SourceLocation, type: TypeRecord? = nil, pointer: IRValue? = nil, flags: Flag = []) {
-
-    }
-
-    init(
-        _ name: ByteString,
-        location: SourceLocation,
-        type: KaiType? = nil,
-        pointer: IRValue? = nil,
-        flags: Flag = []
-    ) {
+    init(_ name: ByteString, location: SourceLocation, type: TypeRecord? = nil, llvm: IRValue? = nil, flags: Flag = []) {
         self.name = name
-        self.source = .native
         self.location = location
+        self.source = .native
         self.type = type
+        self.llvm = llvm
         self.flags = flags
-        self.pointer = pointer
     }
 
     enum Source {
@@ -48,8 +38,12 @@ class Symbol {
 extension Symbol.Source: Equatable {
     static func ==(lhs: Symbol.Source, rhs: Symbol.Source) -> Bool {
         switch (lhs, rhs) {
-        case (.native, .native), (.llvm, .llvm):
+        case (.native, .native),
+             (.llvm, .llvm):
             return true
+
+        case let (.extern(lhs), .extern(rhs)):
+            return lhs == rhs
             
         default:
             return false
@@ -65,7 +59,7 @@ extension Symbol: CustomStringConvertible {
         let reset = "\u{001B}[0m"
         
         if case .native = source {
-                if let type = type { return "\(magenta)name\(reset)=\(red)\"\(name)\" \(magenta)type\(reset)=\(red)\"\(type)\"" }
+            if let type = type { return "\(magenta)name\(reset)=\(red)\"\(name)\" \(magenta)type\(reset)=\(red)\"\(type)\"" }
             else { return "\(magenta)name\(reset)=\(red)\"\(name)\" \(magenta)type\(reset)=\(red)\"??\"" }
         } else {
             return "\(magenta)name\(reset)=\(red)\"\(name)\" \(magenta)type\(reset)=\(red)\"\(type?.description ?? "??")\" \(magenta)source\(reset)=\(red)\"\(source)\""

@@ -143,16 +143,16 @@ extension IRGenerator {
         
         let typeCanonicalized = try type.canonicalized()
 
-        let pointer = emitEntryBlockAlloca(
+        let llvm = emitEntryBlockAlloca(
             in: currentProcedure!.pointer,
             type: typeCanonicalized,
             named: symbol.name.string,
             default: defaultValue
         )
         
-        symbol.pointer = pointer
+        symbol.llvm = llvm
         
-        return pointer
+        return llvm
     }
     
     func emitAssignment(for node: AST.Node) throws -> IRValue {
@@ -172,7 +172,7 @@ extension IRGenerator {
         let lvalueSymbol = SymbolTable.current.lookup(identifier)!
         let rvalue = try emitValue(for: node.children[1])
         
-        return builder.buildStore(rvalue, to: lvalueSymbol.pointer!)
+        return builder.buildStore(rvalue, to: lvalueSymbol.llvm!)
     }
     
     func emitProcedureCall(for node: AST.Node) throws -> IRValue {

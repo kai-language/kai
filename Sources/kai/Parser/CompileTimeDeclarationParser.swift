@@ -21,7 +21,6 @@ extension Parser {
         case .lparen:
             let type = try parser.parseType()
 
-            if case .tuple(_) = type { throw parser.error(.syntaxError) }
             // next should be a new scope '{' or a foreign body
             guard let token = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
 
@@ -73,7 +72,9 @@ extension Parser {
                 try parser.consume()
 
                 let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-                symbol.type = .type(.type)
+
+                // FIXME(vdka): This should not be invalid, maybe it should be like `opaque` or something
+                symbol.type = .invalid
                 symbol.source = .llvm(foreignName)
                 try SymbolTable.current.insert(symbol)
 

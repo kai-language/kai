@@ -49,7 +49,7 @@ extension AST {
         ///     x y  y x
         case multiple
 
-        case type(KaiType)
+//        case type(KaiType)
 
         case procedure(Symbol)
 
@@ -181,9 +181,9 @@ extension AST.Node.Kind: CustomStringConvertible {
         case .multiple:
             name = "multiple"
 
-        case .type(let type):
-            name = "type"
-            substring = buildSubstring(type.description)
+//        case .type(let type):
+//            name = "type"
+//            substring = buildSubstring(type.description)
 
         case .procedure(let symbol):
             name = "procedure"

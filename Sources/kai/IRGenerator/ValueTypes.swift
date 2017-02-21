@@ -19,7 +19,7 @@ extension IRGenerator {
                 fallthrough
             }
 
-            return builder.buildLoad(symbol.pointer!)
+            return builder.buildLoad(symbol.llvm!)
 
         case .procedureCall:
             return try emitProcedureCall(for: node)
