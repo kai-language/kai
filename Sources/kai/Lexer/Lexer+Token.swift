@@ -57,6 +57,19 @@ extension Lexer {
     }
 }
 
+extension Lexer.Token {
+
+    var isLiteral: Bool {
+        switch self {
+        case .integer(_), .real(_), .string(_):
+            return true
+
+        default:
+            return false
+        }
+    }
+}
+
 extension Lexer.Token: Equatable {
 
     static func == (lhs: Lexer.Token, rhs: Lexer.Token) -> Bool {

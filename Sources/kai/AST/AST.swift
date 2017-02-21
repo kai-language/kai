@@ -49,8 +49,6 @@ extension AST {
         ///     x y  y x
         case multiple
 
-//        case type(KaiType)
-
         case procedure(Symbol)
 
         case scope(SymbolTable)

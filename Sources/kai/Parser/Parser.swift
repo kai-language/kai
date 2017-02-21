@@ -313,6 +313,7 @@ extension Parser {
 
                     try consume(.equals)
                     let rhs = try expression()
+
                     return AST.Node(.declaration(symbol), children: [rhs])
                 }
 
