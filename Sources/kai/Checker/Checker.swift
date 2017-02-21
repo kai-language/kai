@@ -20,3 +20,7 @@ func addDefinition(_ decl: AST.Node) {
 func reportError(_ message: String, at node: AST.Node) {
     print("ERROR(\(node.location?.description ?? "unkown")): " + message)
 }
+
+func reportError(_ message: String, at location: SourceLocation) {
+    print("ERROR(\(location.description)): " + message)
+}

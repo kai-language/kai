@@ -157,7 +157,7 @@ class TypePath {
             assert(currType.isNamed)
             if currType === type {
                 guard case .named(_, base: _, typeName: let entity) = currType.kind else { preconditionFailure() }
-                reportError("Illegal declaration cylce of \(type)", at: entity.)
+                reportError("Illegal declaration cylce of \(type)", at: .unknown)
             }
         }
     }
