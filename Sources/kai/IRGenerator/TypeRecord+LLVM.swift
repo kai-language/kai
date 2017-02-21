@@ -49,10 +49,13 @@ extension TypeRecord {
                 return PointerType(pointee: IntType.int8)
 
             case .unconstrained(_):
-                fatalError("Unconstrained types should be transformed at the sight of their use.")
+                fatalError("Unconstrained types should be transformed at the site of their use.")
                 // TODO(vdka): This isn't compatible with distributing binaries.
                 //   It only works in a whole module sense I guess you could say. Not good.
             }
+
+        case .invalid:
+            fatalError("Got an invalid type in \(#function)")
 
         default:
             unimplemented("Currently we are limitted to canonicalizing basic types")

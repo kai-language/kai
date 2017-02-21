@@ -8,6 +8,9 @@ extension Parser {
         if case .identifier(let id)? = try lexer.peek()?.kind {
             try consume()
 
+            if let symbol = SymbolTable.current.lookup(id), let type = symbol.type {
+                return type
+            }
             // The kind is invalid until it is resolved by the type solver.
             return TypeRecord(name: id.string, kind: .invalid)
         }

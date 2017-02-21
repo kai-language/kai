@@ -34,8 +34,11 @@ extension IRGenerator {
         return allocation
     }
 
-    func emitProcedurePrototype(for type: TypeRecord) throws -> Function {
-        guard let name = type.name else { unimplemented("Anonymous procedures are not yet supported") }
+    func emitProcedurePrototype(for symbol: Symbol) throws -> Function {
+
+        // FIXME(vdka): What to do when we have no type for our symbol. Is that a compiler bug?
+        let type = symbol.type!
+        let name = symbol.name.string
         if let function = module.function(named: name) {
             return function
         }
@@ -69,8 +72,7 @@ extension IRGenerator {
                 throw Error.preconditionNotMet(expected: "procedure", got: "\(node)")
         }
 
-        // FIXME(vdka): What to do when we have no type for our symbol. Is that a compiler bug?
-        let function = try emitProcedurePrototype(for: symbol.type!)
+        let function = try emitProcedurePrototype(for: symbol)
 
         switch symbol.source {
         case .llvm(let funcName):

@@ -71,6 +71,8 @@ extension Parser {
                 }
                 try parser.consume()
 
+                // TODO(vdka): parse the llvm type and create a type entry for it
+
                 let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
 
                 // FIXME(vdka): This should not be invalid, maybe it should be like `opaque` or something
@@ -78,6 +80,7 @@ extension Parser {
                 symbol.source = .llvm(foreignName)
                 try SymbolTable.current.insert(symbol)
 
+                unimplemented()
                 return AST.Node(.declaration(symbol))
             }
 
@@ -94,12 +97,14 @@ extension Parser {
                 throw parser.error(.invalidDeclaration)
             }
 
-            guard case .type(_)? = existingSymbol.type else {
-                throw parser.error(.todo)
+            guard case .record(let type)? = existingSymbol.type?.kind else {
+                throw parser.error(.invalidDeclaration) // @BetterError
             }
 
             let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-            symbol.type = .type(.alias(existingSymbol))
+
+            let typeCopy = TypeRecord(name: type.name, kind: type.kind, source: type.source, node: type.node, llvm: type.llvm)
+            symbol.type = typeCopy
 
             // NOTE(vdka): Do we want to copy their source?
             symbol.source = existingSymbol.source
@@ -118,8 +123,11 @@ extension Parser {
                 }
                 try parser.consume()
 
+                let structInfo = TypeRecord.StructInfo(fieldCount: 0, fieldTypes: [])
+                let type = TypeRecord(name: identifier.string, kind: .struct(structInfo), source: .llvm, node: nil, llvm: nil)
+
                 let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-                symbol.type = .type(.struct)
+                symbol.type = type
                 symbol.source = .llvm(foreignName)
                 try SymbolTable.current.insert(symbol)
 
@@ -131,8 +139,11 @@ extension Parser {
                 }
                 try parser.consume()
 
+                let structInfo = TypeRecord.StructInfo(fieldCount: 0, fieldTypes: [])
+                let type = TypeRecord(name: identifier.string, kind: .struct(structInfo), source: .extern(foreignName), node: nil, llvm: nil)
+
                 let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-                symbol.type = .type(.struct)
+                symbol.type = type
                 symbol.source = .extern(foreignName)
                 try SymbolTable.current.insert(symbol)
 

@@ -29,7 +29,7 @@ struct TypeSolver: Pass, ASTValidator {
 
             switch child.kind {
             case .declaration(let symbol):
-                if let _ = symbol.type {
+                if symbol.type != nil {
                     guard child.children.count > 0 else {
                         break
                     }
