@@ -5,15 +5,27 @@ enum KaiType {
     case boolean
     case float
     case string
-    
+
     /// The type all Type's have
-    case type
+    case type(RecordKind)
     case unknown(ByteString)
     case tuple([KaiType])
     case other(ByteString)
 
     /// - Note: There must be bindings if the procedure is native.
     indirect case procedure(labels: [(callsite: ByteString?, binding: ByteString)]?, types: [KaiType], returnType: KaiType)
+
+    // TODO: This is weak sauce, we're going to want a full fledged type table.
+    //   The type table will need to have a heap of it's information exported into the
+    //   generated program for `type(String)` and similar behaviour to work.
+    enum RecordKind {
+        /// An alias is a type that can be used interchangably with the type it is an alias of
+        case alias(Symbol)
+
+        case type
+        case `struct`
+        case `enum`
+    }
 }
 
 extension KaiType: Equatable {

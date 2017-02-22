@@ -62,6 +62,50 @@ extension Parser {
                 return AST.Node(.procedure(symbol))
             }
 
+        case .keyword(.type):
+            try parser.consume(.keyword(.type))
+            guard let token = try parser.lexer.peek() else{ throw parser.error(.syntaxError) }
+            if case .directive(.foreignLLVM) = token.kind {
+                try parser.consume()
+                guard case .string(let foreignName)? = try parser.lexer.peek()?.kind else {
+                    throw parser.error(.invalidDeclaration)
+                }
+                try parser.consume()
+
+                let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
+                symbol.type = .type(.type)
+                symbol.source = .llvm(foreignName)
+                try SymbolTable.current.insert(symbol)
+
+                return AST.Node(.declaration(symbol))
+            }
+
+        case .keyword(.alias):
+            try parser.consume(.keyword(.alias))
+            guard let token = try parser.lexer.peek() else{ throw parser.error(.syntaxError) }
+            guard case .identifier(let ident) = token.kind else {
+                throw parser.error(.invalidDeclaration)
+            }
+
+            try parser.consume()
+
+            guard let existingSymbol = SymbolTable.current.lookup(ident) else {
+                throw parser.error(.invalidDeclaration)
+            }
+
+            guard case .type(_)? = existingSymbol.type else {
+                throw parser.error(.todo)
+            }
+
+            let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
+            symbol.type = .type(.alias(existingSymbol))
+
+            // NOTE(vdka): Do we want to copy their source?
+            symbol.source = existingSymbol.source
+            try SymbolTable.current.insert(symbol)
+
+            return AST.Node(.declaration(symbol))
+
         case .keyword(.struct):
             try parser.consume(.keyword(.struct))
             guard let token = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
@@ -74,7 +118,7 @@ extension Parser {
                 try parser.consume()
 
                 let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-                symbol.type = .type
+                symbol.type = .type(.struct)
                 symbol.source = .llvm(foreignName)
                 try SymbolTable.current.insert(symbol)
 
@@ -87,7 +131,7 @@ extension Parser {
                 try parser.consume()
 
                 let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-                symbol.type = .type
+                symbol.type = .type(.struct)
                 symbol.source = .extern(foreignName)
                 try SymbolTable.current.insert(symbol)
 
