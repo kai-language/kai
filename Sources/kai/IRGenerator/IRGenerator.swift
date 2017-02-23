@@ -59,13 +59,12 @@ class IRGenerator {
         currentProcedure = nil
     }
     
-    static func build(for node: AST.Node) throws {
+    static func build(for node: AST.Node) throws -> Module {
         let generator = try IRGenerator(node: node)
         try generator.emitGlobals()
         try generator.emitMain()
         
-        generator.module.dump()
-        try TargetMachine().emitToFile(module: generator.module, type: .object, path: "main.o")
+        return generator.module
     }
 }
 
@@ -116,6 +115,9 @@ extension IRGenerator {
         case .procedureCall:
             return try emitProcedureCall(for: node)
             
+        case .conditional:
+            return try emitConditional(for: node)
+            
         case .defer:
             return try emitDeferStmt(for: node)
             
@@ -147,6 +149,73 @@ extension IRGenerator {
         default:
             unimplemented("unsupported kind: \(node.kind)")
         }
+    }
+    
+    func emitConditional(for node: AST.Node) throws -> IRValue {
+        guard let function = currentProcedure?.pointer else {
+            preconditionFailure("Not currently in a function")
+        }
+        
+        guard case .conditional = node.kind, node.children.count >= 2 else {
+            preconditionFailure("Expected conditional got: \(node.kind)")
+        }
+        
+        let currentBlock = builder.insertBlock!
+        let thenBody = function.appendBasicBlock(named: "then")
+        let elseBody = function.appendBasicBlock(named: "else")
+        let mergeBody = function.appendBasicBlock(named: "merge")
+        
+        builder.positionAtEnd(of: currentBlock)
+        let conditional = try emitExpression(for: node.children[0])
+        builder.buildCondBr(condition: conditional, then: thenBody, else: elseBody)
+        
+        builder.positionAtEnd(of: thenBody)
+        guard case .scope(let thenScope) = node.children[1].kind else {
+            preconditionFailure("Expected scope for `then` body.")
+        }
+        SymbolTable.current = thenScope
+        defer {
+           // SymbolTable.pop()
+        }
+        
+        _ = try emitExpression(for: node.children[1])
+        
+        if !thenBody.hasTerminatingInstruction {
+            builder.buildBr(mergeBody)
+        }
+        
+        if !builder.insertBlock!.hasTerminatingInstruction {
+            builder.buildBr(mergeBody)
+        }
+        
+        builder.positionAtEnd(of: elseBody)
+        // has else body
+        if node.children.count >= 3 {
+            if case .scope(let elseScope) = node.children[2].kind {
+                SymbolTable.current = thenScope
+                defer {
+                    //SymbolTable.pop()
+                }
+            }
+            
+            _ = try emitExpression(for: node.children[2])
+            
+            if !elseBody.hasTerminatingInstruction {
+                builder.buildBr(mergeBody)
+            }
+            
+            if !builder.insertBlock!.hasTerminatingInstruction {
+                builder.buildBr(mergeBody)
+            }
+            
+        } else {
+            builder.buildBr(mergeBody)
+        }
+        
+        builder.positionAtEnd(of: mergeBody)
+        
+        // NOTE(Brett): do we really want to return this?
+        return conditional
     }
     
     func emitDeclaration(for node: AST.Node) throws -> IRValue {

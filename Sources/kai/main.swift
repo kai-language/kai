@@ -1,33 +1,187 @@
+import LLVM
 import Console
 import Foundation
 
-// TODO(Brett): Add colours and other terminal formatting
-let console = Terminal(arguments: CommandLine.arguments)
-let fileManager = FileManager.default
-let currentDirectory = fileManager.currentDirectoryPath
-
-guard let fileName = console.arguments.dropFirst().first else {
-    fatalError("Please provide a file")
-}
-
-let filePath: String
-
-//print(grammer)
-
-// TODO(Brett): Move this into its own function and have it recursively search
-//      directories if a file isn't explicitly given
-
-// Test to see if fileName is a relative path
-if fileManager.fileExists(atPath: currentDirectory + "/" + fileName) {
-    filePath = currentDirectory + "/" + fileName
-} else if fileManager.fileExists(atPath: fileName) { // Test to see if `fileName` is an absolute path
-    guard let absolutePath = fileManager.absolutePath(for: fileName) else {
-        fatalError("\(fileName) not found")
+struct Compiler {
+    enum Error: Swift.Error {
+        case fileNameNotProvided
     }
+    
+    let console: Terminal
+    let fileManager: FileManager
+    
+    let args: [String]
+    let fileName: String?
+    
+    let version = "0.0.0"
+    
+    var currentDirectory: String {
+        return fileManager.currentDirectoryPath
+    }
+    
+    init(args: [String]) {
+        console = Terminal(arguments: args)
+        fileManager = FileManager.default
+        fileName = args.last
+        self.args = Array(args.dropFirst())
+    }
+    
+    func run() throws {
+        var options: Set<String> = []
+        var optimizations: [String] = []
+        
+        args.forEach {
+            switch $0 {
+            case "--help", "-h":
+                printHelp()
+                
+            case "--version", "-v":
+                printVersion()
+                
+            case "--emit-ast":
+                options.insert("emit-ast")
+                
+            case "--emit-ir":
+                options.insert("emit-ir")
+                
+            case "--emit-all":
+                options.insert("emit-ast")
+                options.insert("emit-ir")
+                
+            case "--time", "-t":
+                options.insert("time")
+                
+            case "-O0", "--O0", "--Onone":
+                optimizations.append("O0")
+                
+            case "-O1", "--O1":
+                optimizations.append("O1")
+                
+            case "-O2", "--O2":
+                optimizations.append("O2")
+                
+            case "-O3", "--O3":
+                optimizations.append("O3")
+                
+            default:
+                if !$0.hasSuffix(".kai") {
+                    print("invalid option: \($0)")
+                }
+                break
+            }
+        }
+        
+        //default to `O0` optimization
+        if optimizations.count == 0 {
+            optimizations.append("O1")
+        }
+        
+        guard optimizations.count == 1 else {
+            print(
+                "error: multiple optimizations provided: " +
+                "[\(optimizations.joined(separator: ", "))]"
+            )
+            exit(1)
+        }
+        
+        let optimization = optimizations[0]
+        
+        try build(options: options, optimization: optimization)
+    }
+    
+    func printVersion() {
+        print("Kai version \(version)")
+        exit(0)
+    }
+    
+    func printHelp() {
+        let cyan = "\u{001B}[35m"
+        let reset = "\u{001B}[0m"
+        
+        print("\(cyan)OVERVIEW\(reset): Kai compiler\n")
+        
+        print("\(cyan)USAGE\(reset): kai [options] <inputs>\n")
+        
+        print("\(cyan)OPTIONS\(reset):")
+        print("  --emit-ast             Output generated abstract syntax tree")
+        print("  --emit-ir              Output generated LLVM IR")
+        print("  --emit-all             Output both AST and LLVM IR")
+        print("")
+        print("  --time, -t             Profile the compiler's operations")
+        print("")
+        print("  -O0, --O0, --Onone     Compile with no optimizations")
+        print("  -O1, --O1              Compile with optimizations")
+        print("  -O2, --O2              Compile with 01 and loop vectorization")
+        print("  -O3, --O3              Compile with 02 and arg. promotion")
+        print("")
+        print("  --version, -v          Show version information and exit")
+        
+        exit(0)
+    }
+    
+    func build(options: Set<String>, optimization: String) throws {
+        let file = File(path: try extractFilePath())!
+        
+        do {
+            var lexer = Lexer(file)
+            
+            let (ast, errors) = try Parser.parse(&lexer)
+            
+            guard errors == 0 else {
+                print("There were \(errors) errors during parsing\nexiting")
+                exit(1)
+            }
+            
+            try SemanticPass.run(ast, options: .timed)
+            
+            if options.contains("time") {
+                print(SemanticPass.timing)
+            }
+            
+            
+            try TypeSolver.run(ast, options: .timed)
+            if options.contains("time") {
+                print(TypeSolver.timing)
+            }
+            
+            if options.contains("emit-ast") {
+                print(ast.pretty())
+            }
+            
+            let module = try IRGenerator.build(for: ast)
+            
+            try TargetMachine().emitToFile(module: module, type: .object, path: "main.o")
+            if options.contains("emit-ir") {
+                module.dump()
+            }
+        } catch let error as CompilerError {
+            console.error(error.description)
+            console.error(file.generateVerboseLineOf(error: error.location))
+        }
+    }
+    
+    func extractFilePath() throws -> String {
+        guard let fileName = fileName else {
+            throw Error.fileNameNotProvided
+        }
+        
+        let filePath: String
 
-    filePath = absolutePath
-} else { // `fileName` doesn't exist
-    fatalError("\(fileName) not found")
+        // Test to see if fileName is a relative path
+        if fileManager.fileExists(atPath: currentDirectory + "/" + fileName) {
+            filePath = currentDirectory + "/" + fileName
+        } else if fileManager.fileExists(atPath: fileName) { // Test to see if `fileName` is an absolute path
+            guard let absolutePath = fileManager.absolutePath(for: fileName) else {
+                fatalError("\(fileName) not found")
+            }
+            
+            filePath = absolutePath
+        } else { // `fileName` doesn't exist
+            fatalError("\(fileName) not found")
+        }
+        
+        return filePath
+    }
 }
 
 try Operator.infix("?", bindingPower: 20) { parser, conditional in
@@ -79,30 +233,5 @@ try Operator.infix("&=",   bindingPower: 160)
 try Operator.infix("^=",   bindingPower: 160)
 try Operator.infix("|=",   bindingPower: 160)
 
-
-let file = File(path: filePath)!
-
-do {
-
-    var lexer = Lexer(file)
-
-    var (ast, errors) = try Parser.parse(&lexer)
-
-    guard errors == 0 else {
-        print("There were \(errors) errors during parsing\nexiting")
-        exit(1)
-    }
-
-    try SemanticPass.run(ast, options: .timed)
-    print(SemanticPass.timing)
-
-    try TypeSolver.run(ast, options: .timed)
-    print(TypeSolver.timing)
-    print(ast.pretty())
-
-    try IRGenerator.build(for: ast)
-
-} catch let error as CompilerError {
-    console.error(error.description)
-    console.error(file.generateVerboseLineOf(error: error.location))
-}
+let compiler = Compiler(args: CommandLine.arguments)
+try compiler.run()
