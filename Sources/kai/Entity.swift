@@ -1,39 +1,39 @@
 
-/*
- typedef struct Scope {
-	Scope *        parent;
-	Scope *        prev, *next;
-	Scope *        first_child;
-	Scope *        last_child;
-	MapEntity      elements; // Key: String
-	MapBool        implicit; // Key: Entity *
-
-	Array(Scope *) shared;
-	Array(Scope *) imported;
-	bool           is_proc;
-	bool           is_global;
-	bool           is_file;
-	bool           is_init;
-	bool           has_been_imported; // This is only applicable to file scopes
-	AstFile *      file;
- } Scope;
- */
-
-struct Entity {
+class Entity {
     var kind: Kind
     var flags: Flag
-    var token: Lexer.Token?
-    var symbol: Symbol?
-    var symbolTable: SymbolTable?
+    var location: SourceLocation?
+    var scope: Scope
     var type: Type?
     var identifier: AST.Node?
 
+    init(kind: Kind, flags: Flag = [], location: SourceLocation?, identifier: AST.Node?) {
+        self.kind = kind
+        self.flags = flags
+        self.location = location
+        self.identifier = identifier
+    }
+}
 
+extension Entity: Hashable {
+
+    static func ==(lhs: Entity, rhs: Entity) -> Bool {
+        return lhs.kind == rhs.kind &&
+            lhs.flags == rhs.flags &&
+            lhs.location == rhs.location &&
+            lhs.scope === rhs.scope &&
+            lhs.type == rhs.type &&
+            lhs.identifier == rhs.identifier
+    }
+
+    var hashValue: Int {
+        return ObjectIdentifier(self).hashValue
+    }
 }
 
 extension Entity {
 
-    enum Kind {
+    enum Kind: Equatable {
         case invalid
         case constant
         case variable
@@ -43,6 +43,10 @@ extension Entity {
         case importName
         case libraryName
         case `nil`
+
+        static func ==(lhs: Kind, rhs: Kind) -> Bool {
+            return isMemoryEquivalent(lhs, rhs)
+        }
     }
 
     struct Flag: OptionSet {

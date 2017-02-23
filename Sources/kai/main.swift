@@ -79,11 +79,6 @@ try Operator.infix("&=",   bindingPower: 160)
 try Operator.infix("^=",   bindingPower: 160)
 try Operator.infix("|=",   bindingPower: 160)
 
-for type in TypeRecord.allBasicTypes {
-
-    let symbol = Symbol(ByteString(type.name!), location: .unknown, type: type, llvm: nil, flags: .compileTime)
-}
-
 let file = File(path: filePath)!
 
 do {

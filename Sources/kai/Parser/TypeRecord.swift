@@ -126,66 +126,11 @@ extension TypeRecord {
     }
 }
 
-extension TypeRecord.ProcInfo: Equatable {
-
-    static func == (lhs: TypeRecord.ProcInfo, rhs: TypeRecord.ProcInfo) -> Bool {
-        return
-            lhs.scope === rhs.scope &&
-            lhs.params == rhs.params &&
-            lhs.returns == rhs.returns &&
-            lhs.isVariadic == rhs.isVariadic &&
-            isMemoryEquivalent(lhs.callingConvention, rhs.callingConvention)
-    }
-}
-
-extension TypeRecord.StructInfo: Equatable {
-
-    static func == (lhs: TypeRecord.StructInfo, rhs: TypeRecord.StructInfo) -> Bool {
-        return
-            lhs.fieldCount == rhs.fieldCount &&
-            lhs.fieldTypes == rhs.fieldTypes
-    }
-}
-
-extension TypeRecord.EnumInfo: Equatable {
-
-    static func == (lhs: TypeRecord.EnumInfo, rhs: TypeRecord.EnumInfo) -> Bool {
-        return
-            lhs.caseCount == rhs.caseCount &&
-            lhs.cases == rhs.cases &&
-            lhs.baseType == rhs.baseType
-    }
-}
-
 extension TypeRecord: Equatable {
 
     static func == (lhs: TypeRecord, rhs: TypeRecord) -> Bool {
         guard lhs.node === rhs.node else { return false }
         switch (lhs.kind, rhs.kind) {
-        case (.invalid, .invalid):
-            return true
-
-        case let (.basic(lhs), .basic(rhs)):
-            return lhs == rhs
-
-        case let (.pointer(lhs), .pointer(rhs)):
-            return lhs == rhs
-
-        case let (.array(lhs, count: lCount), .array(rhs, count: rCount)):
-            return lCount == rCount && lhs == rhs
-
-        case let (.dynArray(lhs), .dynArray(rhs)):
-            return lhs == rhs
-
-        case let (.record(lhs), .record(rhs)):
-            return lhs == rhs
-
-        case let (.alias(lhs), .alias(rhs)):
-            return lhs == rhs
-
-        case let (.proc(lhs), .proc(rhs)):
-            return lhs == rhs
-
         case let (.struct(lhs), .struct(rhs)):
             return lhs == rhs
 

@@ -1,10 +1,10 @@
 
+/// These are the basic types within the language.
 struct BasicType {
     var kind: Kind
     var flags: Flag
     var size: Int64
     var name: String
-
 
     enum Kind {
         case invalid
@@ -58,6 +58,7 @@ struct BasicType {
     }
 }
 
+/// TypeRecord is the metadata for a Type
 class TypeRecord {
 
     var kind: Kind
@@ -132,7 +133,7 @@ class Type {
 
     var isNamed: Bool {
         switch self.kind {
-            case .basic(_), .named(name: _, base: _, typeName: _):
+            case .basic(_), .named(_, base: _, typeName: _):
             return true
 
         default:
@@ -157,24 +158,12 @@ class TypePath {
             assert(currType.isNamed)
             if currType === type {
                 guard case .named(_, base: _, typeName: let entity) = currType.kind else { preconditionFailure() }
-                reportError("Illegal declaration cylce of \(type)", at: .unknown)
+                reportError("Illegal declaration cylce of \(type)", at: entity?.location ?? .unknown)
             }
         }
     }
 
 }
-
-//typedef struct Type {
-//    TypeKind kind;
-//    union {
-//    #define TYPE_KIND(k, ...) GB_JOIN2(Type, k) k;
-//    TYPE_KINDS
-//    #undef TYPE_KIND
-//    };
-//    bool failure;
-//} Type;
-
-
 
 // MARK: BasicType auxilary
 
@@ -202,10 +191,11 @@ extension BasicType {
     static let u32     = BasicType(kind: .u32,     flags: [.integer, .unsigned], size: 4, name: "u32")
     static let i64     = BasicType(kind: .i64,     flags: [.integer],            size: 8, name: "i64")
     static let u64     = BasicType(kind: .u64,     flags: [.integer, .unsigned], size: 8, name: "u64")
-    static let f32     = BasicType(kind: .f32,     flags: [.float],              size: 4, name: "f32")
-    static let f64     = BasicType(kind: .f64,     flags: [.float],              size: 8, name: "f64")
     static let int     = BasicType(kind: .int,     flags: [.integer],            size: -1, name: "int")
     static let uint    = BasicType(kind: .uint,    flags: [.integer, .unsigned], size: -1, name: "uint")
+
+    static let f32     = BasicType(kind: .f32,     flags: [.float],              size: 4, name: "f32")
+    static let f64     = BasicType(kind: .f64,     flags: [.float],              size: 8, name: "f64")
 
     static let rawptr  = BasicType(kind: .rawptr,  flags: [.pointer], size: -1, name: "rawptr")
     static let string  = BasicType(kind: .string,  flags: [.string],  size: -1, name: "string")

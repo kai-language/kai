@@ -1,4 +1,16 @@
 
+class ASTFile {
+    var decls: [AST.Node]
+    var scopeLevel: Int
+    var scope: Scope?       // NOTE: Created in checker
+    var declInfo: DeclInfo? // NOTE: Created in checker
+
+    // TODO(vdka): Fixes per file
+    /*
+    var fixCount: Int
+    */
+}
+
 class AST {
     typealias Node = AST
 
@@ -48,6 +60,15 @@ extension AST {
         ///      m    m
         ///     x y  y x
         case multiple
+
+
+        // TODO(vdka): Add tags
+        case procLiteral(type: AST.Node, body: ProcBody)
+
+        enum ProcBody {
+            case native(AST.Node)
+            case foreign(library: AST.Node, name: String, linkName: String)
+        }
 
         case procedure(Symbol)
 
