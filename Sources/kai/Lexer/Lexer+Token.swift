@@ -1,6 +1,7 @@
 
 extension Lexer {
 
+    // TODO(vdka): Change into `Token.Kind` add to `Token` a location and an optional kind
     enum Token {
         case directive(Directive)
         case keyword(Keyword)
@@ -44,7 +45,7 @@ extension Lexer {
             case type
             case alias
 
-            case returnType = "->"
+            case returnArrow = "->"
         }
 
         enum Directive: ByteString {

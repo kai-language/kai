@@ -1,4 +1,6 @@
 
+import LLVM
+
 /// These are the basic types within the language.
 struct BasicType {
     var kind: Kind
@@ -78,16 +80,16 @@ class TypeRecord {
 struct ProcInfo {
     var scope: AST.Node?
     var labels: [(callsite: ByteString?, binding: ByteString)]?
-    var params: [TypeRecord]
-    var returns: [TypeRecord]
+    var params: [AST.Node]
+    var returns: [AST.Node]
     var isVariadic: Bool
     var callingConvention: CallingConvention
 
     init(
         scope: AST.Node? = nil,
         labels: [(callsite: ByteString?, binding: ByteString)]?,
-        params: [TypeRecord],
-        returns: [TypeRecord],
+        params: [AST.Node],
+        returns: [AST.Node],
         isVariadic: Bool = false,
         callingConvention: CallingConvention = .kai) {
 
@@ -108,7 +110,11 @@ struct ProcInfo {
 class Type {
 
     var kind: Kind
+
+    /// TODO: Shouldn't this be computed off the kind?
     var isInvalid: Bool
+
+    var llvm: IRType?
 
     init(kind: Kind, isInvalid: Bool = false) {
         self.kind = kind

@@ -1,16 +1,22 @@
 
+import LLVM
+
 class Entity {
     var kind: Kind
     var flags: Flag
     var location: SourceLocation?
     var scope: Scope
-    var type: Type?
+
+    /// Set in the checker
+    var type: Type? = nil
     var identifier: AST.Node?
 
-    init(kind: Kind, flags: Flag = [], location: SourceLocation?, identifier: AST.Node?) {
+    init(kind: Kind, flags: Flag = [], scope: Scope, location: SourceLocation?, identifier: AST.Node?) {
         self.kind = kind
         self.flags = flags
+        self.scope = scope
         self.location = location
+        self.type = nil
         self.identifier = identifier
     }
 }
@@ -22,8 +28,8 @@ extension Entity: Hashable {
             lhs.flags == rhs.flags &&
             lhs.location == rhs.location &&
             lhs.scope === rhs.scope &&
-            lhs.type == rhs.type &&
-            lhs.identifier == rhs.identifier
+            lhs.type === rhs.type &&
+            lhs.identifier?.entityName == rhs.identifier?.entityName
     }
 
     var hashValue: Int {

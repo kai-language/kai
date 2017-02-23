@@ -3,12 +3,21 @@ class ASTFile {
     var decls: [AST.Node]
     var scopeLevel: Int
     var scope: Scope?       // NOTE: Created in checker
+
+    // FIXME: I need one of these for each `decl`
     var declInfo: DeclInfo? // NOTE: Created in checker
 
     // TODO(vdka): Fixes per file
     /*
     var fixCount: Int
     */
+
+    init() {
+        self.decls = []
+        self.scopeLevel = 0
+        self.scope = nil
+        self.declInfo = nil
+    }
 }
 
 class AST {
@@ -38,10 +47,18 @@ class AST {
     }
 }
 
+enum ProcBody {
+    case native(AST.Node)
+    case foreign(library: AST.Node, name: String, linkName: String)
+}
+
 extension AST {
+
     enum Kind {
+
         case empty
         case unknown
+        case invalid
 
         case emptyFile(name: String)
         case file(name: String)
@@ -61,14 +78,10 @@ extension AST {
         ///     x y  y x
         case multiple
 
+        case procType(ProcInfo)
 
         // TODO(vdka): Add tags
         case procLiteral(type: AST.Node, body: ProcBody)
-
-        enum ProcBody {
-            case native(AST.Node)
-            case foreign(library: AST.Node, name: String, linkName: String)
-        }
 
         case procedure(Symbol)
 
@@ -117,6 +130,20 @@ extension AST {
 }
 
 extension AST {
+
+    /// Should the AST.Node have a name (is an identifier kind) this is that name.
+    var entityName: String? {
+        switch self.kind {
+        case .identifier(let str):
+            return str.string
+
+        default:
+            return nil
+        }
+    }
+}
+
+extension AST {
     var isStandalone: Bool {
         switch self.kind {
             case .operatorDeclaration, .declaration(_): return true
@@ -140,6 +167,17 @@ extension AST.Node.Kind: Equatable {
             default:
                 return isMemoryEquivalent(lhs, rhs)
         }
+    }
+}
+
+extension AST.Node: Hashable {
+
+    static func ==(lhs: AST.Node, rhs: AST.Node) -> Bool {
+        return lhs === rhs
+    }
+
+    var hashValue: Int {
+        return ObjectIdentifier(self).hashValue
     }
 }
 

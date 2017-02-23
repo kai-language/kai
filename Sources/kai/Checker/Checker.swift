@@ -29,7 +29,7 @@ class Scope {
     /// Only relevant for file scopes
     var hasBeenImported: Bool = false
 
-    var file: ASTFile
+    var file: ASTFile?
 
     static var universal: Scope = {
 
@@ -40,6 +40,8 @@ class Scope {
         for type in BasicType.allBasicTypes {
 
         }
+
+        return s
         
         /*
             BuildContext *bc = &build_context;
@@ -130,6 +132,7 @@ struct Checker {
     */
 
     struct Info {
+
         var types:       [AST.Node: Type]    = [:]
         var definitions: [AST.Node: Entity]  = [:]
         var uses:        [AST.Node: Type]    = [:]

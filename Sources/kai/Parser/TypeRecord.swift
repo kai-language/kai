@@ -1,68 +1,6 @@
 
+#if false
 import LLVM
-
-
-//
-//extension TType {
-//
-//    enum Kind {
-//        case invalid
-//
-//        /// The basic types in most languages. Ints, Floats, string
-//        case basic(BasicType)
-//
-//        case pointer(Type?)
-//        case array(Type?, count: Int)
-//        case dynArray(Type?)
-//        case record(TypeRecord)
-//
-//        case named(name: String, base: Type?, typeName: Entity?)
-//
-//        case proc(ProcInfo)
-//    }
-//
-//    enum Kind {
-//        case invalid
-//        case `struct`
-//        case `enum`
-//    }
-//}
-//
-//extension TypeRecord {
-//
-//    enum Kind {
-//
-//        case invalid
-//
-//        /// This type has been spotted but not yet resolved to a real type.
-//        case unresolved
-//
-//        /// The basic types in most languages. Ints, Floats, string
-//        case basic(BasicType)
-//
-//        case pointer(TypeRecord)
-//        case array(TypeRecord, count: Int)
-//        case dynArray(TypeRecord)
-//
-//        /// This is the result of type(TypeName)
-//        case record(TypeRecord)
-//
-//        /// This may be nil if the alias is for an unresolved type (Foreign types)
-//        case alias(TypeRecord)
-//
-//        case proc(ProcInfo)
-//        case `struct`(StructInfo)
-//        case `enum`(EnumInfo)
-//    }
-//
-//    enum Source {
-//        case native
-//        case llvm
-//        case extern(ByteString)
-//    }
-//}
-
-
 
 extension TypeRecord {
 
@@ -179,3 +117,4 @@ extension TypeRecord: CustomStringConvertible {
         }
     }
 }
+#endif

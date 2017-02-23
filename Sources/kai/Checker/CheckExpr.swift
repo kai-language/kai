@@ -1,6 +1,7 @@
 
 func checkType(_ expr: AST.Node) throws {
-    var type: TypeRecord = .invalid
+    unimplemented()
+//    var type: TypeRecord = .invalid
 
     switch expr.kind {
     case .identifier(_):
@@ -12,6 +13,7 @@ func checkType(_ expr: AST.Node) throws {
 }
 
 func checkIdentfier(_ node: AST.Node) {
+    unimplemented()
     guard case .identifier(let name) = node.kind else { preconditionFailure() }
 
     guard let symbol = SymbolTable.current.lookup(name) else {

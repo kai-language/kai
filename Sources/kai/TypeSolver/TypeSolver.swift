@@ -111,7 +111,7 @@ extension TypeSolver {
 
 extension TypeSolver {
     //FIXME(Brett): remove optional and throw instead
-    func extractType(_ node: AST) throws -> TypeRecord {
+    func extractType(_ node: AST.Node) throws -> TypeRecord {
 
         switch node.kind {
         case .integer:

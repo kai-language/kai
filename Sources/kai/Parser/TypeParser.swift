@@ -1,118 +1,126 @@
 
 extension Parser {
 
-    mutating func parseType() throws -> TypeRecord {
+    mutating func parseType() throws -> AST.Node {
 
-        // TODO(vdka): How would dynamic procedure creation work?
-        //  somethingStrange :: (x: Int, y: typeof(someFoo)) -> Int { /* ... */ }
-        if case .identifier(let id)? = try lexer.peek()?.kind {
+        guard let (token, location) = try lexer.peek() else {
+            reportError("Expected a type", at: lexer.lastLocation)
+        }
+        switch token {
+        case .identifier(let ident):
             try consume()
 
-            if let symbol = SymbolTable.current.lookup(id), let type = symbol.type {
-                return type
+            return AST.Node(.identifier(ident), location: location)
+
+        case .lparen:
+            var wasComma = false
+
+            var labels: [(callsite: ByteString?, binding: ByteString)]? = []
+            if case (.identifier(_)?, .comma?) = try (lexer.peek()?.kind, lexer.peek(aheadBy: 1)?.kind) {
+                labels = nil // we do not expect any labels.
             }
-            // The kind is invalid until it is resolved by the type solver.
-            return TypeRecord(name: id.string, kind: .invalid)
-        }
 
-        try consume(.lparen)
+            // TODO(vdka): Report error not throw error.
+            var types: [AST.Node] = []
+            while let (token, location) = try lexer.peek(), token != .rparen {
 
-        var wasComma = false
+                switch token {
+                case .comma:
 
+                    if types.isEmpty || wasComma { try error(.unexpectedComma).recover(with: &self) }
 
-        var labels: [(callsite: ByteString?, binding: ByteString)]? = []
-        if case (.identifier(_)?, .comma?) = try (lexer.peek()?.kind, lexer.peek(aheadBy: 1)?.kind) {
-            labels = nil // we do not expect any labels.
-        }
+                    wasComma = true
 
-        var types: [TypeRecord] = []
-        while let token = try lexer.peek(), token.kind != .rparen {
-            if case .comma = token.kind {
+                    try consume(.comma)
 
-                if types.isEmpty || wasComma { try error(.unexpectedComma).recover(with: &self) }
+                case .underscore:
+                    guard case .identifier(let binding)? = try lexer.peek(aheadBy: 1)?.kind else {
+                        reportError("Invalid syntax", at: lexer.lastLocation)
+                        return AST.Node(.invalid)
+                    }
+                    guard case .colon? = try lexer.peek(aheadBy: 2)?.kind else {
+                        reportError("Invalid syntax", at: lexer.lastLocation)
+                        return AST.Node(.invalid, location: location)
+                    }
 
-                wasComma = true
+                    try consume(.underscore)
+                    try consume() // .identifier(_)
+                    try consume(.colon)
 
-                try consume(.comma)
-            } else if case .underscore = token.kind,
-                case .identifier(let binding)? = try lexer.peek(aheadBy: 1)?.kind,
-                case .colon? = try lexer.peek(aheadBy: 2)?.kind {
+                    labels?.append((callsite: nil, binding: binding))
 
-                if types.isEmpty && wasComma { throw error(.unexpectedComma) }
-                if !types.isEmpty && !wasComma { throw error(.expectedComma) }
-                if labels == nil { throw error(.syntaxError) } // TODO(vdka): Better message
+                    let type = try parseType()
+                    types.append(type)
 
-                wasComma = false
+                case .identifier(let callsite):
 
-                try consume(.underscore)
-                try consume() // .identifier(_)
-                try consume(.colon)
+                    switch try lexer.peek(aheadBy: 1)?.kind {
+                    case .identifier(let binding)?: // `(label binding: Type)`
+                        try consume() // .identifier(_)
+                        try consume() // .identifier(_)
+                        try consume(.colon)
 
-                labels?.append((callsite: nil, binding: binding))
+                        // TODO(vdka): Better message
+                        if types.isEmpty && wasComma { throw error(.unexpectedComma) }
+                        else if !types.isEmpty && !wasComma { throw error(.expectedComma) }
+                        if labels == nil { throw error(.syntaxError) }
 
-                let type = try parseType()
-                types.append(type)
-            } else if case .identifier(let callsite) = token.kind,
-                case .identifier(let binding)? = try lexer.peek(aheadBy: 1)?.kind,
-                case .colon? = try lexer.peek(aheadBy: 2)?.kind {
+                        wasComma = false
 
-                if types.isEmpty && wasComma { throw error(.unexpectedComma) }
-                else if !types.isEmpty && !wasComma { throw error(.expectedComma) }
-                if labels == nil { throw error(.syntaxError) } // TODO(vdka): Better message
+                        labels?.append((callsite: callsite, binding: binding))
 
-                wasComma = false
+                        let type = try parseType()
+                        types.append(type)
 
-                try consume() // .identifier(_)
-                try consume() // .identifier(_)
-                try consume(.colon)
+                    case .colon?:
+                        if types.isEmpty && wasComma { throw error(.unexpectedComma) }
+                        else if !types.isEmpty && !wasComma { throw error(.expectedComma) }
+                        if labels == nil { throw error(.syntaxError) } // TODO(vdka): Better message
 
-                labels?.append((callsite: callsite, binding: binding))
+                        wasComma = false
 
-                let type = try parseType()
-                types.append(type)
-            } else if case .identifier(let binding) = token.kind,
-                case .colon? = try lexer.peek(aheadBy: 1)?.kind {
+                        try consume() // .identifier(_)
+                        try consume(.colon)
 
-                if types.isEmpty && wasComma { throw error(.unexpectedComma) }
-                else if !types.isEmpty && !wasComma { throw error(.expectedComma) }
-                if labels == nil { throw error(.syntaxError) } // TODO(vdka): Better message
+                        labels?.append((callsite: nil, binding: callsite))
+                        
+                        let type = try parseType()
+                        types.append(type)
 
-                wasComma = false
+                    default:
+                        if types.isEmpty && wasComma {
+                            throw error(.unexpectedComma)
+                        } else if !types.isEmpty && !wasComma {
+                            throw error(.expectedComma)
+                        }
 
-                try consume() // .identifier(_)
-                try consume(.colon)
+                        wasComma = false
 
-                labels?.append((callsite: binding, binding: binding))
-
-                let type = try parseType()
-                types.append(type)
-            } else {
-
-                if types.isEmpty && wasComma { throw error(.unexpectedComma) }
-                else if !types.isEmpty && !wasComma { throw error(.expectedComma) }
-
-                wasComma = false
-
-                let type = try parseType()
-                types.append(type)
+                        let type = try parseType()
+                        types.append(type)
+                    }
+                }
             }
-        }
-
-        if wasComma { throw error(.unexpectedComma) }
-
-        try consume(.rparen)
-        if case .keyword(.returnType)? = try lexer.peek()?.kind {
-            try consume(.keyword(.returnType))
-
+            
+            if wasComma { throw error(.unexpectedComma) }
+            
+            /// TODO(vdka): allow varargs `...`
+            try consume(.rparen)
+            try consume(.returnArrow)
+            
             /// TODO(vdka): @multiplereturns
-            /// TODO(vdka): @varargs
             let returnType = try parseType()
-
-            let procInfo = TypeRecord.ProcInfo(labels: labels, params: types, returns: [returnType])
-            return TypeRecord(kind: .proc(procInfo))
-        } else {
-
-            unimplemented("Tuple are not yet supported")
+            
+            #if false
+                while case (.comma, _)? = try lexer.peek() {
+                    try consume(.comma)
+                    let nextType = try parseType()
+                    returnTypes.append(nextType)
+                }
+            #endif
+            
+            let procInfo = ProcInfo(labels: labels, params: types, returns: [returnType])
+            return AST.Node(.procType(procInfo))
         }
     }
 }

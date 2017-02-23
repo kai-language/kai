@@ -1,9 +1,8 @@
 import LLVM
 
-extension TypeRecord {
+extension Type {
 
     func canonicalized() throws -> IRType {
-        // if we already have a llvm type generated, use that.
         if let llvm = self.llvm { return llvm }
 
         switch self.kind {
@@ -55,10 +54,16 @@ extension TypeRecord {
             }
 
         case .invalid:
-            fatalError("Got an invalid type in \(#function)")
+            fatalError("\(#function) called on invalid type")
+
+        case .record(_):
+            unimplemented("Canonicalizing records for types")
+
+        case .proc(_):
+            unimplemented("Canonicalizing procedure types")
 
         default:
-            unimplemented("Currently we are limitted to canonicalizing basic types")
+            unimplemented()
         }
     }
 }
