@@ -257,8 +257,24 @@ extension AST.Node.Kind: CustomStringConvertible {
             substring = buildSubstring(op.string)
 
         // FIXME(vdka): implement
-        case .decl(_):
-            unimplemented()
+        case .decl(let declaration):
+            switch declaration {
+            case .bad(_):
+                name = "badDecl"
+
+            case .value(let value):
+                name = "decl"
+
+                let typeName = value.type?.description ?? "unkown"
+                let values = value.values.reduce("") { str, node in
+                    return str + "\(node.description)"
+                }
+                substring = buildSubstring("type=\"\(typeName)\" values=\"\(values)\"")
+
+            case .import(let imp):
+                name = "import"
+                substring = buildSubstring("source=\(imp.relativePath) alias=\(imp.importName)")
+            }
 
         case .assignment(let byteString):
             name = "assignment"
@@ -323,6 +339,26 @@ extension AST.Node.Kind: CustomStringConvertible {
         case .integer(let integer):
             name = "integer"
             substring = buildSubstring(integer.string, includeQuotes: false)
+
+        case .procType(let procInfo):
+
+            var desc = "("
+
+            // TODO(vdka): Should remove labels?
+            desc += procInfo.params.map({ $0.description }).joined(separator: ",")
+            desc += ")"
+
+            desc += " -> "
+            desc += procInfo.returns.map({ $0.description }).joined(separator: ",")
+
+            if procInfo.isVariadic {
+                desc += "..."
+            }
+
+            return desc
+
+        case .procLiteral(type: let type, body: _):
+            return type.description
 
         default:
             name = "Unknown symbol"
