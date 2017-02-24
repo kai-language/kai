@@ -12,10 +12,10 @@ run)
     cp .build/debug/kai $HOME/.dotfiles/bin/
 
     if [ -z "$2" ]; then
-        .build/debug/kai samples/main.kai
+        .build/debug/kai --emit-all samples/main.kai
         clang -o main main.o
     else
-        .build/debug/kai $2
+        .build/debug/kai --emit-all $2
     fi
 
     echo

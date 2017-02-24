@@ -5,7 +5,7 @@ enum SemanticPass: Pass {
 
     static var totalTime: Double = 0
 
-    static let validators: [ASTValidator.Type] = [RvalueValidator.self]
+    static let validators: [ASTValidator.Type] = []
 
     static func run(_ node: AST.Node) throws {
 

@@ -1,7 +1,34 @@
 import LLVM
 
+// TODO(vdka): IRGenerator _should_ possibly take in a file
+//  This would mean that the initial context would be file scope. Not universal scope.
 class IRGenerator {
-    var currentProcedure: ProcedurePointer?
+    
+    var context = Context()
+
+    class Context {
+
+        var currentProcedure: ProcedurePointer?
+
+        var parent: Context? = nil
+
+        var state: State = .global
+
+        var scope: Scope = .universal
+
+        enum State {
+            case global
+
+            case procedureBody
+            case structureBody
+            case enumerationBody
+
+            // allow keywords break & continue
+            case loopBody
+            
+            case procedureCall
+        }
+    }
     
     //FIXME(Brett):
     //TODO(Brett): will be removed when #foreign is supported
@@ -56,7 +83,6 @@ class IRGenerator {
         module = Module(name: fileName)
         builder = IRBuilder(module: module)
         internalFuncs = InternalFuncs(builder: builder)
-        currentProcedure = nil
     }
     
     static func build(for node: AST.Node) throws -> Module {
@@ -89,9 +115,10 @@ extension IRGenerator {
     }
     
     func emitGlobals() throws {
-        try rootNode.procedurePrototypes.forEach {
-            _ = try emitProcedureDefinition($0)
-        }
+        unimplemented()
+//        try rootNode.procedurePrototypes.forEach {
+//            _ = try emitProcedureDefinition($0)
+//        }
     }
 }
 
@@ -109,8 +136,8 @@ extension IRGenerator {
         case .assignment:
             return try emitAssignment(for: node)
             
-        case .declaration:
-            return try emitDeclaration(for: node)
+        //case .declaration:
+            //return try emitDeclaration(for: node)
             
         case .procedureCall:
             return try emitProcedureCall(for: node)
@@ -139,12 +166,13 @@ extension IRGenerator {
         case .string(let string):
             return emitGlobalString(value: string)
             
-        case .identifier(let identifier):
+        /*case .identifier(let identifier):
             guard let symbol = SymbolTable.current.lookup(identifier) else {
                 fallthrough
             }
             
             return builder.buildLoad(symbol.pointer!)
+          */
             
         default:
             unimplemented("unsupported kind: \(node.kind)")
@@ -152,7 +180,9 @@ extension IRGenerator {
     }
     
     func emitConditional(for node: AST.Node) throws -> IRValue {
-        guard let function = currentProcedure?.pointer else {
+        unimplemented()
+        
+        /*guard let function = currentProcedure?.pointer else {
             preconditionFailure("Not currently in a function")
         }
         
@@ -173,7 +203,7 @@ extension IRGenerator {
         guard case .scope(let thenScope) = node.children[1].kind else {
             preconditionFailure("Expected scope for `then` body.")
         }
-        SymbolTable.current = thenScope
+        context?.scope = thenScope
         defer {
            // SymbolTable.pop()
         }
@@ -216,9 +246,14 @@ extension IRGenerator {
         
         // NOTE(Brett): do we really want to return this?
         return conditional
+         */
     }
-    
-    func emitDeclaration(for node: AST.Node) throws -> IRValue {
+
+    @discardableResult
+    func emitDeclaration(for node: AST.Node) throws -> IRValue? {
+        unimplemented()
+        /*
+>>>>>>> round2
         guard
             case .declaration(let symbol) = node.kind,
             let type = symbol.type
@@ -235,18 +270,20 @@ extension IRGenerator {
         
         let typeCanonicalized = try type.canonicalized()
 
-        let pointer = emitEntryBlockAlloca(
+        let llvm = emitEntryBlockAlloca(
             in: currentProcedure!.pointer,
             type: typeCanonicalized,
             named: symbol.name.string,
             default: defaultValue
         )
         
-        symbol.pointer = pointer
+        symbol.llvm = llvm
         
-        return pointer
+        return llvm
+        */
     }
-    
+
+    @discardableResult
     func emitAssignment(for node: AST.Node) throws -> IRValue {
         //FIXME(Brett): will break if it's multiple assignment
         guard
@@ -260,13 +297,14 @@ extension IRGenerator {
         guard case .identifier(let identifier) = lvalue.kind else {
             throw Error.preconditionNotMet(expected: "identifier", got: "\(lvalue.kind)")
         }
-        
-        let lvalueSymbol = SymbolTable.current.lookup(identifier)!
+
+        let lvalueEntity = context.scope.lookup(identifier.string)!
         let rvalue = try emitExpression(for: node.children[1])
-        
-        return builder.buildStore(rvalue, to: lvalueSymbol.pointer!)
+
+        return builder.buildStore(rvalue, to: lvalueEntity.llvm!)
     }
-    
+
+    @discardableResult
     func emitProcedureCall(for node: AST.Node) throws -> IRValue {
         assert(node.kind == .procedureCall)
         

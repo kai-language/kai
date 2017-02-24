@@ -6,139 +6,50 @@ extension Parser {
         try parser.consume(.colon)
         try parser.consume(.colon)
 
-        let identifier: ByteString
-        switch lvalue.kind {
-        case .identifier(let id), .operator(let id):
-            identifier = id
-
-        default:
-            throw parser.error(.badlvalue)
-        }
-
         guard let token = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration) }
         switch token.kind {
-        // procedure type's
-        case .lparen:
+        case .lparen: // procedure type parsing
             let type = try parser.parseType()
 
-            if case .tuple(_) = type { throw parser.error(.syntaxError) }
             // next should be a new scope '{' or a foreign body
-            guard let token = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
+            guard let (token, location) = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
 
-            if case .lbrace = token.kind {
-                let symbol = Symbol(identifier, location: lvalue.location!, type: type, flags: .compileTime)
+            switch token {
+            case .lbrace:
 
-                let expr = try parser.expression()
-                let procedure = AST.Node(.procedure(symbol), children: [expr], location: token.location)
+                let bodyExpr = try parser.expression()
 
-                try SymbolTable.current.insert(symbol)
+                let procBody = ProcBody.native(bodyExpr)
 
-                return procedure
-            } else if case .directive(.foreignLLVM) = token.kind {
+                return AST.Node(.procLiteral(type: type, body: procBody))
+
+            case .directive(.foreign):
                 try parser.consume()
+
                 guard case .string(let foreignName)? = try parser.lexer.peek()?.kind else {
-                    throw parser.error(.invalidDeclaration)
+                    reportError("Expected foreign name", at: location)
+
+                    return AST.Node(.invalid)
                 }
+
                 try parser.consume()
 
-                let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-                symbol.type = type
-                symbol.source = .llvm(foreignName)
-                try SymbolTable.current.insert(symbol)
+                let procBody = ProcBody.foreign(library: AST.Node(.invalid), name: foreignName.string, linkName: "")
 
-                return AST.Node(.procedure(symbol))
-            } else if case .directive(.foreign) = token.kind {
-                try parser.consume()
-                guard case .string(let foreignName)? = try parser.lexer.peek()?.kind else {
-                    throw parser.error(.invalidDeclaration)
-                }
-                try parser.consume()
+                return AST.Node(.procLiteral(type: type, body: procBody))
 
-                let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-                symbol.type = type
-                symbol.source = .extern(foreignName)
-                try SymbolTable.current.insert(symbol)
-
-                return AST.Node(.procedure(symbol))
+            default:
+                reportError("Expected procedure body or foreign directive", at: location)
             }
 
         case .keyword(.type):
-            try parser.consume(.keyword(.type))
-            guard let token = try parser.lexer.peek() else{ throw parser.error(.syntaxError) }
-            if case .directive(.foreignLLVM) = token.kind {
-                try parser.consume()
-                guard case .string(let foreignName)? = try parser.lexer.peek()?.kind else {
-                    throw parser.error(.invalidDeclaration)
-                }
-                try parser.consume()
-
-                let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-                symbol.type = .type(.type)
-                symbol.source = .llvm(foreignName)
-                try SymbolTable.current.insert(symbol)
-
-                return AST.Node(.declaration(symbol))
-            }
+            unimplemented("type declaration")
 
         case .keyword(.alias):
-            try parser.consume(.keyword(.alias))
-            guard let token = try parser.lexer.peek() else{ throw parser.error(.syntaxError) }
-            guard case .identifier(let ident) = token.kind else {
-                throw parser.error(.invalidDeclaration)
-            }
-
-            try parser.consume()
-
-            guard let existingSymbol = SymbolTable.current.lookup(ident) else {
-                throw parser.error(.invalidDeclaration)
-            }
-
-            guard case .type(_)? = existingSymbol.type else {
-                throw parser.error(.todo)
-            }
-
-            let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-            symbol.type = .type(.alias(existingSymbol))
-
-            // NOTE(vdka): Do we want to copy their source?
-            symbol.source = existingSymbol.source
-            try SymbolTable.current.insert(symbol)
-
-            return AST.Node(.declaration(symbol))
+            unimplemented("aliasing")
 
         case .keyword(.struct):
-            try parser.consume(.keyword(.struct))
-            guard let token = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
-            if case .lbrace = token.kind { unimplemented("Custom struct's are not ready") }
-            else if case .directive(.foreignLLVM) = token.kind {
-                try parser.consume()
-                guard case .string(let foreignName)? = try parser.lexer.peek()?.kind else {
-                    throw parser.error(.invalidDeclaration)
-                }
-                try parser.consume()
-
-                let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-                symbol.type = .type(.struct)
-                symbol.source = .llvm(foreignName)
-                try SymbolTable.current.insert(symbol)
-
-                return AST.Node(.declaration(symbol))
-            } else if case .directive(.foreign) = token.kind {
-                try parser.consume()
-                guard case .string(let foreignName)? = try parser.lexer.peek()?.kind else {
-                    throw parser.error(.invalidDeclaration)
-                }
-                try parser.consume()
-
-                let symbol = Symbol(identifier, location: lvalue.location!, flags: .compileTime)
-                symbol.type = .type(.struct)
-                symbol.source = .extern(foreignName)
-                try SymbolTable.current.insert(symbol)
-
-                return AST.Node(.declaration(symbol))
-            }
-            else { throw parser.error(.syntaxError) }
-
+            unimplemented("structures")
 
         case .keyword(.enum):
             unimplemented("enum's not yet supported'")

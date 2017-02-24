@@ -1,4 +1,25 @@
 
+class ASTFile {
+    var decls: [AST.Node]
+    var scopeLevel: Int
+    var scope: Scope?       // NOTE: Created in checker
+
+    // FIXME: I need one of these for each `decl`
+    var declInfo: DeclInfo? // NOTE: Created in checker
+
+    // TODO(vdka): Fixes per file
+    /*
+    var fixCount: Int
+    */
+
+    init() {
+        self.decls = []
+        self.scopeLevel = 0
+        self.scope = nil
+        self.declInfo = nil
+    }
+}
+
 class AST {
     typealias Node = AST
 
@@ -26,10 +47,46 @@ class AST {
     }
 }
 
+enum ProcBody {
+    case native(AST.Node)
+    case foreign(library: AST.Node, name: String, linkName: String)
+}
+
+enum Declaration {
+    // TODO(vdka): SourceRange
+    case bad(SourceLocation)
+    case value(Value)
+    case `import`(Import)
+
+    struct Value {
+        var isVar: Bool
+        var type: AST.Node?
+        var values: [AST.Node]
+        // TODO(vdka): Flags
+    }
+
+    struct Import {
+        var isImport: Bool
+        var relativePath: String
+        // TODO(vdka): Full path
+        var importName: String
+    }
+
+    struct ForeignLibrary {
+        var filePath: String
+        var importedName: String
+    }
+}
+
 extension AST {
+
     enum Kind {
+
         case empty
         case unknown
+        case invalid
+
+        case decl(Declaration)
 
         case emptyFile(name: String)
         case file(name: String)
@@ -47,23 +104,25 @@ extension AST {
         ///         =
         ///      m    m
         ///     x y  y x
+        @available(*, deprecated)
         case multiple
 
-        case type(KaiType)
+        case procType(ProcInfo)
 
-        case procedure(Symbol)
+        // TODO(vdka): Add tags
+        case procLiteral(type: AST.Node, body: ProcBody)
 
-        case scope(SymbolTable)
+        case scope(Scope)
 
         case infixOperator(ByteString)
         case prefixOperator(ByteString)
         case postfixOperator(ByteString)
 
-        case declaration(Symbol)
         case assignment(ByteString)
         case `return`
         case `defer`
 
+        @available(*, deprecated)
         case multipleDeclaration
 
         /// A loop must have atleast 1 child.
@@ -98,10 +157,15 @@ extension AST {
 }
 
 extension AST {
-    var isStandalone: Bool {
+
+    /// Should the AST.Node have a name (is an identifier kind) this is that name.
+    var entityName: String? {
         switch self.kind {
-            case .operatorDeclaration, .declaration(_): return true
-            default: return false
+        case .identifier(let str):
+            return str.string
+
+        default:
+            return nil
         }
     }
 }
@@ -124,18 +188,14 @@ extension AST.Node.Kind: Equatable {
     }
 }
 
-extension AST.Node {
-    //NOTE(Brett): consider some nicer cache system? Maybe iterate over the
-    // symbols once and filter them.
-    var procedurePrototypes: [Node] {
-        return children.filter({
-            switch $0.kind {
-            case .procedure:
-                return true
-            default:
-                return false
-            }
-        })
+extension AST.Node: Hashable {
+
+    static func ==(lhs: AST.Node, rhs: AST.Node) -> Bool {
+        return lhs === rhs
+    }
+
+    var hashValue: Int {
+        return ObjectIdentifier(self).hashValue
     }
 }
 
@@ -181,15 +241,7 @@ extension AST.Node.Kind: CustomStringConvertible {
         case .multiple:
             name = "multiple"
 
-        case .type(let type):
-            name = "type"
-            substring = buildSubstring(type.description)
-
-        case .procedure(let symbol):
-            name = "procedure"
-            substring = buildSubstring(symbol.description)
-
-        case .scope:
+        case .scope(_):
             name = "scope"
 
         case .infixOperator(let op):
@@ -204,9 +256,9 @@ extension AST.Node.Kind: CustomStringConvertible {
             name = "postfixOperator"
             substring = buildSubstring(op.string)
 
-        case .declaration(let symbol):
-            name = "declaration"
-            substring = buildSubstring(symbol.description, includeQuotes: false)
+        // FIXME(vdka): implement
+        case .decl(_):
+            unimplemented()
 
         case .assignment(let byteString):
             name = "assignment"

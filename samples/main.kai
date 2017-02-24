@@ -1,9 +1,6 @@
 
-Void :: type #foreign(LLVM) "void"
-String :: type #foreign(LLVM) "i8*"
-
 // it's just like main because I call it.
-moon :: () -> Void {
+moon :: () -> void {
     defer print("I was deferred")
     defer print("So was I!")
     print("I was not deferred")

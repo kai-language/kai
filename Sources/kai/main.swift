@@ -139,10 +139,10 @@ struct Compiler {
             }
             
             
-            try TypeSolver.run(ast, options: .timed)
+            /*try TypeSolver.run(ast, options: .timed)
             if options.contains("time") {
                 print(TypeSolver.timing)
-            }
+            }*/
             
             if options.contains("emit-ast") {
                 print(ast.pretty())
