@@ -15,6 +15,7 @@ extension Parser {
             return AST.Node(.identifier(ident), location: location)
 
         case .lparen:
+            try consume(.lparen)
             var wasComma = false
 
             var labels: [(callsite: ByteString?, binding: ByteString)]? = []
