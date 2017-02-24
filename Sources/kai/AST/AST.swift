@@ -112,9 +112,13 @@ extension AST {
         // TODO(vdka): Add tags
         case procLiteral(type: AST.Node, body: ProcBody)
 
+        @available(*, deprecated)
         case procedure(Symbol)
 
+        @available(*, deprecated)
         case scope(SymbolTable)
+
+        case scope2(Scope)
 
         case infixOperator(ByteString)
         case prefixOperator(ByteString)

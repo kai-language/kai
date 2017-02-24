@@ -1,7 +1,9 @@
 import LLVM
 
 extension IRGenerator {
+
     func emitValue(for node: AST.Node) throws -> IRValue {
+
         switch node.kind {
         case .integer(let valueString):
             //NOTE(Brett): should this throw?
@@ -15,11 +17,12 @@ extension IRGenerator {
             return emitGlobalString(value: string)
 
         case .identifier(let identifier):
-            guard let symbol = SymbolTable.current.lookup(identifier) else {
-                fallthrough
+
+            guard let entity = context.scope.lookup(identifier.string) else {
+                // NOTE(vdka): The error should have already been emitted? @check
             }
 
-            return builder.buildLoad(symbol.llvm!)
+            return builder.buildLoad(entity.llvm!)
 
         case .procedureCall:
             return try emitProcedureCall(for: node)

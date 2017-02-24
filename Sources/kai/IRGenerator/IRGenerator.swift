@@ -1,7 +1,34 @@
 import LLVM
 
+// TODO(vdka): IRGenerator _should_ possibly take in a file
+//  This would mean that the initial context would be file scope. Not universal scope.
 class IRGenerator {
-    var currentProcedure: ProcedurePointer?
+    
+    var context = Context()
+
+    class Context {
+
+        var currentProcedure: ProcedurePointer?
+
+        var parent: Context? = nil
+
+        var state: State = .global
+
+        var scope: Scope = .universal
+
+        enum State {
+            case global
+
+            case procedureBody
+            case structureBody
+            case enumerationBody
+
+            // allow keywords break & continue
+            case loopBody
+            
+            case procedureCall
+        }
+    }
     
     //FIXME(Brett):
     //TODO(Brett): will be removed when #foreign is supported
@@ -56,7 +83,6 @@ class IRGenerator {
         module = Module(name: fileName)
         builder = IRBuilder(module: module)
         internalFuncs = InternalFuncs(builder: builder)
-        currentProcedure = nil
     }
     
     static func build(for node: AST.Node) throws {
@@ -171,11 +197,11 @@ extension IRGenerator {
         guard case .identifier(let identifier) = lvalue.kind else {
             throw Error.preconditionNotMet(expected: "identifier", got: "\(lvalue.kind)")
         }
-        
-        let lvalueSymbol = SymbolTable.current.lookup(identifier)!
+
+        let lvalueEntity = context.scope.lookup(identifier.string)!
         let rvalue = try emitValue(for: node.children[1])
-        
-        return builder.buildStore(rvalue, to: lvalueSymbol.llvm!)
+
+        return builder.buildStore(rvalue, to: lvalueEntity.llvm!)
     }
     
     func emitProcedureCall(for node: AST.Node) throws -> IRValue {

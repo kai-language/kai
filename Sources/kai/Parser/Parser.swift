@@ -3,7 +3,7 @@
 struct Parser {
 
     var lexer: Lexer
-    var context: Context = Context()
+    var context = Context()
 
     var errors: UInt = 0
 
@@ -204,10 +204,12 @@ extension Parser {
         case .lbrace:
             let (_, startLocation) = try consume(.lbrace)
 
-            let scopeSymbols = SymbolTable.push()
-            defer { SymbolTable.pop() }
+            let scope = context.pushNewScope()
+            defer {
+                context.popCurrentScope()
+            }
 
-            let node = AST.Node(.scope(scopeSymbols))
+            let node = AST.Node(.scope2(scope))
             while let next = try lexer.peek()?.kind, next != .rbrace {
                 let expr = try expression()
                 node.add(expr)

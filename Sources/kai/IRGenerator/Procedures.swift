@@ -1,7 +1,7 @@
 import LLVM
 
 struct ProcedurePointer {
-    let symbol: Symbol
+    let scope: Scope
     let pointer: Function
     var args: [IRValue]
     let returnType: IRType
@@ -179,7 +179,7 @@ extension IRGenerator {
 
     func emitReturn(for node: AST.Node) throws {
         guard
-            let currentProcedure = currentProcedure
+            let currentProcedure = context.currentProcedure
         else {
             fatalError("No current procedure")
         }

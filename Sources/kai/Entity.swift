@@ -10,6 +10,7 @@ class Entity {
     /// Set in the checker
     var type: Type? = nil
     var identifier: AST.Node?
+    var llvm: IRValue?
 
     init(kind: Kind, flags: Flag = [], scope: Scope, location: SourceLocation?, identifier: AST.Node?) {
         self.kind = kind
@@ -57,16 +58,15 @@ extension Entity {
 
     struct Flag: OptionSet {
         var rawValue: UInt16
-        init(rawValue: UInt16) { self.rawValue = rawValue }
 
-        static let visited   = 0b00000001
-        static let used      = 0b00000010
-        static let anonymous = 0b00000100
-        static let field     = 0b00001000
-        static let param     = 0b00010000
-        static let ellipsis  = 0b00100000
-        static let noAlias   = 0b01000000
-        static let typeField = 0b10000000
+        static let visited   = Flag(rawValue: 0b00000001)
+        static let used      = Flag(rawValue: 0b00000010)
+        static let anonymous = Flag(rawValue: 0b00000100)
+        static let field     = Flag(rawValue: 0b00001000)
+        static let param     = Flag(rawValue: 0b00010000)
+        static let ellipsis  = Flag(rawValue: 0b00100000)
+        static let noAlias   = Flag(rawValue: 0b01000000)
+        static let typeField = Flag(rawValue: 0b10000000)
     }
 }
 

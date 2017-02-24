@@ -1,5 +1,6 @@
 
-class SymbolTable {
+@available(*, deprecated)
+class SymbolTable: CustomStringConvertible {
 
     var parent: SymbolTable? = nil
     var table: [Symbol] = []
@@ -7,9 +8,6 @@ class SymbolTable {
     /// The top most symbol table. Things exported from file scope are here.
     static var global = SymbolTable()
     static var current = global
-}
-
-extension SymbolTable {
 
     func insert(_ symbol: Symbol) throws {
         // TODO(vdka): Depending on the discussion around #10 this check will need to be based off of the insert type.
@@ -30,9 +28,6 @@ extension SymbolTable {
             return parent?.lookup(name)
         }
     }
-}
-
-extension SymbolTable {
 
     @discardableResult
     static func push() -> SymbolTable {
@@ -51,9 +46,6 @@ extension SymbolTable {
 
         return SymbolTable.current
     }
-}
-
-extension SymbolTable {
 
     struct Error: CompilerError {
 
@@ -73,9 +65,6 @@ extension SymbolTable {
             case redefinition
         }
     }
-}
-
-extension SymbolTable: CustomStringConvertible {
 
     var description: String {
 
