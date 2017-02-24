@@ -109,7 +109,7 @@ extension Scope {
 
 struct DeclInfo {
     
-    var scope: Scope
+    unowned var scope: Scope
 
     var entities: [Entity]
 

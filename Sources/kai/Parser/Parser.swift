@@ -47,7 +47,7 @@ struct Parser {
 
         // operatorImplementation's need to be skipped too.
         if case .operatorDeclaration = left.kind { return left }
-        else if case .declaration(_) = left.kind { return left }
+//        else if case .declaration(_) = left.kind { return left }
         else if case .comma? = try lexer.peek()?.kind, case .procedureCall = context.state { return left }
 
         while let (nextToken, _) = try lexer.peek(), let lbp = lbp(for: nextToken),
@@ -209,7 +209,7 @@ extension Parser {
                 context.popCurrentScope()
             }
 
-            let node = AST.Node(.scope2(scope))
+            let node = AST.Node(.scope(scope))
             while let next = try lexer.peek()?.kind, next != .rbrace {
                 let expr = try expression()
                 node.add(expr)
@@ -296,7 +296,7 @@ extension Parser {
             case .equals?:
                 // type is infered
                 try consume(.equals)
-                var rvalues = try parseMultipleExpressions()
+                let rvalues = try parseMultipleExpressions()
 
                 // TODO(vdka): handle mismatched lhs count and rhs count
 

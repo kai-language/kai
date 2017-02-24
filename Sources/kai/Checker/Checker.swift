@@ -51,7 +51,13 @@ extension Checker {
 
 }
 
-func reportError(_ message: String, at node: AST.Node) {
+enum ErrorType {
+    case syntax
+    case typeMismatch
+    case `default`
+}
+
+func reportError(_ message: String, at node: AST.Node, with type: ErrorType = .default) {
     print("ERROR(\(node.location?.description ?? "unkown")): " + message)
 }
 

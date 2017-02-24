@@ -92,11 +92,6 @@ do {
         exit(1)
     }
 
-    try SemanticPass.run(ast, options: .timed)
-    print(SemanticPass.timing)
-
-    try TypeSolver.run(ast, options: .timed)
-    print(TypeSolver.timing)
     print(ast.pretty())
 
     try IRGenerator.build(for: ast)

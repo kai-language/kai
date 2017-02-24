@@ -116,9 +116,10 @@ extension IRGenerator {
     }
     
     func emitGlobals() throws {
-        try rootNode.procedurePrototypes.forEach {
-            _ = try emitProcedureDefinition($0)
-        }
+        unimplemented()
+//        try rootNode.procedurePrototypes.forEach {
+//            _ = try emitProcedureDefinition($0)
+//        }
     }
 }
 
@@ -127,11 +128,15 @@ extension IRGenerator {
         for child in node.children {
             switch child.kind {
             case .assignment:
-                _ = try emitAssignment(for: child)
-                
-            case .declaration:
-                _ = try emitDeclaration(for: child)
-                
+                try emitAssignment(for: child)
+
+            // FIXME(vdka): Implement
+            case .decl(_):
+                unimplemented()
+
+//            case .declaration:
+//                try emitDeclaration(for: child)
+
             case .procedureCall:
                 try emitProcedureCall(for: child)
                 
@@ -147,7 +152,8 @@ extension IRGenerator {
             }
         }
     }
-    
+
+    @discardableResult
     func emitDeclaration(for node: AST.Node) throws -> IRValue? {
         unimplemented()
         /*
@@ -183,7 +189,8 @@ extension IRGenerator {
         return llvm
         */
     }
-    
+
+    @discardableResult
     func emitAssignment(for node: AST.Node) throws -> IRValue {
         //FIXME(Brett): will break if it's multiple assignment
         guard
@@ -203,7 +210,8 @@ extension IRGenerator {
 
         return builder.buildStore(rvalue, to: lvalueEntity.llvm!)
     }
-    
+
+    @discardableResult
     func emitProcedureCall(for node: AST.Node) throws -> IRValue {
         assert(node.kind == .procedureCall)
         

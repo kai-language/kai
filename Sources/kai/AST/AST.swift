@@ -112,20 +112,12 @@ extension AST {
         // TODO(vdka): Add tags
         case procLiteral(type: AST.Node, body: ProcBody)
 
-        @available(*, deprecated)
-        case procedure(Symbol)
-
-        @available(*, deprecated)
-        case scope(SymbolTable)
-
-        case scope2(Scope)
+        case scope(Scope)
 
         case infixOperator(ByteString)
         case prefixOperator(ByteString)
         case postfixOperator(ByteString)
 
-        @available(*, deprecated)
-        case declaration(Symbol)
         case assignment(ByteString)
         case `return`
         case `defer`
@@ -178,15 +170,6 @@ extension AST {
     }
 }
 
-extension AST {
-    var isStandalone: Bool {
-        switch self.kind {
-            case .operatorDeclaration, .declaration(_): return true
-            default: return false
-        }
-    }
-}
-
 extension AST.Node.Kind: Equatable {
     static func == (lhs: AST.Node.Kind, rhs: AST.Node.Kind) -> Bool {
         switch (lhs, rhs) {
@@ -213,21 +196,6 @@ extension AST.Node: Hashable {
 
     var hashValue: Int {
         return ObjectIdentifier(self).hashValue
-    }
-}
-
-extension AST.Node {
-    //NOTE(Brett): consider some nicer cache system? Maybe iterate over the
-    // symbols once and filter them.
-    var procedurePrototypes: [Node] {
-        return children.filter({
-            switch $0.kind {
-            case .procedure:
-                return true
-            default:
-                return false
-            }
-        })
     }
 }
 
@@ -273,15 +241,7 @@ extension AST.Node.Kind: CustomStringConvertible {
         case .multiple:
             name = "multiple"
 
-//        case .type(let type):
-//            name = "type"
-//            substring = buildSubstring(type.description)
-
-        case .procedure(let symbol):
-            name = "procedure"
-            substring = buildSubstring(symbol.description)
-
-        case .scope:
+        case .scope(_):
             name = "scope"
 
         case .infixOperator(let op):
@@ -296,9 +256,9 @@ extension AST.Node.Kind: CustomStringConvertible {
             name = "postfixOperator"
             substring = buildSubstring(op.string)
 
-        case .declaration(let symbol):
-            name = "declaration"
-            substring = buildSubstring(symbol.description, includeQuotes: false)
+        // FIXME(vdka): implement
+        case .decl(_):
+            unimplemented()
 
         case .assignment(let byteString):
             name = "assignment"

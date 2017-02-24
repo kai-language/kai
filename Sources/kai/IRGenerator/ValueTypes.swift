@@ -17,11 +17,7 @@ extension IRGenerator {
             return emitGlobalString(value: string)
 
         case .identifier(let identifier):
-
-            guard let entity = context.scope.lookup(identifier.string) else {
-                // NOTE(vdka): The error should have already been emitted? @check
-            }
-
+            let entity = context.scope.lookup(identifier.string)!
             return builder.buildLoad(entity.llvm!)
 
         case .procedureCall:
