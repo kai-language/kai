@@ -1,4 +1,5 @@
 
+@available(*, deprecated)
 struct TypeSolver: Pass, ASTValidator {
 
     static let name: String = "Type solving"
@@ -14,14 +15,20 @@ struct TypeSolver: Pass, ASTValidator {
         let solver = TypeSolver(rootNode: root)
         try solver.check(node: root)
     }
-    
+
+    @available(*, deprecated)
     func check(nodes: [AST]) throws {
+        unimplemented()
+        /*
         for node in nodes {
             try check(node: node)
         }
+        */
     }
 
     func check(node: AST) throws {
+        unimplemented()
+        /*
         for child in node.children {
             if !child.children.isEmpty {
                 try check(nodes: child.children)
@@ -50,12 +57,13 @@ struct TypeSolver: Pass, ASTValidator {
                 break
             }
         }
+        */
     }
 }
 
 extension TypeSolver {
 
-    func solveSingleDeclaration(_ node: AST, type: inout TypeRecord?) throws {
+    func solveSingleDeclaration(_ node: AST, type: inout Type?) throws {
 
         //FIXME(Brett, vdka): check for expressions when they're parsable
         guard node.children.count == 1 else {
@@ -76,8 +84,11 @@ extension TypeSolver {
 
 extension TypeSolver {
 
+    @available(*, deprecated)
     func solveMultipleDeclaration(_ node: AST, type: inout TypeRecord?) throws {
 
+        unimplemented()
+        /*
         guard let root = node.parent?.parent else {
             //TODO(Brett): real errors once I finish this algorithm
             print("error trying to get parents")
@@ -106,13 +117,15 @@ extension TypeSolver {
             //TODO(Brett): make sure all of the multiples have the same type
             type = try extractType(child)
         }
+        */
     }
 }
 
 extension TypeSolver {
     //FIXME(Brett): remove optional and throw instead
-    func extractType(_ node: AST.Node) throws -> TypeRecord {
-
+    func extractType(_ node: AST.Node) throws -> Type {
+        unimplemented()
+        #if false
         switch node.kind {
         case .integer:
             return .unconstrInteger
@@ -139,12 +152,14 @@ extension TypeSolver {
             print("ERROR: Cannot extract type from node of kind: \(node.kind)")
             return .invalid
         }
+        #endif
     }
 }
 
 extension TypeSolver {
 
     //FIXME(Brett): remove optional and throw instead
+    @available(*, deprecated)
     func typeForSymbol(named name: ByteString) throws -> TypeRecord? {
         //TODO(Brett): need proper symbol table traversal and lookup but that
         //requires me to keep track of the current table while traversing the

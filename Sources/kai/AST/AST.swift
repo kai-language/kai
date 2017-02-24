@@ -52,6 +52,32 @@ enum ProcBody {
     case foreign(library: AST.Node, name: String, linkName: String)
 }
 
+enum Declaration {
+    // TODO(vdka): SourceRange
+    case bad(SourceLocation)
+    case value(Value)
+    case `import`(Import)
+
+    struct Value {
+        var isVar: Bool
+        var type: AST.Node?
+        var values: [AST.Node]
+        // TODO(vdka): Flags
+    }
+
+    struct Import {
+        var isImport: Bool
+        var relativePath: String
+        // TODO(vdka): Full path
+        var importName: String
+    }
+
+    struct ForeignLibrary {
+        var filePath: String
+        var importedName: String
+    }
+}
+
 extension AST {
 
     enum Kind {
@@ -59,6 +85,8 @@ extension AST {
         case empty
         case unknown
         case invalid
+
+        case decl(Declaration)
 
         case emptyFile(name: String)
         case file(name: String)
@@ -76,6 +104,7 @@ extension AST {
         ///         =
         ///      m    m
         ///     x y  y x
+        @available(*, deprecated)
         case multiple
 
         case procType(ProcInfo)
@@ -91,11 +120,13 @@ extension AST {
         case prefixOperator(ByteString)
         case postfixOperator(ByteString)
 
+        @available(*, deprecated)
         case declaration(Symbol)
         case assignment(ByteString)
         case `return`
         case `defer`
 
+        @available(*, deprecated)
         case multipleDeclaration
 
         /// A loop must have atleast 1 child.

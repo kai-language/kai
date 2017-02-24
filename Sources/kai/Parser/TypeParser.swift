@@ -5,7 +5,9 @@ extension Parser {
 
         guard let (token, location) = try lexer.peek() else {
             reportError("Expected a type", at: lexer.lastLocation)
+            return AST.Node(.invalid)
         }
+        
         switch token {
         case .identifier(let ident):
             try consume()
@@ -99,6 +101,11 @@ extension Parser {
                         let type = try parseType()
                         types.append(type)
                     }
+
+                default:
+                    // FIXME(vdka): I have no idea what this should be D:
+                    // I lost context here.
+                    unimplemented()
                 }
             }
             
@@ -106,7 +113,7 @@ extension Parser {
             
             /// TODO(vdka): allow varargs `...`
             try consume(.rparen)
-            try consume(.returnArrow)
+            try consume(.keyword(.returnArrow))
             
             /// TODO(vdka): @multiplereturns
             let returnType = try parseType()
@@ -121,6 +128,9 @@ extension Parser {
             
             let procInfo = ProcInfo(labels: labels, params: types, returns: [returnType])
             return AST.Node(.procType(procInfo))
+
+        default: // TODO(vdka): Report errors
+            return AST.Node(.invalid)
         }
     }
 }

@@ -123,6 +123,8 @@ extension IRGenerator {
     }
     
     func emitDeclaration(for node: AST.Node) throws -> IRValue? {
+        unimplemented()
+        /*
         guard
             case .declaration(let symbol) = node.kind,
             let type = symbol.type
@@ -153,6 +155,7 @@ extension IRGenerator {
         symbol.llvm = llvm
         
         return llvm
+        */
     }
     
     func emitAssignment(for node: AST.Node) throws -> IRValue {

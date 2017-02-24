@@ -1,6 +1,7 @@
 
 import LLVM
 
+@available(*, deprecated)
 class Symbol {
     let name: ByteString
     var source: Source
@@ -55,6 +56,9 @@ extension Symbol.Source: Equatable {
 extension Symbol: CustomStringConvertible {
 
     var description: String {
+        unimplemented()
+
+        /*
         let red = "\u{001B}[31m"
         let magenta = "\u{001B}[35m"
         let reset = "\u{001B}[0m"
@@ -65,5 +69,6 @@ extension Symbol: CustomStringConvertible {
         } else {
             return "\(magenta)name\(reset)=\(red)\"\(name)\" \(magenta)type\(reset)=\(red)\"\(type?.description ?? "??")\" \(magenta)source\(reset)=\(red)\"\(source)\""
         }
+        */
     }
 }

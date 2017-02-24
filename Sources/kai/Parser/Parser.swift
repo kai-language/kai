@@ -259,14 +259,9 @@ extension Parser {
             return AST.Node(.memberAccess, children: [lvalue, rvalue], location: location)
 
         case .comma:
-            try consume()
-
-            let rhs = try expression(UInt8.max)
-
-            if case .multiple = lvalue.kind { lvalue.children.append(rhs) }
-            else { return AST.Node(.multiple, children: [lvalue, rhs]) }
-
-            return lvalue
+            let (_, location) = try consume()
+            reportError("Unexpected comma", at: location)
+            return AST.Node(.invalid, location: location)
 
         case .lbrack:
             let (_, startLocation) = try consume(.lbrack)
@@ -292,68 +287,68 @@ extension Parser {
             if case .colon? = try lexer.peek(aheadBy: 1)?.kind {
                 return try Parser.parseCompileTimeDeclaration(&self, lvalue)
             } // '::'
-                // ':' 'id' '=' 'expr' | ':' '=' 'expr'
 
             try consume(.colon)
 
-            switch lvalue.kind {
-            case .identifier(let id):
-                let symbol = Symbol(id, location: lvalue.location!)
-                try SymbolTable.current.insert(symbol)
+            switch try lexer.peek()?.kind {
+            case .equals?:
+                // type is infered
+                try consume(.equals)
+                var rvalues = try parseMultipleExpressions()
 
-                switch try lexer.peek()?.kind {
-                case .equals?: // type infered
-                    try consume()
-                    let rhs = try expression()
-                    return AST.Node(.declaration(symbol), children: [rhs], location: lvalue.location)
+                // TODO(vdka): handle mismatched lhs count and rhs count
 
-                default: // type provided
-                    let type = try parseType()
-                    symbol.type = type
-
-                    try consume(.equals)
-                    let rhs = try expression()
-
-                    return AST.Node(.declaration(symbol), children: [rhs])
-                }
-
-            case .multiple:
-                let symbols: [Symbol] = try lvalue.children.map { node in
-                    // NOTE(vdka): Unfortunately, and go falls into this trap also, if your _infered_ assignment operators
-                    //  lvalue is predefined it must be redefined. This makes no sense for anything other than a identifier
-                    // TODO(vdka): Need to really work out the finicky behaviour of the ':=' operator
-                    guard case .identifier(let id) = node.kind else { throw error(.badlvalue) }
-                    let symbol = Symbol(id, location: node.location!)
-                    try SymbolTable.current.insert(symbol)
-
-                    return symbol
-                }
-
-                switch try lexer.peek()?.kind {
-                case .equals?:
-                    // We will need to infer the type. The AST returned will have 2 child nodes.
-                    try consume()
-                    let rvalue = try expression()
-                    // TODO(vdka): Pull the rvalue's children onto the generated node assuming it is a multiple node.
-
-                    let lvalue = AST.Node(.multiple, children: symbols.map({ AST.Node(.declaration($0), location: $0.location) }))
-
-                    return AST.Node(.multipleDeclaration, children: [lvalue, rvalue], location: symbols.first?.location)
-
-                case .identifier?:
-                    unimplemented("Explicit types in multiple declaration's is not yet implemented")
-
-                default:
-                    throw error(.syntaxError)
-                }
+                let declValue = Declaration.Value(isVar: true, type: nil, values: rvalues)
+                return AST.Node(.decl(.value(declValue)))
 
             default:
-                fatalError("bad lvalue?")
+                try consume(.colon)
+
+                // NOTE(vdka): For now you can only have a single type on the lhs
+                // TODO(vdka): This should have a warning to explain.
+                let type = try parseType()
+                let rvalues = try parseMultipleExpressions()
+
+                let declValue = Declaration.Value(isVar: true, type: type, values: rvalues)
+                return AST.Node(.decl(.value(declValue)))
             }
 
         default:
             unimplemented()
         }
+    }
+
+
+    // MARK: Sub parsers
+
+    mutating func parseMultipleExpressions() throws -> [AST.Node] {
+
+        let expr = try expression()
+        var expressions: [AST.Node] = [expr]
+
+        while case .comma? = try lexer.peek()?.kind {
+            try consume(.comma)
+
+            let expr = try expression()
+            expressions.append(expr)
+        }
+
+        return expressions
+    }
+
+    mutating func parseMultipleTypes() throws -> [AST.Node] {
+
+        let type = try parseType()
+        var types: [AST.Node] = [type]
+
+        while case .comma? = try lexer.peek()?.kind {
+            try consume(.comma)
+
+            let type = try parseType()
+            types.append(type)
+        }
+
+        return types
     }
 }
 

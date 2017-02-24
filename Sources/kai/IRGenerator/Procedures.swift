@@ -34,6 +34,11 @@ extension IRGenerator {
         return allocation
     }
 
+    func emitProcedurePrototype(for proc: AST.Node) throws -> Function {
+        unimplemented()
+    }
+
+    /*
     func emitProcedurePrototype(for symbol: Symbol) throws -> Function {
 
         // FIXME(vdka): What to do when we have no type for our symbol. Is that a compiler bug?
@@ -63,9 +68,13 @@ extension IRGenerator {
 
         return function
     }
+    */
 
     func emitProcedureDefinition(_ node: AST.Node) throws -> Function {
 
+        unimplemented("procedure definitions")
+
+        /*
         guard case .procedure(let symbol) = node.kind,
               case .proc(let procInfo)? = symbol.type?.kind
             else {
@@ -165,6 +174,7 @@ extension IRGenerator {
 
             return function
         }
+        */
     }
 
     func emitReturn(for node: AST.Node) throws {
