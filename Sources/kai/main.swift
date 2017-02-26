@@ -120,10 +120,13 @@ struct Compiler {
     }
     
     func build(options: Set<String>, optimization: String) throws {
-        let file = File(path: try extractFilePath())!
+        let filePath = try extractFilePath()
         
         do {
-            var lexer = Lexer(file)
+
+            var parser = Parser(relPath: filePath)
+
+            try parser.parse()
             
             let (ast, errors) = try Parser.parse(&lexer)
             
@@ -131,13 +134,6 @@ struct Compiler {
                 print("There were \(errors) errors during parsing\nexiting")
                 exit(1)
             }
-            
-            try SemanticPass.run(ast, options: .timed)
-            
-            if options.contains("time") {
-                print(SemanticPass.timing)
-            }
-            
             
             /*try TypeSolver.run(ast, options: .timed)
             if options.contains("time") {

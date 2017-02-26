@@ -1,11 +1,43 @@
 
 import LLVM
 
+enum ExactValue: Equatable {
+    case bool(Bool)
+    case string(String)
+    case integer(Int64)
+    case float(Double)
+    case compound(AST.Node)
+
+    // NOTE(vdka): Odin has an value_pointer here also. Not sure how to do so I omitted it.
+
+    static func ==(lhs: ExactValue, rhs: ExactValue) -> Bool {
+        switch (lhs, rhs) {
+        case let (.bool(l), .bool(r)):
+            return l == r
+
+        case let (.string(l), .string(r)):
+            return l == r
+
+        case let (.integer(l), .integer(r)):
+            return l == r
+
+        case let (.float(l), .float(r)):
+            return l == r
+
+        case let (.compound(l), .compound(r)):
+            return l == r
+
+        default:
+            return false
+        }
+    }
+}
+
 class Entity {
     var kind: Kind
     var flags: Flag
     var location: SourceLocation?
-    var scope: Scope
+    unowned var scope: Scope
 
     /// Set in the checker
     var type: Type? = nil
@@ -19,6 +51,30 @@ class Entity {
         self.location = location
         self.type = nil
         self.identifier = identifier
+    }
+
+    static func declareBuiltinConstant(name: String, value: ExactValue, scope: Scope) {
+        var type: Type
+        switch value {
+        case .bool(_):
+            type = .unconstrBoolean
+
+        case .float(_):
+            type = .unconstrFloat
+
+        case .integer(_):
+            type = .unconstrInteger
+
+        case .string(_):
+            type = .unconstrString
+
+        case .compound(_):
+            unimplemented("Builtin compound types")
+        }
+
+        let e = Entity(kind: .constant(value), scope: scope, location: nil, identifier: nil)
+
+        scope.insert(e, named: name)
     }
 }
 
@@ -41,18 +97,32 @@ extension Entity: Hashable {
 extension Entity {
 
     enum Kind: Equatable {
-        case invalid
-        case constant
+        case constant(ExactValue)
         case variable
         case typeName
-        case procedure
+        case procedure // (isForeign (foreignDetails), tags, overload: OverloadKind)
         case builtin
-        case importName
-        case libraryName
+        case importName  //path, name: String, scope: Scope, used: Bool)
+        case libraryName // (path, name: String, used: Bool)
         case `nil`
 
         static func ==(lhs: Kind, rhs: Kind) -> Bool {
-            return isMemoryEquivalent(lhs, rhs)
+            switch (lhs, rhs) {
+            case (.variable, .variable),
+                 (.typeName, .typeName),
+                 (.procedure, .procedure),
+                 (.builtin, .builtin),
+                 (.importName, .importName),
+                 (.libraryName, .libraryName),
+                 (.nil, .nil):
+                return true
+
+            case let (.constant(l), .constant(r)):
+                return l == r
+
+            default:
+                return false
+            }
         }
     }
 
@@ -69,54 +139,3 @@ extension Entity {
         static let typeField = Flag(rawValue: 0b10000000)
     }
 }
-
-/*
-struct Entity {
-    EntityKind kind;
-    u32        flags;
-    Token      token;
-    Scope *    scope;
-    Type *     type;
-    AstNode *  identifier; // Can be NULL
-
-    // TODO(bill): Cleanup how `using` works for entities
-    Entity *   using_parent;
-    AstNode *  using_expr;
-
-    union {
-    struct {
-        ExactValue value;
-    } Constant;
-    struct {
-        i32  field_index;
-        i32  field_src_index;
-        bool is_immutable;
-        bool is_thread_local;
-    } Variable;
-    i32 TypeName;
-    struct {
-        bool         is_foreign;
-        String       foreign_name;
-        Entity *     foreign_library;
-        String       link_name;
-        u64          tags;
-        OverloadKind overload_kind;
-    } Procedure;
-    struct {
-        i32 id;
-    } Builtin;
-    struct {
-        String path;
-        String name;
-        Scope *scope;
-        bool   used;
-    } ImportName;
-    struct {
-        String path;
-        String name;
-        bool   used;
-    } LibraryName;
-    i32 Nil;
-    };
-};
-*/

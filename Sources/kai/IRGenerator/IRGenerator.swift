@@ -3,8 +3,13 @@ import LLVM
 // TODO(vdka): IRGenerator _should_ possibly take in a file
 //  This would mean that the initial context would be file scope. Not universal scope.
 class IRGenerator {
-    
+
+    var file: ASTFile
     var context = Context()
+
+    let module: Module
+    let builder: IRBuilder
+    let internalFuncs: InternalFuncs
 
     class Context {
 
@@ -62,31 +67,21 @@ class IRGenerator {
     
     enum Error: Swift.Error {
         case unimplemented(String)
-        case expectedFileNode
         case invalidSyntax
         case invalidOperator(String)
         case unidentifiedSymbol(String)
         case preconditionNotMet(expected: String, got: String)
     }
     
-    let module: Module
-    let builder: IRBuilder
-    let rootNode: AST
-    let internalFuncs: InternalFuncs
-    
-    init(node: AST.Node) throws {
-        guard case .file(let fileName) = node.kind else {
-            throw Error.expectedFileNode
-        }
-        
-        rootNode = node
-        module = Module(name: fileName)
+    init(_ file: ASTFile) throws {
+        self.file = file
+        module = Module(name: file.name)
         builder = IRBuilder(module: module)
         internalFuncs = InternalFuncs(builder: builder)
     }
     
-    static func build(for node: AST.Node) throws -> Module {
-        let generator = try IRGenerator(node: node)
+    static func build(for file: ASTFile) throws -> Module {
+        let generator = try IRGenerator(file)
         try generator.emitGlobals()
         try generator.emitMain()
         
@@ -101,8 +96,8 @@ extension IRGenerator {
         let main = builder.addFunction("main", type: mainType)
         let entry = main.appendBasicBlock(named: "entry")
         builder.positionAtEnd(of: entry)
-        
-        for child in rootNode.children {
+
+        for child in file.expressions {
             switch child.kind {
             case .procedureCall:
                 _  = try emitProcedureCall(for: child)

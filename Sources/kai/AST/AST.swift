@@ -1,22 +1,30 @@
 
 class ASTFile {
+
+    var lexer: Lexer
+    var name: String
     var decls: [AST.Node]
-    var scopeLevel: Int
+    var expressions: [AST.Node]
+    var scopeLevel: Int = 0
     var scope: Scope?       // NOTE: Created in checker
 
     // FIXME: I need one of these for each `decl`
     var declInfo: DeclInfo? // NOTE: Created in checker
 
-    // TODO(vdka): Fixes per file
-    /*
-    var fixCount: Int
-    */
+    var errors: Int = 0
 
-    init() {
+    static var errorTolerance = 6
+
+    init(named: String) {
+
+        let file = File(path: named)
+        self.name = named
         self.decls = []
+        self.expressions = []
         self.scopeLevel = 0
         self.scope = nil
         self.declInfo = nil
+        self.errors = 0
     }
 }
 

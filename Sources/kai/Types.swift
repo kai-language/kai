@@ -224,6 +224,49 @@ extension BasicType {
     ]
 }
 
+// MARK: Static basic types
+extension Type {
+
+    static let invalid = Type(kind: .basic(.invalid), isInvalid: true)
+
+    static let void    = Type(kind: .basic(.void))
+
+    static let bool    = Type(kind: .basic(.bool))
+
+    static let i8      = Type(kind: .basic(.i8))
+    static let u8      = Type(kind: .basic(.u8))
+    static let i16     = Type(kind: .basic(.i16))
+    static let u16     = Type(kind: .basic(.u16))
+    static let i32     = Type(kind: .basic(.i32))
+    static let u32     = Type(kind: .basic(.u32))
+    static let i64     = Type(kind: .basic(.i64))
+    static let u64     = Type(kind: .basic(.u64))
+    static let int     = Type(kind: .basic(.int))
+    static let uint    = Type(kind: .basic(.uint))
+
+    static let f32     = Type(kind: .basic(.f32))
+    static let f64     = Type(kind: .basic(.f64))
+
+    static let rawptr  = Type(kind: .basic(.rawptr))
+    static let string  = Type(kind: .basic(.string))
+
+    static let unconstrBoolean = Type(kind: .basic(.unconstrBoolean))
+    static let unconstrInteger = Type(kind: .basic(.unconstrInteger))
+    static let unconstrFloat   = Type(kind: .basic(.unconstrFloat))
+    static let unconstrString  = Type(kind: .basic(.unconstrString))
+    static let unconstrNil     = Type(kind: .basic(.unconstrNil))
+
+    static let allBasicTypes: [Type] = [
+        invalid,
+        void,
+        bool,
+        i8, u8, i16, u16, i32, u32, i64, u64, f32, f64,
+        int, uint,
+        rawptr, string,
+        unconstrBoolean, unconstrInteger, unconstrFloat, unconstrString, unconstrNil
+    ]
+}
+
 extension ProcInfo: Equatable {
 
     static func == (lhs: ProcInfo, rhs: ProcInfo) -> Bool {
@@ -234,4 +277,3 @@ extension ProcInfo: Equatable {
             isMemoryEquivalent(lhs.callingConvention, rhs.callingConvention)
     }
 }
-
