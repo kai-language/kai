@@ -124,12 +124,13 @@ struct Compiler {
         
         do {
 
-            var parser = Parser(relPath: filePath)
+            var parser = Parser(relativePath: filePath)
 
-            try parser.parse()
-            
-            let (ast, errors) = try Parser.parse(&lexer)
-            
+//            let (ast, errors) = try parser.parse()
+            let files = try parser.parseFiles()
+
+            let errors = parser.errors
+
             guard errors == 0 else {
                 print("There were \(errors) errors during parsing\nexiting")
                 exit(1)
@@ -141,18 +142,21 @@ struct Compiler {
             }*/
             
             if options.contains("emit-ast") {
-                print(ast.pretty())
+                for file in files {
+                    print(file.pretty())
+                }
             }
-            
-            let module = try IRGenerator.build(for: ast)
-            
-            try TargetMachine().emitToFile(module: module, type: .object, path: "main.o")
-            if options.contains("emit-ir") {
-                module.dump()
-            }
+
+            // TODO(vdka): Compile again
+//            let module = try IRGenerator.build(for: ast)
+
+//            try TargetMachine().emitToFile(module: module, type: .object, path: "main.o")
+//            if options.contains("emit-ir") {
+//                module.dump()
+//            }
         } catch let error as CompilerError {
             console.error(error.description)
-            console.error(file.generateVerboseLineOf(error: error.location))
+//            console.error(file.generateVerboseLineOf(error: error.location))
         }
     }
     

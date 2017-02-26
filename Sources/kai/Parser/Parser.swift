@@ -9,154 +9,116 @@ typedef struct Parser {
     isize               total_line_count;
     gbMutex             mutex;
 } Parser;
- 
+
 typedef struct ImportedFile {
     String   path;
     String   rel_path;
     TokenPos pos; // #import
 } ImportedFile;
+
+for_array(i, p->imports) {
+    ImportedFile imported_file = p->imports.e[i];
+    String import_path = imported_file.path;
+    String import_rel_path = imported_file.rel_path;
+    TokenPos pos = imported_file.pos;
+    AstFile file = {0};
+
+    ParseFileError err = init_ast_file(&file, import_path);
+
+    if (err != ParseFile_None) {
+        desc(err);
+        return err;
+    }
+    parse_file(p, &file);
+
+    {
+        gb_mutex_lock(&p->mutex);
+        file.id = p->files.count;
+        array_add(&p->files, file);
+        p->total_line_count += file.tokenizer.line_count;
+        gb_mutex_unlock(&p->mutex);
+    }
+}
 */
+
+struct ImportedFile {
+    var fullPath: String
+    var relativePath: String
+    // TODO(vdka): source token (for location)
+
+    init(relativePath: String) {
+        self.fullPath = resolveToFullPath(relativePath: relativePath)
+        self.relativePath = relativePath
+    }
+}
 
 struct Parser {
 
     var basePath: String = ""
     var files: [ASTFile] = []
+    var imports: [ImportedFile] = []
 
-    var lexer: Lexer
+    var lexer: Lexer!
+
+    // TODO(vdka): Remove
     var context = Context()
 
     var errors: UInt = 0
 
-    init(relPath: String) {
-        guard let file = File(relativePath: relPath) else {
-            fatalError()
-        }
-        self.lexer = Lexer(file)
+    init(relativePath: String) {
 
-        let astFile = ASTFile
+        self.files = []
+
+        let importedFile = ImportedFile(relativePath: relativePath)
+
+        self.imports = [importedFile]
     }
 
-    init(_ file: File) {
-        let lexer = Lexer(file)
-        self.lexer = lexer
-        // TODO(vdka): set basePath
-    }
+    mutating func parseFiles() throws -> [ASTFile] {
 
-    init(_ lexer: inout Lexer) {
-        self.lexer = lexer
-    }
+        for importFile in imports {
 
-    mutating func parse() throws -> (AST, errors: UInt) {
+            let fileNode = ASTFile(named: importFile.fullPath)
+            files.append(fileNode)
 
-        let node = AST.Node(.file(name: lexer.scanner.file.name))
-
-        while true {
-            let expr: AST.Node
-            do {
-                expr = try expression()
-            } catch let error as Parser.Error {
-                try error.recover(with: &self)
-                continue
-            } catch { throw error }
-
-            guard expr.kind != .empty else { return (node, errors) }
-
-            node.children.append(expr)
-        }
-    }
-/*
-    void parse_file(Parser *p, AstFile *f) {
-        String filepath = f->tokenizer.fullpath;
-        String base_dir = filepath;
-        for (isize i = filepath.len-1; i >= 0; i--) {
-            if (base_dir.text[i] == '\\' ||
-                base_dir.text[i] == '/') {
-                break;
-            }
-            base_dir.len--;
+            try parse(file: fileNode)
         }
 
-        while (f->curr_token.kind == Token_Comment) {
-            next_token(f);
+        return files
+    }
+
+    mutating func parse(file: ASTFile) throws {
+
+        lexer = file.lexer
+
+        // TODO(vdka): Add imported files into the imports
+        while try file.lexer.peek() != nil {
+
+            let node = try expression()
+
+            // TODO(vdka): Report errors for invalid global scope nodes
+            file.nodes.append(node)
         }
-
-        f->decls = parse_stmt_list(f);
-        parse_setup_file_decls(p, f, base_dir, f->decls);
     }
-     
-     ParseFileError parse_files(Parser *p, char *init_filename) {
-         char *fullpath_str = gb_path_get_full_name(heap_allocator(), init_filename);
-         String init_fullpath = make_string_c(fullpath_str);
-         TokenPos init_pos = {0};
-         ImportedFile init_imported_file = {init_fullpath, init_fullpath, init_pos};
-
-         array_add(&p->imports, init_imported_file);
-         p->init_fullpath = init_fullpath;
-
-         for_array(i, p->imports) {
-             ImportedFile imported_file = p->imports.e[i];
-             String import_path = imported_file.path;
-             String import_rel_path = imported_file.rel_path;
-             TokenPos pos = imported_file.pos;
-             AstFile file = {0};
-
-             ParseFileError err = init_ast_file(&file, import_path);
-
-             if (err != ParseFile_None) {
-                 if (err == ParseFile_EmptyFile) {
-                     return ParseFile_None;
-                 }
-
-                 if (pos.line != 0) {
-                     gb_printf_err("%.*s(%td:%td) ", LIT(pos.file), pos.line, pos.column);
-                 }
-                 gb_printf_err("Failed to parse file: %.*s\n\t", LIT(import_rel_path));
-                 switch (err) {
-                 case ParseFile_WrongExtension:
-                     gb_printf_err("Invalid file extension: File must have the extension `.odin`");
-                     break;
-                 case ParseFile_InvalidFile:
-                     gb_printf_err("Invalid file or cannot be found");
-                     break;
-                 case ParseFile_Permission:
-                     gb_printf_err("File permissions problem");
-                     break;
-                 case ParseFile_NotFound:
-                     gb_printf_err("File cannot be found");
-                     break;
-                 case ParseFile_InvalidToken:
-                     gb_printf_err("Invalid token found in file");
-                     break;
-                 }
-                 gb_printf_err("\n");
-                 return err;
-             }
-             parse_file(p, &file);
-
-             {
-                 gb_mutex_lock(&p->mutex);
-                 file.id = p->files.count;
-                 array_add(&p->files, file);
-                 p->total_line_count += file.tokenizer.line_count;
-                 gb_mutex_unlock(&p->mutex);
-             }
-         }
-         
-         for_array(i, p->files) {
-             p->total_token_count += p->files.e[i].tokens.count;
-         }
-         
-         
-         return ParseFile_None;
-     }
-*/
-
-    static func parse(_ lexer: inout Lexer) throws -> (AST, errors: UInt) {
-
-        var parser = Parser(&lexer)
-
-        return try parser.parse()
-    }
+//
+//    mutating func parse() throws -> (AST, errors: UInt) {
+//
+//        let node = AST.Node(.file(name: lexer.scanner.file.name))
+//
+//        while true {
+//            let expr: AST.Node
+//            do {
+//                expr = try expression()
+//            } catch let error as Parser.Error {
+//                try error.recover(with: &self)
+//                continue
+//            } catch { throw error }
+//
+//            guard expr.kind != .empty else { return (node, errors) }
+//
+//            node.children.append(expr)
+//        }
+//    }
 
     mutating func expression(_ rbp: UInt8 = 0) throws -> AST.Node {
 

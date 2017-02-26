@@ -73,6 +73,7 @@ class Entity {
         }
 
         let e = Entity(kind: .constant(value), scope: scope, location: nil, identifier: nil)
+        e.type = type
 
         scope.insert(e, named: name)
     }

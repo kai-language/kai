@@ -97,7 +97,7 @@ extension IRGenerator {
         let entry = main.appendBasicBlock(named: "entry")
         builder.positionAtEnd(of: entry)
 
-        for child in file.expressions {
+        for child in file.nodes {
             switch child.kind {
             case .procedureCall:
                 _  = try emitProcedureCall(for: child)

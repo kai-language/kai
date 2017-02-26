@@ -33,37 +33,6 @@ class File {
         self.endPointer  = pointer
     }
 
-    init?(relativePath: String) {
-
-        let filePath: String
-
-        let fm = FileManager.default
-        let curDir = FileManager.default.currentDirectoryPath
-
-        // Test to see if fileName is a relative path
-        if fm.fileExists(atPath: curDir + "/" + relativePath) {
-            filePath = curDir + "/" + relativePath
-        } else if fm.fileExists(atPath: relativePath) { // Test to see if `fileName` is an absolute path
-            guard let absolutePath = fm.absolutePath(for: relativePath) else {
-                fatalError("\(relativePath) not found")
-            }
-
-            filePath = absolutePath
-        } else { // `fileName` doesn't exist
-            fatalError("\(relativePath) not found")
-        }
-
-        self.path = filePath
-
-        guard let fp = fopen(path, "r") else { return nil }
-        self.handle = fp
-
-        self.chunkSize = 1024
-        self.basePointer = UnsafeMutablePointer<UTF8.CodeUnit>.allocate(capacity: chunkSize)
-        self.pointer         = basePointer
-        self.endPointer  = pointer
-    }
-
     deinit {
 
         basePointer.deallocate(capacity: chunkSize)

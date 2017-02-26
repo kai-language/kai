@@ -3,8 +3,8 @@ class ASTFile {
 
     var lexer: Lexer
     var name: String
-    var decls: [AST.Node]
-    var expressions: [AST.Node]
+    /// All of the top level declarations, statements and expressions are placed into this array
+    var nodes: [AST.Node]
     var scopeLevel: Int = 0
     var scope: Scope?       // NOTE: Created in checker
 
@@ -17,10 +17,10 @@ class ASTFile {
 
     init(named: String) {
 
-        let file = File(path: named)
+        let file = File(path: named)!
+        self.lexer = Lexer(file)
         self.name = named
-        self.decls = []
-        self.expressions = []
+        self.nodes = []
         self.scopeLevel = 0
         self.scope = nil
         self.declInfo = nil

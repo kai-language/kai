@@ -33,6 +33,19 @@ extension AST: CustomStringConvertible {
     }
 }
 
+extension ASTFile {
+
+    func pretty() -> String {
+        var description = "("
+        for node in nodes {
+            description += node.pretty(depth: 1)
+        }
+        description += ")"
+
+        return description
+    }
+}
+
 extension AST.Node {
     var conditionalBodies: (conditional: Node, trueBody: Node, elseBody: Node?)? {
         guard case .conditional = kind, children.count >= 2 else {
