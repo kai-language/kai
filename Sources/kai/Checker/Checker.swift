@@ -31,10 +31,10 @@ struct Checker {
     */
 
     struct Info {
-        var types:       [AST.Node: Type]    = [:]
-        var definitions: [AST.Node: Entity]  = [:]
-        var uses:        [AST.Node: Type]    = [:]
-        var scopes:      [AST.Node: Scope]   = [:]
+        var types:       [AstNode: Type]    = [:]
+        var definitions: [AstNode: Entity]  = [:]
+        var uses:        [AstNode: Type]    = [:]
+        var scopes:      [AstNode: Scope]   = [:]
     }
 
     struct Context {
@@ -47,17 +47,13 @@ struct Checker {
     }
 }
 
-extension Checker {
-
-}
-
 enum ErrorType {
     case syntax
     case typeMismatch
     case `default`
 }
 
-func reportError(_ message: String, at node: AST.Node, with type: ErrorType = .default) {
+func reportError(_ message: String, at node: AstNode, with type: ErrorType = .default) {
     print("ERROR(\(node.location?.description ?? "unkown")): " + message)
 }
 

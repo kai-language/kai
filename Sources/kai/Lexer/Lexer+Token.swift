@@ -1,16 +1,14 @@
 
+typealias Token = Lexer.Token
 extension Lexer {
 
     // TODO(vdka): Change into `Token.Kind` add to `Token` a location and an optional kind
     enum Token {
         case directive(Directive)
         case keyword(Keyword)
-        case identifier(ByteString)
-        case `operator`(ByteString)
-
-        case string(ByteString)
-        case integer(ByteString)
-        case real(ByteString)
+        case literal(String)
+        case ident(String)
+        case `operator`(String)
 
         case lparen
         case rparen
@@ -25,12 +23,9 @@ extension Lexer {
         case comma
         case dot
 
-        enum Keyword: ByteString {
+        enum Keyword: String {
             case `struct`
             case `enum`
-
-            case `true`
-            case `false`
 
             case `if`
             case `else`
@@ -48,7 +43,7 @@ extension Lexer {
             case returnArrow = "->"
         }
 
-        enum Directive: ByteString {
+        enum Directive: String {
             case file
             case line
             case `import`
@@ -58,31 +53,40 @@ extension Lexer {
     }
 }
 
-extension Lexer.Token {
-
-    var isLiteral: Bool {
-        switch self {
-        case .integer(_), .real(_), .string(_):
-            return true
-
-        default:
-            return false
-        }
-    }
-}
-
 extension Lexer.Token: Equatable {
 
     static func == (lhs: Lexer.Token, rhs: Lexer.Token) -> Bool {
         switch (lhs, rhs) {
-        case (.keyword(let l), .keyword(let r)): return l == r
-        case (.identifier(let l), .identifier(let r)): return l == r
-        case (.operator(let l), .operator(let r)): return l == r
-        case (.string(let l), .string(let r)): return l == r
-        case (.integer(let l), .identifier(let r)): return l == r
-        case (.real(let l), .real(let r)): return l == r
+        case (.directive(let l), .directive(let r)):
+            return l == r
 
-        default: return isMemoryEquivalent(lhs, rhs)
+        case (.keyword(let l), .keyword(let r)):
+            return l == r
+
+        case (.ident(let l), .ident(let r)):
+            return l == r
+
+        case (.operator(let l), .operator(let r)):
+            return l == r
+
+        case (.literal(let l), .literal(let r)):
+            return l == r
+
+        case (.lparen, .lparen),
+             (.rparen, .rparen),
+             (.lbrace, .lbrace),
+             (.rbrace, .rbrace),
+             (.lbrack, .lbrack),
+             (.rbrack, .rbrack),
+             (.underscore, .underscore),
+             (.equals, .equals),
+             (.colon, .colon),
+             (.comma, .comma),
+             (.dot, .dot):
+            return true
+
+        default:
+            return false
         }
     }
 }

@@ -1,10 +1,12 @@
 
+import ByteHashable
+
 class ASTFile {
 
     var lexer: Lexer
     var name: String
     /// All of the top level declarations, statements and expressions are placed into this array
-    var nodes: [AST.Node]
+    var nodes: [AstNode]
     var scopeLevel: Int = 0
     var scope: Scope?       // NOTE: Created in checker
 
@@ -28,186 +30,110 @@ class ASTFile {
     }
 }
 
-class AST {
-    typealias Node = AST
+enum AstNode {
 
-    weak var parent: Node?
-    var children: [Node]
+    case ident(String, SourceLocation)
+    case directive(String, SourceLocation)
 
-    var location: SourceLocation?
-    var sourceRange: Range<SourceLocation>? {
-        didSet {
-            location = sourceRange?.lowerBound
+    indirect case literal(Literal)
+    indirect case expr(Expression)
+    indirect case stmt(Statement)
+    indirect case decl(Declaration)
+    indirect case type(`Type`)
+
+    // TODO(vdka): Odin has another kind of field node.
+    /// - Parameter names: eg. (x, y, z: f32) -> f32
+    indirect case field(names: [AstNode], type: AstNode, SourceLocation)
+
+    indirect case fieldList([AstNode], SourceLocation)
+
+    enum Literal {
+        enum ProcSource {
+            case native(body: AstNode)
+            // TODO(vdka): This potentially needs changing
+            case foreign(lib: AstNode, name: String, linkName: String)
         }
+
+        case basic(String, SourceLocation)
+        case proc(ProcSource, type: AstNode, SourceLocation)
+        case compound(type: AstNode, elements: [AstNode], SourceRange)
     }
 
-    var kind: Kind
-    /// - Note: If you create a node without a filePosition it defaults to that if it's first child, should if have children
-    init(_ kind: Kind, parent: Node? = nil, children: [Node] = [], location: SourceLocation? = nil) {
-        self.kind = kind
-        self.parent = parent
-        self.children = children
-        self.location = location ?? children.first?.location
-
-        for child in children {
-            child.parent = self
-        }
-    }
-}
-
-enum ProcBody {
-    case native(AST.Node)
-    case foreign(library: AST.Node, name: String, linkName: String)
-}
-
-enum Declaration {
-    // TODO(vdka): SourceRange
-    case bad(SourceLocation)
-    case value(Value)
-    case `import`(Import)
-
-    struct Value {
-        var isVar: Bool
-        var type: AST.Node?
-        var values: [AST.Node]
-        // TODO(vdka): Flags
+    /// Expressions resolve to a resulting value
+    enum Expression {
+        case bad(SourceRange)
+        case unary(op: String, expr: AstNode, SourceLocation)
+        case binary(op: String, lhs: AstNode, rhs: AstNode, SourceLocation)
+        case paren(expr: AstNode, SourceRange)
+        case selector(receiver: AstNode, selector: AstNode, SourceLocation)
+        case `subscript`(receiver: AstNode, index: AstNode, SourceRange)
+        case deref(receiver: AstNode, SourceLocation)
+        case call(receiver: AstNode, args: [AstNode], SourceRange)
+        case ternary(cond: AstNode, AstNode, AstNode)
     }
 
-    struct Import {
-        var isImport: Bool
-        var relativePath: String
-        // TODO(vdka): Full path
-        var importName: String
+    /// Statements do not resolve to an value
+    enum Statement {
+        case bad(SourceRange)
+        case empty(SourceLocation)
+        case expr(AstNode)
+        case assign(op: String, lhs: [AstNode], rhs: [AstNode], SourceLocation)
+        case block(statements: [AstNode], SourceRange)
+        case `if`(cond: AstNode, body: AstNode, AstNode?, SourceLocation)
+        case `return`(results: [AstNode], SourceLocation)
+        case `for`(initializer: AstNode, cond: AstNode, post: AstNode, body: AstNode, SourceLocation)
+        case `case`(list: [AstNode], statements: [AstNode], SourceLocation)
+        case `defer`(statement: AstNode, SourceLocation)
     }
 
-    struct ForeignLibrary {
-        var filePath: String
-        var importedName: String
+    /// A declaration declares and binds something new into a scope
+    enum Declaration {
+        case bad(SourceRange)
+        case value(isVar: Bool, names: [AstNode], type: AstNode?, values: [AstNode])
+        case `import`(relativePath: String, fullPath: String, importName: String, SourceLocation)
+        case library(filePath: String, libName: String, SourceLocation)
     }
-}
 
-extension AST {
-
-    enum Kind {
-
-        case empty
-        case unknown
-        case invalid
-
-        case decl(Declaration)
-
-        case emptyFile(name: String)
-        case file(name: String)
-        case identifier(ByteString)
-
-        case `import`(file: String, namespace: String?)
-
-        /// represents the '_' token
-        case dispose
-
-        /// represents a . between this Node's two children
-        case memberAccess
-
-        /// this signifies a comma seperates set of values. `x, y = y, x` would parse into
-        ///         =
-        ///      m    m
-        ///     x y  y x
-        @available(*, deprecated)
-        case multiple
-
-        case procType(ProcInfo)
-
-        // TODO(vdka): Add tags
-        case procLiteral(type: AST.Node, body: ProcBody)
-
-        case scope(Scope)
-
-        case infixOperator(ByteString)
-        case prefixOperator(ByteString)
-        case postfixOperator(ByteString)
-
-        case assignment(ByteString)
-        case `return`
-        case `defer`
-
-        @available(*, deprecated)
-        case multipleDeclaration
-
-        /// A loop must have atleast 1 child.
-        /// The last child is the expr that should be looped.
-        /// Should there be 2 or more child expressions then the second
-        ///   to last child is to be treated as a condition.
-        /// All other child expressions are to be executed prior to looping.
-        case loop
-        case `break`
-        case `continue`
-        case conditional
-        case `subscript`
-
-        /// The first child is that which is being called
-        case procedureCall
-        case argument
-        case argumentList
-        case argumentLabel(ByteString)
-
-        /// number of child nodes determine the 'arity' of the operator
-        case `operator`(ByteString)
-
-        /// This is the symbol of a operatorDeclaration that provides no information
-        case operatorDeclaration
-
-        case boolean(Bool)
-        case real(ByteString)
-        case string(ByteString)
-        case integer(ByteString)
-        case void
+    enum `Type` {
+        case helper(type: AstNode, SourceLocation)
+        case proc(params: AstNode, results: AstNode, SourceLocation)
+        case pointer(type: AstNode, SourceLocation)
+        case array(count: AstNode, elements: [AstNode], SourceLocation)
+        case dynArray(elements: [AstNode], SourceLocation)
+        case `struct`(fields: [AstNode], SourceLocation)
+        case `enum`(baseType: AstNode, fields: [AstNode], SourceLocation) // fields are `.field`
     }
 }
 
-extension AST {
-
-    /// Should the AST.Node have a name (is an identifier kind) this is that name.
-    var entityName: String? {
-        switch self.kind {
-        case .identifier(let str):
-            return str.string
-
-        default:
-            return nil
-        }
-    }
-}
-
-extension AST.Node.Kind: Equatable {
-    static func == (lhs: AST.Node.Kind, rhs: AST.Node.Kind) -> Bool {
+extension AstNode: Equatable {
+    static func == (lhs: AstNode, rhs: AstNode) -> Bool {
         switch (lhs, rhs) {
-            case
-                (.operator(let l), .operator(let r)),
-                (.identifier(let l), .identifier(let r)),
-                (.infixOperator(let l), .infixOperator(let r)),
-                (.prefixOperator(let l), .prefixOperator(let r)),
-                (.postfixOperator(let l), .postfixOperator(let r)):
-
-                return l == r
-
             default:
                 return isMemoryEquivalent(lhs, rhs)
         }
     }
 }
 
-extension AST.Node: Hashable {
+extension AstNode: ByteHashable {}
 
-    static func ==(lhs: AST.Node, rhs: AST.Node) -> Bool {
-        return lhs === rhs
+/*
+extension AstNode: CustomStringConvertible {
+
+    var description: String {
+        // TODO(Brett): make system more robust
+        var name: String
+        var unlabeled: [String] = []
+        var labeled: [String: String] = [:]
+
+        switch self {
+        case .ident(let tok):
+            name = "ident"
+            un
+        }
+
+//        return "\(blue)\(name)\(substring ?? "")\(reset)"
     }
 
-    var hashValue: Int {
-        return ObjectIdentifier(self).hashValue
-    }
-}
-
-extension AST.Node.Kind: CustomStringConvertible {
     var description: String {
         // TODO(Brett): make system more robust
         let blue = "\u{001B}[34m"
@@ -387,3 +313,4 @@ private func buildSubstring(_ value: String, includeQuotes: Bool = true) -> Stri
     }
     return "\(reset)(\(red)\(value)\(reset))"
 }
+*/

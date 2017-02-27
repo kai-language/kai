@@ -21,7 +21,9 @@ extension Parser {
 
                 let procBody = ProcBody.native(bodyExpr)
 
-                return AST.Node(.procLiteral(type: type, body: procBody))
+                let proc = AST.Node(.procLiteral(type: type, body: procBody))
+                lvalue.add(proc)
+                return lvalue
 
             case .directive(.foreign):
                 try parser.consume()

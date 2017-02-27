@@ -92,7 +92,7 @@ struct Parser {
         lexer = file.lexer
 
         // TODO(vdka): Add imported files into the imports
-        while try file.lexer.peek() != nil {
+        while try lexer.peek() != nil {
 
             let node = try expression()
 
@@ -120,7 +120,7 @@ struct Parser {
 //        }
 //    }
 
-    mutating func expression(_ rbp: UInt8 = 0) throws -> AST.Node {
+    mutating func expression(_ rbp: UInt8 = 0) throws -> AstNode {
 
         // TODO(vdka): This should probably throw instead of returning an empty node. What does an empty AST.Node even mean.
         guard let (token, location) = try lexer.peek() else { return AST.Node(.empty) }

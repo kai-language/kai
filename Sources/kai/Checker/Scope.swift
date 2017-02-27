@@ -74,9 +74,9 @@ struct DeclInfo {
 
     var entities: [Entity]
 
-    var typeExpr: AST.Node
-    var initExpr: AST.Node
-    var procLit:  AST.Node // AstNode_ProcLit
+    var typeExpr: AstNode
+    var initExpr: AstNode
+    var procLit:  AstNode // AstNode_ProcLit
 
     /// The entities this entity requires to exist
     var deps: Set<Entity>

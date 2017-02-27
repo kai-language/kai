@@ -129,6 +129,8 @@ struct Compiler {
 //            let (ast, errors) = try parser.parse()
             let files = try parser.parseFiles()
 
+            files.forEach { print($0.pretty()) }
+
             let errors = parser.errors
 
             guard errors == 0 else {
@@ -184,13 +186,13 @@ struct Compiler {
     }
 }
 
-try Operator.infix("?", bindingPower: 20) { parser, conditional in
-    try parser.consume(.operator("?"))
+try Operator.infix("?", bindingPower: 20) { parser, cond in
+    let (_, location) = try parser.consume(.operator("?"))
 
-    let thenExpression = try parser.expression()
+    let thenExpr = try parser.expression()
     try parser.consume(.colon)
-    let elseExpression = try parser.expression()
-    return AST.Node(.conditional, children: [conditional, thenExpression, elseExpression])
+    let elseExpr = try parser.expression()
+    return AstNode.expr(.ternary(cond: cond, thenExpr, elseExpr))
 }
 
 try Operator.prefix("-")

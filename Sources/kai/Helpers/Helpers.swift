@@ -24,6 +24,23 @@ func resolveToFullPath(relativePath: String) -> String {
     return filePath
 }
 
+extension String {
+
+    enum Escape {
+        static let red = "\u{001B}[34m"
+        static let blue = "\u{001B}[31m"
+        static let reset: String = "\u{001B}[0m"
+    }
+
+    var red: String {
+        return Escape.reset + Escape.red + self + Escape.reset
+    }
+
+    var blue: String {
+        return Escape.reset + Escape.blue + self + Escape.reset
+    }
+}
+
 typealias Byte = UInt8
 
 /*

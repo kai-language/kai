@@ -7,13 +7,13 @@ struct Operator {
     let lbp: UInt8
     let associativity: Associativity
 
-    var nud: ((inout Parser) throws -> AST.Node)?
-    var led: ((inout Parser, _ lvalue: AST.Node) throws -> AST.Node)?
+    var nud: ((inout Parser) throws -> AstNode)?
+    var led: ((inout Parser, _ lvalue: AstNode) throws -> AstNode)?
 
 
     init(_ symbol: ByteString, lbp: UInt8, associativity: Associativity = .left,
-             nud: ((inout Parser) throws -> AST.Node)?,
-             led: ((inout Parser, _ lvalue: AST.Node) throws -> AST.Node)?) {
+             nud: ((inout Parser) throws -> AstNode)?,
+             led: ((inout Parser, _ lvalue: AstNode) throws -> AstNode)?) {
 
         self.symbol = symbol
         self.lbp = lbp
@@ -33,7 +33,7 @@ extension Operator {
     }
 
     static func infix(_ symbol: ByteString, bindingPower lbp: UInt8, associativity: Associativity = .left,
-                                        led: ((inout Parser, _ lvalue: AST.Node) throws -> AST.Node)? = nil) throws
+                                        led: ((inout Parser, _ lvalue: AstNode) throws -> AstNode)? = nil) throws
     {
 
         guard symbol != "=" else { throw Error.invalidSymbol }
@@ -66,7 +66,7 @@ extension Operator {
         }
     }
 
-    static func prefix(_ symbol: ByteString, nud: ((inout Parser) throws -> AST.Node)? = nil) throws {
+    static func prefix(_ symbol: ByteString, nud: ((inout Parser) throws -> AstNode)? = nil) throws {
 
         guard symbol != "=" else { throw Error.invalidSymbol }
 

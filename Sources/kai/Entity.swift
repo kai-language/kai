@@ -6,7 +6,7 @@ enum ExactValue: Equatable {
     case string(String)
     case integer(Int64)
     case float(Double)
-    case compound(AST.Node)
+    case compound(AstNode)
 
     // NOTE(vdka): Odin has an value_pointer here also. Not sure how to do so I omitted it.
 
@@ -41,10 +41,10 @@ class Entity {
 
     /// Set in the checker
     var type: Type? = nil
-    var identifier: AST.Node?
+    var identifier: AstNode?
     var llvm: IRValue?
 
-    init(kind: Kind, flags: Flag = [], scope: Scope, location: SourceLocation?, identifier: AST.Node?) {
+    init(kind: Kind, flags: Flag = [], scope: Scope, location: SourceLocation?, identifier: AstNode?) {
         self.kind = kind
         self.flags = flags
         self.scope = scope
@@ -86,8 +86,7 @@ extension Entity: Hashable {
             lhs.flags == rhs.flags &&
             lhs.location == rhs.location &&
             lhs.scope === rhs.scope &&
-            lhs.type === rhs.type &&
-            lhs.identifier?.entityName == rhs.identifier?.entityName
+            lhs.type === rhs.type
     }
 
     var hashValue: Int {

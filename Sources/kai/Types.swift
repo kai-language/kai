@@ -64,9 +64,9 @@ struct BasicType {
 class TypeRecord {
 
     var kind: Kind
-    var node: AST.Node
+    var node: AstNode
 
-    init(kind: Kind, node: AST.Node) {
+    init(kind: Kind, node: AstNode) {
         self.kind = kind
         self.node = node
     }
@@ -78,18 +78,18 @@ class TypeRecord {
 }
 
 struct ProcInfo {
-    var scope: AST.Node?
+    var scope: AstNode?
     var labels: [(callsite: ByteString?, binding: ByteString)]?
-    var params: [AST.Node]
-    var returns: [AST.Node]
+    var params: [AstNode]
+    var returns: [AstNode]
     var isVariadic: Bool
     var callingConvention: CallingConvention
 
     init(
-        scope: AST.Node? = nil,
+        scope: AstNode? = nil,
         labels: [(callsite: ByteString?, binding: ByteString)]?,
-        params: [AST.Node],
-        returns: [AST.Node],
+        params: [AstNode],
+        returns: [AstNode],
         isVariadic: Bool = false,
         callingConvention: CallingConvention = .kai) {
 
@@ -270,8 +270,8 @@ extension Type {
 extension ProcInfo: Equatable {
 
     static func == (lhs: ProcInfo, rhs: ProcInfo) -> Bool {
-        return lhs.scope === rhs.scope &&
-            lhs.params == rhs.params &&
+        //lhs.scope === rhs.scope &&
+        return lhs.params == rhs.params &&
             lhs.returns == rhs.returns &&
             lhs.isVariadic == rhs.isVariadic &&
             isMemoryEquivalent(lhs.callingConvention, rhs.callingConvention)
