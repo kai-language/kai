@@ -34,7 +34,7 @@ extension AstNode {
 
         var children: [AstNode] = []
 
-        let indent = (0...depth).reduce("\n", { $0.0 + "  " })
+//        let indent = (0...depth).reduce("\n", { $0.0 + "  " })
 
         switch self {
         case .ident(let ident, _):
@@ -51,7 +51,7 @@ extension AstNode {
                 name = "basicLit"
                 unlabeled.append(val)
 
-            case .proc(let procSource, type: let type, _):
+            case .proc(let procSource, type: _, _):
                 name = "procLit"
 //                labeled["type"] = type.
 
@@ -63,7 +63,7 @@ extension AstNode {
                     labeled["foreign"] = name
                 }
 
-            case .compound(type: let type, elements: let elements, _):
+            case .compound(type: _, elements: _, _):
                 name = "compoundLit"
 //                labeled["type"] = type.desc
             }
@@ -108,7 +108,7 @@ extension AstNode {
                 children.append(receiver)
                 children.append(contentsOf: args)
 
-            case .ternary(cond: let cond, let trueBranch, let falseBranch):
+            case .ternary(cond: let cond, let trueBranch, let falseBranch, _):
                 name = "ternaryExpr"
                 children.append(cond)
                 children.append(trueBranch)
@@ -129,6 +129,7 @@ extension AstNode {
 
             case .assign(op: let op, lhs: let lhs, rhs: let rhs, _):
                 name = "assignmentStmt"
+                unlabeled.append(op)
                 children.append(contentsOf: lhs)
                 children.append(contentsOf: rhs)
 
@@ -171,7 +172,7 @@ extension AstNode {
                 name = "badDecl"
                 unlabeled.append(range.description)
 
-            case .value(isVar: _, names: let names, type: let type, values: let values):
+            case .value(isVar: _, names: let names, type: _, values: let values, _):
                 name = "valueDecl"
 //                labeled["type"] = type?.pretty(depth: depth + 1) ?? "<infered>"
                 children.append(contentsOf: names)
@@ -191,7 +192,7 @@ extension AstNode {
 
         case .type(let type):
             switch type {
-            case .helper(type: let type, _):
+            case .helper(type: _, _):
                 name = "helperType"
 //                labeled["type"] = type.pretty(depth: depth + 1)
 
@@ -200,19 +201,21 @@ extension AstNode {
                 labeled["params"] = params.pretty(depth: depth + 1)
                 labeled["results"] = results.pretty(depth: depth + 1)
 
-            case .pointer(type: let type, _):
+            case .pointer(baseType: let type, _):
                 name = "pointerType"
                 labeled["baseType"] = type.pretty(depth: depth + 1)
 
-            case .array(count: let count, elements: let elements, _):
+            case .array(count: let count, baseType: let baseType, _):
                 name = "arrayType"
-                labeled["count"] = count.pretty(depth: depth + 1)
-                let j = elements.reduce("", { $0.0 + "\n" })
-                labeled["elements"] = elements.reduce("", { $0.0  })
+                labeled["size"] = count.pretty()
+                labeled["baseType"] = baseType.pretty()
+                // FIXME: These should be inline serialized (return directly?)
 
-            case .dynArray(elements: let elements, _):
-                name = "dynArrayType"
-                children.append(contentsOf: elements)
+            case .dynArray(baseType: let baseType, _):
+                name = "arrayType"
+                labeled["size"] = "dynamic"
+                labeled["baseType"] = baseType.pretty()
+                // FIXME: These should be inline serialized
 
             case .struct(fields: let fields, _):
                 name = "structType"
@@ -224,20 +227,16 @@ extension AstNode {
                 children.append(contentsOf: fields)
             }
 
-        case .field(names: let names, type: let type, _):
+        case .field(names: let names, type: _, _):
             name = "field"
 //            labeled["type"] = type.pretty(depth: depth + 1)
             children.append(contentsOf: names)
 
-        case .fieldList(let fields, _):
+        case .fieldList(_, _):
             name = "fields"
-
-
-//        default:
-//            name = "unknown"
         }
 
-        return "(" + name + " " + unlabeled.joined(separator: " ") + labeled.reduce(" ", { $0.0 + " " + $0.1.key + ":'" + $0.1.value }) + ")"
+        return ["(", name, " ", unlabeled.joined(separator: " "), labeled.reduce(" ", { [$0.0, " ", $0.1.key, ":'", $0.1.value].joined() }), ")"].joined()
     }
 }
 

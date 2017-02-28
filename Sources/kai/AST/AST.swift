@@ -69,7 +69,7 @@ enum AstNode {
         case `subscript`(receiver: AstNode, index: AstNode, SourceRange)
         case deref(receiver: AstNode, SourceLocation)
         case call(receiver: AstNode, args: [AstNode], SourceRange)
-        case ternary(cond: AstNode, AstNode, AstNode)
+        case ternary(cond: AstNode, AstNode, AstNode, SourceLocation)
     }
 
     /// Statements do not resolve to an value
@@ -89,7 +89,7 @@ enum AstNode {
     /// A declaration declares and binds something new into a scope
     enum Declaration {
         case bad(SourceRange)
-        case value(isVar: Bool, names: [AstNode], type: AstNode?, values: [AstNode])
+        case value(isVar: Bool, names: [AstNode], type: AstNode?, values: [AstNode], SourceLocation)
         case `import`(relativePath: String, fullPath: String, importName: String, SourceLocation)
         case library(filePath: String, libName: String, SourceLocation)
     }
@@ -97,9 +97,9 @@ enum AstNode {
     enum `Type` {
         case helper(type: AstNode, SourceLocation)
         case proc(params: AstNode, results: AstNode, SourceLocation)
-        case pointer(type: AstNode, SourceLocation)
-        case array(count: AstNode, elements: [AstNode], SourceLocation)
-        case dynArray(elements: [AstNode], SourceLocation)
+        case pointer(baseType: AstNode, SourceLocation)
+        case array(count: AstNode, baseType: AstNode, SourceLocation)
+        case dynArray(baseType: AstNode, SourceLocation)
         case `struct`(fields: [AstNode], SourceLocation)
         case `enum`(baseType: AstNode, fields: [AstNode], SourceLocation) // fields are `.field`
     }
@@ -116,201 +116,137 @@ extension AstNode: Equatable {
 
 extension AstNode: ByteHashable {}
 
-/*
-extension AstNode: CustomStringConvertible {
+extension AstNode {
 
-    var description: String {
-        // TODO(Brett): make system more robust
-        var name: String
-        var unlabeled: [String] = []
-        var labeled: [String: String] = [:]
+    var location: SourceRange {
 
         switch self {
-        case .ident(let tok):
-            name = "ident"
-            un
-        }
+        case .ident(_, let location):
+            return location ..< location
 
-//        return "\(blue)\(name)\(substring ?? "")\(reset)"
-    }
+        case .directive(_, let location):
+            return location ..< location
 
-    var description: String {
-        // TODO(Brett): make system more robust
-        let blue = "\u{001B}[34m"
-        let reset = "\u{001B}[0m"
+        case .literal(let literal):
+            switch literal {
+            case .basic(_, let location):
+                return location ..< location
 
-        let name: String
-        var substring: String? = nil
+            case .proc(_, type: _, let location):
+                return location ..< location
 
-        switch self {
-        case .empty:
-            name = "empty"
-
-        case .unknown:
-            name = "unknown"
-
-        case .emptyFile(let fileName):
-            name = "emptyFile"
-            substring = buildSubstring(fileName)
-
-        case .file(let fileName):
-            name = "file"
-            substring = buildSubstring(fileName)
-
-        case .identifier(let bytes):
-            name = "identifier"
-            substring = buildSubstring(bytes.string)
-
-        case .import(let file, _):
-            name = "import"
-            //TODO(Brett): full implementation
-            substring = buildSubstring(file)
-
-        case .dispose:
-            name = "dispose"
-
-        case .memberAccess:
-            name = "memberAccess"
-
-        case .multiple:
-            name = "multiple"
-
-        case .scope(_):
-            name = "scope"
-
-        case .infixOperator(let op):
-            name = "infixOperator"
-            substring = buildSubstring(op.string)
-
-        case .prefixOperator(let op):
-            name = "prefixOperator"
-            substring = buildSubstring(op.string)
-
-        case .postfixOperator(let op):
-            name = "postfixOperator"
-            substring = buildSubstring(op.string)
-
-        // FIXME(vdka): implement
-        case .decl(let declaration):
-            switch declaration {
-            case .bad(_):
-                name = "badDecl"
-
-            case .value(let value):
-                name = "decl"
-
-                let typeName = value.type?.description ?? "unkown"
-                let values = value.values.reduce("") { str, node in
-                    return str + "\(node.description)"
-                }
-                substring = buildSubstring("type=\"\(typeName)\" values=\"\(values)\"")
-
-            case .import(let imp):
-                name = "import"
-                substring = buildSubstring("source=\(imp.relativePath) alias=\(imp.importName)")
+            case .compound(type: _, elements: _, let range):
+                return range
             }
 
-        case .assignment(let byteString):
-            name = "assignment"
-            substring = buildSubstring(byteString.string)
+        case let .expr(expr):
+            switch expr {
+            case .bad(let range):
+                return range
 
-        case .return:
-            name = "return"
+            case .unary(op: _, expr: _, let location):
+                return location ..< location
 
-        case .defer:
-            name = "defer"
+            case .binary(op: _, lhs: _, rhs: _, let location):
+                return location ..< location
 
-        case .multipleDeclaration:
-            name = "multipleDeclaration"
+            case .paren(expr: _, let range):
+                return range
 
-        case .loop:
-            name = "loop"
+            case .selector(receiver: _, selector: _, let location):
+                return location ..< location
 
-        case .break:
-            name = "break"
+            case .subscript(receiver: _, index: _, let range):
+                return range
 
-        case .continue:
-            name = "continue"
+            case .deref(receiver: _, let location):
+                return location ..< location
 
-        case .conditional:
-            name = "conditional"
+            case .call(receiver: _, args: _, let range):
+                return range
 
-        case .subscript:
-            name = "subscript"
+            case .ternary(cond: _, _, _, let location):
+                return location ..< location
 
-        case .procedureCall:
-            name = "procedureCall"
-
-        case .argument:
-            name = "argument"
-
-        case .argumentList:
-            name = "argumentList"
-
-        case .argumentLabel(let label):
-            name = "argumentLabel"
-            substring = buildSubstring(label.string)
-
-        case .operator(let op):
-            name = "operator"
-            substring = buildSubstring(op.string)
-
-        case .operatorDeclaration:
-            name = "operatorDeclaration"
-
-        case .boolean(let bool):
-            name = "boolean"
-            substring = buildSubstring(bool ? "true" : "false", includeQuotes: false)
-
-        case .real(let real):
-            name = "real"
-            substring = buildSubstring(real.string, includeQuotes: false)
-
-        case .string(let string):
-            name = "string"
-            substring = buildSubstring(string.string)
-
-        case .integer(let integer):
-            name = "integer"
-            substring = buildSubstring(integer.string, includeQuotes: false)
-
-        case .procType(let procInfo):
-
-            var desc = "("
-
-            // TODO(vdka): Should remove labels?
-            desc += procInfo.params.map({ $0.description }).joined(separator: ",")
-            desc += ")"
-
-            desc += " -> "
-            desc += procInfo.returns.map({ $0.description }).joined(separator: ",")
-
-            if procInfo.isVariadic {
-                desc += "..."
             }
 
-            return desc
+        case .stmt(let stmt):
+            switch stmt {
+            case .bad(let range):
+                return range
 
-        case .procLiteral(type: let type, body: _):
-            return type.description
+            case .empty(let location):
+                return location ..< location
 
-        default:
-            name = "Unknown symbol"
+            case .expr(let ast):
+                return ast.location
+
+            case .assign(op: _, lhs: _, rhs: _, let location):
+                return location ..< location
+
+            case .block(statements: _, let range):
+                return range
+
+            case .if(cond: _, body: _, _, let location):
+                return location ..< location
+
+            case .return(results: _, let location):
+                return location ..< location
+
+            case .for(initializer: _, cond: _, post: _, body: _, let location):
+                return location ..< location
+
+            case .case(list: _, statements: _, let location):
+                return location ..< location
+
+            case .defer(statement: _, let location):
+                return location ..< location
+            }
+
+        case .decl(let decl):
+            switch decl {
+            case .bad(let range):
+                return range
+
+            case .value(isVar: _, names: _, type: _, values: _, let location):
+                return location ..< location
+
+            case .import(relativePath: _, fullPath: _, importName: _, let location):
+                return location ..< location
+
+            case .library(filePath: _, libName: _, let location):
+                return location ..< location
+            }
+
+        case .type(let type):
+            switch type {
+            case .helper(type: _, let location):
+                return location ..< location
+
+            case .proc(params: _, results: _, let location):
+                return location ..< location
+
+            case .pointer(baseType: _, let location):
+                return location ..< location
+
+            case .array(count: _, baseType: _, let location):
+                return location ..< location
+
+            case .dynArray(baseType: _, let location):
+                return location ..< location
+
+            case .struct(fields: _, let location):
+                return location ..< location
+
+            case .enum(baseType: _, fields: _, let location):
+                return location ..< location
+            }
+
+        case .field(names: _, type: _, let location):
+            return location ..< location
+
+        case .fieldList(_, let location):
+            return location ..< location
         }
-
-        return "\(blue)\(name)\(substring ?? "")\(reset)"
     }
 }
-
-private func buildSubstring(_ value: String, includeQuotes: Bool = true) -> String {
-    let red = "\u{001B}[31m"
-    let reset = "\u{001B}[0m"
-
-    var value = value
-    if includeQuotes {
-        value.insert("\"", at: value.startIndex)
-        value.append("\"")
-    }
-    return "\(reset)(\(red)\(value)\(reset))"
-}
-*/

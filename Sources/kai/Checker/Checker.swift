@@ -54,7 +54,7 @@ enum ErrorType {
 }
 
 func reportError(_ message: String, at node: AstNode, with type: ErrorType = .default) {
-    print("ERROR(\(node.location?.description ?? "unkown")): " + message)
+    print("ERROR(\(node.location.description)): " + message)
 }
 
 func reportError(_ message: String, at location: SourceLocation) {
