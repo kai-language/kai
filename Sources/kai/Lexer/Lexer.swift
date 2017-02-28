@@ -52,9 +52,12 @@ struct Lexer {
 		switch char {
 		case _ where identChars.contains(char):
 			let symbol = consume(with: identChars + digits).string
-			if let keyword = Token.Keyword(rawValue: symbol) { return (.keyword(keyword), location) }
-			else if symbol == "_" { return (.underscore, location) }
-			else { return (.ident(symbol), location) }
+
+            if let keyword = Token.Keyword(rawValue: symbol) {
+                return (.keyword(keyword), location)
+            } else {
+                return (.ident(symbol), location)
+            }
 
 		case _ where opChars.contains(char):
 			let symbol = consume(with: opChars).string
@@ -69,6 +72,7 @@ struct Lexer {
 
 		case "\"":
 			scanner.pop()
+            // FIXME(vdka): Currently doesn't handle escapes. 
 			let string = consume(upTo: "\"").string
 			guard case "\""? = scanner.peek() else { throw error(.unterminatedString) }
 			scanner.pop()
@@ -101,6 +105,10 @@ struct Lexer {
 		case ":":
 			scanner.pop()
 			return (.colon, location)
+
+        case ";":
+            scanner.pop()
+            return (.scolon, location)
 
 		case ",":
 			scanner.pop()

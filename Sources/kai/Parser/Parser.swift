@@ -122,16 +122,15 @@ struct Parser {
 
     mutating func expression(_ rbp: UInt8 = 0) throws -> AstNode {
 
-        // TODO(vdka): This should probably throw instead of returning an empty node. What does an empty AST.Node even mean.
-        guard let (token, location) = try lexer.peek() else { return AST.Node(.empty) }
+        // TODO(vdka): Still unclear what to do with empty files
+        guard let (token, location) = try lexer.peek() else { return AstNode.invalid(.zero) }
 
         var left = try nud(for: token)
-        left.location = location // NOTE(vdka): Is this generating incorrect locations?
 
-        // operatorImplementation's need to be skipped too.
-        if case .operatorDeclaration = left.kind { return left }
-//        else if case .declaration(_) = left.kind { return left }
-        else if case .comma? = try lexer.peek()?.kind, case .procedureCall = context.state { return left }
+        // TODO(vdka): Allow comma's based of parser state
+//        if case .comma? = try lexer.peek()?.kind, context.allowCommas {
+//            return left
+//        }
 
         while let (nextToken, _) = try lexer.peek(), let lbp = lbp(for: nextToken),
             rbp < lbp
@@ -175,7 +174,7 @@ extension Parser {
         }
     }
 
-    mutating func nud(for token: Lexer.Token) throws -> AST.Node {
+    mutating func nud(for token: Lexer.Token) throws -> AstNode {
 
         switch token {
         case .operator(let symbol):
@@ -184,58 +183,39 @@ extension Parser {
             }
             return try nud(&self)
 
-        case .identifier(let symbol):
-            try consume()
-            return AST.Node(.identifier(symbol))
+        case .ident(let symbol):
+            let (_, location) = try consume()
+            return AstNode.ident(symbol, location)
 
-        case .underscore:
-            try consume()
-            return AST.Node(.dispose)
-
-        case .integer(let literal):
-            try consume()
-            return AST.Node(.integer(literal))
-
-        case .real(let literal):
-            try consume()
-            return AST.Node(.real(literal))
-
-        case .string(let literal):
-            try consume()
-            return AST.Node(.string(literal))
-
-        case .keyword(.true):
-            try consume()
-            return AST.Node(.boolean(true))
-
-        case .keyword(.false):
-            try consume()
-            return AST.Node(.boolean(false))
+        case .literal(let literal):
+            let (_, location) = try consume()
+            return AstNode.literal(.basic(literal, location))
 
         case .lparen:
-            try consume(.lparen)
+            let (_, lLocation) = try consume(.lparen)
             let expr = try expression()
-            try consume(.rparen)
-            return expr
+            let (_, rLocation) = try consume(.rparen)
+            return AstNode.expr(.paren(expr: expr, lLocation ..< rLocation))
 
         case .keyword(.if):
             let (_, startLocation) = try consume(.keyword(.if))
 
-            let conditionExpression = try expression()
-            let thenExpression = try expression()
+            let condExpr = try expression()
+            let bodyExpr = try expression()
 
             guard case .keyword(.else)? = try lexer.peek()?.kind else {
-                return AST.Node(.conditional, children: [conditionExpression, thenExpression], location: startLocation)
+                return AstNode.stmt(.if(cond: condExpr, body: bodyExpr, nil, startLocation))
             }
 
             try consume(.keyword(.else))
-            let elseExpression = try expression()
-            return AST.Node(.conditional, children: [conditionExpression, thenExpression, elseExpression], location: startLocation)
+            let elseExpr = try expression()
+            return AstNode.stmt(.if(cond: condExpr, body: bodyExpr, elseExpr, startLocation))
 
         case .keyword(.for):
             let (_, startLocation) = try consume(.keyword(.for))
 
-            var expressions: [AST.Node] = []
+            // NOTE(vdka): for stmt bodies *must* be braced
+            var expressions: [AstNode] = []
             while try lexer.peek()?.kind != .lparen {
                 let expr = try expression()
                 expressions.append(expr)
@@ -248,41 +228,40 @@ extension Parser {
 
             expressions.append(body)
 
-            return AST.Node(.loop, children: expressions, location: startLocation)
+            unimplemented("for loops")
 
         case .keyword(.break):
             let (_, startLocation) = try consume(.keyword(.break))
 
-            guard case .loopBody = context.state else {
-                throw error(.nonInfixOperator(token), location: startLocation)
-            }
-
-            return AST.Node(.break, location: startLocation)
+            return AstNode.stmt(.control(.break, startLocation))
 
         case .keyword(.continue):
             let (_, startLocation) = try consume(.keyword(.continue))
 
-            guard case .loopBody = context.state else {
-                throw error(.keywordNotValid, location: startLocation)
-            }
-
-            return AST.Node(.continue, location: startLocation)
+            return AstNode.stmt(.control(.break, startLocation))
 
         case .keyword(.return):
             let (_, startLocation) = try consume(.keyword(.return))
 
             // NOTE(vdka): Is it fine if this fails, will it change the parser state?
-            if let expr = try? expression() {
-                return AST.Node(.return, children: [expr], location: startLocation)
-            } else {
-                return AST.Node(.return, location: startLocation)
+
+            // TODO(vdka): 
+
+            var exprs: [AstNode] = []
+            while try lexer.peek()?.kind != .rparen {
+                let expr = try expression()
+                exprs.append(expr)
+                if case .comma? = try lexer.peek()?.kind {
+                    try consume(.comma)
+                }
             }
+            return AstNode.stmt(.return(results: exprs, startLocation))
 
         case .keyword(.defer):
             let (_, startLocation) = try consume(.keyword(.defer))
 
             let expr = try expression()
-            return AST.Node(.defer, children: [expr], location: startLocation)
+            return AstNode.stmt(.defer(statement: expr, startLocation))
 
         case .lbrace:
             let (_, startLocation) = try consume(.lbrace)
@@ -292,30 +271,26 @@ extension Parser {
                 context.popCurrentScope()
             }
 
-            let node = AST.Node(.scope(scope))
+            var stmts: [AstNode] = []
             while let next = try lexer.peek()?.kind, next != .rbrace {
-                let expr = try expression()
-                node.add(expr)
+                let stmt = try expression()
+                stmts.append(stmt)
             }
 
             let (_, endLocation) = try consume(.rbrace)
 
-            node.sourceRange = startLocation..<endLocation
-
-            return node
+            return AstNode.stmt(.block(statements: stmts, startLocation ..< endLocation))
 
         case .directive(.file):
             let (_, location) = try consume()
-            let wrapped = ByteString(location.file)
-            return AST.Node(.string(wrapped))
+            return AstNode.basicDirective("file", location)
 
         case .directive(.line):
             let (_, location) = try consume()
-            let wrapped = ByteString(location.line.description)
-            return AST.Node(.integer(wrapped))
+            return AstNode.basicDirective("line", location)
 
         case .directive(.import):
-            return try Parser.parseImportDirective(&self)
+            return try parseImportDirective()
 
         default:
             fatalError()
@@ -419,21 +394,6 @@ extension Parser {
         }
 
         return expressions
-    }
-
-    mutating func parseMultipleTypes() throws -> [AST.Node] {
-
-        let type = try parseType()
-        var types: [AST.Node] = [type]
-
-        while case .comma? = try lexer.peek()?.kind {
-            try consume(.comma)
-
-            let type = try parseType()
-            types.append(type)
-        }
-
-        return types
     }
 }
 

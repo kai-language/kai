@@ -101,7 +101,7 @@ extension IRGenerator {
 
             switch child {
             case .expr(.call(_)):
-                try emitProcedureCall(for: child)
+                emitProcedureCall(for: child)
 
             default:
                 break
@@ -123,9 +123,9 @@ extension IRGenerator {
 extension IRGenerator {
 
     func emitLiteral(for node: AstNode) -> IRValue {
-        guard case .literal(.basic(let val, _)) = node else {
-            preconditionFailure()
-        }
+//        guard case .literal(.basic(let val, _)) = node else {
+//            preconditionFailure()
+//        }
 
         unimplemented("Basic literals")
     }
@@ -258,7 +258,8 @@ extension IRGenerator {
         case .fieldList(_, _):
             break
         }
-        return nil
+
+        return VoidType().null()
     }
 
     #if false

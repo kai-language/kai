@@ -37,13 +37,25 @@ extension AstNode {
 //        let indent = (0...depth).reduce("\n", { $0.0 + "  " })
 
         switch self {
+        case .invalid(let location):
+            name = "invalid"
+            labeled["location"] = location.description
+            
         case .ident(let ident, _):
             name = "ident"
             unlabeled.append(ident)
 
-        case .directive(let directive, _):
+        case .basicDirective(let directive, _):
             name = "directive"
             unlabeled.append(directive)
+
+        case .field(names: let names, type: _, _):
+            name = "field"
+            //            labeled["type"] = type.pretty(depth: depth + 1)
+            children.append(contentsOf: names)
+
+        case .fieldList(_, _):
+            name = "fields"
 
         case .literal(let literal):
             switch literal {
@@ -164,6 +176,9 @@ extension AstNode {
             case .defer(statement: let stmt, _):
                 name = "deferStmt"
                 children.append(stmt)
+
+            case .control(let controlStatement, ):
+                name = String(describing: controlStatement)
             }
 
         case .decl(let decl):
@@ -180,9 +195,9 @@ extension AstNode {
 
             case .import(relativePath: let relPath, fullPath: let fullPath, importName: let importName, _):
                 name = "importDecl"
-                labeled["relPath"] = relPath
+//                labeled["relPath"] = relPath
                 labeled["fullPath"] = fullPath
-                labeled["name"] = importName
+//                labeled["name"] = importName
 
             case .library(filePath: let filePath, libName: let libName, _):
                 name = "libraryDecl"
@@ -226,14 +241,6 @@ extension AstNode {
                 labeled["baseType"] = baseType.pretty(depth: depth + 1)
                 children.append(contentsOf: fields)
             }
-
-        case .field(names: let names, type: _, _):
-            name = "field"
-//            labeled["type"] = type.pretty(depth: depth + 1)
-            children.append(contentsOf: names)
-
-        case .fieldList(_, _):
-            name = "fields"
         }
 
         return ["(", name, " ", unlabeled.joined(separator: " "), labeled.reduce(" ", { [$0.0, " ", $0.1.key, ":'", $0.1.value].joined() }), ")"].joined()

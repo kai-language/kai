@@ -16,11 +16,12 @@ extension Lexer {
         case lbrack
         case rbrack
 
-        case underscore
         case equals
+        case scolon
         case colon
         case comma
         case dot
+
 
         enum Keyword: String {
             case `struct`
@@ -77,8 +78,8 @@ extension Lexer.Token: Equatable {
              (.rbrace, .rbrace),
              (.lbrack, .lbrack),
              (.rbrack, .rbrack),
-             (.underscore, .underscore),
              (.equals, .equals),
+             (.scolon, .scolon),
              (.colon, .colon),
              (.comma, .comma),
              (.dot, .dot):

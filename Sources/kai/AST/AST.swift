@@ -32,20 +32,23 @@ class ASTFile {
 
 enum AstNode {
 
+    case invalid(SourceLocation)
+
     case ident(String, SourceLocation)
-    case directive(String, SourceLocation)
+    case basicDirective(String, SourceLocation)
+
+    /// - Parameter names: eg. (x, y, z: f32)
+    indirect case field(names: [AstNode], type: AstNode, SourceLocation)
+    indirect case fieldList([AstNode], SourceLocation)
+
+    // TODO(vdka): enum's will also need to have another field type which stores values
+    // indirect case fieldValue(name: AstNode, value: AstNode, SourceLocation)
 
     indirect case literal(Literal)
     indirect case expr(Expression)
     indirect case stmt(Statement)
     indirect case decl(Declaration)
     indirect case type(`Type`)
-
-    // TODO(vdka): Odin has another kind of field node.
-    /// - Parameter names: eg. (x, y, z: f32) -> f32
-    indirect case field(names: [AstNode], type: AstNode, SourceLocation)
-
-    indirect case fieldList([AstNode], SourceLocation)
 
     enum Literal {
         enum ProcSource {
@@ -79,19 +82,28 @@ enum AstNode {
         /// An expr whose return value we dispose of
         case expr(AstNode)
         case assign(op: String, lhs: [AstNode], rhs: [AstNode], SourceLocation)
+
+        // NOTE(vdka): If I want to be able to return a value from a scope it'll be an expr.
         case block(statements: [AstNode], SourceRange)
         case `if`(cond: AstNode, body: AstNode, AstNode?, SourceLocation)
         case `return`(results: [AstNode], SourceLocation)
         case `for`(initializer: AstNode, cond: AstNode, post: AstNode, body: AstNode, SourceLocation)
         case `case`(list: [AstNode], statements: [AstNode], SourceLocation)
+        case control(ControlStatement, SourceLocation)
         case `defer`(statement: AstNode, SourceLocation)
+
+        enum ControlStatement {
+            case `break`
+            case `continue`
+            case `fallthrough`
+        }
     }
 
     /// A declaration declares and binds something new into a scope
     enum Declaration {
         case bad(SourceRange)
         case value(isVar: Bool, names: [AstNode], type: AstNode?, values: [AstNode], SourceLocation)
-        case `import`(relativePath: String, fullPath: String, importName: String, SourceLocation)
+        case `import`(relativePath: AstNode, fullPath: String, importName: AstNode?, SourceLocation)
         case library(filePath: String, libName: String, SourceLocation)
     }
 
@@ -122,10 +134,19 @@ extension AstNode {
     var location: SourceRange {
 
         switch self {
+        case .invalid(let location):
+            return location ..< location
+
         case .ident(_, let location):
             return location ..< location
 
-        case .directive(_, let location):
+        case .basicDirective(_, let location):
+            return location ..< location
+
+        case .field(names: _, type: _, let location):
+            return location ..< location
+
+        case .fieldList(_, let location):
             return location ..< location
 
         case .literal(let literal):
@@ -242,12 +263,6 @@ extension AstNode {
             case .enum(baseType: _, fields: _, let location):
                 return location ..< location
             }
-
-        case .field(names: _, type: _, let location):
-            return location ..< location
-
-        case .fieldList(_, let location):
-            return location ..< location
         }
     }
 }

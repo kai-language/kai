@@ -175,17 +175,21 @@ extension IRGenerator {
         */
     }
 
-    func emitReturn(for node: AST.Node) throws {
-        guard
-            let currentProcedure = context.currentProcedure
-        else {
-            fatalError("No current procedure")
+    func emitReturnStmt(for node: AstNode) {
+        guard let currentProcedure = context.currentProcedure else {
+            // TODO(vdka): This will be fine for instances such as scopes.
+            fatalError("Return statement outside of procedure")
         }
 
-        //TODO(Brett) update this to a call to `emitExpression()`
-        let value = try emitExpression(for: node.children[0])
+        guard case .stmt(.return(results: let values, _)) = node else {
+            preconditionFailure()
+        }
 
-        if !(currentProcedure.returnType is VoidType) {
+        unimplemented("Multiple returns", if: values.count > 1)
+
+        let value = emitStmt(for: values[0])
+
+        if !(value is VoidType) {
             builder.buildStore(value, to: currentProcedure.returnValuePointer!)
         }
 

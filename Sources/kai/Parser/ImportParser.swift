@@ -1,50 +1,40 @@
 
-extension ByteString {
-
-	func consume(with chars: [Byte]) -> ByteString {
-
-		var str: ByteString = ""
-
-		var iterator = self.bytes.makeIterator()
-
-		while let byte = iterator.next(), chars.contains(byte) {
-			str.append(byte)
-		}
-
-		return str
-	}
-}
-
 extension Parser {
 
-	/// Parses the the lexer sequence [.directive(.import), .string(_)].
-	/// Will then declare all of the Operator's in that scope.
-	/// Imported entities have their own _namespace_ by default this is the name of the file.
-	/// The namespace file entities are imported as can be _aliased_ to another name using 'as alias'
-	static func parseImportDirective(_ parser: inout Parser) throws -> AST.Node {
-		try parser.consume(.directive(.import))
-		guard case .string(let fileName)? = try parser.lexer.peek()?.kind else { throw parser.error(.syntaxError) }
+	mutating func parseImportDirective() throws -> AstNode {
+		let (_, directiveLocation) = try consume(.directive(.import))
 
-		try parser.consume()
+        guard case (.literal(let path), let pathLocation)? = try lexer.peek() else {
+            reportError("Expected filename as string literal", at: lexer.lastLocation)
+            return AstNode.invalid(directiveLocation)
+        }
 
-		if case .identifier("as")? = try parser.lexer.peek()?.kind {
-			try parser.consume()
+        try consume() // .literal("filepath")
 
-			switch try parser.lexer.peek()?.kind {
-			case .dot?:
-				try parser.consume()
-				return AST.Node(.import(file: fileName.description, namespace: nil))
+        let pathNode = AstNode.literal(.basic(path, pathLocation))
 
-			case .identifier(let alias)?:
-				try parser.consume()
-				return AST.Node(.import(file: fileName.description, namespace: alias.description))
+        let fullPath = resolveToFullPath(relativePath: path)
 
-			default:
-				throw parser.error(.syntaxError)
-			}
-		} else {
-			let fileIdentifier = fileName.consume(with: identChars).description
-			return AST.Node(.import(file: fileName.description, namespace: fileIdentifier))
-		}
+        guard let (token, aliasLocation) = try lexer.peek() else {
+
+            // TODO(vdka): check if we're importing a directory, if so, then the basedir should be the importName
+            return AstNode.decl(.import(relativePath: pathNode, fullPath: fullPath, importName: nil, directiveLocation))
+        }
+
+        switch token {
+        case .ident(let alias):
+
+            let aliasNode = AstNode.ident(alias, aliasLocation)
+            return AstNode.decl(.import(relativePath: pathNode, fullPath: fullPath, importName: aliasNode, directiveLocation))
+
+            // TODO(vdka): import into current namespace.
+            // possibly with? I don't think it works
+            /*
+             #import "fmt.kai"
+             using fmt
+            */
+        default:
+            return AstNode.decl(.import(relativePath: pathNode, fullPath: fullPath, importName: nil, directiveLocation))
+        }
 	}
 }

@@ -23,6 +23,8 @@ extension Parser {
 
                 let proc = AST.Node(.procLiteral(type: type, body: procBody))
                 lvalue.add(proc)
+
+                AstNode.decl(.value(isVar: false, names: <#T##[AstNode]#>, type: <#T##AstNode?#>, values: <#T##[AstNode]#>, <#T##SourceLocation#>))
                 return lvalue
 
             case .directive(.foreign):
