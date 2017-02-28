@@ -3,102 +3,120 @@ import LLVM
 
 extension IRGenerator {
 
-    func emitOperator(for node: AST.Node) throws -> IRValue {
-        // FIXME: For now I am a slacker who has only implemented binary operators
-        precondition(node.children.count == 2)
+    // TODO(vdka): Check the types to determine llvm calls
+    func emitOperator(for node: AstNode) -> IRValue {
+        guard case .expr(let expr) = node else {
+            preconditionFailure()
+        }
 
-        let lvalueNode = node.children[0]
-        let rvalueNode = node.children[1]
+        switch expr {
+        case .unary(op: let op, expr: let expr, _):
 
-        // FIXME: Worse I have limitted it to same type with a precondition
+            let val = emitStmt(for: expr)
 
-        let lvalue = try emitExpression(for: lvalueNode)
-        let rvalue = try emitExpression(for: rvalueNode)
+            // TODO(vdka): There is much more to build.
+            switch op {
+            case "-":
+                return builder.buildNeg(val)
 
-        // @Types
-        // FIXME: Once we have types for these nodes we can generate the appropriate calls based off of that.
-        switch node.kind {
-        case .operator("+"):
-            return builder.buildAdd(lvalue, rvalue)
+            case "!":
+                // TODO(vdka): Truncate to i1
+                return builder.buildNot(val)
 
-        case .operator("-"):
-            return builder.buildSub(lvalue, rvalue)
+            case "~":
+                return builder.buildNot(val)
 
-        case .operator("*"):
-            return builder.buildMul(lvalue, rvalue)
+            default:
+                unimplemented("Unary Operator '\(op)'")
+            }
 
-        case .operator("/"):
-            return builder.buildDiv(lvalue, rvalue)
+        case .binary(op: let op, lhs: let lhs, rhs: let rhs, _):
 
-        case .operator("%"):
-            return builder.buildRem(lvalue, rvalue)
+            let lvalue = emitStmt(for: lhs)
+            let rvalue = emitStmt(for: rhs)
 
-        // TODO(vdka): Are these arithmatic or logical? Which should they be?
-        case .operator("<<"):
-            return builder.buildShl(lvalue, rvalue)
+            switch op {
+            case "+":
+                return builder.buildAdd(lvalue, rvalue)
 
-        case .operator(">>"):
-            return builder.buildShr(lvalue, rvalue)
+            case "-":
+                return builder.buildSub(lvalue, rvalue)
 
-        case .operator("<"):
-            return builder.buildICmp(lvalue, rvalue, .unsignedLessThan)
+            case "*":
+                return builder.buildMul(lvalue, rvalue)
 
-        case .operator("<="):
-            return builder.buildICmp(lvalue, rvalue, .unsignedLessThanOrEqual)
+            case "/":
+                return builder.buildDiv(lvalue, rvalue)
 
-        case .operator(">"):
-            return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThan)
+            case "%":
+                return builder.buildRem(lvalue, rvalue)
 
-        case .operator(">="):
-            return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThanOrEqual)
+            // TODO(vdka): Are these arithmatic or logical? Which should they be?
+            case "<<":
+                return builder.buildShl(lvalue, rvalue)
 
-        case .operator("=="):
-            return builder.buildICmp(lvalue, rvalue, .equal)
+            case ">>":
+                return builder.buildShr(lvalue, rvalue)
 
-        case .operator("!="):
-            return builder.buildICmp(lvalue, rvalue, .notEqual)
+            case "<":
+                return builder.buildICmp(lvalue, rvalue, .unsignedLessThan)
 
-        // TODO: returns: A value representing the logical AND. This isn't what the bitwise operators are.
-        case .operator("&"):
-            unimplemented()
-//            return builder.buildAnd(lvalue, rvalue)
+            case "<=":
+                return builder.buildICmp(lvalue, rvalue, .unsignedLessThanOrEqual)
 
-        case .operator("|"):
-            unimplemented()
-//            return builder.buildOr(lvalue, rvalue)
+            case ">":
+                return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThan)
 
-        case .operator("^"):
-            unimplemented()
-//            return builder.buildXor(lvalue, rvalue)
+            case ">=":
+                return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThanOrEqual)
 
-        case .operator("&&"):
-            return builder.buildAnd(lvalue, rvalue)
+            case "==":
+                return builder.buildICmp(lvalue, rvalue, .equal)
 
-        case .operator("||"):
-            return builder.buildOr(lvalue, rvalue)
-            
-        case .operator("+="),
-             .operator("-="),
-             .operator("*="),
-             .operator("/="),
-             .operator("%="):
-            unimplemented()
-            
-        case .operator(">>="),
-             .operator("<<="):
-            unimplemented()
-            
-        case .operator("&="),
-             .operator("|="),
-             .operator("^="):
-            unimplemented()
+            case "!=":
+                return builder.buildICmp(lvalue, rvalue, .notEqual)
 
+            // TODO: returns: A value representing the logical AND. This isn't what the bitwise operators are.
+            case "&":
+                unimplemented()
+                //            return builder.buildAnd(lvalue, rvalue)
 
-        case .operator(let op):
-            throw Error.invalidOperator(op.string)
+            case "|":
+                unimplemented()
+                //            return builder.buildOr(lvalue, rvalue)
+
+            case "^":
+                unimplemented()
+                //            return builder.buildXor(lvalue, rvalue)
+
+            case "&&":
+                return builder.buildAnd(lvalue, rvalue)
+
+            case "||":
+                return builder.buildOr(lvalue, rvalue)
+
+            case "+=",
+                 "-=",
+                 "*=",
+                 "/=",
+                 "%=":
+                unimplemented()
+
+            case ">>=",
+                 "<<=":
+                unimplemented()
+
+            case "&=",
+                 "|=",
+                 "^=":
+                unimplemented()
+
+            default:
+                unimplemented("Binary Operator '\(op)'")
+            }
 
         default:
-            preconditionFailure("Invalid node type \(node) passed to \(#function)")
+            fatalError()
         }
     }
 }

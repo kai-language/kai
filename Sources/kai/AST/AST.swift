@@ -76,6 +76,7 @@ enum AstNode {
     enum Statement {
         case bad(SourceRange)
         case empty(SourceLocation)
+        /// An expr whose return value we dispose of
         case expr(AstNode)
         case assign(op: String, lhs: [AstNode], rhs: [AstNode], SourceLocation)
         case block(statements: [AstNode], SourceRange)

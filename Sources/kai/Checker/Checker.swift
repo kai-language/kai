@@ -12,6 +12,19 @@
 //    }
 //}
 
+// TODO(vdka): Is this as convienient as a tuple?
+struct TypeAndValue {
+    var type: Type
+    var value: ExactValue
+}
+
+/// stores information used for "untyped" expressions
+struct UntypedExprInfo {
+    var isLhs: Bool
+    var type: Type
+    var value: ExactValue
+}
+
 struct Checker {
     var file: ASTFile
     var info: Info
@@ -36,6 +49,22 @@ struct Checker {
         var uses:        [AstNode: Type]    = [:]
         var scopes:      [AstNode: Scope]   = [:]
     }
+
+    /*
+    // CheckerInfo stores all the symbol information for a type-checked program
+    typedef struct CheckerInfo {
+        MapTypeAndValue      types;           // Key: AstNode * | Expression -> Type (and value)
+        MapEntity            definitions;     // Key: AstNode * | Identifier -> Entity
+        MapEntity            uses;            // Key: AstNode * | Identifier -> Entity
+        MapScope             scopes;          // Key: AstNode * | Node       -> Scope
+        MapExprInfo          untyped;         // Key: AstNode * | Expression -> ExprInfo
+        MapDeclInfo          entities;        // Key: Entity *
+        MapEntity            foreigns;        // Key: String
+        MapAstFile           files;           // Key: String (full path)
+        MapIsize             type_info_map;   // Key: Type *
+        isize                type_info_count;
+    } CheckerInfo;
+    */
 
     struct Context {
         var fileScope: Scope

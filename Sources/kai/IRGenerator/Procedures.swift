@@ -34,7 +34,7 @@ extension IRGenerator {
         return allocation
     }
 
-    func emitProcedurePrototype(for proc: AST.Node) throws -> Function {
+    func emitProcedurePrototype(for proc: AstNode) -> Function {
         unimplemented()
     }
 

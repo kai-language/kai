@@ -98,12 +98,15 @@ extension IRGenerator {
         builder.positionAtEnd(of: entry)
 
         for child in file.nodes {
-            switch child.kind {
-            case .procedureCall:
-                _  = try emitProcedureCall(for: child)
-                
-            default: break
+
+            switch child {
+            case .expr(.call(_)):
+                try emitProcedureCall(for: child)
+
+            default:
+                break
             }
+
         }
         
         builder.buildRetVoid()
@@ -118,7 +121,150 @@ extension IRGenerator {
 }
 
 extension IRGenerator {
-    func emitExpression(for node: AST.Node) throws -> IRValue {
+
+    func emitLiteral(for node: AstNode) -> IRValue {
+        guard case .literal(.basic(let val, _)) = node else {
+            preconditionFailure()
+        }
+
+        unimplemented("Basic literals")
+    }
+
+    func emitStmt(for node: AstNode) -> IRValue {
+        switch node {
+        case .ident(_, _):
+            break
+
+        case .directive(_, _):
+            break
+
+        case .literal(let literal):
+            switch literal {
+            case .basic(let basicLiteral, _):
+
+                // TODO(vdka): Lookup type for emitting.
+                return emitLiteral(for: node)
+
+            case .proc(_, type: _, _):
+                break
+
+            case .compound(type: _, elements: _, _):
+                break
+            }
+
+        case let .expr(expr):
+            switch expr {
+            case .bad(_):
+                fatalError("Bad expr in IR Generator \(node)")
+
+            case .unary(op: _, expr: _, _),
+                 .binary(op: _, lhs: _, rhs: _, _):
+                return emitOperator(for: node)
+
+            case .paren(expr: let expr, _):
+                return emitStmt(for: expr)
+
+            case .selector(receiver: _, selector: _, _):
+                unimplemented("IR for member reference")
+
+            case .subscript(receiver: _, index: _, _):
+                unimplemented("IR for subscripts")
+
+            case .deref(receiver: _, _):
+                unimplemented("IR for Pointer Dereference")
+
+            case .call(receiver: _, args: _, _):
+                return emitProcedureCall(for: node)
+
+            case .ternary(cond: _, _, _, _):
+                unimplemented("IR for Ternary")
+            }
+
+        case .stmt(let stmt):
+            switch stmt {
+            case .bad(_):
+                fatalError("Bad stmt in IR Generator \(node)")
+
+            case .empty(_):
+                break
+
+            case .expr(let child):
+                return emitStmt(for: child)
+
+            case .assign(op: _, lhs: _, rhs: _, _):
+                return emitAssignment(for: node)
+
+            case .block(statements: _, _):
+                unimplemented("IR For Blocks")
+
+            case .if(cond: _, body: _, _, _):
+                break
+
+            case .return(results: _, _):
+                break
+
+            case .for(initializer: _, cond: _, post: _, body: _, _):
+                break
+
+            case .case(list: _, statements: _, _):
+                break
+
+            case .defer(statement: _, _):
+                return emitDeferStmt(for: node)
+            }
+
+        case .decl(let decl):
+            switch decl {
+            case .bad(_):
+                break
+
+            case .value(isVar: _, names: _, type: _, values: _, _):
+                break
+
+            case .import(relativePath: _, fullPath: _, importName: _, _):
+                break
+
+            case .library(filePath: _, libName: _, _):
+                break
+            }
+
+        case .type(let type):
+            switch type {
+            case .helper(type: _, _):
+                break
+
+            case .proc(params: _, results: _, _):
+                break
+
+            case .pointer(baseType: _, _):
+                break
+                
+            case .array(count: _, baseType: _, _):
+                break
+                
+            case .dynArray(baseType: _, _):
+                break
+                
+            case .struct(fields: _, _):
+                break
+                
+            case .enum(baseType: _, fields: _, _):
+                break
+            }
+            
+        case .field(names: _, type: _, _):
+            break
+            
+        case .fieldList(_, _):
+            break
+        }
+        return nil
+    }
+
+    #if false
+    // NOTE(vdka): Because this emits both exprs and stmts it should be named emitStmt
+    func emitExpression(for node: AstNode) throws -> IRValue {
+
         switch node.kind {
         //NOTE(Brett): how do we want to handle different values here, should we
         // continue to ignore them and just return nil?
@@ -173,8 +319,9 @@ extension IRGenerator {
             unimplemented("unsupported kind: \(node.kind)")
         }
     }
+    #endif
     
-    func emitConditional(for node: AST.Node) throws -> IRValue {
+    func emitConditional(for node: AstNode) -> IRValue {
         unimplemented()
         
         /*guard let function = currentProcedure?.pointer else {
@@ -245,7 +392,7 @@ extension IRGenerator {
     }
 
     @discardableResult
-    func emitDeclaration(for node: AST.Node) throws -> IRValue? {
+    func emitDeclaration(for node: AstNode) throws -> IRValue? {
         unimplemented()
         /*
 >>>>>>> round2
@@ -279,47 +426,44 @@ extension IRGenerator {
     }
 
     @discardableResult
-    func emitAssignment(for node: AST.Node) throws -> IRValue {
-        //FIXME(Brett): will break if it's multiple assignment
-        guard
-            case .assignment(_) = node.kind,
-            node.children.count == 2
-        else {
-            throw Error.preconditionNotMet(expected: "assignment", got: "\(node.kind)")
+    func emitAssignment(for node: AstNode) -> IRValue {
+        guard case .stmt(.assign(op: let op, lhs: let lhs, rhs: let rhs, _)) = node else {
+            preconditionFailure()
         }
-        
-        let lvalue = node.children[0]
-        guard case .identifier(let identifier) = lvalue.kind else {
-            throw Error.preconditionNotMet(expected: "identifier", got: "\(lvalue.kind)")
+        unimplemented("Complex Assignment", if: op != "=")
+        unimplemented("Multiple Assignment", if: lhs.count != 1 || rhs.count != 1)
+
+        // TODO(vdka): Other lvalues can be valid too:
+        // subscript, selectors ..
+        guard case .ident(let ident, _) = lhs[0] else {
+            fatalError("Unexpected lvalue kind")
         }
 
-        let lvalueEntity = context.scope.lookup(identifier.string)!
-        let rvalue = try emitExpression(for: node.children[1])
+        let lvalueEntity = context.scope.lookup(ident)!
+        let rvalue = emitStmt(for: rhs[0])
 
         return builder.buildStore(rvalue, to: lvalueEntity.llvm!)
     }
 
     @discardableResult
-    func emitProcedureCall(for node: AST.Node) throws -> IRValue {
-        assert(node.kind == .procedureCall)
-        
+    func emitProcedureCall(for node: AstNode) -> IRValue {
+
+        // TODO(vdka): We can have receivers that could be called that are not identifiers ie:
+        /*
+         foo : [] (void) -> void = [(void) -> void { print("hello") }]
+         foo[0]()
+        */
         guard
-            node.children.count >= 2,
-            let firstNode = node.children.first,
-            case .identifier(let identifier) = firstNode.kind
-            else {
-                throw Error.preconditionNotMet(
-                    expected: "identifier",
-                    got: "\(node.children.first?.kind)"
-                )
+            case .expr(.call(receiver: let receiver, args: let args, _)) = node,
+            case .ident(let ident, _) = receiver
+        else {
+            preconditionFailure()
         }
-        
-        let argumentList = node.children[1]
-        
+
         // FIXME(Brett):
         // TODO(Brett): will be removed when #foreign is supported
-        if identifier == "print" {
-            return try emitPrintCall(for: argumentList)
+        if ident == "print" {
+            return emitPrintCall(for: args)
         }
         
         // FIXME(Brett): why is this lookup failing?
@@ -330,25 +474,19 @@ extension IRGenerator {
             unimplemented("lazy-generation of procedures")
         }*/
         
-        let function = module.function(named: identifier.string)!
+        let function = module.function(named: ident)!
 
-        let args = try argumentList.children.map {
-            try emitExpression(for: $0)
-        }
+        let llvmArgs = args.map(emitStmt)
         
-        return builder.buildCall(function, args: args)
+        return builder.buildCall(function, args: llvmArgs)
     }
     
     // FIXME(Brett):
     // TODO(Brett): will be removed when #foreign is supported
-    func emitPrintCall(for argumentList: AST.Node) throws -> IRValue {
-        guard argumentList.children.count == 1 else {
-            throw Error.preconditionNotMet(expected: "1 argument", got: "\(argumentList.children.count)")
-        }
-        
-        let argument = argumentList.children[0]
-        
-        let string = try emitExpression(for: argument)
+    func emitPrintCall(for args: [AstNode]) -> IRValue {
+        unimplemented("Variadic print", if: args.count != 1)
+
+        let string = emitStmt(for: args[0])
         return builder.buildCall(internalFuncs.puts!, args: [string])
     }
 }

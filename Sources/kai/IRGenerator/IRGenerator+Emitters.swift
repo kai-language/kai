@@ -4,8 +4,10 @@ import LLVM
 extension IRGenerator {
     
     @discardableResult
-    func emitDeferStmt(for node: AST.Node) throws -> IRValue {
-        let deferedExpr = node.children.first!
+    func emitDeferStmt(for node: AstNode) -> IRValue {
+        guard case .stmt(.defer(statement: let stmt, _)) = node else {
+            preconditionFailure()
+        }
 
         let curBlock = builder.insertBlock!
         let lastBlock = builder.currentFunction!.lastBlock!
@@ -38,8 +40,7 @@ extension IRGenerator {
         // At scope exit, reset the builder position
         defer { builder.position(jmp, block: curBlock) }
 
-        // TODO: Generic emit expr (doesn't work for scopes at the moment)
-        let val = try emitExpression(for: deferedExpr)
+        let val = emitStmt(for: stmt)
         if !deferBlock.hasTerminatingInstruction {
             builder.buildBr(returnBlock)
         }

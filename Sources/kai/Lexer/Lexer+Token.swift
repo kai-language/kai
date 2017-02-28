@@ -1,5 +1,4 @@
 
-typealias Token = Lexer.Token
 extension Lexer {
 
     // TODO(vdka): Change into `Token.Kind` add to `Token` a location and an optional kind

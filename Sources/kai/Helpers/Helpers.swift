@@ -112,6 +112,11 @@ func unimplemented(_ featureName: String, file: StaticString = #file, line: UInt
     exit(1)
 }
 
+func unimplemented(_ featureName: String, if predicate: Bool, file: StaticString = #file, line: UInt = #line) -> Never {
+    print("\(file):\(line): Unimplemented feature \(featureName).")
+    exit(1)
+}
+
 func debug<T>(_ value: T, file: StaticString = #file, line: UInt = #line) {
     print("\(line): \(value)")
     fflush(stdout)
