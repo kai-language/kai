@@ -70,8 +70,7 @@ extension IRGenerator {
     }
     */
 
-    func emitProcedureDefinition(_ node: AST.Node) throws -> Function {
-
+    func emitProcedureDefinition(_ node: AstNode) throws -> Function {
         unimplemented("procedure definitions")
 
         /*

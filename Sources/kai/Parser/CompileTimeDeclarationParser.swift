@@ -1,13 +1,13 @@
 
 extension Parser {
 
-    static func parseCompileTimeDeclaration(_ parser: inout Parser, _ lvalue: AST.Node) throws -> AST.Node {
+    static func parseCompileTimeDeclaration(_ parser: inout Parser, _ lvalue: AstNode) throws -> AstNode {
 
         try parser.consume(.colon)
         try parser.consume(.colon)
 
-        guard let token = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration) }
-        switch token.kind {
+        guard let (token, location) = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration) }
+        switch token {
         case .lparen: // procedure type parsing
             let type = try parser.parseType()
 

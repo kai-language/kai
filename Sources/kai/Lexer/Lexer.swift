@@ -51,28 +51,28 @@ struct Lexer {
 
 		switch char {
 		case _ where identChars.contains(char):
-			let symbol = consume(with: identChars + digits)
+			let symbol = consume(with: identChars + digits).string
 			if let keyword = Token.Keyword(rawValue: symbol) { return (.keyword(keyword), location) }
 			else if symbol == "_" { return (.underscore, location) }
-			else { return (.identifier(symbol), location) }
+			else { return (.ident(symbol), location) }
 
 		case _ where opChars.contains(char):
-			let symbol = consume(with: opChars)
+			let symbol = consume(with: opChars).string
 			if let keyword = Token.Keyword(rawValue: symbol) { return (.keyword(keyword), location) }
 			else if symbol == "=" { return (.equals, location) }
 			else { return (.operator(symbol), location) }
 
 		// TODO(vdka): Correctly consume (and validate) number literals (real and integer)
 		case _ where digits.contains(char):
-			let number = consume(with: digits)
-			return (.integer(number), location)
+			let number = consume(with: digits).string
+			return (.literal(number), location)
 
 		case "\"":
 			scanner.pop()
-			let string = consume(upTo: "\"")
+			let string = consume(upTo: "\"").string
 			guard case "\""? = scanner.peek() else { throw error(.unterminatedString) }
 			scanner.pop()
-			return (.string(string), location)
+			return (.literal(string), location)
 
 		case "(":
 			scanner.pop()
@@ -112,7 +112,7 @@ struct Lexer {
 
 		case "#":
 			scanner.pop()
-			let identifier = consume(upTo: { !whitespace.contains($0) })
+			let identifier = consume(upTo: { !whitespace.contains($0) }).string
 			guard let directive = Token.Directive(rawValue: identifier) else {
 				throw error(.unknownDirective)
 			}

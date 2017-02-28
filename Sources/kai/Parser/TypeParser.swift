@@ -1,30 +1,32 @@
 
 extension Parser {
 
-    mutating func parseType() throws -> AST.Node {
+    mutating func parseType() throws -> AstNode {
 
         guard let (token, location) = try lexer.peek() else {
             reportError("Expected a type", at: lexer.lastLocation)
-            return AST.Node(.invalid)
+            return AstNode.stmt(.empty(lexer.lastLocation))
         }
         
         switch token {
-        case .identifier(let ident):
+        case .ident(let ident):
             try consume()
 
-            return AST.Node(.identifier(ident), location: location)
+            return AstNode.ident(ident, location)
 
         case .lparen:
             try consume(.lparen)
             var wasComma = false
 
+            let startLocation = location
+
             var labels: [(callsite: ByteString?, binding: ByteString)]? = []
-            if case (.identifier(_)?, .comma?) = try (lexer.peek()?.kind, lexer.peek(aheadBy: 1)?.kind) {
+            if case (.ident(_)?, .comma?) = try (lexer.peek()?.kind, lexer.peek(aheadBy: 1)?.kind) {
                 labels = nil // we do not expect any labels.
             }
 
             // TODO(vdka): Report error not throw error.
-            var types: [AST.Node] = []
+            var types: [AstNode] = []
             while let (token, location) = try lexer.peek(), token != .rparen {
 
                 switch token {
