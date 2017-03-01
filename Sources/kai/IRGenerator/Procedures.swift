@@ -72,6 +72,11 @@ extension IRGenerator {
 
     @discardableResult
     func emitProcedureDefinition(_ node: AstNode) throws -> Function {
+
+        guard case .decl(.value(_, let names, let type, let values, _)) = node else {
+            preconditionFailure()
+        }
+
         unimplemented("procedure definitions")
 
         /*

@@ -1,9 +1,7 @@
 
 // it's just like main because I call it.
 moon :: (k: int) -> void {
-    defer print("I was deferred")
-    defer print("So was I!")
-    print("I was not deferred")
+    print("hello")
 }
 
 moon()

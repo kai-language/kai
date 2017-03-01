@@ -116,7 +116,26 @@ extension IRGenerator {
     
     func emitGlobals() throws {
         for node in file.nodes {
-            try emitProcedureDefinition(node)
+            // TODO(vdka): Emit more than just procDecls
+
+            switch node {
+            case .decl(let decl):
+                switch decl {
+                case .value(isVar: _, names: _, type: let type, values: let values, _):
+
+                    switch type {
+                    case .type(.proc)?:
+                        try emitProcedureDefinition(node)
+
+                    default:
+                        break
+                    }
+                default:
+                    break
+                }
+            default:
+                break
+            }
         }
     }
 }
