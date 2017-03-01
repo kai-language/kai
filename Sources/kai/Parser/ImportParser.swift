@@ -4,14 +4,14 @@ extension Parser {
 	mutating func parseImportDirective() throws -> AstNode {
 		let (_, directiveLocation) = try consume(.directive(.import))
 
-        guard case (.literal(let path), let pathLocation)? = try lexer.peek() else {
+        guard case (.string(let path), let pathLocation)? = try lexer.peek() else {
             reportError("Expected filename as string literal", at: lexer.lastLocation)
             return AstNode.invalid(directiveLocation)
         }
 
         try consume() // .literal("filepath")
 
-        let pathNode = AstNode.literal(.basic(path, pathLocation))
+        let pathNode = AstNode.literal(.basic(.string(path), pathLocation))
 
         let fullPath = resolveToFullPath(relativePath: path)
 

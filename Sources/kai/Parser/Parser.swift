@@ -16,6 +16,7 @@ typedef struct ImportedFile {
     TokenPos pos; // #import
 } ImportedFile;
 
+// parse_files
 for_array(i, p->imports) {
     ImportedFile imported_file = p->imports.e[i];
     String import_path = imported_file.path;
@@ -100,30 +101,11 @@ struct Parser {
             file.nodes.append(node)
         }
     }
-//
-//    mutating func parse() throws -> (AST, errors: UInt) {
-//
-//        let node = AST.Node(.file(name: lexer.scanner.file.name))
-//
-//        while true {
-//            let expr: AST.Node
-//            do {
-//                expr = try expression()
-//            } catch let error as Parser.Error {
-//                try error.recover(with: &self)
-//                continue
-//            } catch { throw error }
-//
-//            guard expr.kind != .empty else { return (node, errors) }
-//
-//            node.children.append(expr)
-//        }
-//    }
 
     mutating func expression(_ rbp: UInt8 = 0) throws -> AstNode {
 
         // TODO(vdka): Still unclear what to do with empty files
-        guard let (token, location) = try lexer.peek() else { return AstNode.invalid(.zero) }
+        guard let (token, _) = try lexer.peek() else { return AstNode.invalid(.zero) }
 
         var left = try nud(for: token)
 
@@ -187,9 +169,17 @@ extension Parser {
             let (_, location) = try consume()
             return AstNode.ident(symbol, location)
 
-        case .literal(let literal):
+        case .string(let string):
             let (_, location) = try consume()
-            return AstNode.literal(.basic(literal, location))
+            return AstNode.literal(.basic(.string(string), location))
+
+        case .integer(let int):
+            let (_, location) = try consume()
+            return AstNode.literal(.basic(.integer(int), location))
+
+        case .float(let dbl):
+            let (_, location) = try consume()
+            return AstNode.literal(.basic(.float(dbl), location))
 
         case .lparen:
             let (_, lLocation) = try consume(.lparen)

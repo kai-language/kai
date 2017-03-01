@@ -34,6 +34,8 @@ extension Parser {
                     wasComma = true
 
                 case .ident(let name):
+                    try consume() // .ident
+                    
                     let nameNode = AstNode.ident(name, location)
                     var names = [nameNode]
                     while case (.comma, _)? = try lexer.peek() {

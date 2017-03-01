@@ -5,9 +5,13 @@ extension Lexer {
     enum Token {
         case directive(Directive)
         case keyword(Keyword)
-        case literal(String)
+
         case ident(String)
         case `operator`(String)
+
+        case string(String)
+        case integer(Int64)
+        case float(Double)
 
         case lparen
         case rparen
@@ -69,7 +73,13 @@ extension Lexer.Token: Equatable {
         case (.operator(let l), .operator(let r)):
             return l == r
 
-        case (.literal(let l), .literal(let r)):
+        case (.string(let l), .string(let r)):
+            return l == r
+
+        case (.integer(let l), .integer(let r)):
+            return l == r
+
+        case (.float(let l), .float(let r)):
             return l == r
 
         case (.lparen, .lparen),

@@ -7,4 +7,4 @@ moon :: (k: int) -> void {
 }
 
 moon()
-print("Fin.")
+print("fin")

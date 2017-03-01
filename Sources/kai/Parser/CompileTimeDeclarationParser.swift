@@ -6,7 +6,7 @@ extension Parser {
         try consume(.colon)
         try consume(.colon)
 
-        guard let (token, location) = try lexer.peek() else { throw error(.invalidDeclaration) }
+        guard let (token, startLocation) = try lexer.peek() else { throw error(.invalidDeclaration) }
         switch token {
         case .lparen: // procedure type parsing
             let type = try parseType()
@@ -19,25 +19,24 @@ extension Parser {
 
                 let bodyExpr = try expression()
 
-                return AstNode.literal(.proc(.native(body: bodyExpr), type: type, type.location.lowerBound))
+                let lit = AstNode.literal(.proc(.native(body: bodyExpr), type: type, startLocation))
+                return AstNode.decl(.value(isVar: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
 
             case .directive(.foreign):
                 try consume(.directive(.foreign))
 
                 guard case (.ident(let libName), let libLocation)? = try lexer.peek() else {
                     reportError("Expected lib name", at: lexer.lastLocation)
-                    return AstNode.invalid(lexer.lastLocation)
+                    return AstNode.invalid(startLocation)
                 }
 
                 try consume() // .ident(_)
 
                 var symbolNameNode: AstNode?
-                if case (.literal(let name), let location)? = try lexer.peek() {
-                    // TODO(vdka): We actually have a literal.
-                    // TODO(vdka): Validate our literal is a string literal.
+                if case (.string(let name), let location)? = try lexer.peek() {
                     symbolNameNode = AstNode.ident(name, location)
 
-                    try consume() // .literal(_)
+                    try consume() // .string(_)
 
                 } else {
                     guard case .ident(_) = lvalue else {
@@ -53,7 +52,8 @@ extension Parser {
 
                 let libNameNode = AstNode.ident(libName, libLocation)
 
-                return AstNode.literal(.proc(.foreign(lib: libNameNode, symbol: symbolNameNode ?? lvalue), type: type, type.location.lowerBound))
+                let lit = AstNode.literal(.proc(.foreign(lib: libNameNode, symbol: symbolNameNode ?? lvalue), type: type, type.startLocation))
+                return AstNode.decl(.value(isVar: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
 
             default:
                 reportError("Expected procedure body or foreign directive", at: location)

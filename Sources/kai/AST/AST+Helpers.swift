@@ -25,16 +25,107 @@ extension AstNode: CustomStringConvertible {
 
 extension AstNode {
 
+    var identifier: String {
+        guard case .ident(let ident, _) = self else {
+            preconditionFailure()
+        }
+        return ident
+    }
+
+    var literal: String {
+        switch self {
+        case .literal(let lit):
+            switch lit {
+            case .basic(let lit, _):
+                switch lit {
+                case .string(let str):
+                    return "\"" + str + "\""
+
+                case .integer(let int):
+                    return int.description
+
+                case .float(let dbl):
+                    return dbl.description
+                }
+
+            case .proc(let procSource, type: let type, _):
+                return "native " + type.typeDescription
+
+            case .compound(type: let type, elements: _, _):
+                return "lit " + type.typeDescription
+            }
+
+        default:
+            fatalError()
+        }
+    }
+
+    var fieldListDescription: String {
+
+        switch self {
+        case .ident(let ident, _):
+            return ident
+
+        case .fieldList(let fields, _):
+
+            let str = fields
+                .map { (node: AstNode) -> String in
+                    guard case .field(names: let names, type: let type, _) = node else {
+                        fatalError()
+                    }
+
+                    return names.map({ $0.identifier }).joined(separator: ", ") + ": " + type.typeDescription
+                }.joined(separator: ", ")
+
+            return "(" + str + ")"
+
+        default:
+            fatalError()
+        }
+    }
+
+    var typeDescription: String {
+        switch self {
+        case .type(let type):
+            switch type {
+            case .proc(params: let params, results: let results, _):
+                return params.fieldListDescription + " -> " + results.fieldListDescription
+
+            case .struct(fields: _, _):
+                return "struct"
+
+            case .array(count: _, baseType: let baseType, _):
+                return "[]" + baseType.typeDescription
+
+            case .dynArray(baseType: let baseType, _):
+                return "[..]" + baseType.typeDescription
+
+            case .enum(baseType: _, fields: _, _):
+                return "enum"
+
+            case .pointer(baseType: let baseType, _):
+                return "*" + baseType.typeDescription
+
+            case .helper(type: let type, _):
+                return "alias of " + type.typeDescription
+            }
+
+        case .ident(let name, _):
+            return name
+
+        default:
+            fatalError()
+        }
+    }
+
     // TODO(vdka): Print types nicely
-    func pretty(depth: Int = 0) -> String {
+    func pretty(depth: Int = 0, includeParens: Bool = true) -> String {
 
         var name: String
         var unlabeled: [String] = []
         var labeled: [String: String] = [:]
 
         var children: [AstNode] = []
-
-//        let indent = (0...depth).reduce("\n", { $0.0 + "  " })
 
         switch self {
         case .invalid(let location):
@@ -49,10 +140,10 @@ extension AstNode {
             name = "directive"
             unlabeled.append(directive)
 
-        case .argument(label: let label, value: let val, _):
+        case .argument(label: _, value: let val, _):
+            // TODO(vdka): print labels.
             name = "argument"
-            labeled["label"] = label?.pretty()
-            unlabeled.append(val.pretty())
+            unlabeled.append(val.pretty(depth: depth + 1, includeParens: true))
 
         case .field(names: let names, type: _, _):
             name = "field"
@@ -64,18 +155,18 @@ extension AstNode {
 
         case .literal(let literal):
             switch literal {
-            case .basic(let val, _):
-                name = "basicLit"
-                unlabeled.append(val)
+            case .basic(_, _):
+                name = "lit"
+                unlabeled.append(self.literal)
 
-            case .proc(let procSource, type: _, _):
-                name = "procLit"
-//                labeled["type"] = type.
+            case .proc(let procSource, type: let type, _):
+                name = "proc"
+                labeled["type"] = type.typeDescription
 
                 // TODO(vdka): work out how to nicely _stringify_ a node
                 switch procSource {
-                case .native(_):
-                    break
+                case .native(let body):
+                    children.append(body)
 
                 case .foreign(lib: _, symbol: _):
                     break
@@ -194,9 +285,9 @@ extension AstNode {
                 unlabeled.append(range.description)
 
             case .value(isVar: _, names: let names, type: _, values: let values, _):
-                name = "valueDecl"
+                name = "decl"
 //                labeled["type"] = type?.pretty(depth: depth + 1) ?? "<infered>"
-                children.append(contentsOf: names)
+                unlabeled.append(names.first!.identifier)
                 children.append(contentsOf: values)
 
             case .import(relativePath: let relPath, fullPath: let fullPath, importName: let importName, _):
@@ -249,7 +340,24 @@ extension AstNode {
             }
         }
 
-        return ["(", name, " ", unlabeled.joined(separator: " "), labeled.reduce(" ", { [$0.0, " ", $0.1.key, ":'", $0.1.value].joined() }), ")"].joined()
+        let indent = (0...depth).reduce("\n", { $0.0 + "  " })
+        var str = indent
+
+        if includeParens {
+            str.append("(")
+        }
+
+        str.append(name)
+        str.append(unlabeled.reduce("", { [$0.0, " ", $0.1].joined() }))
+        str.append(labeled.reduce("", { [$0.0, " ", $0.1.key, ":'", $0.1.value, "'"].joined() }))
+
+        children.map({ $0.pretty(depth: depth + 1, includeParens: true) }).forEach({ str.append($0) })
+
+        if includeParens {
+            str.append(")")
+        }
+
+        return str
     }
 }
 

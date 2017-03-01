@@ -32,6 +32,7 @@ class ASTFile {
 
 
 // TODO(vdka): Convert all SourceLocations to SourceRanges
+// TODO(vdka): Bring all locations to the top level nodes.
 enum AstNode {
 
     case invalid(SourceLocation)
@@ -39,7 +40,7 @@ enum AstNode {
     case ident(String, SourceLocation)
     case basicDirective(String, SourceLocation)
 
-    /// - Parameter name: Name is what is followed by `:` 
+    /// - Parameter name: Name is what is followed by `:`
     indirect case argument(label: AstNode?, value: AstNode, SourceLocation)
 
     /// - Parameter names: eg. (x, y, z: f32)
@@ -58,16 +59,23 @@ enum AstNode {
     indirect case type(`Type`)
 
     enum Literal {
+        case basic(Basic, SourceLocation)
+        case proc(ProcSource, type: AstNode, SourceLocation)
+        case compound(type: AstNode, elements: [AstNode], SourceRange)
+
+        enum Basic {
+            case integer(Int64) // TODO(vdka): BigInt
+            case float(Double) // TODO(vdka): BigFloat
+            case string(String)
+            // TODO(vdka): Maybe support runes '\u{12345}'
+        }
+
         enum ProcSource {
             case native(body: AstNode)
             // TODO(vdka): This potentially needs changing
             /// - Parameter symbol: represents the symbol name to look for, it maybe the identifier name if omitted
             case foreign(lib: AstNode, symbol: AstNode)
         }
-
-        case basic(String, SourceLocation)
-        case proc(ProcSource, type: AstNode, SourceLocation)
-        case compound(type: AstNode, elements: [AstNode], SourceRange)
     }
 
     /// Expressions resolve to a resulting value
@@ -138,6 +146,14 @@ extension AstNode: Equatable {
 extension AstNode: ByteHashable {}
 
 extension AstNode {
+
+    var startLocation: SourceLocation {
+        return location.lowerBound
+    }
+
+    var endLocation: SourceLocation {
+        return location.upperBound
+    }
 
     var location: SourceRange {
 

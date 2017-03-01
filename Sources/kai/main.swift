@@ -129,8 +129,6 @@ struct Compiler {
 //            let (ast, errors) = try parser.parse()
             let files = try parser.parseFiles()
 
-            files.forEach { print($0.pretty()) }
-
             let errors = parser.errors
 
             guard errors == 0 else {
@@ -149,13 +147,17 @@ struct Compiler {
                 }
             }
 
-            // TODO(vdka): Compile again
-//            let module = try IRGenerator.build(for: ast)
+            for file in files {
 
-//            try TargetMachine().emitToFile(module: module, type: .object, path: "main.o")
-//            if options.contains("emit-ir") {
-//                module.dump()
-//            }
+                let module = try IRGenerator.build(for: file)
+
+                // FIXME(vdka): emit object files for each and every importation
+                try TargetMachine().emitToFile(module: module, type: .object, path: "main.o")
+                if options.contains("emit-ir") {
+                    // TODO(vdka): Do we emit file names?
+                    module.dump()
+                }
+            }
         } catch let error as CompilerError {
             console.error(error.description)
 //            console.error(file.generateVerboseLineOf(error: error.location))

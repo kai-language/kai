@@ -68,15 +68,22 @@ struct Lexer {
 		// TODO(vdka): Correctly consume (and validate) number literals (real and integer)
 		case _ where digits.contains(char):
 			let number = consume(with: digits).string
-			return (.literal(number), location)
+
+            if number.contains(".") {
+                let dbl = Double(number)!
+                return (.float(dbl), location)
+            } else {
+                let int = Int64(number)!
+                return (.integer(int), location)
+            }
 
 		case "\"":
 			scanner.pop()
-            // FIXME(vdka): Currently doesn't handle escapes. 
+            // FIXME(vdka): Currently doesn't handle escapes.
 			let string = consume(upTo: "\"").string
 			guard case "\""? = scanner.peek() else { throw error(.unterminatedString) }
 			scanner.pop()
-			return (.literal(string), location)
+			return (.string(string), location)
 
 		case "(":
 			scanner.pop()
