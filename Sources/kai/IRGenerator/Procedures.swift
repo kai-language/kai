@@ -70,6 +70,7 @@ extension IRGenerator {
     }
     */
 
+    @discardableResult
     func emitProcedureDefinition(_ node: AstNode) throws -> Function {
         unimplemented("procedure definitions")
 

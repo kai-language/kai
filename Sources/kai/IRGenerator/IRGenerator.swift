@@ -90,7 +90,9 @@ class IRGenerator {
 }
 
 extension IRGenerator {
+
     func emitMain() throws {
+
         // TODO(Brett): Update to emit function definition
         let mainType = FunctionType(argTypes: [], returnType: VoidType())
         let main = builder.addFunction("main", type: mainType)
@@ -113,157 +115,170 @@ extension IRGenerator {
     }
     
     func emitGlobals() throws {
-        unimplemented()
-//        try rootNode.procedurePrototypes.forEach {
-//            _ = try emitProcedureDefinition($0)
-//        }
+        for node in file.nodes {
+            try emitProcedureDefinition(node)
+        }
     }
 }
 
 extension IRGenerator {
 
+    @discardableResult
     func emitLiteral(for node: AstNode) -> IRValue {
-//        guard case .literal(.basic(let val, _)) = node else {
-//            preconditionFailure()
-//        }
 
-        unimplemented("Basic literals")
+        switch node {
+        case .literal(let lit):
+            switch lit {
+            case .basic(let b, _):
+                return emitBasicLiteral(for: b)
+
+            case .compound, .proc:
+                fatalError()
+            }
+
+        default:
+            fatalError()
+        }
+    }
+
+    @discardableResult
+    func emitBasicLiteral(for literal: AstNode.Literal.Basic) -> IRValue {
+
+        switch literal {
+        case .integer(let i):
+            return IntType(width: 64).constant(i)
+
+        case .float(let f):
+            return FloatType.double.constant(f)
+
+        case .string(let s):
+            return builder.buildGlobalStringPtr(s.escaped)
+        }
     }
 
     func emitStmt(for node: AstNode) -> IRValue {
         switch node {
-        case .invalid(_):
+        case .invalid:
             break
 
-        case .ident(_, _):
+        case .ident:
             break
 
-        case .basicDirective(_, _):
+        case .basicDirective:
             break
 
-        case .argument(label: _, value: _, _):
+        case .argument:
             break
 
-        case .field(names: _, type: _, _):
+        case .field:
             break
 
-        case .fieldList(_, _):
+        case .fieldList:
             break
 
-        case .literal(let literal):
-            switch literal {
-            case .basic(let basicLiteral, _):
-
-                // TODO(vdka): Lookup type for emitting.
-                return emitLiteral(for: node)
-
-            case .proc(_, type: _, _):
-                break
-
-            case .compound(type: _, elements: _, _):
-                break
-            }
+        case .literal:
+            return emitLiteral(for: node)
 
         case let .expr(expr):
             switch expr {
-            case .bad(_):
+            case .bad:
                 fatalError("Bad expr in IR Generator \(node)")
 
-            case .unary(op: _, expr: _, _),
-                 .binary(op: _, lhs: _, rhs: _, _):
+            case .unary,
+                 .binary:
                 return emitOperator(for: node)
 
             case .paren(expr: let expr, _):
                 return emitStmt(for: expr)
 
-            case .selector(receiver: _, selector: _, _):
+            case .selector:
                 unimplemented("IR for member reference")
 
-            case .subscript(receiver: _, index: _, _):
+            case .subscript:
                 unimplemented("IR for subscripts")
 
-            case .deref(receiver: _, _):
+            case .deref:
                 unimplemented("IR for Pointer Dereference")
 
-            case .call(receiver: _, args: _, _):
+            case .call:
                 return emitProcedureCall(for: node)
 
-            case .ternary(cond: _, _, _, _):
+            case .ternary:
                 unimplemented("IR for Ternary")
             }
 
         case .stmt(let stmt):
             switch stmt {
-            case .bad(_):
+            case .bad:
                 fatalError("Bad stmt in IR Generator \(node)")
 
-            case .empty(_):
+            case .empty:
                 break
 
             case .expr(let child):
                 return emitStmt(for: child)
 
-            case .assign(op: _, lhs: _, rhs: _, _):
+            case .assign:
                 return emitAssignment(for: node)
 
-            case .block(statements: _, _):
+            case .block:
                 unimplemented("IR For Blocks")
 
-            case .if(cond: _, body: _, _, _):
+            case .if:
                 break
 
-            case .return(results: _, _):
+            case .return:
                 break
 
-            case .for(initializer: _, cond: _, post: _, body: _, _):
+            case .for:
                 break
 
-            case .case(list: _, statements: _, _):
+            case .case:
                 break
 
-            case .defer(statement: _, _):
+            case .defer:
                 return emitDeferStmt(for: node)
 
-            case .control(let controlStmt, _):
+            case .control:
                 break
             }
 
         case .decl(let decl):
             switch decl {
-            case .bad(_):
+            case .bad:
                 break
 
-            case .value(isVar: _, names: _, type: _, values: _, _):
+            case .value:
                 break
 
-            case .import(relativePath: _, fullPath: _, importName: _, _):
+            case .import:
                 break
 
-            case .library(filePath: _, libName: _, _):
+            case .library:
                 break
             }
 
         case .type(let type):
             switch type {
-            case .helper(type: _, _):
+            case .helper:
                 break
 
-            case .proc(params: _, results: _, _):
+            case .proc:
                 break
 
-            case .pointer(baseType: _, _):
+            case .pointer:
                 break
                 
-            case .array(count: _, baseType: _, _):
+            case .array:
                 break
                 
-            case .dynArray(baseType: _, _):
+            case .dynArray:
                 break
                 
-            case .struct(fields: _, _):
+            case .struct:
                 break
                 
-            case .enum(baseType: _, fields: _, _):
+            case .enum:
                 break
             }
         }
