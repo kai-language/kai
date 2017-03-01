@@ -4,63 +4,55 @@ extension Parser {
   /*
    '(' arg: expr, arg
   */
-  static func parseProcedureCall(_ parser: inout Parser, _ lvalue: AST.Node) throws -> AST.Node {
+  mutating func parseProcedureCall(_ lvalue: AstNode) throws -> AstNode {
 
-    parser.push(context: .procedureCall)
-    defer { parser.popContext() }
+    push(context: .procedureCall)
+    defer { popContext() }
 
-    let (_, startLocation) = try parser.consume(.lparen)
+    try consume(.lparen)
 
-    let argumentListNode = AST.Node(.argumentList)
-    let callNode = AST.Node(
-        .procedureCall,
-        children: [lvalue, argumentListNode],
-        location: startLocation
-    )
+    var args: [AstNode] = []
 
     var wasComma = false
-    var wasLabel = false
 
-    while let token = try parser.lexer.peek(), token.kind != .rparen {
+    while let (token, location) = try lexer.peek(), token != .rparen {
 
-      if case .comma = token.kind {
+        switch token {
+        case .comma:
+            try consume(.comma)
 
-        if wasComma || argumentListNode.children.count < 1 { try parser.error(.unexpectedComma).recover(with: &parser) }
+            if wasComma && args.count < 1 {
+                reportError("Unexpected comma", at: location)
+                continue
+            }
 
-        wasComma = true
-        wasLabel = false
+            wasComma = true
 
-        try parser.consume(.comma)
-      } else if case .identifier(let label) = token.kind,
-        case .colon? = try parser.lexer.peek(aheadBy: 1)?.kind {
-          // TODO(vdka): Look ahead here makes recovery more difficult. This is a good scenario for a state machine.
+        case .ident(let ident) where try lexer.peek()?.kind == .colon: // arg label 'foo:'
+            let (_, location) = try consume() // .ident(_)
 
-        if argumentListNode.children.count > 2, !wasComma { try parser.error(.expectedComma).recover(with: &parser) }
+            let labelNode = AstNode.ident(ident, location)
+            try consume(.colon)
+            let val = try expression()
+            let arg = AstNode.argument(label: labelNode, value: val, location)
+            args.append(arg)
 
-        wasComma = false
-        wasLabel = true
+            wasComma = false
 
-        try parser.consume() // ident
-        try parser.consume(.colon)
+        default:
 
-        let labelNode = AST.Node(.argumentLabel(label), location: token.location)
-        argumentListNode.add(labelNode)
-      } else {
+            let val = try expression()
+            let arg = AstNode.argument(label: nil, value: val, val.location.lowerBound)
+            args.append(arg)
 
-        if argumentListNode.children.count > 1, !wasComma && !wasLabel { try parser.error(.expectedComma).recover(with: &parser) }
+            wasComma = false
+        }
 
-        wasComma = false
-        wasLabel = false
 
-        let exprNode = try parser.expression()
-        argumentListNode.add(exprNode)
-      }
     }
+    
+    let (_, endLocation) = try consume(.rparen)
 
-    if wasComma { try parser.error(.unexpectedComma).recover(with: &parser) }
-
-    try parser.consume(.rparen)
-
-    return callNode
+    return AstNode.expr(.call(receiver: lvalue, args: args, lvalue.location.lowerBound ..< endLocation))
   }
 }

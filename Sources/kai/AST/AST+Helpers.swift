@@ -49,6 +49,11 @@ extension AstNode {
             name = "directive"
             unlabeled.append(directive)
 
+        case .argument(label: let label, value: let val, _):
+            name = "argument"
+            labeled["label"] = label?.pretty()
+            unlabeled.append(val.pretty())
+
         case .field(names: let names, type: _, _):
             name = "field"
             //            labeled["type"] = type.pretty(depth: depth + 1)
@@ -67,12 +72,13 @@ extension AstNode {
                 name = "procLit"
 //                labeled["type"] = type.
 
+                // TODO(vdka): work out how to nicely _stringify_ a node
                 switch procSource {
                 case .native(_):
                     break
 
-                case .foreign(lib: _, name: let name, linkName: _):
-                    labeled["foreign"] = name
+                case .foreign(lib: _, symbol: _):
+                    break
                 }
 
             case .compound(type: _, elements: _, _):
@@ -177,7 +183,7 @@ extension AstNode {
                 name = "deferStmt"
                 children.append(stmt)
 
-            case .control(let controlStatement, ):
+            case .control(let controlStatement, _):
                 name = String(describing: controlStatement)
             }
 

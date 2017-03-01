@@ -132,10 +132,22 @@ extension IRGenerator {
 
     func emitStmt(for node: AstNode) -> IRValue {
         switch node {
+        case .invalid(_):
+            break
+
         case .ident(_, _):
             break
 
-        case .directive(_, _):
+        case .basicDirective(_, _):
+            break
+
+        case .argument(label: _, value: _, _):
+            break
+
+        case .field(names: _, type: _, _):
+            break
+
+        case .fieldList(_, _):
             break
 
         case .literal(let literal):
@@ -211,6 +223,9 @@ extension IRGenerator {
 
             case .defer(statement: _, _):
                 return emitDeferStmt(for: node)
+
+            case .control(let controlStmt, _):
+                break
             }
 
         case .decl(let decl):
@@ -251,12 +266,6 @@ extension IRGenerator {
             case .enum(baseType: _, fields: _, _):
                 break
             }
-            
-        case .field(names: _, type: _, _):
-            break
-            
-        case .fieldList(_, _):
-            break
         }
 
         return VoidType().null()

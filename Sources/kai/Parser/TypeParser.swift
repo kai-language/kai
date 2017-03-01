@@ -18,6 +18,7 @@ extension Parser {
             var wasComma = false
 
             var fields: [AstNode] = []
+
             // TODO(vdka): Add support for labeled fields
 
             while let (token, location) = try lexer.peek(), token != .rparen {

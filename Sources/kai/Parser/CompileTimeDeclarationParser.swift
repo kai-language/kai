@@ -1,46 +1,59 @@
 
 extension Parser {
 
-    static func parseCompileTimeDeclaration(_ parser: inout Parser, _ lvalue: AstNode) throws -> AstNode {
+    mutating func parseCompileTimeDeclaration(_ lvalue: AstNode) throws -> AstNode {
 
-        try parser.consume(.colon)
-        try parser.consume(.colon)
+        try consume(.colon)
+        try consume(.colon)
 
-        guard let (token, location) = try parser.lexer.peek() else { throw parser.error(.invalidDeclaration) }
+        guard let (token, location) = try lexer.peek() else { throw error(.invalidDeclaration) }
         switch token {
         case .lparen: // procedure type parsing
-            let type = try parser.parseType()
+            let type = try parseType()
 
             // next should be a new scope '{' or a foreign body
-            guard let (token, location) = try parser.lexer.peek() else { throw parser.error(.syntaxError) }
+            guard let (token, location) = try lexer.peek() else { throw error(.syntaxError) }
 
             switch token {
             case .lbrace:
 
-                let bodyExpr = try parser.expression()
+                let bodyExpr = try expression()
 
-                let procBody = ProcBody.native(bodyExpr)
-
-                let proc = AST.Node(.procLiteral(type: type, body: procBody))
-                lvalue.add(proc)
-
-                AstNode.decl(.value(isVar: false, names: <#T##[AstNode]#>, type: <#T##AstNode?#>, values: <#T##[AstNode]#>, <#T##SourceLocation#>))
-                return lvalue
+                return AstNode.literal(.proc(.native(body: bodyExpr), type: type, type.location.lowerBound))
 
             case .directive(.foreign):
-                try parser.consume()
+                try consume(.directive(.foreign))
 
-                guard case .string(let foreignName)? = try parser.lexer.peek()?.kind else {
-                    reportError("Expected foreign name", at: location)
-
-                    return AST.Node(.invalid)
+                guard case (.ident(let libName), let libLocation)? = try lexer.peek() else {
+                    reportError("Expected lib name", at: lexer.lastLocation)
+                    return AstNode.invalid(lexer.lastLocation)
                 }
 
-                try parser.consume()
+                try consume() // .ident(_)
 
-                let procBody = ProcBody.foreign(library: AST.Node(.invalid), name: foreignName.string, linkName: "")
+                var symbolNameNode: AstNode?
+                if case (.literal(let name), let location)? = try lexer.peek() {
+                    // TODO(vdka): We actually have a literal.
+                    // TODO(vdka): Validate our literal is a string literal.
+                    symbolNameNode = AstNode.ident(name, location)
 
-                return AST.Node(.procLiteral(type: type, body: procBody))
+                    try consume() // .literal(_)
+
+                } else {
+                    guard case .ident(_) = lvalue else {
+                        reportError("When omitting a symbol name the lvalue must be an identifier", at: lvalue)
+                        return AstNode.invalid(lvalue.location.lowerBound)
+                    }
+                }
+
+                /*
+                 open      :: (path: ^u8, mode: int, perm: u32) -> Handle #foreign libc
+                 unix_open :: (path: ^u8, mode: int, perm: u32) -> Handle #foreign libc "open"
+                */
+
+                let libNameNode = AstNode.ident(libName, libLocation)
+
+                return AstNode.literal(.proc(.foreign(lib: libNameNode, symbol: symbolNameNode ?? lvalue), type: type, type.location.lowerBound))
 
             default:
                 reportError("Expected procedure body or foreign directive", at: location)
@@ -58,11 +71,8 @@ extension Parser {
         case .keyword(.enum):
             unimplemented("enum's not yet supported'")
 
-        case .identifier("infix"), .identifier("prefix"), .identifier("postfix"):
-            throw parser.error(.syntaxError)
-
         default:
-            throw parser.error(.syntaxError)
+            throw error(.syntaxError)
         }
 
         fatalError("TODO: What happened here")

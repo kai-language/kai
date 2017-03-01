@@ -30,6 +30,8 @@ class ASTFile {
     }
 }
 
+
+// TODO(vdka): Convert all SourceLocations to SourceRanges
 enum AstNode {
 
     case invalid(SourceLocation)
@@ -37,9 +39,14 @@ enum AstNode {
     case ident(String, SourceLocation)
     case basicDirective(String, SourceLocation)
 
+    /// - Parameter name: Name is what is followed by `:` 
+    indirect case argument(label: AstNode?, value: AstNode, SourceLocation)
+
     /// - Parameter names: eg. (x, y, z: f32)
     indirect case field(names: [AstNode], type: AstNode, SourceLocation)
     indirect case fieldList([AstNode], SourceLocation)
+
+    // TODO(vdka): Add a foreign source here. Variables can be foreign too.
 
     // TODO(vdka): enum's will also need to have another field type which stores values
     // indirect case fieldValue(name: AstNode, value: AstNode, SourceLocation)
@@ -54,7 +61,8 @@ enum AstNode {
         enum ProcSource {
             case native(body: AstNode)
             // TODO(vdka): This potentially needs changing
-            case foreign(lib: AstNode, name: String, linkName: String)
+            /// - Parameter symbol: represents the symbol name to look for, it maybe the identifier name if omitted
+            case foreign(lib: AstNode, symbol: AstNode)
         }
 
         case basic(String, SourceLocation)
@@ -134,27 +142,20 @@ extension AstNode {
     var location: SourceRange {
 
         switch self {
-        case .invalid(let location):
-            return location ..< location
+        case .invalid(let location),
+             .ident(_, let location),
+             .basicDirective(_, let location),
+             .argument(label: _, value: _, let location),
+             .field(names: _, type: _, let location),
+             .fieldList(_, let location):
 
-        case .ident(_, let location):
-            return location ..< location
-
-        case .basicDirective(_, let location):
-            return location ..< location
-
-        case .field(names: _, type: _, let location):
-            return location ..< location
-
-        case .fieldList(_, let location):
             return location ..< location
 
         case .literal(let literal):
             switch literal {
-            case .basic(_, let location):
-                return location ..< location
+            case .basic(_, let location),
+                 .proc(_, type: _, let location):
 
-            case .proc(_, type: _, let location):
                 return location ..< location
 
             case .compound(type: _, elements: _, let range):
@@ -166,28 +167,21 @@ extension AstNode {
             case .bad(let range):
                 return range
 
-            case .unary(op: _, expr: _, let location):
-                return location ..< location
-
-            case .binary(op: _, lhs: _, rhs: _, let location):
-                return location ..< location
-
             case .paren(expr: _, let range):
                 return range
-
-            case .selector(receiver: _, selector: _, let location):
-                return location ..< location
 
             case .subscript(receiver: _, index: _, let range):
                 return range
 
-            case .deref(receiver: _, let location):
-                return location ..< location
-
             case .call(receiver: _, args: _, let range):
                 return range
 
-            case .ternary(cond: _, _, _, let location):
+            case .unary(op: _, expr: _, let location),
+                 .binary(op: _, lhs: _, rhs: _, let location),
+                 .selector(receiver: _, selector: _, let location),
+                 .deref(receiver: _, let location),
+                 .ternary(cond: _, _, _, let location):
+
                 return location ..< location
 
             }
@@ -197,31 +191,21 @@ extension AstNode {
             case .bad(let range):
                 return range
 
-            case .empty(let location):
-                return location ..< location
+            case .block(statements: _, let range):
+                return range
 
             case .expr(let ast):
                 return ast.location
 
-            case .assign(op: _, lhs: _, rhs: _, let location):
-                return location ..< location
+            case .empty(let location),
+                 .assign(op: _, lhs: _, rhs: _, let location),
+                 .if(cond: _, body: _, _, let location),
+                 .return(results: _, let location),
+                 .for(initializer: _, cond: _, post: _, body: _, let location),
+                 .case(list: _, statements: _, let location),
+                 .defer(statement: _, let location),
+                 .control(_, let location):
 
-            case .block(statements: _, let range):
-                return range
-
-            case .if(cond: _, body: _, _, let location):
-                return location ..< location
-
-            case .return(results: _, let location):
-                return location ..< location
-
-            case .for(initializer: _, cond: _, post: _, body: _, let location):
-                return location ..< location
-
-            case .case(list: _, statements: _, let location):
-                return location ..< location
-
-            case .defer(statement: _, let location):
                 return location ..< location
             }
 
@@ -230,37 +214,23 @@ extension AstNode {
             case .bad(let range):
                 return range
 
-            case .value(isVar: _, names: _, type: _, values: _, let location):
-                return location ..< location
+            case .value(isVar: _, names: _, type: _, values: _, let location),
+                 .import(relativePath: _, fullPath: _, importName: _, let location),
+                 .library(filePath: _, libName: _, let location):
 
-            case .import(relativePath: _, fullPath: _, importName: _, let location):
-                return location ..< location
-
-            case .library(filePath: _, libName: _, let location):
                 return location ..< location
             }
 
         case .type(let type):
             switch type {
-            case .helper(type: _, let location):
-                return location ..< location
+            case .helper(type: _, let location),
+                 .proc(params: _, results: _, let location),
+                 .pointer(baseType: _, let location),
+                 .array(count: _, baseType: _, let location),
+                 .dynArray(baseType: _, let location),
+                 .struct(fields: _, let location),
+                 .enum(baseType: _, fields: _, let location):
 
-            case .proc(params: _, results: _, let location):
-                return location ..< location
-
-            case .pointer(baseType: _, let location):
-                return location ..< location
-
-            case .array(count: _, baseType: _, let location):
-                return location ..< location
-
-            case .dynArray(baseType: _, let location):
-                return location ..< location
-
-            case .struct(fields: _, let location):
-                return location ..< location
-
-            case .enum(baseType: _, fields: _, let location):
                 return location ..< location
             }
         }

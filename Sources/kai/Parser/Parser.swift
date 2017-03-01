@@ -297,7 +297,7 @@ extension Parser {
         }
     }
 
-    mutating func led(for token: Lexer.Token, with lvalue: AST.Node) throws -> AST.Node {
+    mutating func led(for token: Lexer.Token, with lvalue: AstNode) throws -> AstNode {
 
         switch token {
         case .operator(let symbol):
@@ -309,57 +309,68 @@ extension Parser {
         case .dot:
             let (_, location) = try consume(.dot)
 
-            guard case let (.identifier(member), memberLocation)? = try lexer.peek() else {
+            guard case (.ident(let member), let memberLocation)? = try lexer.peek() else {
                 throw error(.expectedMemberName)
             }
-            try consume()
 
-            let rvalue = AST.Node(.identifier(member), location: memberLocation)
+            try consume() // .ident(_)
 
-            return AST.Node(.memberAccess, children: [lvalue, rvalue], location: location)
+            let rvalue = AstNode.ident(member, memberLocation)
+
+            return AstNode.expr(.selector(receiver: lvalue, selector: rvalue, location))
 
         case .comma:
-            let (_, location) = try consume()
+            // TODO(vdka): Check if `context.contains(.allowComma)` (made up call)
+            let (_, location) = try consume(.comma)
             reportError("Unexpected comma", at: location)
-            return AST.Node(.invalid, location: location)
+            return AstNode.invalid(location)
 
         case .lbrack:
-            let (_, startLocation) = try consume(.lbrack)
+            let (_, lLoc) = try consume(.lbrack)
             let expr = try expression()
-            try consume(.rbrack)
+            let (_, rLoc) = try consume(.rbrack)
 
-            return AST.Node(.subscript, children: [lvalue, expr], location: startLocation)
+            return AstNode.expr(.subscript(receiver: lvalue, index: expr, lLoc ..< rLoc))
 
         case .lparen:
 
-            return try Parser.parseProcedureCall(&self, lvalue)
+            return try parseProcedureCall(lvalue)
 
         case .equals:
 
             let (_, location) = try consume(.equals)
 
-            let rhs = try expression()
+            let rvalue = try expression()
 
-            return AST.Node(.assignment("="), children: [lvalue, rhs], location: location)
+            // TODO(vdka): Handle multiple expressions. That gon be herd.
+            //   Actually this isn't a decl so, maybe we don't support this.
+            /* x, y, z = z, y, x */
+            // Maybe we prefer
+            /* (x, y, z) = (z, y, x) */
+            // where l & r values would be field lists. This is probably easier to parse, but what is the most syntactially constant.
+
+            return AstNode.stmt(.assign(op: "=", lhs: [lvalue], rhs: [rvalue], location))
 
         case .colon:
 
-            if case .colon? = try lexer.peek(aheadBy: 1)?.kind {
-                return try Parser.parseCompileTimeDeclaration(&self, lvalue)
-            } // '::'
+            if case .colon? = try lexer.peek(aheadBy: 1)?.kind { // '::'
+                // TODO(vdka): Check that the lvalue is an ident or report an error
+                return try parseCompileTimeDeclaration(lvalue)
+            }
 
             try consume(.colon)
 
             switch try lexer.peek()?.kind {
             case .equals?:
                 // type is infered
-                try consume(.equals)
+                let (_, location) = try consume(.equals)
                 let rvalues = try parseMultipleExpressions()
 
                 // TODO(vdka): handle mismatched lhs count and rhs count
 
-                let declValue = Declaration.Value(isVar: true, type: nil, values: rvalues)
-                return AST.Node(.decl(.value(declValue)))
+                // TODO(vdka): Multiple declarations
+
+                return AstNode.decl(.value(isVar: true, names: [lvalue], type: nil, values: rvalues, location))
 
             default:
                 try consume(.colon)
@@ -367,10 +378,10 @@ extension Parser {
                 // NOTE(vdka): For now you can only have a single type on the lhs
                 // TODO(vdka): This should have a warning to explain.
                 let type = try parseType()
+                let (_, location) = try consume(.equals)
                 let rvalues = try parseMultipleExpressions()
 
-                let declValue = Declaration.Value(isVar: true, type: type, values: rvalues)
-                return AST.Node(.decl(.value(declValue)))
+                return AstNode.decl(.value(isVar: true, names: [lvalue], type: type, values: rvalues, location))
             }
 
         default:
@@ -381,19 +392,77 @@ extension Parser {
 
     // MARK: Sub parsers
 
-    mutating func parseMultipleExpressions() throws -> [AST.Node] {
+    mutating func parseMultipleExpressions() throws -> [AstNode] {
 
         let expr = try expression()
-        var expressions: [AST.Node] = [expr]
+        var exprs: [AstNode] = [expr]
 
         while case .comma? = try lexer.peek()?.kind {
             try consume(.comma)
 
             let expr = try expression()
-            expressions.append(expr)
+            exprs.append(expr)
         }
 
-        return expressions
+        return exprs
+    }
+
+    mutating func parseFieldList() throws -> AstNode {
+        let (_, startLocation) = try consume(.lparen)
+        var wasComma = false
+
+        var fields: [AstNode] = []
+
+        // TODO(vdka): Add support for labeled fields (Only relivant to type decl names)?
+
+        while let (token, location) = try lexer.peek(), token != .rparen {
+
+            switch token {
+            case .comma:
+                try consume(.comma)
+                if fields.isEmpty && wasComma {
+                    reportError("Unexpected comma", at: location)
+                    continue
+                }
+
+                wasComma = true
+
+            case .ident(let name):
+                let nameNode = AstNode.ident(name, location)
+                var names = [nameNode]
+                while case (.comma, _)? = try lexer.peek() {
+
+                    try consume(.comma)
+                    guard case (.ident(let name), let location)? = try lexer.peek() else {
+                        reportError("Expected identifier", at: lexer.lastLocation)
+                        try consume()
+                        continue
+                    }
+
+                    let nameNode = AstNode.ident(name, location)
+                    names.append(nameNode)
+                }
+
+                try consume(.colon)
+                let type = try parseType()
+                let field = AstNode.field(names: names, type: type, startLocation)
+                fields.append(field)
+
+                wasComma = false
+
+            default:
+                if wasComma {
+                    // comma with no fields
+                    reportError("Unexpected comma", at: location)
+                }
+
+                wasComma = false
+            }
+        }
+
+        try consume(.rparen)
+
+        return AstNode.fieldList(fields, startLocation)
     }
 }
 
@@ -412,6 +481,7 @@ extension Parser {
         }
 
         guard try lexer.peek()?.kind == expected else {
+            // FIXME(vdka): What is that error message. That's horrid.
             throw error(.expected("something TODO ln Parser.swift:324"), location: try lexer.peek()!.location)
         }
 
