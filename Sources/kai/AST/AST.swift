@@ -33,7 +33,7 @@ class ASTFile {
 
 // TODO(vdka): Convert all SourceLocations to SourceRanges
 // TODO(vdka): Bring all locations to the top level nodes.
-enum AstNode {
+indirect enum AstNode {
 
     case invalid(SourceLocation)
 
@@ -41,22 +41,22 @@ enum AstNode {
     case basicDirective(String, SourceLocation)
 
     /// - Parameter name: Name is what is followed by `:`
-    indirect case argument(label: AstNode?, value: AstNode, SourceLocation)
+    case argument(label: AstNode?, value: AstNode, SourceLocation)
 
     /// - Parameter names: eg. (x, y, z: f32)
-    indirect case field(names: [AstNode], type: AstNode, SourceLocation)
-    indirect case fieldList([AstNode], SourceLocation)
+    case field(names: [AstNode], type: AstNode, SourceLocation)
+    case fieldList([AstNode], SourceLocation)
 
     // TODO(vdka): Add a foreign source here. Variables can be foreign too.
 
     // TODO(vdka): enum's will also need to have another field type which stores values
     // indirect case fieldValue(name: AstNode, value: AstNode, SourceLocation)
 
-    indirect case literal(Literal)
-    indirect case expr(Expression)
-    indirect case stmt(Statement)
-    indirect case decl(Declaration)
-    indirect case type(`Type`)
+    case literal(Literal)
+    case expr(Expression)
+    case stmt(Statement)
+    case decl(Declaration)
+    case type(Type)
 
     enum Literal {
         case basic(Basic, SourceLocation)

@@ -199,7 +199,7 @@ extension AstNode {
 //                labeled["type"] = type.desc
             }
 
-        case let .expr(expr):
+        case .expr(let expr):
             switch expr {
             case .bad(let range):
                 name = "badExpr"
