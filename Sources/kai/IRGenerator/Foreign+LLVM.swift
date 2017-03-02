@@ -1,7 +1,7 @@
 import LLVM
 
 extension IRGenerator {
-    func emitLLVMForeignDefinition(_ funcName: ByteString, func: Function) {
+    func emitLLVMForeignDefinition(_ funcName: String, func: Function) {
         switch funcName {
         case "add":
             break

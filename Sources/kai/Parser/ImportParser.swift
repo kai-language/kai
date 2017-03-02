@@ -1,4 +1,6 @@
 
+import Foundation.NSFileManager
+
 extension Parser {
 
 	mutating func parseImportDirective() throws -> AstNode {
@@ -13,7 +15,8 @@ extension Parser {
 
         let pathNode = AstNode.literal(.basic(.string(path), pathLocation))
 
-        let fullPath = resolveToFullPath(relativePath: path)
+        // If we can't resolve an import it will be caught later in the checker.
+        let fullPath = FileManager.default.absolutePath(for: path) ?? "_"
 
         guard let (token, aliasLocation) = try lexer.peek() else {
 

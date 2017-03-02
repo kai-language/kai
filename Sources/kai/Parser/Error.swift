@@ -5,17 +5,16 @@ extension Parser {
 
     mutating func error(_ reason: Error.Reason, location: SourceLocation? = nil) -> Parser.Error {
         errors += 1
-        return Error(reason: reason, message: reason.description, severity: .error, location: location ?? lexer.lastLocation, highlights: [])
+        return Error(reason: reason, message: reason.description, location: location ?? lexer.lastLocation, highlights: [])
     }
 }
 
 extension Parser {
 
-    struct Error: CompilerError {
+    struct Error: Swift.Error {
 
         var reason: Reason
         var message: String?
-        var severity: Severity
         var location: SourceLocation
         var highlights: [SourceRange]
 
@@ -34,9 +33,9 @@ extension Parser {
             case todo
 
             // old
-            case expected(ByteString)
-            case unexpected(ByteString)
-            case undefinedIdentifier(ByteString)
+            case expected(String)
+            case unexpected(String)
+            case undefinedIdentifier(String)
             case operatorRedefinition
             case unaryOperatorBodyForbidden
             case ambigiousOperatorUse

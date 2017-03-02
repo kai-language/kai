@@ -3,7 +3,7 @@ struct FileScanner {
 
     var file: File
     var position: SourceLocation
-    var scanner: BufferedScanner<Byte>
+    var scanner: BufferedScanner<UnicodeScalar>
 
     init(file: File) {
 
@@ -15,24 +15,24 @@ struct FileScanner {
 
 extension FileScanner {
 
-    mutating func peek(aheadBy n: Int = 0) -> Byte? {
+    mutating func peek(aheadBy n: Int = 0) -> UnicodeScalar? {
 
         return scanner.peek(aheadBy: n)
     }
 
     @discardableResult
-    mutating func pop() -> Byte {
+    mutating func pop() -> UnicodeScalar {
 
-        let byte = scanner.pop()
+        let scalar = scanner.pop()
 
-        if byte == "\n" {
+        if scalar == "\n" {
             position.line       += 1
             position.column  = 1
         } else {
             position.column += 1
         }
 
-        return byte
+        return scalar
     }
 }
 
@@ -47,9 +47,9 @@ extension FileScanner {
 
 extension FileScanner {
 
-    mutating func hasPrefix(_ prefix: ByteString) -> Bool {
+    mutating func hasPrefix(_ prefix: String) -> Bool {
 
-        for (index, char) in prefix.enumerated() {
+        for (index, char) in prefix.unicodeScalars.enumerated() {
 
             guard peek(aheadBy: index) == char else { return false }
         }
@@ -57,17 +57,17 @@ extension FileScanner {
         return true
     }
 
-    mutating func prefix(_ n: Int) -> ByteString {
+    mutating func prefix(_ n: Int) -> String {
 
-        var bytes: [Byte] = []
+        var scalars: [UnicodeScalar] = []
 
         var index = 0
         while index < n, let next = peek(aheadBy: index) {
             defer { index += 1 }
 
-            bytes.append(next)
+            scalars.append(next)
         }
 
-        return ByteString(bytes)
+        return String(scalars)
     }
 }

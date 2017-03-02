@@ -1,4 +1,5 @@
 
+import Foundation.NSFileManager
 /*
 typedef struct Parser {
     String              init_fullpath;
@@ -47,8 +48,11 @@ struct ImportedFile {
     var relativePath: String
     // TODO(vdka): source token (for location)
 
-    init(relativePath: String) {
-        self.fullPath = resolveToFullPath(relativePath: relativePath)
+    init?(relativePath: String) {
+        guard let fullPath = FileManager.default.absolutePath(for: relativePath) else {
+            return nil
+        }
+        self.fullPath = fullPath
         self.relativePath = relativePath
     }
 }
@@ -70,7 +74,8 @@ struct Parser {
 
         self.files = []
 
-        let importedFile = ImportedFile(relativePath: relativePath)
+        // FIXME(vdka): Ensure bad build file path's do not get to the Parser initialization call.
+        let importedFile = ImportedFile(relativePath: relativePath)!
 
         self.imports = [importedFile]
     }

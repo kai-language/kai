@@ -103,7 +103,6 @@ extension Operator {
 
 extension Operator {
 
-    // TODO(vdka): These need to become CompilerError's @ some point
     enum Error: Swift.Error {
         case invalidSymbol
         case redefinition(String)

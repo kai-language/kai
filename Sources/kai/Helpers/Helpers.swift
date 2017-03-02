@@ -1,28 +1,19 @@
 
 import Foundation.NSFileManager
 
-/// handle errors.
-func resolveToFullPath(relativePath: String) -> String {
+extension FileManager {
 
-    let filePath: String
+    func absolutePath(for filePath: String) -> String? {
 
-    let fm = FileManager.default
-    let curDir = FileManager.default.currentDirectoryPath
+        let url = URL(fileURLWithPath: filePath)
+        do {
+            guard try url.checkResourceIsReachable() else { return nil }
+        } catch { return nil }
 
-    // Test to see if fileName is a relative path
-    if fm.fileExists(atPath: curDir + "/" + relativePath) {
-        filePath = curDir + "/" + relativePath
-    } else if fm.fileExists(atPath: relativePath) { // Test to see if `fileName` is an absolute path
-        guard let absolutePath = fm.absolutePath(for: relativePath) else {
-            fatalError("\(relativePath) not found")
-        }
+        let absoluteURL = url.absoluteString
 
-        filePath = absolutePath
-    } else { // `fileName` doesn't exist
-        fatalError("\(relativePath) not found")
+        return absoluteURL.components(separatedBy: "file://").last
     }
-
-    return filePath
 }
 
 extension String {
@@ -68,6 +59,24 @@ extension Set {
         for element in sequences.joined() {
             insert(element)
         }
+    }
+}
+
+
+extension String {
+
+    // God, why does the stdlib not have such simple things.
+    func split(separator: Character) -> [String] {
+        return self.characters.split(separator: separator).map(String.init)
+    }
+
+    init(_ unicodeScalars: [UnicodeScalar]) {
+        self.init(unicodeScalars.map(Character.init))
+    }
+
+    /// This was removed from the stdlib I guess ...
+    mutating func append(_ scalar: UnicodeScalar) {
+        self.append(Character(scalar))
     }
 }
 

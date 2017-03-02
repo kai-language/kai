@@ -79,7 +79,7 @@ class TypeRecord {
 
 struct ProcInfo {
     var scope: AstNode?
-    var labels: [(callsite: ByteString?, binding: ByteString)]?
+    var labels: [(callsite: String?, binding: String)]?
     var params: [AstNode]
     var returns: [AstNode]
     var isVariadic: Bool
@@ -87,7 +87,7 @@ struct ProcInfo {
 
     init(
         scope: AstNode? = nil,
-        labels: [(callsite: ByteString?, binding: ByteString)]?,
+        labels: [(callsite: String?, binding: String)]?,
         params: [AstNode],
         returns: [AstNode],
         isVariadic: Bool = false,

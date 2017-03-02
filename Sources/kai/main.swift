@@ -122,48 +122,43 @@ struct Compiler {
     func build(options: Set<String>, optimization: String) throws {
         let filePath = try extractFilePath()
         
-        do {
 
-            var parser = Parser(relativePath: filePath)
+        var parser = Parser(relativePath: filePath)
 
-//            let (ast, errors) = try parser.parse()
-            let files = try parser.parseFiles()
+        //            let (ast, errors) = try parser.parse()
+        let files = try parser.parseFiles()
 
-            let errors = parser.errors
+        let errors = parser.errors
 
-            guard errors == 0 else {
-                print("There were \(errors) errors during parsing\nexiting")
-                exit(1)
-            }
-            
-            /*try TypeSolver.run(ast, options: .timed)
-            if options.contains("time") {
-                print(TypeSolver.timing)
-            }*/
-            
-            if options.contains("emit-ast") {
-                for file in files {
-                    print(file.pretty())
-                }
-            }
+        guard errors == 0 else {
+            print("There were \(errors) errors during parsing\nexiting")
+            exit(1)
+        }
 
+        /*try TypeSolver.run(ast, options: .timed)
+         if options.contains("time") {
+         print(TypeSolver.timing)
+         }*/
+
+        if options.contains("emit-ast") {
             for file in files {
-
-                let module = try IRGenerator.build(for: file)
-
-                // FIXME(vdka): emit object files for each and every importation
-                try TargetMachine().emitToFile(module: module, type: .object, path: "main.o")
-                if options.contains("emit-ir") {
-                    // TODO(vdka): Do we emit file names?
-                    module.dump()
-                }
+                print(file.pretty())
             }
-        } catch let error as CompilerError {
-            console.error(error.description)
-//            console.error(file.generateVerboseLineOf(error: error.location))
+        }
+
+        for file in files {
+
+            let module = try IRGenerator.build(for: file)
+
+            // FIXME(vdka): emit object files for each and every importation
+            try TargetMachine().emitToFile(module: module, type: .object, path: "main.o")
+            if options.contains("emit-ir") {
+                // TODO(vdka): Do we emit file names?
+                module.dump()
+            }
         }
     }
-    
+
     func extractFilePath() throws -> String {
         guard let fileName = fileName else {
             throw Error.fileNameNotProvided

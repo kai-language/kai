@@ -1,16 +1,16 @@
 import LLVM
 
 extension IRGenerator {
-    func emitGlobalString(name: String? = nil, value: ByteString) -> IRValue {
+    func emitGlobalString(name: String? = nil, value: String) -> IRValue {
         return builder.buildGlobalStringPtr(
-            value.string.escaped,
+            value.escaped,
             name: name ?? ""
         )
     }
 }
 
 extension String {
-    //TODO: More robust system
+    //TODO(vdka): This should be done in the lexer.
     var escaped: String {
         return self.replacingOccurrences(of: "\\n", with: "\n")
             .replacingOccurrences(of: "\\t", with: "\t")
