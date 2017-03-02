@@ -25,6 +25,28 @@ extension AstNode: CustomStringConvertible {
 
 extension AstNode {
 
+    var isType: Bool {
+        switch self {
+        case .ident, .type:
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    func unparenExpr() -> AstNode {
+        var curr = self
+        while case .expr(.paren(let expr, _)) = curr {
+            curr = expr
+        }
+
+        return expr
+    }
+}
+
+extension AstNode {
+
     var identifier: String {
         guard case .ident(let ident, _) = self else {
             preconditionFailure()
@@ -131,7 +153,7 @@ extension AstNode {
         case .invalid(let location):
             name = "invalid"
             labeled["location"] = location.description
-            
+
         case .ident(let ident, _):
             name = "ident"
             unlabeled.append(ident)
