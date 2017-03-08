@@ -4,13 +4,13 @@ import ByteHashable
 class ASTFile {
 
     var lexer: Lexer
+    var fullpath: String
     var name: String
     /// All of the top level declarations, statements and expressions are placed into this array
     var nodes: [AstNode]
     var scopeLevel: Int = 0
     var scope: Scope?       // NOTE: Created in checker
 
-    // FIXME: I need one of these for each `decl`
     var declInfo: DeclInfo? // NOTE: Created in checker
 
     var errors: Int = 0
@@ -20,6 +20,7 @@ class ASTFile {
     init(named: String) {
 
         let file = File(path: named)!
+        self.fullpath = file.path
         self.lexer = Lexer(file)
         self.name = named
         self.nodes = []
@@ -258,6 +259,26 @@ extension AstNode {
     var isType: Bool {
         switch self {
         case .ident, .type:
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    var isIdent: Bool {
+        switch self {
+        case .ident:
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    var isDecl: Bool {
+        switch self {
+        case .decl:
             return true
 
         default:
@@ -584,44 +605,44 @@ extension AstNode {
             case .struct(fields: let fields, _):
                 name = "structType"
                 children.append(contentsOf: fields)
-                
+
             case .enum(baseType: let baseType, fields: let fields, _):
                 name = "enumType"
                 labeled["baseType"] = baseType.pretty(depth: depth + 1)
                 children.append(contentsOf: fields)
             }
         }
-        
+
         let indent = (0...depth).reduce("\n", { $0.0 + "  " })
         var str = indent
-        
+
         if includeParens {
             str.append("(")
         }
-        
+
         str.append(name)
         str.append(unlabeled.reduce("", { [$0.0, " ", $0.1].joined() }))
         str.append(labeled.reduce("", { [$0.0, " ", $0.1.key, ":'", $0.1.value, "'"].joined() }))
-        
+
         children.map({ $0.pretty(depth: depth + 1, includeParens: true) }).forEach({ str.append($0) })
-        
+
         if includeParens {
             str.append(")")
         }
-        
+
         return str
     }
 }
 
 extension ASTFile {
-    
+
     func pretty() -> String {
         var description = "("
         for node in nodes {
             description += node.pretty(depth: 1)
         }
         description += ")"
-        
+
         return description
     }
 }

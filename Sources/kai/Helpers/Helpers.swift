@@ -112,7 +112,33 @@ func isMemoryEquivalent<A, B>(_ lhs: A, _ rhs: B) -> Bool {
     }
 
     return true
+}
 
+extension Collection where Index: Comparable {
+    subscript (safe index: Index) -> Generator.Element? {
+        guard startIndex <= index && index < endIndex else {
+            return nil
+        }
+        return self[index]
+    }
+}
+
+func longZip<S1: Sequence, S2: Sequence>(_ seq1: S1, _ seq2: S2) -> AnySequence<(S1.Iterator.Element?, S2.Iterator.Element?)> {
+
+    var (iter1, iter2) = (seq1.makeIterator(), seq2.makeIterator())
+
+    return AnySequence {
+        return AnyIterator { () -> (S1.Iterator.Element?, S2.Iterator.Element?)? in
+            let (l, r) = (iter1.next(), iter2.next())
+            switch (l, r) {
+            case (nil, nil):
+                return nil
+
+            default:
+                return (l, r)
+            }
+        }
+    }
 }
 
 import Darwin

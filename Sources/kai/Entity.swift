@@ -44,11 +44,11 @@ class Entity {
     var identifier: AstNode?
     var llvm: IRValue?
 
-    init(kind: Kind, flags: Flag = [], scope: Scope, location: SourceLocation?, identifier: AstNode?) {
+    init(kind: Kind = .invalid, flags: Flag = [], scope: Scope, identifier: AstNode?) {
         self.kind = kind
         self.flags = flags
         self.scope = scope
-        self.location = location
+        self.location = identifier?.startLocation
         self.type = nil
         self.identifier = identifier
     }
@@ -72,7 +72,7 @@ class Entity {
             unimplemented("Builtin compound types")
         }
 
-        let e = Entity(kind: .constant(value), scope: scope, location: nil, identifier: nil)
+        let e = Entity(kind: .constant(value), scope: scope, identifier: nil)
         e.type = type
 
         scope.insert(e, named: name)
@@ -97,6 +97,7 @@ extension Entity: Hashable {
 extension Entity {
 
     enum Kind: Equatable {
+        case invalid
         case constant(ExactValue)
         case variable
         case typeName
