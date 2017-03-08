@@ -525,7 +525,7 @@ enum ErrorType {
 }
 
 func reportError(_ message: String, at node: AstNode, with type: ErrorType = .default) {
-    print("ERROR(\(node.location.description)): " + message)
+    print("ERROR(\(node.startLocation.description)): " + message)
 }
 
 func reportError(_ message: String, at location: SourceLocation) {

@@ -10,15 +10,18 @@ extension Parser {
         switch token {
         case .float(let val):
             try consume()
-            return AstNode.literal(.basic(.float(val), startLocation))
+            let lit = AstNode.literal(.basic(.float(val), startLocation))
+            return AstNode.decl(.value(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
 
         case .integer(let val):
             try consume()
-            return AstNode.literal(.basic(.integer(val), startLocation))
+            let lit = AstNode.literal(.basic(.integer(val), startLocation))
+            return AstNode.decl(.value(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
 
         case .string(let val):
             try consume()
-            return AstNode.literal(.basic(.string(val), startLocation))
+            let lit = AstNode.literal(.basic(.string(val), startLocation))
+            return AstNode.decl(.value(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
 
         case .lparen: // procedure type parsing
             let type = try parseType()

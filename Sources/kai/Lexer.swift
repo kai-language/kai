@@ -107,7 +107,7 @@ struct Lexer {
 
 		// TODO(vdka): Correctly consume (and validate) number literals (real and integer)
 		case _ where digits.contains(char):
-			let number = consume(with: digits)
+			let number = consume(with: digits + ["."])
 
             if number.contains(".") {
                 let dbl = Double(number)!
