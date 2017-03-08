@@ -2,6 +2,7 @@
 import LLVM
 
 enum ExactValue: Equatable {
+    case invalid
     case bool(Bool)
     case string(String)
     case integer(Int64)
@@ -36,19 +37,31 @@ enum ExactValue: Equatable {
 class Entity {
     var kind: Kind
     var flags: Flag
-    var location: SourceLocation?
+    var name: String
+    var location: SourceLocation
     unowned var scope: Scope
 
     /// Set in the checker
     var type: Type? = nil
-    var identifier: AstNode
+    var identifier: AstNode?
     var llvm: IRValue?
 
-    init(kind: Kind = .invalid, flags: Flag = [], scope: Scope, identifier: AstNode) {
+    init(kind: Kind = .invalid, name: String, location: SourceLocation, flags: Flag = [], scope: Scope, identifier: AstNode?) {
         self.kind = kind
+        self.name = name
         self.flags = flags
         self.scope = scope
-        self.location = identifier.startLocation
+        self.location = location
+        self.type = nil
+        self.identifier = identifier
+    }
+
+    init(kind: Kind = .invalid, name: String, location: SourceLocation? = nil, flags: Flag = [], scope: Scope, identifier: AstNode) {
+        self.kind = kind
+        self.name = name
+        self.flags = flags
+        self.scope = scope
+        self.location = location ?? identifier.startLocation
         self.type = nil
         self.identifier = identifier
     }
@@ -56,6 +69,9 @@ class Entity {
     static func declareBuiltinConstant(name: String, value: ExactValue, scope: Scope) {
         var type: Type
         switch value {
+        case .invalid:
+            type = .invalid
+
         case .bool(_):
             type = .unconstrBoolean
 
@@ -72,11 +88,25 @@ class Entity {
             unimplemented("Builtin compound types")
         }
 
-        let identifier = AstNode.ident(name, .unknown)
-        let e = Entity(kind: .constant(value), scope: scope, identifier: identifier)
+        let e = Entity(kind: .compileTime(value), name: name, location: .unknown, scope: scope, identifier: nil)
         e.type = type
 
-        scope.insert(e, named: name)
+        scope.insert(e)
+    }
+}
+
+extension Entity {
+    var isExported: Bool {
+        switch kind {
+        case .builtin,
+             .importName,
+             .libraryName,
+             .nil:
+            return false
+
+        default:
+            return true
+        }
     }
 }
 
@@ -99,8 +129,8 @@ extension Entity {
 
     enum Kind: Equatable {
         case invalid
-        case constant(ExactValue)
-        case variable
+        case compileTime(ExactValue)
+        case runtime
         case typeName
         case procedure // (isForeign (foreignDetails), tags, overload: OverloadKind)
         case builtin
@@ -110,7 +140,7 @@ extension Entity {
 
         static func ==(lhs: Kind, rhs: Kind) -> Bool {
             switch (lhs, rhs) {
-            case (.variable, .variable),
+            case (.runtime, .runtime),
                  (.typeName, .typeName),
                  (.procedure, .procedure),
                  (.builtin, .builtin),
@@ -119,7 +149,7 @@ extension Entity {
                  (.nil, .nil):
                 return true
 
-            case let (.constant(l), .constant(r)):
+            case let (.compileTime(l), .compileTime(r)):
                 return l == r
 
             default:

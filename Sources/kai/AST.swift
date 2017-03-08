@@ -267,7 +267,37 @@ extension AstNode {
 
     var isType: Bool {
         switch self {
-        case .ident, .type:
+        case .type:
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    var isImport: Bool {
+        switch self {
+        case .decl(.import):
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    var isLibrary: Bool {
+        switch self {
+        case .decl(.library):
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    var isProcLit: Bool {
+        switch self {
+        case .literal(.proc):
             return true
 
         default:

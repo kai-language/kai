@@ -146,6 +146,18 @@ class Type {
             return false
         }
     }
+
+    var isConstantType: Bool {
+
+        // TODO(vdka): If the type is an enum we *must* get the base type to determine.
+        switch self.kind {
+        case .basic(let basic):
+            return basic.flags.contains(.constant)
+
+        default:
+            return false
+        }
+    }
 }
 
 class TypePath {
