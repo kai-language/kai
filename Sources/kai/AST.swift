@@ -430,10 +430,148 @@ extension AstNode {
         }
     }
 
+    var shortName: String {
+        switch self {
+        case .invalid:
+            return "invalid"
+
+        case .ident:
+            return "ident"
+
+        case .basicDirective:
+            return "directive"
+
+        case .argument:
+            return "argument"
+
+        case .field:
+            return "field"
+
+        case .fieldList:
+            return "fields"
+
+        case .literal(let literal):
+            switch literal {
+            case .basic:
+                return "lit"
+
+            case .proc:
+                return "proc"
+
+            case .compound:
+                return "compoundLit"
+            }
+
+        case .expr(let expr):
+            switch expr {
+            case .bad:
+                return "badExpr"
+
+            case .unary:
+                return "unaryExpr"
+
+            case .binary:
+                return "binaryExpr"
+
+            case .paren:
+                return "parenExpr"
+
+            case .selector:
+                return "selectorExpr"
+
+            case .subscript:
+                return "subscriptExpr"
+
+            case .deref:
+                return "dereferenceExpr"
+
+            case .call:
+                return "callExpr"
+
+            case .ternary:
+                return "ternaryExpr"
+            }
+
+        case .stmt(let stmt):
+            switch stmt {
+            case .bad:
+                return "badStmt"
+
+            case .empty:
+                return "emptyStmt"
+
+            case .expr:
+                return "expr"
+
+            case .assign:
+                return "assignmentStmt"
+
+            case .block:
+                return "blockStmt"
+
+            case .if:
+                return "ifStmt"
+
+            case .return:
+                return "returnStmt"
+
+            case .for:
+                return "forStmt"
+
+            case .case:
+                return "caseStmt"
+
+            case .defer:
+                return "deferStmt"
+
+            case .control(let controlStatement, _):
+                return String(describing: controlStatement)
+            }
+
+        case .decl(let decl):
+            switch decl {
+            case .bad:
+                return "badDecl"
+
+            case .value:
+                return "decl"
+
+            case .import:
+                return "importDecl"
+
+            case .library:
+                return "libraryDecl"
+            }
+
+        case .type(let type):
+            switch type {
+            case .helper:
+                return "helperType"
+
+            case .proc:
+                return "procType"
+
+            case .pointer:
+                return "pointerType"
+
+            case .array:
+                return "arrayType"
+
+            case .dynArray:
+                return "arrayType"
+
+            case .struct:
+                return "structType"
+
+            case .enum:
+                return "enumType"
+            }
+        }
+    }
+
     // TODO(vdka): Print types nicely
     func pretty(depth: Int = 0, includeParens: Bool = true) -> String {
 
-        var name: String
         var unlabeled: [String] = []
         var labeled: [String: String] = [:]
 
@@ -441,38 +579,31 @@ extension AstNode {
 
         switch self {
         case .invalid(let location):
-            name = "invalid"
             labeled["location"] = location.description
 
         case .ident(let ident, _):
-            name = "ident"
             unlabeled.append(ident)
 
         case .basicDirective(let directive, _):
-            name = "directive"
             unlabeled.append(directive)
 
         case .argument(_, let val, _):
             // TODO(vdka): print labels.
-            name = "argument"
             unlabeled.append(val.pretty(depth: depth + 1, includeParens: true))
 
         case .field(let names, _, _):
-            name = "field"
             //            labeled["type"] = type.pretty(depth: depth + 1)
             children.append(contentsOf: names)
 
         case .fieldList(_, _):
-            name = "fields"
+            break
 
         case .literal(let literal):
             switch literal {
             case .basic(_, _):
-                name = "lit"
                 unlabeled.append(self.literal)
 
             case .proc(let procSource, let type, _):
-                name = "proc"
                 labeled["type"] = type.typeDescription
 
                 // TODO(vdka): work out how to nicely _stringify_ a node
@@ -485,52 +616,43 @@ extension AstNode {
                 }
 
             case .compound(_, _, _):
-                name = "compoundLit"
+                break
                 //                labeled["type"] = type.desc
             }
 
         case .expr(let expr):
             switch expr {
             case .bad(let range):
-                name = "badExpr"
                 unlabeled.append(range.description)
 
             case .unary(let op, let expr, _):
-                name = "unaryExpr"
                 unlabeled.append(op)
                 children.append(expr)
 
             case .binary(let op, let lhs, let rhs, _):
-                name = "binaryExpr"
                 unlabeled.append(op)
                 children.append(lhs)
                 children.append(rhs)
 
             case .paren(let expr, _):
-                name = "parenExpr"
                 children.append(expr)
 
             case .selector(let receiver, let selector, _):
-                name = "selectorExpr"
                 children.append(receiver)
                 children.append(selector)
 
             case .subscript(let receiver, let index, _):
-                name = "subscriptExpr"
                 children.append(receiver)
                 children.append(index)
 
             case .deref(let receiver, _):
-                name = "dereferenceExpr"
                 children.append(receiver)
 
             case .call(let receiver, let args, _):
-                name = "callExpr"
                 children.append(receiver)
                 children.append(contentsOf: args)
 
             case .ternary(let cond, let trueBranch, let falseBranch, _):
-                name = "ternaryExpr"
                 children.append(cond)
                 children.append(trueBranch)
                 children.append(falseBranch)
@@ -539,27 +661,23 @@ extension AstNode {
         case .stmt(let stmt):
             switch stmt {
             case .bad(let range):
-                name = "badStmt"
                 unlabeled.append(range.description)
 
             case .empty(_):
-                name = "emptyStmt"
+                break
 
             case .expr(let ast):
-                name = ast.pretty(depth: depth + 1)
+                children.append(ast)
 
             case .assign(let op, let lhs, let rhs, _):
-                name = "assignmentStmt"
                 unlabeled.append(op)
                 children.append(contentsOf: lhs)
                 children.append(contentsOf: rhs)
 
             case .block(let stmts, _):
-                name = "blockStmt"
                 children.append(contentsOf: stmts)
 
             case .if(let cond, let trueBranch, let falseBranch, _):
-                name = "ifStmt"
                 children.append(cond)
                 children.append(trueBranch)
                 if let falseBranch = falseBranch {
@@ -567,49 +685,41 @@ extension AstNode {
                 }
 
             case .return(let results, _):
-                name = "returnStmt"
                 children.append(contentsOf: results)
 
             case .for(let initializer, let cond, let post, let body, _):
-                name = "forStmt"
                 children.append(initializer)
                 children.append(cond)
                 children.append(post)
                 children.append(body)
 
             case .case(let list, let stmts, _):
-                name = "caseStmt"
                 children.append(contentsOf: list)
                 children.append(contentsOf: stmts)
 
             case .defer(let stmt, _):
-                name = "deferStmt"
                 children.append(stmt)
 
             case .control(let controlStatement, _):
-                name = String(describing: controlStatement)
+                break
             }
 
         case .decl(let decl):
             switch decl {
             case .bad(let range):
-                name = "badDecl"
                 unlabeled.append(range.description)
 
             case .value(_, let names, _, let values, _):
-                name = "decl"
                 //                labeled["type"] = type?.pretty(depth: depth + 1) ?? "<infered>"
                 unlabeled.append(names.first!.identifier)
                 children.append(contentsOf: values)
 
             case .import(let relPath, let fullPath, let importName, _):
-                name = "importDecl"
                 //                labeled["relPath"] = relPath
                 labeled["fullPath"] = fullPath
                 //                labeled["name"] = importName
 
             case .library(let filePath, let libName, _):
-                name = "libraryDecl"
                 labeled["filePath"] = filePath
                 labeled["libName"] = libName
             }
@@ -617,36 +727,30 @@ extension AstNode {
         case .type(let type):
             switch type {
             case .helper(_, _):
-                name = "helperType"
+                break
                 //                labeled["type"] = type.pretty(depth: depth + 1)
 
             case .proc(let params, let results, _):
-                name = "procType"
                 labeled["params"] = params.pretty(depth: depth + 1)
                 labeled["results"] = results.pretty(depth: depth + 1)
 
             case .pointer(let type, _):
-                name = "pointerType"
                 labeled["baseType"] = type.pretty(depth: depth + 1)
 
             case .array(let count, let baseType, _):
-                name = "arrayType"
                 labeled["size"] = count.pretty()
                 labeled["baseType"] = baseType.pretty()
                 // FIXME: These should be inline serialized (return directly?)
 
             case .dynArray(let baseType, _):
-                name = "arrayType"
                 labeled["size"] = "dynamic"
                 labeled["baseType"] = baseType.pretty()
                 // FIXME: These should be inline serialized
 
             case .struct(let fields, _):
-                name = "structType"
                 children.append(contentsOf: fields)
 
             case .enum(let baseType, let fields, _):
-                name = "enumType"
                 labeled["baseType"] = baseType.pretty(depth: depth + 1)
                 children.append(contentsOf: fields)
             }
@@ -659,7 +763,7 @@ extension AstNode {
             str.append("(")
         }
 
-        str.append(name)
+        str.append(shortName)
         str.append(unlabeled.reduce("", { [$0.0, " ", $0.1].joined() }))
         str.append(labeled.reduce("", { [$0.0, " ", $0.1.key, ":'", $0.1.value, "'"].joined() }))
 
