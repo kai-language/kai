@@ -135,16 +135,14 @@ struct Compiler {
             exit(1)
         }
 
-        /*try TypeSolver.run(ast, options: .timed)
-         if options.contains("time") {
-         print(TypeSolver.timing)
-         }*/
-
         if options.contains("emit-ast") {
             for file in files {
                 print(file.pretty())
             }
         }
+
+        var checker = Checker(parser: parser)
+        checker.checkParsedFiles()
 
         for file in files {
 

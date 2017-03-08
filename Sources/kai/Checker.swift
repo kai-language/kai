@@ -138,9 +138,9 @@ struct Checker {
     var globalScope: Scope
     var context: Context
 
-    var procs: [ProcInfo]
+    var procs: [ProcInfo] = []
 
-    var procStack: [Type]
+    var procStack: [Type] = []
 
     var delayedImports:  [DelayedDecl] = []
     var delayedLibaries: [DelayedDecl] = []
@@ -152,6 +152,16 @@ struct Checker {
 	Array(Type *)          proc_stack;
 	bool                   done_preload;
     */
+
+    init(parser: Parser) {
+        self.parser = parser
+
+        currentFile = parser.files.first!
+        info = Info()
+
+        globalScope = Scope(parent: .universal)
+        context = Context(scope: globalScope)
+    }
 
     struct Info {
         var types:       [AstNode: Type]    = [:]
@@ -179,12 +189,22 @@ struct Checker {
     */
 
     struct Context {
-        var fileScope: Scope
         var scope: Scope
-        var decl: DeclInfo?
-        var inDefer: Bool
-        var procName: String?
-        var typeHint: Type?
+        var fileScope: Scope? = nil
+        var decl: DeclInfo?   = nil
+        var inDefer: Bool     = false
+        var procName: String? = nil
+        var typeHint: Type?   = nil
+
+        init(scope: Scope) {
+            self.scope = scope
+
+            fileScope = nil
+            decl      = nil
+            inDefer   = false
+            procName  = nil
+            typeHint  = nil
+        }
     }
 }
 
@@ -198,8 +218,8 @@ extension Checker {
         var fileScopes: [String: Scope] = [:]
 
         for file in parser.files {
-            let scope = Scope(parent: nil) // TODO(vdka): universal scope is parent?
-            scope.isGlobal = true // TODO(vdka): Are files from the parser automatically in _global_
+            let scope = Scope(parent: globalScope)
+            scope.isGlobal = true
             scope.isFile = true
             scope.file = file
             scope.isInit = true // TODO(vdka): Is this the first scope we parsed? (The file the compiler was called upon)
@@ -208,7 +228,7 @@ extension Checker {
                 globalScope.shared.append(scope)
             }
 
-            file.scope = scope // Dep
+            file.scope = scope
             fileScopes[file.fullpath] = scope
         }
 

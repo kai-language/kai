@@ -1,8 +1,10 @@
 
+str :: "Hello, Kai!"
+tau :: 6.2831853071
+
 // it's just like main because I call it.
-moon :: (k: int) -> void {
-    print("hello")
+main :: (k: int) -> void {
+    print(str)
+    print("goodbye!")
 }
 
-moon()
-print("fin")

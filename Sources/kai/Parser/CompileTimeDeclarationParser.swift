@@ -8,6 +8,18 @@ extension Parser {
 
         guard let (token, startLocation) = try lexer.peek() else { throw error(.invalidDeclaration) }
         switch token {
+        case .float(let val):
+            try consume()
+            return AstNode.literal(.basic(.float(val), startLocation))
+
+        case .integer(let val):
+            try consume()
+            return AstNode.literal(.basic(.integer(val), startLocation))
+
+        case .string(let val):
+            try consume()
+            return AstNode.literal(.basic(.string(val), startLocation))
+
         case .lparen: // procedure type parsing
             let type = try parseType()
 
