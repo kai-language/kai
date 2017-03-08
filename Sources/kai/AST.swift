@@ -172,7 +172,7 @@ extension AstNode {
              .ident(_, let location),
              .basicDirective(_, let location),
              .argument(_, value: _, let location),
-             .field(names: _, type: _, let location),
+             .field(_, type: _, let location),
              .fieldList(_, let location):
 
             return location ..< location
