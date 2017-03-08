@@ -22,6 +22,7 @@ struct File {
         repeat {
             let count: Int = fread(buffer, 1, chunkSize - 1, fp)
             guard ferror(fp) == 0 else { break }
+            buffer[count] = 0
             if count > 0 {
                 let ptr = unsafeBitCast(buffer, to: UnsafePointer<CChar>.self)
                 if let newString = String(validatingUTF8: ptr) {
