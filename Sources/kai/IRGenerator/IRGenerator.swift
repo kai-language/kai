@@ -121,7 +121,7 @@ extension IRGenerator {
             switch node {
             case .decl(let decl):
                 switch decl {
-                case .value(isVar: _, names: _, type: let type, values: let values, _):
+                case .value(_, _, let type, _, _):
 
                     switch type {
                     case .type(.proc)?:

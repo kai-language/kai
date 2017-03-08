@@ -26,14 +26,17 @@ class Scope {
         // TODO(vdka): Insert types into universal scope
 
         for type in BasicType.allBasicTypes {
-            let e = Entity(kind: .typeName, flags: [], scope: s, identifier: nil)
+
+            let identifier = AstNode.ident(type.name, .unknown)
+            let e = Entity(kind: .typeName, flags: [], scope: s, identifier: identifier)
             s.insert(e, named: type.name)
         }
 
         Entity.declareBuiltinConstant(name: "true", value: .bool(true), scope: s)
         Entity.declareBuiltinConstant(name: "false", value: .bool(true), scope: s)
 
-        let e = Entity(kind: .nil, scope: s, identifier: nil)
+        let identifier = AstNode.ident("nil", .unknown)
+        let e = Entity(kind: .nil, scope: s, identifier: identifier)
         e.type = Type.unconstrNil
         s.insert(e, named: "nil")
 
@@ -47,15 +50,11 @@ class Scope {
 
 extension Scope {
 
-    // NOTE(vdka): Should this return an error?
-    func insert(_ entity: Entity, named name: String) {
-
-        guard !elements.keys.contains(name) else {
-            reportError("Conflicting definition", at: entity.location ?? .unknown)
-            return
-        }
-
-        elements[name] = entity
+    /// - Returns: Entity replaced by this insertion.
+    @discardableResult
+    func insert(_ entity: Entity, named name: String) -> Entity? {
+        defer { elements[name] = entity }
+        return elements[name]
     }
 
     func lookup(_ name: String) -> Entity? {
@@ -212,7 +211,11 @@ extension Checker {
                 break
 
             case let .value(isVar, names, type, values, _):
-                if isVar {
+
+                // NOTE(vdka): Runtime declarations (':=') have a different set of constraints
+                //   to Compile time declarations ('::'). Namely that Compile time declarations
+                //   must be resolvable @ compile time. Funny that.
+                if isVar { // ':='
                     if context.scope.isFile {
                         // NOTE(vdka): handle later.
                         break
@@ -226,12 +229,12 @@ extension Checker {
 
                     // we will always have more names than values because we won't be supporting tuple splatting
                     for (index, name) in names.enumerated() {
-                        let value = values[safe: index]
-
                         guard name.isIdent else {
                             reportError("A declaration's name must be an identifier", at: name)
                             continue
                         }
+
+                        let value = values[safe: index]
 
                         // TODO(vdka): Flags
                         let entity = Entity(kind: .variable, scope: context.scope, identifier: name)
@@ -241,10 +244,7 @@ extension Checker {
                             declInfo = DeclInfo(scope: entity.scope, typeExpr: type, initExpr: value)
                         }
 
-                        func addEntityAndDeclInfo(ident: AstNode, _ entity: Entity, _ declInfo: DeclInfo) {
-                            assert(ident.isIdent)
-                        }
-
+                        addEntity(to: entity.scope, identifier: name, entity)
                         info.entities[entity] = declInfo!
 
                         /*
@@ -265,13 +265,21 @@ extension Checker {
                              add_entity(c, e->scope, identifier, e);
                              map_decl_info_set(&c->info.entities, hash_pointer(e), d);
                          }
-
                         */
                     }
                     checkArityMatch(node)
 
                 } else {
-                    
+                    for (index, name) in names.enumerated() {
+                        guard name.isIdent else {
+                            reportError("A declaration's name must be an identifier", at: name)
+                            continue
+                        }
+
+                        let value = values[safe: index]
+
+
+                    }
                 }
                 break
 
@@ -289,6 +297,25 @@ extension Checker {
         self.context.decl = file.declInfo
         self.context.scope = file.scope!
         self.context.fileScope = file.scope!
+    }
+
+    @discardableResult
+    mutating func addEntity(to scope: Scope, identifier: AstNode, _ entity: Entity) -> Bool {
+        let name = identifier.identifier
+
+        if let conflict = scope.insert(entity, named: name) {
+
+            let msg = "Redeclaration of \(name) in this scope\n" +
+                      "Previous declaration as \(conflict.identifier.startLocation)"
+
+            reportError(msg, at: identifier)
+            return false
+        }
+        if case .ident(let name, _) = identifier, name != "_" {
+            info.definitions[identifier] = entity
+        }
+
+        return true
     }
 
     @discardableResult

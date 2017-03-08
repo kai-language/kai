@@ -365,7 +365,7 @@ extension Parser {
 
                 // TODO(vdka): Multiple declarations
 
-                return AstNode.decl(.value(isVar: true, names: [lvalue], type: nil, values: rvalues, location))
+                return AstNode.decl(.value(isRuntime: true, names: [lvalue], type: nil, values: rvalues, location))
 
             default:
                 try consume(.colon)
@@ -376,7 +376,7 @@ extension Parser {
                 let (_, location) = try consume(.equals)
                 let rvalues = try parseMultipleExpressions()
 
-                return AstNode.decl(.value(isVar: true, names: [lvalue], type: type, values: rvalues, location))
+                return AstNode.decl(.value(isRuntime: true, names: [lvalue], type: type, values: rvalues, location))
             }
 
         default:

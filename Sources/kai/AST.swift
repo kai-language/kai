@@ -119,7 +119,7 @@ indirect enum AstNode {
     /// A declaration declares and binds something new into a scope
     enum Declaration {
         case bad(SourceRange)
-        case value(isVar: Bool, names: [AstNode], type: AstNode?, values: [AstNode], SourceLocation)
+        case value(isRuntime: Bool, names: [AstNode], type: AstNode?, values: [AstNode], SourceLocation)
         case `import`(relativePath: AstNode, fullPath: String, importName: AstNode?, SourceLocation)
         case library(filePath: String, libName: String, SourceLocation)
     }
@@ -144,6 +144,15 @@ extension AstNode: Equatable {
     }
 }
 
+extension AstNode: Hashable {
+
+    var hashValue: Int {
+        // Because Int is the platform native size, and so are pointers the result is
+        //   that the hashValue should be the pointer address.
+        // Thanks to this we have instance identity as the hashValue.
+        return unsafeBitCast(self, to: Int.self)
+    }
+}
 extension AstNode: ByteHashable {}
 
 extension AstNode {
@@ -162,7 +171,7 @@ extension AstNode {
         case .invalid(let location),
              .ident(_, let location),
              .basicDirective(_, let location),
-             .argument(label: _, value: _, let location),
+             .argument(_, value: _, let location),
              .field(names: _, type: _, let location),
              .fieldList(_, let location):
 
@@ -175,7 +184,7 @@ extension AstNode {
 
                 return location ..< location
 
-            case .compound(type: _, elements: _, let range):
+            case .compound(_, _, let range):
                 return range
             }
 
@@ -184,20 +193,20 @@ extension AstNode {
             case .bad(let range):
                 return range
 
-            case .paren(expr: _, let range):
+            case .paren(_, let range):
                 return range
 
-            case .subscript(receiver: _, index: _, let range):
+            case .subscript(_, _, let range):
                 return range
 
-            case .call(receiver: _, args: _, let range):
+            case .call(_, _, let range):
                 return range
 
-            case .unary(op: _, expr: _, let location),
-                 .binary(op: _, lhs: _, rhs: _, let location),
-                 .selector(receiver: _, selector: _, let location),
-                 .deref(receiver: _, let location),
-                 .ternary(cond: _, _, _, let location):
+            case .unary(_, _, let location),
+                 .binary(_, _, _, let location),
+                 .selector(_, _, let location),
+                 .deref(_, let location),
+                 .ternary(_, _, _, let location):
 
                 return location ..< location
 
@@ -208,19 +217,19 @@ extension AstNode {
             case .bad(let range):
                 return range
 
-            case .block(statements: _, let range):
+            case .block(_, let range):
                 return range
 
             case .expr(let ast):
                 return ast.location
 
             case .empty(let location),
-                 .assign(op: _, lhs: _, rhs: _, let location),
-                 .if(cond: _, body: _, _, let location),
-                 .return(results: _, let location),
-                 .for(initializer: _, cond: _, post: _, body: _, let location),
-                 .case(list: _, statements: _, let location),
-                 .defer(statement: _, let location),
+                 .assign(_, _, _, let location),
+                 .if(_, _, _, let location),
+                 .return(_, let location),
+                 .for(_, _, _, _, let location),
+                 .case(_, _, let location),
+                 .defer(_, let location),
                  .control(_, let location):
 
                 return location ..< location
@@ -231,22 +240,22 @@ extension AstNode {
             case .bad(let range):
                 return range
 
-            case .value(isVar: _, names: _, type: _, values: _, let location),
-                 .import(relativePath: _, fullPath: _, importName: _, let location),
-                 .library(filePath: _, libName: _, let location):
+            case .value(_, _, _, _, let location),
+                 .import(_, _, _, let location),
+                 .library(_, _, let location):
 
                 return location ..< location
             }
 
         case .type(let type):
             switch type {
-            case .helper(type: _, let location),
-                 .proc(params: _, results: _, let location),
-                 .pointer(baseType: _, let location),
-                 .array(count: _, baseType: _, let location),
-                 .dynArray(baseType: _, let location),
-                 .struct(fields: _, let location),
-                 .enum(baseType: _, fields: _, let location):
+            case .helper(_, let location),
+                 .proc(_, _, let location),
+                 .pointer(_, let location),
+                 .array(_, _, let location),
+                 .dynArray(_, let location),
+                 .struct(_, let location),
+                 .enum(_, _, let location):
 
                 return location ..< location
             }
@@ -321,10 +330,10 @@ extension AstNode {
                     return dbl.description
                 }
 
-            case .proc(let procSource, type: let type, _):
+            case .proc(let procSource, let type, _):
                 return "native " + type.typeDescription
 
-            case .compound(type: let type, elements: _, _):
+            case .compound(let type, _, _):
                 return "lit " + type.typeDescription
             }
 
@@ -343,7 +352,7 @@ extension AstNode {
 
             let str = fields
                 .map { (node: AstNode) -> String in
-                    guard case .field(names: let names, type: let type, _) = node else {
+                    guard case .field(let names, let type, _) = node else {
                         fatalError()
                     }
 
@@ -361,25 +370,25 @@ extension AstNode {
         switch self {
         case .type(let type):
             switch type {
-            case .proc(params: let params, results: let results, _):
+            case .proc(let params, let results, _):
                 return params.fieldListDescription + " -> " + results.fieldListDescription
 
-            case .struct(fields: _, _):
+            case .struct(_, _):
                 return "struct"
 
-            case .array(count: _, baseType: let baseType, _):
+            case .array(_, let baseType, _):
                 return "[]" + baseType.typeDescription
 
-            case .dynArray(baseType: let baseType, _):
+            case .dynArray(let baseType, _):
                 return "[..]" + baseType.typeDescription
 
-            case .enum(baseType: _, fields: _, _):
+            case .enum(_, _, _):
                 return "enum"
 
-            case .pointer(baseType: let baseType, _):
+            case .pointer(let baseType, _):
                 return "*" + baseType.typeDescription
 
-            case .helper(type: let type, _):
+            case .helper(let type, _):
                 return "alias of " + type.typeDescription
             }
 
@@ -413,12 +422,12 @@ extension AstNode {
             name = "directive"
             unlabeled.append(directive)
 
-        case .argument(label: _, value: let val, _):
+        case .argument(_, let val, _):
             // TODO(vdka): print labels.
             name = "argument"
             unlabeled.append(val.pretty(depth: depth + 1, includeParens: true))
 
-        case .field(names: let names, type: _, _):
+        case .field(let names, _, _):
             name = "field"
             //            labeled["type"] = type.pretty(depth: depth + 1)
             children.append(contentsOf: names)
@@ -432,7 +441,7 @@ extension AstNode {
                 name = "lit"
                 unlabeled.append(self.literal)
 
-            case .proc(let procSource, type: let type, _):
+            case .proc(let procSource, let type, _):
                 name = "proc"
                 labeled["type"] = type.typeDescription
 
@@ -441,11 +450,11 @@ extension AstNode {
                 case .native(let body):
                     children.append(body)
 
-                case .foreign(lib: _, symbol: _):
+                case .foreign(_, _):
                     break
                 }
 
-            case .compound(type: _, elements: _, _):
+            case .compound(_, _, _):
                 name = "compoundLit"
                 //                labeled["type"] = type.desc
             }
@@ -456,41 +465,41 @@ extension AstNode {
                 name = "badExpr"
                 unlabeled.append(range.description)
 
-            case .unary(op: let op, expr: let expr, _):
+            case .unary(let op, let expr, _):
                 name = "unaryExpr"
                 unlabeled.append(op)
                 children.append(expr)
 
-            case .binary(op: let op, lhs: let lhs, rhs: let rhs, _):
+            case .binary(let op, let lhs, let rhs, _):
                 name = "binaryExpr"
                 unlabeled.append(op)
                 children.append(lhs)
                 children.append(rhs)
 
-            case .paren(expr: let expr, _):
+            case .paren(let expr, _):
                 name = "parenExpr"
                 children.append(expr)
 
-            case .selector(receiver: let receiver, selector: let selector, _):
+            case .selector(let receiver, let selector, _):
                 name = "selectorExpr"
                 children.append(receiver)
                 children.append(selector)
 
-            case .subscript(receiver: let receiver, index: let index, _):
+            case .subscript(let receiver, let index, _):
                 name = "subscriptExpr"
                 children.append(receiver)
                 children.append(index)
 
-            case .deref(receiver: let receiver, _):
+            case .deref(let receiver, _):
                 name = "dereferenceExpr"
                 children.append(receiver)
 
-            case .call(receiver: let receiver, args: let args, _):
+            case .call(let receiver, let args, _):
                 name = "callExpr"
                 children.append(receiver)
                 children.append(contentsOf: args)
 
-            case .ternary(cond: let cond, let trueBranch, let falseBranch, _):
+            case .ternary(let cond, let trueBranch, let falseBranch, _):
                 name = "ternaryExpr"
                 children.append(cond)
                 children.append(trueBranch)
@@ -509,17 +518,17 @@ extension AstNode {
             case .expr(let ast):
                 name = ast.pretty(depth: depth + 1)
 
-            case .assign(op: let op, lhs: let lhs, rhs: let rhs, _):
+            case .assign(let op, let lhs, let rhs, _):
                 name = "assignmentStmt"
                 unlabeled.append(op)
                 children.append(contentsOf: lhs)
                 children.append(contentsOf: rhs)
 
-            case .block(statements: let stmts, _):
+            case .block(let stmts, _):
                 name = "blockStmt"
                 children.append(contentsOf: stmts)
 
-            case .if(cond: let cond, body: let trueBranch, let falseBranch, _):
+            case .if(let cond, let trueBranch, let falseBranch, _):
                 name = "ifStmt"
                 children.append(cond)
                 children.append(trueBranch)
@@ -527,23 +536,23 @@ extension AstNode {
                     children.append(falseBranch)
                 }
 
-            case .return(results: let results, _):
+            case .return(let results, _):
                 name = "returnStmt"
                 children.append(contentsOf: results)
 
-            case .for(initializer: let initializer, cond: let cond, post: let post, body: let body, _):
+            case .for(let initializer, let cond, let post, let body, _):
                 name = "forStmt"
                 children.append(initializer)
                 children.append(cond)
                 children.append(post)
                 children.append(body)
 
-            case .case(list: let list, statements: let stmts, _):
+            case .case(let list, let stmts, _):
                 name = "caseStmt"
                 children.append(contentsOf: list)
                 children.append(contentsOf: stmts)
 
-            case .defer(statement: let stmt, _):
+            case .defer(let stmt, _):
                 name = "deferStmt"
                 children.append(stmt)
 
@@ -557,19 +566,19 @@ extension AstNode {
                 name = "badDecl"
                 unlabeled.append(range.description)
 
-            case .value(isVar: _, names: let names, type: _, values: let values, _):
+            case .value(_, let names, _, let values, _):
                 name = "decl"
                 //                labeled["type"] = type?.pretty(depth: depth + 1) ?? "<infered>"
                 unlabeled.append(names.first!.identifier)
                 children.append(contentsOf: values)
 
-            case .import(relativePath: let relPath, fullPath: let fullPath, importName: let importName, _):
+            case .import(let relPath, let fullPath, let importName, _):
                 name = "importDecl"
                 //                labeled["relPath"] = relPath
                 labeled["fullPath"] = fullPath
                 //                labeled["name"] = importName
 
-            case .library(filePath: let filePath, libName: let libName, _):
+            case .library(let filePath, let libName, _):
                 name = "libraryDecl"
                 labeled["filePath"] = filePath
                 labeled["libName"] = libName
@@ -577,36 +586,36 @@ extension AstNode {
 
         case .type(let type):
             switch type {
-            case .helper(type: _, _):
+            case .helper(_, _):
                 name = "helperType"
                 //                labeled["type"] = type.pretty(depth: depth + 1)
 
-            case .proc(params: let params, results: let results, _):
+            case .proc(let params, let results, _):
                 name = "procType"
                 labeled["params"] = params.pretty(depth: depth + 1)
                 labeled["results"] = results.pretty(depth: depth + 1)
 
-            case .pointer(baseType: let type, _):
+            case .pointer(let type, _):
                 name = "pointerType"
                 labeled["baseType"] = type.pretty(depth: depth + 1)
 
-            case .array(count: let count, baseType: let baseType, _):
+            case .array(let count, let baseType, _):
                 name = "arrayType"
                 labeled["size"] = count.pretty()
                 labeled["baseType"] = baseType.pretty()
                 // FIXME: These should be inline serialized (return directly?)
 
-            case .dynArray(baseType: let baseType, _):
+            case .dynArray(let baseType, _):
                 name = "arrayType"
                 labeled["size"] = "dynamic"
                 labeled["baseType"] = baseType.pretty()
                 // FIXME: These should be inline serialized
 
-            case .struct(fields: let fields, _):
+            case .struct(let fields, _):
                 name = "structType"
                 children.append(contentsOf: fields)
 
-            case .enum(baseType: let baseType, fields: let fields, _):
+            case .enum(let baseType, let fields, _):
                 name = "enumType"
                 labeled["baseType"] = baseType.pretty(depth: depth + 1)
                 children.append(contentsOf: fields)

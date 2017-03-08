@@ -20,7 +20,7 @@ extension Parser {
                 let bodyExpr = try expression()
 
                 let lit = AstNode.literal(.proc(.native(body: bodyExpr), type: type, startLocation))
-                return AstNode.decl(.value(isVar: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
+                return AstNode.decl(.value(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
 
             case .directive(.foreign):
                 try consume(.directive(.foreign))
@@ -53,7 +53,7 @@ extension Parser {
                 let libNameNode = AstNode.ident(libName, libLocation)
 
                 let lit = AstNode.literal(.proc(.foreign(lib: libNameNode, symbol: symbolNameNode ?? lvalue), type: type, type.startLocation))
-                return AstNode.decl(.value(isVar: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
+                return AstNode.decl(.value(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
 
             default:
                 reportError("Expected procedure body or foreign directive", at: location)

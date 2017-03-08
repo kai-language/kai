@@ -41,14 +41,14 @@ class Entity {
 
     /// Set in the checker
     var type: Type? = nil
-    var identifier: AstNode?
+    var identifier: AstNode
     var llvm: IRValue?
 
-    init(kind: Kind = .invalid, flags: Flag = [], scope: Scope, identifier: AstNode?) {
+    init(kind: Kind = .invalid, flags: Flag = [], scope: Scope, identifier: AstNode) {
         self.kind = kind
         self.flags = flags
         self.scope = scope
-        self.location = identifier?.startLocation
+        self.location = identifier.startLocation
         self.type = nil
         self.identifier = identifier
     }
@@ -72,7 +72,8 @@ class Entity {
             unimplemented("Builtin compound types")
         }
 
-        let e = Entity(kind: .constant(value), scope: scope, identifier: nil)
+        let identifier = AstNode.ident(name, .unknown)
+        let e = Entity(kind: .constant(value), scope: scope, identifier: identifier)
         e.type = type
 
         scope.insert(e, named: name)
