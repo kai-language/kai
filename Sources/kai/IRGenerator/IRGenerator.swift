@@ -92,7 +92,9 @@ class IRGenerator {
 extension IRGenerator {
 
     func emitMain() throws {
+        unimplemented("Finding and emitting 'main'")
 
+        /*
         // TODO(Brett): Update to emit function definition
         let mainType = FunctionType(argTypes: [], returnType: VoidType())
         let main = builder.addFunction("main", type: mainType)
@@ -112,24 +114,20 @@ extension IRGenerator {
         }
         
         builder.buildRetVoid()
+        */
     }
     
     func emitGlobals() throws {
+
         for node in file.nodes {
-            // TODO(vdka): Emit more than just procDecls
-
             switch node {
-            case .decl(let decl):
-                switch decl {
-                case .value(_, _, let type, _, _):
+            case .declValue(_, _, let type, _, _):
 
-                    switch type {
-                    case .type(.proc)?:
-                        try emitProcedureDefinition(node)
+                // TODO(vdka): Other types also need emitting.
+                switch type {
+                case .typeProc?:
+                    try emitProcedureDefinition(node)
 
-                    default:
-                        break
-                    }
                 default:
                     break
                 }
@@ -146,163 +144,49 @@ extension IRGenerator {
     func emitLiteral(for node: AstNode) -> IRValue {
 
         switch node {
-        case .literal(let lit):
-            switch lit {
-            case .basic(let b, _):
-                return emitBasicLiteral(for: b)
+        case .litInteger(let val, _):
+            return IntType.int64.constant(val)
 
-            case .compound, .proc:
-                fatalError()
-            }
+        case .litFloat(let val, _):
+            return FloatType.double.constant(val)
+
+        case .litString(let val, _):
+            return builder.buildGlobalStringPtr(val.escaped)
 
         default:
             fatalError()
         }
     }
 
-    @discardableResult
-    func emitBasicLiteral(for literal: AstNode.Literal.Basic) -> IRValue {
-
-        switch literal {
-        case .integer(let i):
-            return IntType(width: 64).constant(i)
-
-        case .float(let f):
-            return FloatType.double.constant(f)
-
-        case .string(let s):
-            return builder.buildGlobalStringPtr(s.escaped)
-        }
-    }
-
     func emitStmt(for node: AstNode) -> IRValue {
+
         switch node {
-        case .invalid:
-            break
-
-        case .ident:
-            break
-
-        case .basicDirective:
-            break
-
-        case .ellipsis:
-            break
-
-        case .argument:
-            break
-
-        case .field:
-            break
-
-        case .fieldList:
-            break
-
-        case .literal:
+        case .litString, .litFloat, .litInteger, .litProc:
             return emitLiteral(for: node)
 
-        case let .expr(expr):
-            switch expr {
-            case .bad:
-                fatalError("Bad expr in IR Generator \(node)")
+        case .stmtDefer:
+            return emitDeferStmt(for: node)
 
-            case .unary,
-                 .binary:
-                return emitOperator(for: node)
+        case .exprUnary:
+            return emitOperator(for: node)
 
-            case .paren(expr: let expr, _):
-                return emitStmt(for: expr)
+        case .exprBinary:
+            return emitOperator(for: node)
 
-            case .selector:
-                unimplemented("IR for member reference")
+        case .exprCall:
+            return emitProcedureCall(for: node)
 
-            case .subscript:
-                unimplemented("IR for subscripts")
+        case .exprParen(let expr, _):
+            return emitStmt(for: expr)
 
-            case .deref:
-                unimplemented("IR for Pointer Dereference")
+        case .stmtExpr(let expr):
+            return emitStmt(for: expr)
 
-            case .call:
-                return emitProcedureCall(for: node)
+        case .stmtAssign:
+            return emitAssignment(for: node)
 
-            case .ternary:
-                unimplemented("IR for Ternary")
-            }
-
-        case .stmt(let stmt):
-            switch stmt {
-            case .bad:
-                fatalError("Bad stmt in IR Generator \(node)")
-
-            case .empty:
-                break
-
-            case .expr(let child):
-                return emitStmt(for: child)
-
-            case .assign:
-                return emitAssignment(for: node)
-
-            case .block:
-                unimplemented("IR For Blocks")
-
-            case .if:
-                break
-
-            case .return:
-                break
-
-            case .for:
-                break
-
-            case .case:
-                break
-
-            case .defer:
-                return emitDeferStmt(for: node)
-
-            case .control:
-                break
-            }
-
-        case .decl(let decl):
-            switch decl {
-            case .bad:
-                break
-
-            case .value:
-                break
-
-            case .import:
-                break
-
-            case .library:
-                break
-            }
-
-        case .type(let type):
-            switch type {
-            case .helper:
-                break
-
-            case .proc:
-                break
-
-            case .pointer:
-                break
-                
-            case .array:
-                break
-                
-            case .dynArray:
-                break
-                
-            case .struct:
-                break
-                
-            case .enum:
-                break
-            }
+        default:
+            fatalError()
         }
 
         return VoidType().null()
@@ -474,16 +358,14 @@ extension IRGenerator {
 
     @discardableResult
     func emitAssignment(for node: AstNode) -> IRValue {
-        guard case .stmt(.assign(op: let op, lhs: let lhs, rhs: let rhs, _)) = node else {
+        guard case .stmtAssign(let op, let lhs, let rhs, _) = node else {
             preconditionFailure()
         }
         unimplemented("Complex Assignment", if: op != "=")
         unimplemented("Multiple Assignment", if: lhs.count != 1 || rhs.count != 1)
 
-        // TODO(vdka): Other lvalues can be valid too:
-        // subscript, selectors ..
         guard case .ident(let ident, _) = lhs[0] else {
-            fatalError("Unexpected lvalue kind")
+            unimplemented("Non ident lvalue in assignment")
         }
 
         let lvalueEntity = context.scope.lookup(ident)!
@@ -500,8 +382,9 @@ extension IRGenerator {
          foo : [] (void) -> void = [(void) -> void { print("hello") }]
          foo[0]()
         */
+        
         guard
-            case .expr(.call(receiver: let receiver, args: let args, _)) = node,
+            case .exprCall(let receiver, let args, _) = node,
             case .ident(let ident, _) = receiver
         else {
             preconditionFailure()

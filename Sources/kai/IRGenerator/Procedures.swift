@@ -183,7 +183,7 @@ extension IRGenerator {
             fatalError("Return statement outside of procedure")
         }
 
-        guard case .stmt(.return(results: let values, _)) = node else {
+        guard case .stmtReturn(let values, _) = node else {
             preconditionFailure()
         }
 

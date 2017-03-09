@@ -39,19 +39,19 @@ extension Operator {
         guard symbol != "=" else { throw Error.invalidSymbol }
 
 
-        let led = led ?? { parser, left in
+        let led = led ?? { parser, lhs in
             let (_, location) = try parser.consume()
             let bp = (associativity == .left) ? lbp : lbp - 1
 
             let rhs = try parser.expression(bp)
             if  case .none = associativity,
-                case .expr(.binary(let sym, lhs: _, rhs: _, _)) = rhs,
+                case .exprBinary(let sym, lhs: _, rhs: _, _) = rhs,
                 case .none? = Operator.lookup(sym)?.associativity {
 
                 throw parser.error(.ambigiousOperatorUse)
             }
 
-            return AstNode.expr(.binary(op: symbol, lhs: left, rhs: rhs, location))
+            return AstNode.exprBinary(symbol, lhs: lhs, rhs: rhs, lhs.startLocation ..< rhs.endLocation)
         }
 
         if let index = table.index(where: { $0.symbol == symbol }) {
@@ -72,7 +72,7 @@ extension Operator {
         let nud = nud ?? { parser in
             let (_, location) = try parser.consume()
             let expr = try parser.expression(70)
-            return AstNode.expr(.unary(op: symbol, expr: expr, location))
+            return AstNode.exprUnary(symbol, expr: expr, location ..< location)
         }
 
         if let index = table.index(where: { $0.symbol == symbol }) {
@@ -96,7 +96,7 @@ extension Operator {
             let rvalue = try parser.expression(9)
 
             // TODO(vdka): allow parsing multiple assignment.
-            return AstNode.stmt(.assign(op: symbol, lhs: [lvalue], rhs: [rvalue], location))
+            return AstNode.stmtAssign(symbol, lhs: [lvalue], rhs: [rvalue], lvalue.startLocation ..< rvalue.endLocation)
         }
     }
 }

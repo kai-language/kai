@@ -31,10 +31,10 @@ extension Parser {
         case .ident(let ident) where try lexer.peek()?.kind == .colon: // arg label 'foo:'
             let (_, location) = try consume() // .ident(_)
 
-            let labelNode = AstNode.ident(ident, location)
+            let labelNode = AstNode.ident(ident, lexer.lastConsumedRange)
             try consume(.colon)
             let val = try expression()
-            let arg = AstNode.argument(label: labelNode, value: val, location)
+            let arg = AstNode.arg(label: labelNode, value: val, location ..< lexer.location)
             args.append(arg)
 
             wasComma = false
@@ -42,7 +42,7 @@ extension Parser {
         default:
 
             let val = try expression()
-            let arg = AstNode.argument(label: nil, value: val, val.location.lowerBound)
+            let arg = AstNode.arg(label: nil, value: val, val.location)
             args.append(arg)
 
             wasComma = false
@@ -53,6 +53,6 @@ extension Parser {
     
     let (_, endLocation) = try consume(.rparen)
 
-    return AstNode.expr(.call(receiver: lvalue, args: args, lvalue.location.lowerBound ..< endLocation))
+    return AstNode.exprCall(receiver: lvalue, args: args, lvalue.startLocation ..< endLocation)
   }
 }

@@ -4,14 +4,14 @@ extension Parser {
     mutating func parseType() throws -> AstNode {
         guard let (token, startLocation) = try lexer.peek() else {
             reportError("Expected a type", at: lexer.lastLocation)
-            return AstNode.invalid(lexer.lastLocation)
+            return AstNode.invalid(lexer.location ..< lexer.location)
         }
 
         switch token {
         case .ident(let ident):
             try consume()
 
-            return AstNode.ident(ident, startLocation)
+            return AstNode.ident(ident, lexer.lastConsumedRange)
 
         case .lparen:
             try consume(.lparen)
@@ -36,7 +36,7 @@ extension Parser {
                 case .ident(let name):
                     try consume() // .ident
                     
-                    let nameNode = AstNode.ident(name, location)
+                    let nameNode = AstNode.ident(name, lexer.lastConsumedRange)
                     var names = [nameNode]
                     while case (.comma, _)? = try lexer.peek() {
 
@@ -46,14 +46,15 @@ extension Parser {
                             try consume()
                             continue
                         }
+                        try consume()
 
-                        let nameNode = AstNode.ident(name, location)
+                        let nameNode = AstNode.ident(name, lexer.lastConsumedRange)
                         names.append(nameNode)
                     }
 
                     try consume(.colon)
                     let type = try parseType()
-                    let field = AstNode.field(names: names, type: type, startLocation)
+                    let field = AstNode.field(names: names, type: type, nameNode.startLocation ..< lexer.location)
                     fields.append(field)
 
                     wasComma = false
@@ -68,9 +69,9 @@ extension Parser {
                 }
             }
 
-            try consume(.rparen)
+            let (_, endLocation) = try consume(.rparen)
 
-            let fieldList = AstNode.fieldList(fields, startLocation)
+            let fieldList = AstNode.fieldList(fields, startLocation ..< endLocation)
 
             guard let (token, _) = try lexer.peek() else {
                 // allow `someVars : (x: int, y: int)` at the end of a file
@@ -82,7 +83,7 @@ extension Parser {
                 try consume(.keyword(.returnArrow))
                 let retType = try parseType()
 
-                return AstNode.type(.proc(params: fieldList, results: retType, startLocation))
+                return AstNode.typeProc(params: fieldList, results: retType, startLocation ..< lexer.location)
 
             default:
                 return fieldList
@@ -90,8 +91,7 @@ extension Parser {
 
         default:
             reportError("Expected type literal", at: startLocation)
+            return AstNode.invalid(startLocation ..< startLocation)
         }
-        
-        return AstNode.invalid(startLocation)
     }
 }

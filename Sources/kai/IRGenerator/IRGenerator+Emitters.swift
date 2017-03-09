@@ -5,8 +5,9 @@ extension IRGenerator {
     
     @discardableResult
     func emitDeferStmt(for node: AstNode) -> IRValue {
-        guard case .stmt(.defer(statement: let stmt, _)) = node else {
-            preconditionFailure()
+
+        guard case .stmtDefer(let stmt, _) = node else {
+            fatalError()
         }
 
         let curBlock = builder.insertBlock!

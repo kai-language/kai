@@ -5,12 +5,9 @@ extension IRGenerator {
 
     // TODO(vdka): Check the types to determine llvm calls
     func emitOperator(for node: AstNode) -> IRValue {
-        guard case .expr(let expr) = node else {
-            preconditionFailure()
-        }
 
-        switch expr {
-        case .unary(op: let op, expr: let expr, _):
+        switch node {
+        case .exprUnary(let op, let expr, _):
 
             let val = emitStmt(for: expr)
 
@@ -30,7 +27,7 @@ extension IRGenerator {
                 unimplemented("Unary Operator '\(op)'")
             }
 
-        case .binary(op: let op, lhs: let lhs, rhs: let rhs, _):
+        case .exprBinary(let op, let lhs, let rhs, _):
 
             let lvalue = emitStmt(for: lhs)
             let rvalue = emitStmt(for: rhs)

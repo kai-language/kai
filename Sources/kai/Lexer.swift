@@ -50,7 +50,9 @@ struct Lexer {
 	var scanner: FileScanner
 	var buffer: [(kind: Token, location: SourceLocation)] = []
 
+    var location: SourceLocation { return scanner.position }
 	var lastLocation: SourceLocation
+    var lastConsumedRange: SourceRange { return lastLocation ..< location }
 
 	init(_ file: File) {
 

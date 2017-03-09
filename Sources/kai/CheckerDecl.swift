@@ -69,6 +69,8 @@ extension Checker {
         }
 
         if (d.scope.isFile || d.scope.isGlobal || d.scope.isInit) && e.name == "main" {
+            // FIXME(vdka): Lookup and validate 'main' symbol
+            /*
             guard case .literal(.proc(let source, type: let type, _)) = procExpr else {
                 preconditionFailure()
             }
@@ -76,7 +78,7 @@ extension Checker {
                 reportError("Symbol 'main' must be a procedure type", at: procExpr)
                 return
             }
-
+            */
         }
     }
 

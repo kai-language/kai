@@ -187,7 +187,7 @@ try Operator.infix("?", bindingPower: 20) { parser, cond in
     let thenExpr = try parser.expression()
     try parser.consume(.colon)
     let elseExpr = try parser.expression()
-    return AstNode.expr(.ternary(cond: cond, thenExpr, elseExpr, location))
+    return AstNode.exprTernary(cond: cond, thenExpr, elseExpr, cond.startLocation ..< elseExpr.endLocation)
 }
 
 try Operator.prefix("-")

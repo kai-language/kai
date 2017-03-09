@@ -260,18 +260,15 @@ extension Checker {
 
         for node in nodes {
 
-            guard case .decl(let decl) = node else {
+            guard node.isDecl else {
                 // NOTE(vdka): For now only declarations are valid at file scope.
                 // TODO(vdka): Report an error
                 reportError("Currently only declarations are valid at file scope", at: node)
                 continue
             }
 
-            switch decl {
-            case .bad:
-                break
-
-            case .value(let isRuntime, let names, let type, let values, _):
+            switch node {
+            case .declValue(isRuntime: let isRuntime, names: let names, type: let type, values: let values, _):
                 guard !isRuntime else {
                     reportError("Runtime declarations not allowed at file scope", at: node)
                     return
@@ -290,7 +287,7 @@ extension Checker {
                         entity = Entity(kind: .typeName, name: name.identifier, scope: declInfo.scope, identifier: name)
                         declInfo.typeExpr = value
                         declInfo.initExpr = value
-                    } else if let value = value, case .literal(.proc(_, let procType, _)) = value {
+                    } else if let value = value, case .litProc(let procType, _, _) = value {
 
                         // TODO(vdka): Some validation around:
                         /*
@@ -311,13 +308,16 @@ extension Checker {
                 }
                 checkArityMatch(node)
 
-            case .import, .library:
+            case .declImport, .declLibrary:
                 if !context.scope.isFile {
                     reportError("#import and #library directives are only valid at file scope", at: node)
                 }
 
                 let decl = DelayedDecl(parent: context.scope, decl: node)
                 delayedImports.append(decl)
+
+            default:
+                fatalError()
             }
         }
     }
@@ -325,7 +325,7 @@ extension Checker {
     mutating func importEntities(_ fileScopes: inout [String: Scope]) {
 
         for imp in delayedImports {
-            guard case .decl(.import(let relPath, let fullPath, let importName, _)) = imp.decl else {
+            guard case .declImport(let relPath, let fullpath, let importName, _) = imp.decl else {
                 preconditionFailure()
             }
 
@@ -338,7 +338,7 @@ extension Checker {
             }
 
             // TODO(vdka): Fail gracefully
-            let scope = fileScopes[fullPath]!
+            let scope = fileScopes[fullpath]!
 
             let previouslyAdded = parentScope.imported.contains(where: { $0 === scope })
 
@@ -363,7 +363,7 @@ extension Checker {
                     addEntity(to: scope, identifier: nil, entity)
                 }
             } else {
-                let importName = Checker.pathToEntityName(fullPath)
+                let importName = Checker.pathToEntityName(fullpath)
                 if importName == "_" {
                     reportError("File name cannot be automatically assigned an identifier name, you will have to manually specify one.", at: relPath)
                 } else {
@@ -524,5 +524,9 @@ func reportError(_ message: String, at node: AstNode, with type: ErrorType = .de
 }
 
 func reportError(_ message: String, at location: SourceLocation) {
+    print("ERROR(\(location.description)): " + message)
+}
+
+func reportError(_ message: String, at location: SourceRange) {
     print("ERROR(\(location.description)): " + message)
 }

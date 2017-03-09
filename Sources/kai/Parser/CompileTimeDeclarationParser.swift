@@ -10,18 +10,18 @@ extension Parser {
         switch token {
         case .float(let val):
             try consume()
-            let lit = AstNode.literal(.basic(.float(val), startLocation))
-            return AstNode.decl(.value(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
+            let lit = AstNode.litFloat(val, startLocation ..< lexer.lastLocation)
+            return AstNode.declValue(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation ..< lit.endLocation)
 
         case .integer(let val):
             try consume()
-            let lit = AstNode.literal(.basic(.integer(val), startLocation))
-            return AstNode.decl(.value(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
+            let lit = AstNode.litInteger(val, startLocation ..< lexer.lastLocation)
+            return AstNode.declValue(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation ..< lit.endLocation)
 
         case .string(let val):
             try consume()
-            let lit = AstNode.literal(.basic(.string(val), startLocation))
-            return AstNode.decl(.value(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
+            let lit = AstNode.litString(val, startLocation ..< lexer.lastLocation)
+            return AstNode.declValue(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation ..< lit.endLocation)
 
         case .lparen: // procedure type parsing
             let type = try parseType()
@@ -34,29 +34,29 @@ extension Parser {
 
                 let bodyExpr = try expression()
 
-                let lit = AstNode.literal(.proc(.native(body: bodyExpr), type: type, startLocation))
-                return AstNode.decl(.value(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
+                let lit = AstNode.litProc(type: type, body: bodyExpr, startLocation ..< startLocation)
+                return AstNode.declValue(isRuntime: false, names: [lvalue], type: nil, values: [lit], startLocation ..< startLocation)
 
             case .directive(.foreign):
                 try consume(.directive(.foreign))
 
                 guard case (.ident(let libName), let libLocation)? = try lexer.peek() else {
                     reportError("Expected lib name", at: lexer.lastLocation)
-                    return AstNode.invalid(startLocation)
+                    return AstNode.invalid(lvalue.startLocation ..< lexer.lastLocation)
                 }
 
                 try consume() // .ident(_)
 
                 var symbolNameNode: AstNode?
                 if case (.string(let name), let location)? = try lexer.peek() {
-                    symbolNameNode = AstNode.ident(name, location)
+                    symbolNameNode = AstNode.ident(name, location ..< lexer.lastLocation)
 
                     try consume() // .string(_)
 
                 } else {
                     guard case .ident(_) = lvalue else {
                         reportError("When omitting a symbol name the lvalue must be an identifier", at: lvalue)
-                        return AstNode.invalid(lvalue.location.lowerBound)
+                        return AstNode.invalid(lvalue.location)
                     }
                 }
 
@@ -65,10 +65,11 @@ extension Parser {
                  unix_open :: (path: ^u8, mode: int, perm: u32) -> Handle #foreign libc "open"
                 */
 
-                let libNameNode = AstNode.ident(libName, libLocation)
+                let libNameNode = AstNode.ident(libName, libLocation ..< lexer.lastLocation)
 
-                let lit = AstNode.literal(.proc(.foreign(lib: libNameNode, symbol: symbolNameNode ?? lvalue), type: type, type.startLocation))
-                return AstNode.decl(.value(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation))
+                let foreignNode = AstNode.directive("foreign", args: [libNameNode, symbolNameNode ?? lvalue], location ..< location)
+                let lit = AstNode.litProc(type: type, body: foreignNode, type.startLocation ..< foreignNode.endLocation)
+                return AstNode.declValue(isRuntime: false, names: [lvalue], type: nil, values: [lit], lvalue.startLocation ..< lit.endLocation)
 
             default:
                 reportError("Expected procedure body or foreign directive", at: location)

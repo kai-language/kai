@@ -110,7 +110,7 @@ struct Parser {
     mutating func expression(_ rbp: UInt8 = 0) throws -> AstNode {
 
         // TODO(vdka): Still unclear what to do with empty files
-        guard let (token, _) = try lexer.peek() else { return AstNode.invalid(.zero) }
+        guard let (token, _) = try lexer.peek() else { return AstNode.invalid(lexer.lastLocation ..< lexer.lastLocation) }
 
         var left = try nud(for: token)
 
@@ -172,25 +172,25 @@ extension Parser {
 
         case .ident(let symbol):
             let (_, location) = try consume()
-            return AstNode.ident(symbol, location)
+            return AstNode.ident(symbol, location ..< lexer.location)
 
         case .string(let string):
             let (_, location) = try consume()
-            return AstNode.literal(.basic(.string(string), location))
+            return AstNode.litString(string, location ..< lexer.location)
 
         case .integer(let int):
             let (_, location) = try consume()
-            return AstNode.literal(.basic(.integer(int), location))
+            return AstNode.litInteger(int, location ..< lexer.location)
 
         case .float(let dbl):
             let (_, location) = try consume()
-            return AstNode.literal(.basic(.float(dbl), location))
+            return AstNode.litFloat(dbl, location ..< lexer.location)
 
         case .lparen:
             let (_, lLocation) = try consume(.lparen)
             let expr = try expression()
             let (_, rLocation) = try consume(.rparen)
-            return AstNode.expr(.paren(expr: expr, lLocation ..< rLocation))
+            return AstNode.exprParen(expr, lLocation ..< rLocation)
 
         case .keyword(.if):
             let (_, startLocation) = try consume(.keyword(.if))
@@ -199,12 +199,12 @@ extension Parser {
             let bodyExpr = try expression()
 
             guard case .keyword(.else)? = try lexer.peek()?.kind else {
-                return AstNode.stmt(.if(cond: condExpr, body: bodyExpr, nil, startLocation))
+                return AstNode.stmtIf(cond: condExpr, body: bodyExpr, nil, startLocation ..< bodyExpr.endLocation)
             }
 
             try consume(.keyword(.else))
             let elseExpr = try expression()
-            return AstNode.stmt(.if(cond: condExpr, body: bodyExpr, elseExpr, startLocation))
+            return AstNode.stmtIf(cond: condExpr, body: bodyExpr, elseExpr, startLocation ..< bodyExpr.endLocation)
 
         case .keyword(.for):
             let (_, startLocation) = try consume(.keyword(.for))
@@ -227,20 +227,14 @@ extension Parser {
 
         case .keyword(.break):
             let (_, startLocation) = try consume(.keyword(.break))
-
-            return AstNode.stmt(.control(.break, startLocation))
+            return AstNode.stmtBreak(startLocation ..< lexer.location)
 
         case .keyword(.continue):
             let (_, startLocation) = try consume(.keyword(.continue))
-
-            return AstNode.stmt(.control(.break, startLocation))
+            return AstNode.stmtContinue(startLocation ..< lexer.location)
 
         case .keyword(.return):
             let (_, startLocation) = try consume(.keyword(.return))
-
-            // NOTE(vdka): Is it fine if this fails, will it change the parser state?
-
-            // TODO(vdka): 
 
             var exprs: [AstNode] = []
             while try lexer.peek()?.kind != .rparen {
@@ -250,13 +244,12 @@ extension Parser {
                     try consume(.comma)
                 }
             }
-            return AstNode.stmt(.return(results: exprs, startLocation))
+            return AstNode.stmtReturn(exprs, startLocation ..< lexer.location)
 
         case .keyword(.defer):
             let (_, startLocation) = try consume(.keyword(.defer))
-
             let expr = try expression()
-            return AstNode.stmt(.defer(statement: expr, startLocation))
+            return AstNode.stmtDefer(expr, startLocation ..< lexer.location)
 
         case .lbrace:
             let (_, startLocation) = try consume(.lbrace)
@@ -274,15 +267,15 @@ extension Parser {
 
             let (_, endLocation) = try consume(.rbrace)
 
-            return AstNode.stmt(.block(statements: stmts, startLocation ..< endLocation))
+            return AstNode.stmtBlock(stmts, startLocation ..< endLocation)
 
         case .directive(.file):
             let (_, location) = try consume()
-            return AstNode.basicDirective("file", location)
+            return AstNode.directive("file", args: [], location ..< lexer.location)
 
         case .directive(.line):
             let (_, location) = try consume()
-            return AstNode.basicDirective("line", location)
+            return AstNode.directive("line", args: [], location ..< lexer.location)
 
         case .directive(.import):
             return try parseImportDirective()
@@ -310,25 +303,17 @@ extension Parser {
 
             try consume() // .ident(_)
 
-            let rvalue = AstNode.ident(member, memberLocation)
+            let rvalue = AstNode.ident(member, memberLocation ..< lexer.location)
 
-            return AstNode.expr(.selector(receiver: lvalue, selector: rvalue, location))
+            return AstNode.exprSelector(receiver: lvalue, member: rvalue, location ..< lexer.location)
 
         case .comma:
             // TODO(vdka): Check if `context.contains(.allowComma)` (made up call)
             let (_, location) = try consume(.comma)
             reportError("Unexpected comma", at: location)
-            return AstNode.invalid(location)
-
-        case .lbrack:
-            let (_, lLoc) = try consume(.lbrack)
-            let expr = try expression()
-            let (_, rLoc) = try consume(.rbrack)
-
-            return AstNode.expr(.subscript(receiver: lvalue, index: expr, lLoc ..< rLoc))
+            return AstNode.invalid(location ..< location)
 
         case .lparen:
-
             return try parseProcedureCall(lvalue)
 
         case .equals:
@@ -344,7 +329,7 @@ extension Parser {
             /* (x, y, z) = (z, y, x) */
             // where l & r values would be field lists. This is probably easier to parse, but what is the most syntactially constant.
 
-            return AstNode.stmt(.assign(op: "=", lhs: [lvalue], rhs: [rvalue], location))
+            return AstNode.stmtAssign("=", lhs: [lvalue], rhs: [rvalue], lvalue.startLocation ..< rvalue.endLocation)
 
         case .colon:
 
@@ -365,7 +350,7 @@ extension Parser {
 
                 // TODO(vdka): Multiple declarations
 
-                return AstNode.decl(.value(isRuntime: true, names: [lvalue], type: nil, values: rvalues, location))
+                return AstNode.declValue(isRuntime: true, names: [lvalue], type: nil, values: rvalues, lvalue.startLocation ..< lexer.location)
 
             default:
                 try consume(.colon)
@@ -376,7 +361,7 @@ extension Parser {
                 let (_, location) = try consume(.equals)
                 let rvalues = try parseMultipleExpressions()
 
-                return AstNode.decl(.value(isRuntime: true, names: [lvalue], type: type, values: rvalues, location))
+                return AstNode.declValue(isRuntime: true, names: [lvalue], type: type, values: rvalues, location ..< lexer.location)
             }
 
         default:
@@ -423,24 +408,25 @@ extension Parser {
                 wasComma = true
 
             case .ident(let name):
-                let nameNode = AstNode.ident(name, location)
+                try consume()
+                let nameNode = AstNode.ident(name, location ..< lexer.location)
                 var names = [nameNode]
-                while case (.comma, _)? = try lexer.peek() {
+                while case (.comma, let location)? = try lexer.peek() {
 
                     try consume(.comma)
                     guard case (.ident(let name), let location)? = try lexer.peek() else {
-                        reportError("Expected identifier", at: lexer.lastLocation)
+                        reportError("Expected identifier", at: lexer.lastConsumedRange)
                         try consume()
                         continue
                     }
 
-                    let nameNode = AstNode.ident(name, location)
+                    let nameNode = AstNode.ident(name, location ..< lexer.location)
                     names.append(nameNode)
                 }
 
                 try consume(.colon)
                 let type = try parseType()
-                let field = AstNode.field(names: names, type: type, startLocation)
+                let field = AstNode.field(names: names, type: type, lexer.lastConsumedRange)
                 fields.append(field)
 
                 wasComma = false
@@ -457,7 +443,7 @@ extension Parser {
 
         try consume(.rparen)
 
-        return AstNode.fieldList(fields, startLocation)
+        return AstNode.fieldList(fields, lexer.lastConsumedRange)
     }
 }
 
