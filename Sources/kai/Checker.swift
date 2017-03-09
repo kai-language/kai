@@ -92,7 +92,7 @@ class Operand {
     static let invalid = Operand(kind: .invalid)
 }
 
-struct DeclInfo {
+class DeclInfo {
 
     unowned var scope: Scope
 
@@ -104,7 +104,7 @@ struct DeclInfo {
 //    var procLit:  AstNode // AstNode_ProcLit
 
     /// The entities this entity requires to exist
-//    var deps: Set<Entity>
+    var deps: Set<Entity> = []
 
     init(scope: Scope, entities: [Entity] = [], typeExpr: AstNode? = nil, initExpr: AstNode? = nil) {
         self.scope = scope
@@ -144,6 +144,10 @@ struct Checker {
 
     var delayedImports:  [DelayedDecl] = []
     var delayedLibaries: [DelayedDecl] = []
+
+    /// The entity corresponding to the global 'main' symbol
+    var main: Entity?
+
     /*
 	Array(ProcedureInfo)   procs; // NOTE(bill): Procedures to check
 	Array(DelayedDecl)     delayed_imports;
@@ -166,7 +170,7 @@ struct Checker {
     struct Info {
         var types:       [AstNode: Type]    = [:]
         var definitions: [AstNode: Entity]  = [:]
-        var uses:        [AstNode: Type]    = [:]
+        var uses:        [AstNode: Entity]  = [:]
         var scopes:      [AstNode: Scope]   = [:]
         var untyped:     [AstNode: Entity]  = [:]
         var entities:    [Entity: DeclInfo] = [:]
@@ -241,7 +245,10 @@ extension Checker {
 
             context = prevContext
         }
-        // Collect all of a files decls (from top level? further because of nested types)
+
+        importEntities(&fileScopes)
+
+        checkAllGlobalEntities()
     }
 
     mutating func collectEntities(_ nodes: [AstNode], isFileScope: Bool) {
@@ -264,86 +271,45 @@ extension Checker {
             case .bad:
                 break
 
-            case let .value(isRuntime, names, type, values, _):
-
-                // NOTE(vdka): Runtime declarations (':=') have a different set of constraints
-                //   to Compile time declarations ('::'). Namely that Compile time declarations
-                //   must be resolvable @ compile time. Funny that.
-                if isRuntime { // ':='
-                    unimplemented("File scope runtime declarations")
-
-                    // TODO(vdka)
-                    /*
-                    if context.scope.isFile {
-                        // NOTE(vdka): handle later.
-                        break
-                    }
-
-                    var entities: [Entity] = []
-                    var declInfo = DeclInfo(scope: context.scope)
-                    if !names.isEmpty {
-                        declInfo.typeExpr = type
-                        declInfo = DeclInfo(scope: context.scope, entities: entities, typeExpr: type, initExpr: nil)
-                    }
-
-                    // we will always have more names than values because we won't be supporting tuple splatting
-                    for (index, name) in names.enumerated() {
-                        guard name.isIdent else {
-                            reportError("A declaration's name must be an identifier", at: name)
-                            continue
-                        }
-
-                        let value = values[safe: index]
-
-                        // TODO(vdka): Flags
-                        let entity = Entity(kind: .runtime, scope: context.scope, identifier: name)
-                        entities.append(entity)
-
-                        if declInfo == nil {
-                            declInfo = DeclInfo(scope: entity.scope, typeExpr: type, initExpr: value)
-                        }
-
-                        addEntity(to: entity.scope, identifier: name, entity)
-                        info.entities[entity] = declInfo
-                    }
-                    */
-                } else {
-                    for (index, name) in names.enumerated() {
-                        guard name.isIdent else {
-                            reportError("A declaration's name must be an identifier", at: name)
-                            continue
-                        }
-
-                        let value = values[safe: index].map({ $0.unparenExpr() })
-
-                        var declInfo = DeclInfo(scope: context.scope)
-                        var entity: Entity
-                        if let value = value, value.isType {
-                            entity = Entity(kind: .typeName, name: name.identifier, scope: declInfo.scope, identifier: name)
-                            declInfo.typeExpr = value
-                            declInfo.initExpr = value
-                        } else if let value = value, case .literal(.proc(_, let procType, _)) = value {
-
-                            // TODO(vdka): Some validation around:
-                            /*
-                             someProc : (int) -> void : (n: int) -> void { /* ... */ }
-                            */
-                            //
-
-                            entity = Entity(kind: .procedure, name: name.identifier, scope: declInfo.scope, identifier: name)
-                            declInfo.initExpr = value
-                            declInfo.typeExpr = procType
-                        } else {
-                            entity = Entity(kind: .compileTime(.invalid), name: name.identifier, scope: declInfo.scope, identifier: name)
-                            declInfo.typeExpr = type
-                        }
-
-                        addEntity(to: entity.scope, identifier: name, entity)
-                        info.entities[entity] = declInfo
-                    }
-                    checkArityMatch(node)
+            case .value(let isRuntime, let names, let type, let values, _):
+                guard !isRuntime else {
+                    reportError("Runtime declarations not allowed at file scope", at: node)
+                    return
                 }
-                break
+                for (index, name) in names.enumerated() {
+                    guard name.isIdent else {
+                        reportError("A declaration's name must be an identifier", at: name)
+                        continue
+                    }
+
+                    let value = values[safe: index].map({ $0.unparenExpr() })
+
+                    let declInfo = DeclInfo(scope: context.scope)
+                    var entity: Entity
+                    if let value = value, value.isType {
+                        entity = Entity(kind: .typeName, name: name.identifier, scope: declInfo.scope, identifier: name)
+                        declInfo.typeExpr = value
+                        declInfo.initExpr = value
+                    } else if let value = value, case .literal(.proc(_, let procType, _)) = value {
+
+                        // TODO(vdka): Some validation around:
+                        /*
+                         someProc : (int) -> void : (n: int) -> void { /* ... */ }
+                         */
+
+                        entity = Entity(kind: .procedure, name: name.identifier, scope: declInfo.scope, identifier: name)
+                        declInfo.initExpr = value
+                        declInfo.typeExpr = procType
+                    } else {
+                        entity = Entity(kind: .compileTime(.invalid), name: name.identifier, scope: declInfo.scope, identifier: name)
+                        declInfo.typeExpr = type
+                        declInfo.initExpr = value
+                    }
+
+                    addEntity(to: entity.scope, identifier: name, entity)
+                    info.entities[entity] = declInfo
+                }
+                checkArityMatch(node)
 
             case .import, .library:
                 if !context.scope.isFile {
@@ -357,6 +323,7 @@ extension Checker {
     }
 
     mutating func importEntities(_ fileScopes: inout [String: Scope]) {
+
         for imp in delayedImports {
             guard case .decl(.import(let relPath, let fullPath, let importName, _)) = imp.decl else {
                 preconditionFailure()
@@ -412,7 +379,6 @@ extension Checker {
     }
 
     mutating func checkAllGlobalEntities() {
-        var prevFile: Scope = .universal
 
         for (e, d) in info.entities {
 
@@ -422,7 +388,7 @@ extension Checker {
 
             setCurrentFile(d.scope.file!)
 
-            guard d.scope.hasBeenImported else {
+            guard d.scope.hasBeenImported || d.scope.isInit else {
                 // How did we even get into a file that wasn't imported?
                 continue
             }
@@ -430,6 +396,12 @@ extension Checker {
             if case .procedure = e.kind, e.name == "main" {
                 // TODO(vdka): Ensure we're in the initial file scope
                 // guard e.scope.isInit else { continue with error }
+                guard self.main == nil else {
+                    reportError("Duplicate definition of symbol 'main'", at: e.location)
+                    continue
+                }
+
+                self.main = e
             }
 
             checkEntityDecl(e, d, namedType: nil)
@@ -463,8 +435,30 @@ extension Checker {
         return true
     }
 
+    mutating func addEntityUse(identifier: AstNode, _ e: Entity) {
+        guard identifier.isIdent else {
+            return
+        }
+
+        info.uses[identifier] = e
+    }
+
+    mutating func addDeclarationDependency(_ e: Entity) {
+        guard let decl = context.decl else { return }
+
+        if let found = info.entities[e] {
+            addDependency(context.decl!, e)
+        }
+    }
+
+    mutating func addDependency(_ d: DeclInfo, _ e: Entity) {
+        d.deps.insert(e)
+    }
+
     @discardableResult
     mutating func checkArityMatch(_ node: AstNode) -> Bool {
+        fatalError()
+        /*
         guard case .decl(.value(let decl)) = node else { preconditionFailure() }
 
         if decl.values.isEmpty && decl.type == nil {
@@ -485,6 +479,7 @@ extension Checker {
         }
 
         return true
+        */
     }
 }
 

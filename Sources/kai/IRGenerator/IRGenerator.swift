@@ -186,6 +186,9 @@ extension IRGenerator {
         case .basicDirective:
             break
 
+        case .ellipsis:
+            break
+
         case .argument:
             break
 

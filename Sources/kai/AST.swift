@@ -41,6 +41,10 @@ indirect enum AstNode {
     case ident(String, SourceLocation)
     case basicDirective(String, SourceLocation)
 
+    /// - Note: `printf :: (format: string, args: ..any) -> void` | `for i in 0..10`
+    /// - Note: Contains the expr on the rhs of an ellipsis
+    case ellipsis(AstNode, SourceLocation)
+
     /// - Parameter name: Name is what is followed by `:`
     case argument(label: AstNode?, value: AstNode, SourceLocation)
 
@@ -171,6 +175,7 @@ extension AstNode {
         case .invalid(let location),
              .ident(_, let location),
              .basicDirective(_, let location),
+             .ellipsis(_, let location),
              .argument(_, value: _, let location),
              .field(_, type: _, let location),
              .fieldList(_, let location):
@@ -305,6 +310,16 @@ extension AstNode {
         }
     }
 
+    var isField: Bool {
+        switch self {
+        case .field:
+            return true
+
+        default:
+            return false
+        }
+    }
+
     var isIdent: Bool {
         switch self {
         case .ident:
@@ -344,6 +359,7 @@ extension AstNode {
         return ident
     }
 
+    // TODO(vdka): This should be an optional.
     var literal: String {
         switch self {
         case .literal(let lit):
@@ -360,7 +376,7 @@ extension AstNode {
                     return dbl.description
                 }
 
-            case .proc(let procSource, let type, _):
+            case .proc(_, let type, _):
                 return "native " + type.typeDescription
 
             case .compound(let type, _, _):
@@ -441,6 +457,9 @@ extension AstNode {
         case .basicDirective:
             return "directive"
 
+        case .ellipsis:
+            return "ellipsis"
+
         case .argument:
             return "argument"
 
@@ -456,115 +475,121 @@ extension AstNode {
                 return "lit"
 
             case .proc:
-                return "proc"
+                return "lit_proc"
 
             case .compound:
-                return "compoundLit"
+                return "lit_compound"
             }
 
         case .expr(let expr):
             switch expr {
             case .bad:
-                return "badExpr"
+                return "expr_bad"
 
             case .unary:
-                return "unaryExpr"
+                return "expr_unary"
 
             case .binary:
-                return "binaryExpr"
+                return "expr_binary"
 
             case .paren:
-                return "parenExpr"
+                return "expr_paren"
 
             case .selector:
-                return "selectorExpr"
+                return "expr_selector"
 
             case .subscript:
-                return "subscriptExpr"
+                return "expr_subscript"
 
             case .deref:
-                return "dereferenceExpr"
+                return "expr_dereference"
 
             case .call:
-                return "callExpr"
+                return "expr_call"
 
             case .ternary:
-                return "ternaryExpr"
+                return "expr_ternary"
             }
 
         case .stmt(let stmt):
             switch stmt {
             case .bad:
-                return "badStmt"
+                return "stmt_bad"
 
             case .empty:
-                return "emptyStmt"
+                return "stmt_empty"
 
             case .expr:
-                return "expr"
+                return "stmt_expr"
 
             case .assign:
-                return "assignmentStmt"
+                return "stmt_assignment"
 
             case .block:
-                return "blockStmt"
+                return "stmt_block"
 
             case .if:
-                return "ifStmt"
+                return "stmt_if"
 
             case .return:
-                return "returnStmt"
+                return "stmt_return"
 
             case .for:
-                return "forStmt"
+                return "stmt_for"
 
             case .case:
-                return "caseStmt"
+                return "stmt_case"
 
             case .defer:
-                return "deferStmt"
+                return "stmt_defer"
 
             case .control(let controlStatement, _):
-                return String(describing: controlStatement)
+                return "stmt_" + String(describing: controlStatement)
             }
 
         case .decl(let decl):
             switch decl {
             case .bad:
-                return "badDecl"
+                return "decl_bad"
 
-            case .value:
-                return "decl"
+            case .value(let val):
+                switch val.isRuntime {
+                case true:
+                    return "decl_runtime"
+
+                case false:
+                    return "decl_compiletime"
+                }
 
             case .import:
-                return "importDecl"
+                return "decl_import"
 
             case .library:
-                return "libraryDecl"
+                return "decl_library"
             }
 
         case .type(let type):
             switch type {
             case .helper:
-                return "helperType"
+                return "type_helper"
 
             case .proc:
-                return "procType"
+                return "type_proc"
 
             case .pointer:
-                return "pointerType"
+                return "type_pointer"
 
             case .array:
-                return "arrayType"
+                return "type_array"
 
             case .dynArray:
-                return "arrayType"
+                return "type_array"
 
             case .struct:
-                return "structType"
+                return "type_struct"
 
             case .enum:
-                return "enumType"
+                return "type_enum"
             }
         }
     }
@@ -586,6 +611,9 @@ extension AstNode {
 
         case .basicDirective(let directive, _):
             unlabeled.append(directive)
+
+        case .ellipsis(let expr, _):
+            unlabeled.append(expr.pretty(depth: depth + 1, includeParens: true))
 
         case .argument(_, let val, _):
             // TODO(vdka): print labels.
@@ -700,7 +728,7 @@ extension AstNode {
             case .defer(let stmt, _):
                 children.append(stmt)
 
-            case .control(let controlStatement, _):
+            case .control(_, _):
                 break
             }
 
@@ -709,15 +737,11 @@ extension AstNode {
             case .bad(let range):
                 unlabeled.append(range.description)
 
-            case .value(_, let names, _, let values, _):
-                //                labeled["type"] = type?.pretty(depth: depth + 1) ?? "<infered>"
-                unlabeled.append(names.first!.identifier)
-                children.append(contentsOf: values)
+            case .value:
+                print("TODO \(#line)")
 
-            case .import(let relPath, let fullPath, let importName, _):
-                //                labeled["relPath"] = relPath
-                labeled["fullPath"] = fullPath
-                //                labeled["name"] = importName
+            case .import(_, _, _, _):
+                break
 
             case .library(let filePath, let libName, _):
                 labeled["filePath"] = filePath

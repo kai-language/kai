@@ -16,13 +16,13 @@ extension Checker {
             unimplemented("Type checking for variable type entities")
 
         case .compileTime:
-            unimplemented("Type checking for contant type entities")
+            checkCompileTimeDecl(e, typeExpr: d.typeExpr, valueExpr: d.initExpr, namedType: nil)
 
         case .typeName:
             unimplemented("Type checking for named type entities")
 
         case .procedure:
-            unimplemented("Type checking for procedure type entities")
+            checkProcLit(e, d)
 
         case .builtin,
              .importName,
@@ -53,12 +53,83 @@ extension Checker {
         }
 
         // TODO(vdka): Ensure op.type.isConstantType
-
         if e.type == nil { // NOTE(vdka): Type inference
             e.type = op.type
         }
 
         e.kind = .compileTime(op.value)
+    }
+
+    mutating func checkProcLit(_ e: Entity, _ d: DeclInfo) {
+        assert(e.type == nil)
+
+        guard let procExpr = d.initExpr, procExpr.isProcLit else {
+            reportError("Expected a procedure to check", at: e.location)
+            return
+        }
+
+        if (d.scope.isFile || d.scope.isGlobal || d.scope.isInit) && e.name == "main" {
+            guard case .literal(.proc(let source, type: let type, _)) = procExpr else {
+                preconditionFailure()
+            }
+            guard case .type(.proc(params: let params, results: let results, _)) = type else {
+                reportError("Symbol 'main' must be a procedure type", at: procExpr)
+                return
+            }
+
+        }
+    }
+
+    mutating func checkProcedureType(_ procType: AstNode) -> Type {
+
+        fatalError()
+    }
+
+    mutating func checkGetParamTypes(_ scope: Scope, params: AstNode) -> ([Type], isVariadic: Bool) {
+        fatalError()
+        /*
+        guard case .fieldList(let fields, _) = params else {
+            preconditionFailure("\(#function) expects params to be of kind fieldList")
+        }
+
+        if fields.isEmpty {
+            return ([], false)
+        }
+
+        var variableCount = 0
+        for field in fields {
+            guard case .field(let names, _, _) = field else {
+                continue
+            }
+
+            variableCount += names.count
+        }
+
+        var isVariadic = false
+        var variables: [Entity] = []
+        for field in fields {
+            guard case .field(let names, let typeExpr, _) = field else {
+                continue
+            }
+
+            if case .ellipsis(let expr, _) = typeExpr {
+                // TODO(vdka): unbox the type field of that AST node.
+                if field == fields.last! {
+                    isVariadic = true
+                } else {
+                    reportError("Invalid AST: Invalid variadic parameter", at: params)
+                }
+            }
+
+            let type = checkType(typeExpr, namedType: nil)
+
+            for nameNode in names {
+                guard case .ident(let name, let location) = nameNode else { continue }
+
+//                let entity = Entity(kind: .runtime, name: name, location: location, flags: [.used, .param], scope: scope, identifier: nameNode)
+            }
+        }
+        */
     }
 
     mutating func checkCompileTimeDecl(_ e: Entity, typeExpr: AstNode?, valueExpr: AstNode?, namedType: Type?) {
