@@ -100,10 +100,10 @@ extension Parser {
             }
 
         case .colon:
-            return UInt8.max
+            return 160
 
         case .comma:
-            return 0
+            return 180
 
         case .equals:
             return 160
@@ -275,37 +275,24 @@ extension Parser {
             return AstNode.exprSelector(receiver: lvalue, member: rvalue, location ..< lexer.location)
 
         case .comma:
-            let (_, location) = try consume()
-            return AstNode.invalid(location ..< location)
+            try consume()
+            let bp = lbp(for: .comma)!
+            let next = try expression(bp)
+            return append(next, to: lvalue)
  
         case .lparen:
             let (_, lparen) = try consume(.lparen)
 
-            let expr = try expression()
-            var exprs: [AstNode] = [expr]
-
-            while case .comma? = try lexer.peek()?.kind {
-                try consume(.comma) // TODO(vdka): Handle missing or duplicate comma's
-
-                let expr = try expression()
-                exprs.append(expr)
-            }
+            let args = try expression()
 
             let (_, rparen) = try consume(.rparen)
-            return AstNode.exprCall(receiver: lvalue, args: exprs, lparen ..< rparen)
+            return AstNode.exprCall(receiver: lvalue, args: args.explode(), lparen ..< rparen)
 
         case .equals:
 
-            let (_, location) = try consume(.equals)
+            try consume(.equals)
 
             let rvalue = try expression()
-
-            // TODO(vdka): Handle multiple expressions. That gon be herd.
-            //   Actually this isn't a decl so, maybe we don't support this.
-            /* x, y, z = z, y, x */
-            // Maybe we prefer
-            /* (x, y, z) = (z, y, x) */
-            // where l & r values would be field lists. This is probably easier to parse, but what is the most syntactially constant.
 
             return AstNode.stmtAssign("=", lhs: [lvalue], rhs: [rvalue], lvalue.startLocation ..< rvalue.endLocation)
 
@@ -393,15 +380,15 @@ extension Parser {
                     return AstNode.exprParen(expr, lparen ..< rparen)
 
                 default:
-                    let rvalues = try parseMultipleExpressions()
-                    return AstNode.declValue(isRuntime: false, names: [lvalue], type: nil, values: rvalues, lvalue.startLocation ..< lexer.location)
+                    let rvalue = try expression()
+                    return AstNode.declValue(isRuntime: false, names: lvalue.explode(), type: nil, values: rvalue.explode(), lvalue.startLocation ..< lexer.location)
                 }
 
 
             case .equals?: // type infered runtime decl
                 try consume(.equals)
-                let rvalues = try parseMultipleExpressions()
-                return AstNode.declValue(isRuntime: true, names: [lvalue], type: nil, values: rvalues, lvalue.startLocation ..< lexer.location)
+                let rvalue = try expression()
+                return AstNode.declValue(isRuntime: true, names: lvalue.explode(), type: nil, values: rvalue.explode(), lvalue.startLocation ..< lexer.location)
 
             default: // type is provided `x : int`
 
@@ -413,11 +400,11 @@ extension Parser {
                     unimplemented("Explicit type for compile time declarations")
 
                 case .equals?: // `x : int = y` | `x, y : int = 1, 2`
-                    let rvalues = try parseMultipleExpressions()
-                    return AstNode.declValue(isRuntime: true, names: [lvalue], type: type, values: rvalues, lvalue.startLocation ..< lexer.location)
+                    let rvalue = try expression()
+                    return AstNode.declValue(isRuntime: true, names: lvalue.explode(), type: type, values: rvalue.explode(), lvalue.startLocation ..< lexer.location)
 
                 default: // `x : int` | `x, y, z: f32`
-                    return AstNode.declValue(isRuntime: true, names: [lvalue], type: type, values: [], lvalue.startLocation ..< lexer.location)
+                    return AstNode.declValue(isRuntime: true, names: lvalue.explode(), type: type, values: [], lvalue.startLocation ..< lexer.location)
                 }
             }
 
@@ -428,21 +415,6 @@ extension Parser {
 
 
     // MARK: Sub parsers
-
-    mutating func parseMultipleExpressions() throws -> [AstNode] {
-
-        let expr = try expression()
-        var exprs: [AstNode] = [expr]
-
-        while case .comma? = try lexer.peek()?.kind {
-            try consume(.comma)
-
-            let expr = try expression()
-            exprs.append(expr)
-        }
-
-        return exprs
-    }
 
     mutating func parseFieldList() throws -> AstNode {
         let (_, _) = try consume(.lparen)
@@ -537,6 +509,17 @@ extension Parser {
         assert(decl.type != nil) // TODO(vdka): if the decl type is nil then maybe the user has done: `(x := 5) -> int`
 
         return decl.names.map({ AstNode.field(name: $0, type: decl.type!, $0.location) })
+    }
+
+    func append(_ node: AstNode, to list: AstNode) -> AstNode {
+
+        switch list {
+        case .list(let nodes, let location):
+            return AstNode.list(nodes + [node], location.lowerBound ..< node.endLocation)
+
+        default:
+            return AstNode.list([list, node], node.location)
+        }
     }
 
     func range(from a: AstNode?, toEndOf b: AstNode?) -> SourceRange {

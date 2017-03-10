@@ -246,7 +246,22 @@ extension AstNode {
 
         return curr
     }
+
+    /// Expands any list or non list nodes into [AstNode]
+    func explode() -> [AstNode] {
+
+        switch self {
+        case .list(let vals, _):
+            return vals
+
+        default:
+            return [self]
+        }
+    }
 }
+
+
+// MARK: - Printing
 
 extension AstNode {
 

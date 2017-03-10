@@ -1,5 +1,7 @@
 
-tau :: 6.2831853071
+//tau :: 6.2831853071
+
+tau, pi :: 6.28, 3.14
 
 circumference :: (r: f64) -> f64 {
     return tau * r
