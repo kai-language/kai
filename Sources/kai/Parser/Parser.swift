@@ -1,47 +1,5 @@
 
 import Foundation.NSFileManager
-/*
-typedef struct Parser {
-    String              init_fullpath;
-    Array(AstFile)      files;
-    Array(ImportedFile) imports;
-    gbAtomic32          import_index;
-    isize               total_token_count;
-    isize               total_line_count;
-    gbMutex             mutex;
-} Parser;
-
-typedef struct ImportedFile {
-    String   path;
-    String   rel_path;
-    TokenPos pos; // #import
-} ImportedFile;
-
-// parse_files
-for_array(i, p->imports) {
-    ImportedFile imported_file = p->imports.e[i];
-    String import_path = imported_file.path;
-    String import_rel_path = imported_file.rel_path;
-    TokenPos pos = imported_file.pos;
-    AstFile file = {0};
-
-    ParseFileError err = init_ast_file(&file, import_path);
-
-    if (err != ParseFile_None) {
-        desc(err);
-        return err;
-    }
-    parse_file(p, &file);
-
-    {
-        gb_mutex_lock(&p->mutex);
-        file.id = p->files.count;
-        array_add(&p->files, file);
-        p->total_line_count += file.tokenizer.line_count;
-        gb_mutex_unlock(&p->mutex);
-    }
-}
-*/
 
 struct ImportedFile {
     var fullPath: String
@@ -79,6 +37,42 @@ struct Parser {
 
         self.imports = [importedFile]
     }
+
+    class Context {
+
+        var parent: Context? = nil
+
+        var state: State = .global
+
+        enum State {
+            case global
+
+            case procedureBody
+            case structureBody
+            case enumerationBody
+
+            // allow keywords break & continue
+            case loopBody
+
+            case procedureCall
+        }
+    }
+
+    mutating func push(context state: Context.State) {
+        let newContext = Context()
+        newContext.parent = context
+        newContext.state = state
+        context = newContext
+    }
+
+    mutating func popContext() {
+        context = context.parent!
+    }
+}
+
+// MARK: Functionality
+
+extension Parser {
 
     mutating func parseFiles() throws -> [ASTFile] {
 
@@ -148,7 +142,7 @@ extension Parser {
             return UInt8.max
 
         case .comma:
-            return 180
+            return 0
 
         case .equals:
             return 160
@@ -323,13 +317,25 @@ extension Parser {
             return AstNode.exprSelector(receiver: lvalue, member: rvalue, location ..< lexer.location)
 
         case .comma:
+            return lvalue
             // TODO(vdka): Check if `context.contains(.allowComma)` (made up call)
-            let (_, location) = try consume(.comma)
-            reportError("Unexpected comma", at: location)
-            return AstNode.invalid(location ..< location)
-
+ 
         case .lparen:
-            return try parseProcedureCall(lvalue)
+            let (_, lparen) = try consume(.lparen)
+
+            let expr = try expression()
+            var exprs: [AstNode] = [expr]
+
+            while case .comma? = try lexer.peek()?.kind {
+                try consume(.comma) // TODO(vdka): Handle missing or duplicate comma's
+
+                let expr = try expression()
+                exprs.append(expr)
+            }
+
+            let (_, rparen) = try consume(.rparen)
+            return AstNode.exprCall(receiver: lvalue, args: exprs, lparen ..< rparen)
+//            return try parseProcedureCall(lvalue)
 
         case .equals:
 
@@ -457,38 +463,6 @@ extension Parser {
                     return AstNode.declValue(isRuntime: true, names: [lvalue], type: type, values: [], lvalue.startLocation ..< lexer.location)
                 }
             }
-
-            /*
-            if case .colon? = try lexer.peek(aheadBy: 1)?.kind { // '::'
-                // TODO(vdka): Check that the lvalue is an ident or report an error
-                return try parseCompileTimeDeclaration(lvalue)
-            }
-
-            try consume(.colon)
-
-            switch try lexer.peek()?.kind {
-            case .equals?:
-                // type is infered
-                let (_, location) = try consume(.equals)
-                let rvalues = try parseMultipleExpressions()
-
-                // TODO(vdka): handle mismatched lhs count and rhs count
-
-                // TODO(vdka): Multiple declarations
-
-                return AstNode.declValue(isRuntime: true, names: [lvalue], type: nil, values: rvalues, lvalue.startLocation ..< lexer.location)
-
-            default:
-
-                // NOTE(vdka): For now you can only have a single type on the lhs
-                // TODO(vdka): This should have a warning to explain.
-                let type = try parseType()
-                let (_, location) = try consume(.equals)
-                let rvalues = try parseMultipleExpressions()
-
-                return AstNode.declValue(isRuntime: true, names: [lvalue], type: type, values: rvalues, location ..< lexer.location)
-            }
-            */
 
         default:
             unimplemented()
