@@ -165,7 +165,7 @@ extension Checker {
         if case .type = operand.kind {
             e.kind = .typeName
 
-            var d = context.decl!
+            let d = context.decl!
             d.typeExpr = valueExpr
             // TODO(vdka): Are we certain that typeExpr is non nil here?
             checkTypeDecl(e, typeExpr: d.typeExpr!, def: namedType)

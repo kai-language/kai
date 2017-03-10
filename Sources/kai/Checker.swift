@@ -444,11 +444,13 @@ extension Checker {
     }
 
     mutating func addDeclarationDependency(_ e: Entity) {
+        /*
         guard let decl = context.decl else { return }
 
         if let found = info.entities[e] {
             addDependency(context.decl!, e)
         }
+        */
     }
 
     mutating func addDependency(_ d: DeclInfo, _ e: Entity) {

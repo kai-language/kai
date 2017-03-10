@@ -179,7 +179,7 @@ extension Parser {
             return AstNode.stmtIf(cond: condExpr, body: bodyExpr, elseExpr, startLocation ..< bodyExpr.endLocation)
 
         case .keyword(.for):
-            let (_, startLocation) = try consume(.keyword(.for))
+            let (_, _) = try consume(.keyword(.for))
 
             // NOTE(vdka): for stmt bodies *must* be braced
             var expressions: [AstNode] = []

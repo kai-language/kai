@@ -40,7 +40,7 @@ extension Operator {
 
 
         let led = led ?? { parser, lhs in
-            let (_, location) = try parser.consume()
+            try parser.consume()
             let bp = (associativity == .left) ? lbp : lbp - 1
 
             let rhs = try parser.expression(bp)
@@ -91,7 +91,7 @@ extension Operator {
         guard symbol != "=" else { throw Error.invalidSymbol }
 
         try infix(symbol, bindingPower: 10, associativity: .right) { parser, lvalue in
-            let (_, location) = try parser.consume()
+            try parser.consume()
 
             let rvalue = try parser.expression(9)
 
