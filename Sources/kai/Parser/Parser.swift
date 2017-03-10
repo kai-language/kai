@@ -23,9 +23,6 @@ struct Parser {
 
     var lexer: Lexer!
 
-    // TODO(vdka): Remove
-    var context = Context()
-
     var errors: UInt = 0
 
     init(relativePath: String) {
@@ -36,37 +33,6 @@ struct Parser {
         let importedFile = ImportedFile(relativePath: relativePath)!
 
         self.imports = [importedFile]
-    }
-
-    class Context {
-
-        var parent: Context? = nil
-
-        var state: State = .global
-
-        enum State {
-            case global
-
-            case procedureBody
-            case structureBody
-            case enumerationBody
-
-            // allow keywords break & continue
-            case loopBody
-
-            case procedureCall
-        }
-    }
-
-    mutating func push(context state: Context.State) {
-        let newContext = Context()
-        newContext.parent = context
-        newContext.state = state
-        context = newContext
-    }
-
-    mutating func popContext() {
-        context = context.parent!
     }
 }
 
@@ -107,11 +73,6 @@ extension Parser {
         guard let (token, _) = try lexer.peek() else { return AstNode.invalid(lexer.lastLocation ..< lexer.lastLocation) }
 
         var left = try nud(for: token)
-
-        // TODO(vdka): Allow comma's based of parser state
-//        if case .comma? = try lexer.peek()?.kind, context.allowCommas {
-//            return left
-//        }
 
         while let (nextToken, _) = try lexer.peek(), let lbp = lbp(for: nextToken),
             rbp < lbp
@@ -227,9 +188,6 @@ extension Parser {
                 expressions.append(expr)
             }
 
-            push(context: .loopBody)
-            defer { popContext() }
-
             let body = try expression()
 
             expressions.append(body)
@@ -317,8 +275,8 @@ extension Parser {
             return AstNode.exprSelector(receiver: lvalue, member: rvalue, location ..< lexer.location)
 
         case .comma:
-            return lvalue
-            // TODO(vdka): Check if `context.contains(.allowComma)` (made up call)
+            let (_, location) = try consume()
+            return AstNode.invalid(location ..< location)
  
         case .lparen:
             let (_, lparen) = try consume(.lparen)
@@ -335,7 +293,6 @@ extension Parser {
 
             let (_, rparen) = try consume(.rparen)
             return AstNode.exprCall(receiver: lvalue, args: exprs, lparen ..< rparen)
-//            return try parseProcedureCall(lvalue)
 
         case .equals:
 
