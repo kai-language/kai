@@ -308,7 +308,7 @@ extension AstNode {
         case .litFloat: return "litFloat"
         case .litString: return "litString"
         case .litProc: return "litProc"
-        case .declValue: return "declValue"
+        case .declValue(let decl): return decl.isRuntime ? "declRt" : "declCt"
         case .declImport: return "declImport"
         case .declLibrary: return "declLibrary"
         case .exprUnary: return "exprUnary"
