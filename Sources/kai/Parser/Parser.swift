@@ -449,22 +449,11 @@ extension Parser {
                     // NOTE(vdka): We should report prohibitted type specification at least in some cases. ie: `Foo : typeName : struct { ... }` doesn't make sense
                     unimplemented("Explicit type for compile time declarations")
 
-                case .equals?:
+                case .equals?: // `x : int = y` | `x, y : int = 1, 2`
                     let rvalues = try parseMultipleExpressions()
                     return AstNode.declValue(isRuntime: true, names: [lvalue], type: type, values: rvalues, lvalue.startLocation ..< lexer.location)
 
-                default:
-
-                    if case .keyword(.returnArrow)? = try lexer.peek()?.kind {
-                        try consume()
-                        let returnType = try parseType()
-                        unimplemented()
-//                        let procType = AstNode.typeProc(params: <#T##AstNode#>, results: <#T##AstNode#>, <#T##SourceRange#>)
-                        if case .lbrace? = try lexer.peek()?.kind {
-                            let body = try expression()
-//                            return AstNode.litProc(type: <#T##AstNode#>, body: <#T##AstNode#>, <#T##SourceRange#>)
-                        }
-                    }
+                default: // `x : int` | `x, y, z: f32`
                     return AstNode.declValue(isRuntime: true, names: [lvalue], type: type, values: [], lvalue.startLocation ..< lexer.location)
                 }
             }
