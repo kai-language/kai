@@ -240,7 +240,6 @@ extension Lexer {
 			case "/":
 				if scanner.peek(aheadBy: 1) == "*" { try skipBlockComment() }
 				else if scanner.peek(aheadBy: 1) == "/" { skipLineComment() }
-				try skipWhitespace()
 				return
 
 			case _ where whitespace.contains(char):
