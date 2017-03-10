@@ -236,8 +236,11 @@ extension Parser {
         case .keyword(.return):
             let (_, startLocation) = try consume(.keyword(.return))
 
+            // TODO(vdka): parseMultiple comma seperated expr's
+            // FIXME(vdka): This will fail pretty badly if the return is not the last stmt in the block
+            // TODO(vdka): Validate that our current context permits return statements
             var exprs: [AstNode] = []
-            while try lexer.peek()?.kind != .rparen {
+            while try lexer.peek()?.kind != .rbrace {
                 let expr = try expression()
                 exprs.append(expr)
                 if case .comma? = try lexer.peek()?.kind {
@@ -253,11 +256,6 @@ extension Parser {
 
         case .lbrace:
             let (_, startLocation) = try consume(.lbrace)
-
-            let scope = context.pushNewScope()
-            defer {
-                context.popCurrentScope()
-            }
 
             var stmts: [AstNode] = []
             while let next = try lexer.peek()?.kind, next != .rbrace {
@@ -353,7 +351,6 @@ extension Parser {
                 return AstNode.declValue(isRuntime: true, names: [lvalue], type: nil, values: rvalues, lvalue.startLocation ..< lexer.location)
 
             default:
-                try consume(.colon)
 
                 // NOTE(vdka): For now you can only have a single type on the lhs
                 // TODO(vdka): This should have a warning to explain.

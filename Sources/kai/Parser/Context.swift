@@ -7,8 +7,6 @@ extension Parser {
 
         var state: State = .global
 
-        var scope: Scope = .universal
-
         enum State {
             case global
 
@@ -20,26 +18,6 @@ extension Parser {
             case loopBody
 
             case procedureCall
-        }
-
-        @discardableResult
-        func pushNewScope() -> Scope {
-            let newScope = Scope(parent: self.scope)
-            self.scope = newScope
-
-            return newScope
-        }
-
-        @discardableResult
-        func popCurrentScope() -> Scope {
-            guard let parent = self.scope.parent else {
-                fatalError("Scope pop'd with no parent scope")
-            }
-            defer {
-                self.scope = parent
-            }
-
-            return self.scope
         }
     }
 
