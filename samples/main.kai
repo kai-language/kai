@@ -1,10 +1,12 @@
 
-str :: "Hello, Kai!"
-tau :: 6.2831853071
+//tau :: 6.2831853071
 
-// it's just like main because I call it.
-main :: (k: int) -> void {
-    print(str)
-    print("goodbye!")
+circumference :: (r: f64) -> f64 {
+    return tau * r
+}
+
+main :: () -> void {
+    c :: circumference(1)
+    printf("The circumference of a unit circle is %\n", c)
 }
 

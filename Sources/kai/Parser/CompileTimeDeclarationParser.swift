@@ -26,6 +26,8 @@ extension Parser {
         case .lparen: // procedure type parsing
             let type = try parseType()
 
+            // NOTE(vdka): Check if the lhs type is a proc type. If it is and the next token is '{' _then_ we have a litProc
+
             // next should be a new scope '{' or a foreign body
             guard let (token, location) = try lexer.peek() else { throw error(.syntaxError) }
 

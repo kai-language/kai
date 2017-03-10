@@ -41,7 +41,7 @@ extension Parser {
                     while case (.comma, _)? = try lexer.peek() {
 
                         try consume(.comma)
-                        guard case (.ident(let name), let location)? = try lexer.peek() else {
+                        guard case (.ident(let name), _)? = try lexer.peek() else {
                             reportError("Expected identifier", at: lexer.lastLocation)
                             try consume()
                             continue
@@ -54,8 +54,9 @@ extension Parser {
 
                     try consume(.colon)
                     let type = try parseType()
-                    let field = AstNode.field(names: names, type: type, nameNode.startLocation ..< lexer.location)
-                    fields.append(field)
+
+                    let newFields = names.map({ AstNode.field(name: $0, type: type, $0.location) })
+                    fields.append(contentsOf: newFields)
 
                     wasComma = false
 
@@ -71,7 +72,7 @@ extension Parser {
 
             let (_, endLocation) = try consume(.rparen)
 
-            let fieldList = AstNode.fieldList(fields, startLocation ..< endLocation)
+            let fieldList = AstNode.list(fields, startLocation ..< endLocation)
 
             guard let (token, _) = try lexer.peek() else {
                 // allow `someVars : (x: int, y: int)` at the end of a file

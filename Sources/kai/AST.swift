@@ -40,14 +40,18 @@ indirect enum AstNode {
 
     case arg(label: AstNode?, value: AstNode, SourceRange)
 
-    case field(names: [AstNode], type: AstNode, SourceRange)
-    case fieldList([AstNode], SourceRange)
+    case field(name: AstNode, type: AstNode, SourceRange)
+    case list([AstNode], SourceRange)
 
     case litInteger(Int64, SourceRange)
     case litFloat(Double, SourceRange)
     case litString(String, SourceRange)
 
+    /// - Parameter type: `typeProc` node
+    /// - Note: `type` holds reference to the args
     case litProc(type: AstNode, body: AstNode, SourceRange)
+
+
 
     case declValue(isRuntime: Bool, names: [AstNode], type: AstNode?, values: [AstNode], SourceRange)
     case declImport(relPath: AstNode, fullpath: String, importName: AstNode?, SourceRange)
@@ -57,8 +61,12 @@ indirect enum AstNode {
     case exprBinary(String, lhs: AstNode, rhs: AstNode, SourceRange)
     case exprParen(AstNode, SourceRange)
     case exprSelector(receiver: AstNode, member: AstNode, SourceRange)
+
+    /// - Parameter args: an array of `arg` nodes
     case exprCall(receiver: AstNode, args: [AstNode], SourceRange)
     case exprTernary(cond: AstNode, AstNode, AstNode, SourceRange)
+
+
 
     /// Essentially an expr which has it's rvalue thrown away
     case stmtExpr(AstNode)
@@ -74,6 +82,7 @@ indirect enum AstNode {
     case stmtContinue(SourceRange)
     case stmtFallthrough(SourceRange)
 
+    /// - Parameter params:
     case typeProc(params: AstNode, results: AstNode, SourceRange)
     case typeArray(count: AstNode, baseType: AstNode, SourceRange)
     case typeStruct(fields: [AstNode], SourceRange)
@@ -116,9 +125,9 @@ extension AstNode {
         case .invalid(let location),
              .ident(_, let location),
              .directive(_, _, let location),
+             .list(_, let location),
              .arg(_, _, let location),
              .field(_, _, let location),
-             .fieldList(_, let location),
              .litInteger(_, let location),
              .litFloat(_, let location),
              .litString(_, let location),
@@ -248,22 +257,41 @@ extension AstNode {
         return ident
     }
 
-    var fieldListDescription: String {
+    var value: String {
+
+        switch self {
+        case .ident(let s, _):
+            return s
+
+        case .litInteger(let i, _):
+            return "'" + i.description + "'"
+
+        case .litString(let s, _):
+            return "\"" + s + "\""
+
+        case .litFloat(let f, _):
+            return "'" + f.description + "'"
+
+        case .field(name: let name, type: let type, _):
+            return name.value + ": " + type.value
+
+        case .list:
+            return self.listDescription
+
+        default:
+            fatalError()
+        }
+    }
+
+    var listDescription: String {
 
         switch self {
         case .ident(let ident, _):
             return ident
 
-        case .fieldList(let fields, _):
+        case .list(let nodes, _):
 
-            let str = fields
-                .map { (node: AstNode) -> String in
-                    guard case .field(let names, let type, _) = node else {
-                        fatalError()
-                    }
-
-                    return names.map({ $0.identifier }).joined(separator: ", ") + ": " + type.typeDescription
-                }.joined(separator: ", ")
+            let str = nodes.map({ $0.value }).joined(separator: ", ")
 
             return "(" + str + ")"
 
@@ -279,7 +307,7 @@ extension AstNode {
             return name
 
         case .typeProc(let params, let results, _):
-            return params.fieldListDescription + " -> " + results.fieldListDescription
+            return params.listDescription + " -> " + results.value
 
         case .typeStruct:
             return "struct"
@@ -303,7 +331,7 @@ extension AstNode {
         case .directive: return "directive"
         case .arg: return "arg"
         case .field: return "field"
-        case .fieldList: return "fieldList"
+        case .list: return "list"
         case .litInteger: return "litInteger"
         case .litFloat: return "litFloat"
         case .litString: return "litString"
@@ -358,10 +386,11 @@ extension AstNode {
             // TODO(vdka): print labels.
             unlabeled.append(val.pretty(depth: depth + 1, includeParens: true))
 
-        case .field(let names, _, _):
-            children.append(contentsOf: names)
+        case .field(let name, _, _):
+            children.append(name)
 
-        case .fieldList(_, _):
+        case .list(let nodes, _):
+            children.append(contentsOf: nodes)
             break
 
         case .litInteger(let val, _):
