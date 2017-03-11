@@ -1,7 +1,9 @@
 
+#import "json.kai"
+
 tau :: 6.2831853071
 
-pi  :: tau / 2
+pi  :: 3.14
 
 circumference :: (r: f64) -> f64 {
     return tau * r
@@ -10,5 +12,12 @@ circumference :: (r: f64) -> f64 {
 main :: () -> void {
     c :: circumference(1)
     printf("The circumference of a unit circle is %\n", c)
+
+    j, err := json.parse("{'key': 'value'}")
+    if err != nil {
+        panic(err)
+    }
+
+    print(j)
 }
 

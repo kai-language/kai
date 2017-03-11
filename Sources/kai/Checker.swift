@@ -270,7 +270,7 @@ extension Checker {
             switch node {
             case .declValue(isRuntime: let isRuntime, names: let names, type: let type, values: let values, _):
                 guard !isRuntime else {
-                    reportError("Runtime declarations not allowed at file scope", at: node)
+                    reportError("Runtime declarations not allowed at file scope (for now)", at: node)
                     return
                 }
                 for (index, name) in names.enumerated() {
@@ -325,8 +325,13 @@ extension Checker {
     mutating func importEntities(_ fileScopes: inout [String: Scope]) {
 
         for imp in delayedImports {
-            guard case .declImport(let relPath, let fullpath, let importName, _) = imp.decl else {
+            guard case .declImport(let path, let fullpathOpt, let importName, _) = imp.decl else {
                 preconditionFailure()
+            }
+
+            guard let fullpath = fullpathOpt else {
+                reportError("Failed to import file: \(path.value)", at: path)
+                return
             }
 
             let parentScope = imp.parent
@@ -365,9 +370,9 @@ extension Checker {
             } else {
                 let importName = Checker.pathToEntityName(fullpath)
                 if importName == "_" {
-                    reportError("File name cannot be automatically assigned an identifier name, you will have to manually specify one.", at: relPath)
+                    reportError("File name cannot be automatically assigned an identifier name, you will have to manually specify one.", at: path)
                 } else {
-                    let entity = Entity(kind: .importName, name: importName, scope: scope, identifier: relPath)
+                    let entity = Entity(kind: .importName, name: importName, scope: scope, identifier: path)
                     addEntity(to: parentScope, identifier: nil, entity)
                 }
             }
@@ -459,7 +464,7 @@ extension Checker {
 
     @discardableResult
     mutating func checkArityMatch(_ node: AstNode) -> Bool {
-        fatalError()
+        return true
         /*
         guard case .decl(.value(let decl)) = node else { preconditionFailure() }
 

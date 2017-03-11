@@ -54,7 +54,7 @@ indirect enum AstNode {
 
 
     case declValue(isRuntime: Bool, names: [AstNode], type: AstNode?, values: [AstNode], SourceRange)
-    case declImport(relPath: AstNode, fullpath: String, importName: AstNode?, SourceRange)
+    case declImport(path: AstNode, fullpath: String?, importName: AstNode?, SourceRange)
     case declLibrary(filepath: AstNode, libName: AstNode, SourceRange)
 
     case exprUnary(String, expr: AstNode, SourceRange)
@@ -293,7 +293,17 @@ extension AstNode {
         case .list:
             return self.listDescription
 
+        case .exprSelector(let receiver, let member, _):
+            return receiver.value + "." + member.value
+
+        // TODO(vdka): There are a number of other cases which may want to be represented literally (as they were in the source)
+        // below are a selection of those.
+        /*
+        case .exprParen:
+        */
+
         default:
+            dump(self)
             fatalError()
         }
     }
@@ -439,7 +449,7 @@ extension AstNode {
             children.append(selector)
 
         case .exprCall(let receiver, let args, _):
-            children.append(receiver)
+            unlabeled.append(receiver.value)
             children.append(contentsOf: args)
 
         case .exprTernary(let cond, let trueBranch, let falseBranch, _):
@@ -488,7 +498,7 @@ extension AstNode {
             break
 
         case .declValue(_, let names, _, let values, _):
-            names.forEach({ unlabeled.append($0.identifier) })
+            names.forEach({ unlabeled.append($0.value) })
             values.forEach({ children.append($0) })
 
         case .declImport, .declLibrary:

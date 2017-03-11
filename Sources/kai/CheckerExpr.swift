@@ -71,6 +71,7 @@ extension Checker {
         case .litProc:
             unimplemented("Type checking for compund or proc literals")
 
+        // TODO(vdka): Support simple operations
         default:
             fatalError()
         }

@@ -2,17 +2,8 @@
 import Foundation.NSFileManager
 
 struct ImportedFile {
-    var fullPath: String
-    var relativePath: String
-    // TODO(vdka): source token (for location)
-
-    init?(relativePath: String) {
-        guard let fullPath = FileManager.default.absolutePath(for: relativePath) else {
-            return nil
-        }
-        self.fullPath = fullPath
-        self.relativePath = relativePath
-    }
+    var fullpath: String
+    var node: AstNode
 }
 
 struct Parser {
@@ -29,10 +20,16 @@ struct Parser {
 
         self.files = []
 
+        let initPath = FileManager.default.absolutePath(for: relativePath)!
+
         // FIXME(vdka): Ensure bad build file path's do not get to the Parser initialization call.
-        let importedFile = ImportedFile(relativePath: relativePath)!
+        let importedFile = ImportedFile(fullpath: initPath, node: AstNode.invalid(SourceLocation.unknown ..< SourceLocation.unknown))
 
         self.imports = [importedFile]
+    }
+
+    var currentFile: ASTFile! {
+        return files.last!
     }
 }
 
@@ -42,9 +39,9 @@ extension Parser {
 
     mutating func parseFiles() throws -> [ASTFile] {
 
-        for importFile in imports {
+        while let importFile = imports.popLast() {
 
-            let fileNode = ASTFile(named: importFile.fullPath)
+            let fileNode = ASTFile(named: importFile.fullpath)
             files.append(fileNode)
 
             try parse(file: fileNode)
@@ -245,7 +242,39 @@ extension Parser {
             return AstNode.directive("line", args: [], location ..< lexer.location)
 
         case .directive(.import):
-            return try parseImportDirective()
+            let (_, location) = try consume()
+
+            guard case .string(let path)? = try lexer.peek()?.kind else {
+                reportError("Expected filename as string literal", at: lexer.lastLocation)
+                return AstNode.invalid(location ..< lexer.location)
+            }
+            try consume() // .string("file.kai")
+
+            let pathNode = AstNode.litString(path, lexer.lastConsumedRange)
+
+
+            let fullpath = FileManager.default.absolutePath(for: path, relativeTo: currentFile)
+
+            if case .ident("as")? = try lexer.peek()?.kind {
+                guard case .ident(let alias)? = try lexer.peek()?.kind else {
+                    reportError("Expected identifier for import alias", at: lexer.lastLocation)
+                    return AstNode.invalid(location ..< lexer.lastLocation)
+                }
+                try consume()
+
+                let aliasNode = AstNode.ident(alias, lexer.lastConsumedRange)
+                return AstNode.declImport(path: pathNode, fullpath: fullpath, importName: aliasNode, location ..< lexer.location)
+            }
+
+            let node = AstNode.declImport(path: pathNode, fullpath: fullpath, importName: nil, location ..< pathNode.endLocation)
+
+            // bad paths are reported in the checker
+            if let fullpath = fullpath {
+                let importedFile = ImportedFile(fullpath: fullpath, node: node)
+                imports.append(importedFile)
+            }
+
+            return node
 
         default:
             fatalError()
@@ -318,7 +347,7 @@ extension Parser {
                         hypot :: (x: f32, y: f32) -> f32 #foreign libc "hypotf"
                         tau :: (pi * 2), secondVar, wtfAreYouDoingHaveAParserError
                     */
-                case .lparen: // litProc or a exprParen `() -> void` | `(5)`
+                case .lparen: // litProc or a exprParen `x :: () -> void` | `(5)`
                     let (_, lparen) = try consume()
 
                     if case .rparen? = try lexer.peek()?.kind { // `some :: () -> void` NOTE(vdka): `()` is not valid.
@@ -331,7 +360,9 @@ extension Parser {
                         let type = AstNode.typeProc(params: argumentList, results: resultType, range(from: argumentList, toEndOf: resultType))
 
                         let body = try expression()
-                        return AstNode.litProc(type: type, body: body, range(from: type, toEndOf: body))
+
+                        let litProc = AstNode.litProc(type: type, body: body, type.startLocation ..< body.endLocation)
+                        return AstNode.declValue(isRuntime: false, names: [lvalue], type: nil, values: [litProc], lvalue.startLocation ..< litProc.endLocation)
                     }
 
                     let expr = try expression()
@@ -360,7 +391,9 @@ extension Parser {
                         let type = AstNode.typeProc(params: argumentList, results: resultType, range(from: argumentList, toEndOf: resultType))
 
                         let body = try expression()
-                        return AstNode.litProc(type: type, body: body, range(from: type, toEndOf: body))
+
+                        let litProc = AstNode.litProc(type: type, body: body, range(from: type, toEndOf: body))
+                        return AstNode.declValue(isRuntime: false, names: [lvalue], type: nil, values: [litProc], lvalue.startLocation ..< litProc.endLocation)
                     }
 
                     let (_, rparen) = try consume(.rparen)
@@ -374,7 +407,10 @@ extension Parser {
                         let type = AstNode.typeProc(params: argumentList, results: resultType, range(from: argumentList, toEndOf: resultType))
 
                         let body = try expression() // TODO(vdka): If this fails it should error with a message about assigning values to proc types
-                        return AstNode.litProc(type: type, body: body, range(from: type, toEndOf: body))
+
+
+                        let litProc = AstNode.litProc(type: type, body: body, range(from: type, toEndOf: body))
+                        return AstNode.declValue(isRuntime: false, names: [lvalue], type: nil, values: [litProc], lvalue.startLocation ..< litProc.endLocation)
                     }
 
                     return AstNode.exprParen(expr, lparen ..< rparen)

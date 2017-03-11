@@ -14,6 +14,24 @@ extension FileManager {
 
         return absoluteURL.components(separatedBy: "file://").last
     }
+
+    func absolutePath(for filepath: String, relativeTo file: ASTFile) -> String? {
+
+        let fileUrl = URL(fileURLWithPath: file.fullpath)
+            .deletingLastPathComponent()
+            .appendingPathComponent(filepath)
+
+        do {
+            guard try fileUrl.checkResourceIsReachable() else {
+                return nil
+            }
+        } catch {
+            return nil
+        }
+
+        let absoluteURL = fileUrl.absoluteString
+        return absoluteURL.components(separatedBy: "file://").last
+    }
 }
 
 extension String {
