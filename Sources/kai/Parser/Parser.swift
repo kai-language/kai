@@ -350,7 +350,8 @@ extension Parser {
                 case .lparen: // litProc or a exprParen `x :: () -> void` | `(5)`
                     let (_, lparen) = try consume()
 
-                    if case .rparen? = try lexer.peek()?.kind { // `some :: () -> void` NOTE(vdka): `()` is not valid.
+                    // Q(vdka): Do we want to outlaw `()` in favor of always requiring a type within `(void)`? Is that just being authoritarian?
+                    if case .rparen? = try lexer.peek()?.kind { // `some :: () -> void` no arg procedures
                         let (_, rparen) = try consume(.rparen)
 
                         let argumentList = AstNode.list([], lparen ..< rparen)
@@ -369,7 +370,7 @@ extension Parser {
 
                     if case .comma? = try lexer.peek()?.kind { // `(x: f32, `
                         guard case .declValue = expr else {
-                            fatalError("Shouldn't happen") // syntax error? `x :: (x, y) // no tuples`
+                            panic("Shouldn't happen") // syntax error? `x :: (x, y) // no tuples`
                         }
 
                         var exprs: [AstNode] = [expr]
@@ -383,7 +384,7 @@ extension Parser {
 
                         let (_, rparen) = try consume(.rparen)
 
-                        let fields = exprs.flatMap(convertDeclValueToArgs)
+                        let fields = exprs.flatMap(convertDeclValueToFields)
                         let argumentList = AstNode.list(fields, lparen ..< rparen)
 
                         try consume(.keyword(.returnArrow))
@@ -399,10 +400,11 @@ extension Parser {
                     let (_, rparen) = try consume(.rparen)
 
                     if case .keyword(.returnArrow)? = try lexer.peek()?.kind {
-                        let field = convertDeclValueToArgs(expr)
+                        let field = convertDeclValueToFields(expr)
                         let argumentList = AstNode.list(field, lparen ..< rparen)
 
                         try consume(.keyword(.returnArrow)) // .returnArrow
+
                         let resultType = try parseType()
                         let type = AstNode.typeProc(params: argumentList, results: resultType, range(from: argumentList, toEndOf: resultType))
 
@@ -510,6 +512,58 @@ extension Parser {
 
         return AstNode.list(fields, lexer.lastConsumedRange)
     }
+
+    mutating func parseType() throws -> AstNode {
+        guard let (token, startLocation) = try lexer.peek() else {
+            reportError("Expected a type", at: lexer.lastLocation)
+            return AstNode.invalid(lexer.location ..< lexer.location)
+        }
+
+        switch token {
+        case .ident(let ident):
+            try consume()
+
+            return AstNode.ident(ident, lexer.lastConsumedRange)
+
+        case .lparen:
+            let (_, lparen) = try consume()
+
+            let expr = try expression()
+            var exprs: [AstNode] = [expr]
+            while case .comma? = try lexer.peek()?.kind {
+                try consume()
+
+                let expr = try expression()
+                exprs.append(expr)
+            }
+
+            let (_, rparen) = try consume(.rparen)
+
+            exprs = exprs.flatMap { expr -> [AstNode] in
+                if expr.isDecl {
+                    return convertDeclValueToFields(expr)
+                } else {
+                    return [expr]
+                }
+            }
+
+            let fieldList = AstNode.list(exprs, lparen ..< rparen)
+
+            if case .keyword(.returnArrow)? = try lexer.peek()?.kind {
+                try consume(.keyword(.returnArrow))
+
+                let retType = try parseType()
+
+                return AstNode.typeProc(params: fieldList, results: retType, startLocation ..< lexer.location)
+            }
+
+            return fieldList
+
+        default:
+            reportError("Expected type literal", at: startLocation)
+            return AstNode.invalid(startLocation ..< startLocation)
+        }
+    }
 }
 
 
@@ -534,7 +588,7 @@ extension Parser {
         return try lexer.pop()
     }
 
-    func convertDeclValueToArgs(_ decl: AstNode) -> [AstNode] {
+    func convertDeclValueToFields(_ decl: AstNode) -> [AstNode] {
         guard case .declValue(let decl) = decl else {
             preconditionFailure() // TODO(vdka): Report error
         }

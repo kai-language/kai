@@ -178,6 +178,9 @@ func panic(_ val: Any? = nil, file: StaticString = #file, line: UInt = #line) ->
         let demangledSymbol = (try? demangleSwiftName(mangledSymbol))?.description
         print(i.description + ":\t" + (demangledSymbol ?? mangledSymbol))
     }
+
+    raise(SIGINT)
+
     exit(1)
 }
 
