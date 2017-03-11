@@ -306,7 +306,7 @@ extension Parser {
         case .comma:
             try consume()
             let bp = lbp(for: .comma)!
-            let next = try expression(bp)
+            let next = try expression(bp - 1) // allows chaining of `,`
             return append(next, to: lvalue)
  
         case .lparen:
@@ -519,13 +519,7 @@ extension Parser {
             return AstNode.invalid(lexer.location ..< lexer.location)
         }
 
-        switch token {
-        case .ident(let ident):
-            try consume()
-
-            return AstNode.ident(ident, lexer.lastConsumedRange)
-
-        case .lparen:
+        if case .lparen = token {
             let (_, lparen) = try consume()
 
             let expr = try expression()
@@ -543,7 +537,7 @@ extension Parser {
                 if expr.isDecl {
                     return convertDeclValueToFields(expr)
                 } else {
-                    return [expr]
+                    return expr.explode()
                 }
             }
 
@@ -556,13 +550,11 @@ extension Parser {
 
                 return AstNode.typeProc(params: fieldList, results: retType, startLocation ..< lexer.location)
             }
-
+            
             return fieldList
-
-        default:
-            reportError("Expected type literal", at: startLocation)
-            return AstNode.invalid(startLocation ..< startLocation)
         }
+
+        return try expression()
     }
 }
 
@@ -601,14 +593,21 @@ extension Parser {
         return decl.names.map({ AstNode.field(name: $0, type: decl.type!, $0.location) })
     }
 
-    func append(_ node: AstNode, to list: AstNode) -> AstNode {
+    func append(_ l: AstNode, to r: AstNode) -> AstNode {
 
-        switch list {
-        case .list(let nodes, let location):
-            return AstNode.list(nodes + [node], location.lowerBound ..< node.endLocation)
+        let newRange = l.startLocation ..< r.endLocation
+        switch (l, r) {
+        case (.list(let lNodes, _), .list(let rNodes, _)):
+            return AstNode.list(lNodes + rNodes, newRange)
 
-        default:
-            return AstNode.list([list, node], node.location)
+        case (_, .list(let nodes, _)):
+            return AstNode.list([l] + nodes, newRange)
+
+        case (.list(let nodes, _), _):
+            return AstNode.list(nodes + [r], newRange)
+
+        case (_, _):
+            return AstNode.list([l, r], newRange)
         }
     }
 
