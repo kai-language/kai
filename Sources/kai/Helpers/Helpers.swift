@@ -161,6 +161,26 @@ func longZip<S1: Sequence, S2: Sequence>(_ seq1: S1, _ seq2: S2) -> AnySequence<
 
 import Darwin
 
+func panic(_ val: Any? = nil, file: StaticString = #file, line: UInt = #line) -> Never {
+    print("--- PANIC ---")
+    print()
+    print("On line:")
+    print(file.description + ":" + line.description)
+    if let val = val {
+        print()
+        print("With value: ")
+        dump(val)
+    }
+    print()
+    print("Call stack")
+    for (i, stackSymbol) in Thread.callStackSymbols.dropFirst().enumerated() {
+        let mangledSymbol = stackSymbol.split(separator: " ")[3]
+        let demangledSymbol = (try? demangleSwiftName(mangledSymbol))?.description
+        print(i.description + ":\t" + (demangledSymbol ?? mangledSymbol))
+    }
+    exit(1)
+}
+
 func unimplemented(_ featureName: String, file: StaticString = #file, line: UInt = #line) -> Never {
     print("\(file):\(line): Unimplemented feature \(featureName).")
     exit(1)

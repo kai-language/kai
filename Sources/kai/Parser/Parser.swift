@@ -277,7 +277,7 @@ extension Parser {
             return node
 
         default:
-            fatalError()
+            panic(lexer)
         }
     }
 

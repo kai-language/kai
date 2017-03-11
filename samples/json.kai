@@ -1,4 +1,4 @@
 
-parse :: (s: str) -> (JSON, error) {
+parse :: (s: str) -> JSON, error {
     return lol, nope
 }
