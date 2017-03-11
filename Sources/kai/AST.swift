@@ -55,7 +55,7 @@ indirect enum AstNode {
 
     case declValue(isRuntime: Bool, names: [AstNode], type: AstNode?, values: [AstNode], SourceRange)
     case declImport(path: AstNode, fullpath: String?, importName: AstNode?, SourceRange)
-    case declLibrary(filepath: AstNode, libName: AstNode, SourceRange)
+    case declLibrary(path: AstNode, libName: AstNode, SourceRange)
 
     case exprUnary(String, expr: AstNode, SourceRange)
     case exprBinary(String, lhs: AstNode, rhs: AstNode, SourceRange)
@@ -501,8 +501,17 @@ extension AstNode {
             names.forEach({ unlabeled.append($0.value) })
             values.forEach({ children.append($0) })
 
-        case .declImport, .declLibrary:
-            break
+        case .declImport(let path, _, importName: let importName, _):
+            unlabeled.append(path.value)
+            if let importName = importName {
+                labeled["as"] = importName.value
+            } else if case .litString(let pathString, _) = path {
+                labeled["as"] = Checker.pathToEntityName(pathString)
+            }
+
+        case .declLibrary(let path, let libName, _):
+            unlabeled.append(path.value)
+            labeled["as"] = libName.value
 
         case .typeProc, .typeStruct, .typeEnum, .typeArray:
             unlabeled.append("'" + self.typeDescription + "'")
@@ -515,9 +524,9 @@ extension AstNode {
             str.append("(")
         }
 
-        str.append(shortName)
-        str.append(unlabeled.reduce("", { [$0.0, " ", $0.1].joined() }))
-        str.append(labeled.reduce("", { [$0.0, " ", $0.1.key, ":'", $0.1.value, "'"].joined() }))
+        str.append(shortName.colored(.blue))
+        str.append(unlabeled.reduce("", { [$0.0, " ", $0.1.colored(.red)].joined() }))
+        str.append(labeled.reduce("", { [$0.0, " ", $0.1.key.colored(.white), ":'", $0.1.value.colored(.red), "'"].joined() }))
 
         children.map({ $0.pretty(depth: depth + 1, includeParens: true) }).forEach({ str.append($0) })
 
@@ -532,7 +541,7 @@ extension AstNode {
 extension ASTFile {
 
     func pretty() -> String {
-        var description = "("
+        var description = "(" + "file".colored(.blue) + "'" + fullpath.colored(.red) + "'"
         for node in nodes {
             description += node.pretty(depth: 1)
         }

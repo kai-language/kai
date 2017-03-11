@@ -36,18 +36,27 @@ extension FileManager {
 
 extension String {
 
-    enum Escape {
-        static let red = "\u{001B}[34m"
-        static let blue = "\u{001B}[31m"
-        static let reset: String = "\u{001B}[0m"
+    enum Color: String {
+        case black    = "\u{001B}[30m"
+        case red      = "\u{001B}[31m"
+        case green    = "\u{001B}[32m"
+        case yellow   = "\u{001B}[33m"
+        case blue     = "\u{001B}[34m"
+        case magenta  = "\u{001B}[35m"
+        case cyan     = "\u{001B}[36m"
+        case white    = "\u{001B}[37m"
+        case reset    = "\u{001B}[0m"
     }
 
-    var red: String {
-        return Escape.reset + Escape.red + self + Escape.reset
-    }
+    func colored(_ c: Color) -> String {
 
-    var blue: String {
-        return Escape.reset + Escape.blue + self + Escape.reset
+        #if Xcode || NO_COLOR
+            return self
+        #else
+            let reset = Color.reset.rawValue
+            let code = c.rawValue
+            return reset + code + self + reset
+        #endif
     }
 }
 
