@@ -128,9 +128,9 @@ struct Compiler {
         //            let (ast, errors) = try parser.parse()
         let files = try parser.parseFiles()
 
-        guard ErrorCollector.default.errors.isEmpty else {
-            print("There were \(ErrorCollector.default.errors.count) errors during parsing\nexiting")
-            ErrorCollector.default.emitErrors()
+        guard errors.isEmpty else {
+            print("There were \(errors.count) errors during parsing\nexiting")
+            emitErrors()
             exit(1)
         }
 
@@ -143,9 +143,9 @@ struct Compiler {
         var checker = Checker(parser: parser)
         checker.checkParsedFiles()
 
-        guard ErrorCollector.default.errors.isEmpty else {
-            print("There were \(ErrorCollector.default.errors.count) errors during parsing\nexiting")
-            ErrorCollector.default.emitErrors()
+        guard errors.isEmpty else {
+            print("There were \(errors.count) errors during parsing\nexiting")
+            emitErrors()
             exit(1)
         }
 
