@@ -464,29 +464,22 @@ extension Checker {
 
     @discardableResult
     mutating func checkArityMatch(_ node: AstNode) -> Bool {
-        return true
-        /*
-        guard case .decl(.value(let decl)) = node else { preconditionFailure() }
 
-        if decl.values.isEmpty && decl.type == nil {
-            reportError("Missing type or initial expression", at: node)
-            return false
-        } else if decl.names.count < decl.values.count {
-            reportError("Arity mismatch, excess expressions on rhs", at: decl.values[decl.names.count])
-            return false
-        } else if decl.names.count > decl.values.count && decl.values.count != 1 {
-            // TODO(vdka): Should check that if we have just 1 rhs value it expands into the correct number of lhs values.
-            /*
-             someThing :: () -> int, error { /* ... */ }
-             x, err := someThing() // good
-             y, z   := x // bad (but would pass this check)
-            */
-            reportError("Arity mismath, missing expressions for ident", at: decl.names[decl.values.count])
-            return false
+
+        if case .declValue(_, let names, let type, let values, _) = node {
+            if values.isEmpty && type == nil {
+                reportError("Missing type or initial expression", at: node)
+                return false
+            } else if names.count < values.count {
+                reportError("Arity mismatch, excess expressions on rhs", at: values[names.count])
+                return false
+            } else if names.count > values.count && values.count != 1 {
+                reportError("Arity mismatch, missing expressions for ident", at: names[values.count])
+                return false
+            }
         }
 
         return true
-        */
     }
 }
 

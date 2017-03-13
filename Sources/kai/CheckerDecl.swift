@@ -44,8 +44,9 @@ extension Checker {
 
         if op.kind != .compileTime {
 
-            // TODO(vdka): Op needs to store an expr node.
-            reportError("`\(op.expr!)` is not a constant", at: op.expr!)
+            if let expr = op.expr {
+                reportError("`\(expr)` is not a constant", at: expr)
+            }
             if e.type == nil {
                 e.type = .invalid
             }

@@ -3,6 +3,8 @@ tau :: 6.2831853071
 
 pi  :: 3.14
 
+x, y, z :: 1, 2
+
 circumference :: (r: f64) -> f64 {
     return tau * r
 }
