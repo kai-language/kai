@@ -518,15 +518,3 @@ enum ErrorType {
     case typeMismatch
     case `default`
 }
-
-func reportError(_ message: String, at node: AstNode, with type: ErrorType = .default) {
-    print("ERROR(\(node.startLocation.description)): " + message)
-}
-
-func reportError(_ message: String, at location: SourceLocation) {
-    print("ERROR(\(location.description)): " + message)
-}
-
-func reportError(_ message: String, at location: SourceRange) {
-    print("ERROR(\(location.description)): " + message)
-}
