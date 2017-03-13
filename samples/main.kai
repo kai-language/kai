@@ -1,6 +1,4 @@
 
-#import "json.kai"
-
 tau :: 6.2831853071
 
 pi  :: 3.14
@@ -9,7 +7,7 @@ circumference :: (r: f64) -> f64 {
     return tau * r
 }
 
-sum :: (x, y, z: f32) -> f32, err {
+sum :: (x, y, z: f32) -> (f32, err) {
     return x + y + z, nil
 }
 

@@ -287,6 +287,9 @@ extension AstNode {
         case .field(name: let name, type: let type, _):
             return name.value + ": " + type.value
 
+        case .declValue(isRuntime: true, let names, let type, let values, _):
+            return names.map({ $0.value }).joined(separator: ",") + ": " + type!.value + values.map({ $0.value }).joined(separator: ",")
+
         case .list:
             return self.listDescription
 
@@ -300,8 +303,7 @@ extension AstNode {
         */
 
         default:
-            dump(self)
-            fatalError()
+            panic(self)
         }
     }
 
