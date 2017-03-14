@@ -87,14 +87,7 @@ extension Parser {
 
         switch token {
         case .operator(let symbol):
-
-            switch try? (lexer.peek(aheadBy: 1)?.kind, lexer.peek(aheadBy: 2)?.kind) {
-            case (.colon?, .colon?)?:
-                return 0
-
-            default:
-                return Operator.table.first(where: { $0.symbol == symbol })?.lbp
-            }
+            return Operator.table.first(where: { $0.symbol == symbol })?.lbp
 
         case .colon:
             return 160
