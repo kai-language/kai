@@ -39,7 +39,9 @@ extension SourceLocation: Equatable, Comparable {
 
     /// - Precondition: both must be in the same file
     static func < (lhs: SourceLocation, rhs: SourceLocation) -> Bool {
-        precondition(lhs.file == rhs.file)
+        if lhs.file != "unknown" && rhs.file != "unknown" {
+            precondition(lhs.file == rhs.file)
+        }
 
         return lhs.line < rhs.line
     }
@@ -240,7 +242,7 @@ extension Lexer {
 			case "/":
 				if scanner.peek(aheadBy: 1) == "*" { try skipBlockComment() }
 				else if scanner.peek(aheadBy: 1) == "/" { skipLineComment() }
-				return
+				try skipWhitespace() // skip consecutive comments or newlines after comments
 
 			case _ where whitespace.contains(char):
 				scanner.pop()

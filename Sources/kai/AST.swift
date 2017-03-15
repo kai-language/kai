@@ -81,7 +81,7 @@ indirect enum AstNode {
     case stmtFallthrough(SourceRange)
 
     /// - Parameter params:
-    case typeProc(params: AstNode, results: AstNode, SourceRange)
+    case typeProc(params: [AstNode], results: [AstNode], SourceRange)
     case typeArray(count: AstNode, baseType: AstNode, SourceRange)
     case typeStruct(fields: [AstNode], SourceRange)
     case typeEnum(baseType: AstNode, fields: [AstNode], SourceRange)
@@ -244,16 +244,55 @@ extension AstNode {
         return curr
     }
 
-    /// Expands any list or non list nodes into [AstNode]
-    func explode() -> [AstNode] {
-
-        switch self {
-        case .list(let vals, _):
-            return vals
-
-        default:
-            return [self]
+    var identifier: String {
+        if case .ident(let ident, _) = self {
+            return ident
         }
+        panic()
+    }
+}
+
+
+/// Expands any list or decl into non list nodes into [AstNode]
+func explode(_ n: AstNode) -> [AstNode] {
+
+    switch n {
+    case .list(let vals, _):
+        return vals
+
+    case .declValue(let decl) where decl.names.count == decl.values.count:
+        return zip(decl.names, decl.values)
+            .map { name, value in
+                return AstNode.declValue(isRuntime: decl.isRuntime, names: [name], type: decl.type, values: [value], decl.4)
+            }
+
+    case .declValue(let decl) where decl.values.isEmpty:
+        return decl.names
+            .map {
+                AstNode.declValue(isRuntime: decl.isRuntime, names: [$0], type: decl.type, values: [], decl.4)
+            }
+
+    default:
+        return [n]
+    }
+}
+
+/// Takes a node and appends or creates a list of `self + r`
+func append(_ l: AstNode, _ r: AstNode) -> AstNode {
+
+    let newRange = l.startLocation ..< r.endLocation
+    switch (l, r) {
+    case (.list(let lNodes, _), .list(let rNodes, _)):
+        return AstNode.list(lNodes + rNodes, newRange)
+
+    case (_, .list(let nodes, _)):
+        return AstNode.list([l] + nodes, newRange)
+
+    case (.list(let nodes, _), _):
+        return AstNode.list(nodes + [r], newRange)
+
+    case (_, _):
+        return AstNode.list([l, r], newRange)
     }
 }
 
@@ -261,13 +300,6 @@ extension AstNode {
 // MARK: - Printing
 
 extension AstNode {
-
-    var identifier: String {
-        guard case .ident(let ident, _) = self else {
-            preconditionFailure()
-        }
-        return ident
-    }
 
     var value: String {
 
@@ -288,7 +320,7 @@ extension AstNode {
             return name.value + ": " + type.value
 
         case .declValue(isRuntime: true, let names, let type, let values, _):
-            return names.map({ $0.value }).joined(separator: ",") + ": " + type!.value + values.map({ $0.value }).joined(separator: ",")
+            return names.map({ $0.value }).joined(separator: ", ") + ": " + type!.value + values.map({ $0.value }).joined(separator: ", ")
 
         case .list:
             return self.listDescription
@@ -331,7 +363,7 @@ extension AstNode {
             return name
 
         case .typeProc(let params, let results, _):
-            return params.listDescription + " -> " + results.value
+            return "(" + params.map({ $0.value }).joined(separator: ", ") + ") -> " + results.map({ $0.value }).joined(separator: ", ")
 
         case .typeStruct:
             return "struct"
@@ -343,7 +375,7 @@ extension AstNode {
             return "[]" + baseType.typeDescription
 
         default:
-            fatalError()
+            panic()
         }
     }
 
@@ -387,17 +419,20 @@ extension AstNode {
         }
     }
 
-    // TODO(vdka): Print types nicely
-    func pretty(depth: Int = 0, includeParens: Bool = true) -> String {
+    /// - Parameter specialName: An name to use in place of the nodes short name.
+    func pretty(depth: Int = 0, includeParens: Bool = true, specialName: String? = nil) -> String {
 
         var unlabeled: [String] = []
-        var labeled: [String: String] = [:]
+        var labeled: [(String, String)] = []
 
         var children: [AstNode] = []
 
+        // used to emit a node with a different short name ie: list node as parameters or results
+        var renamedChildren: [(String, AstNode)] = []
+
         switch self {
         case .invalid(let location):
-            labeled["location"] = location.description
+            labeled.append(("location", location.description))
 
         case .ident(let ident, _):
             unlabeled.append(ident)
@@ -409,8 +444,12 @@ extension AstNode {
             children.append(name)
 
         case .list(let nodes, _):
-            children.append(contentsOf: nodes)
-            break
+
+            if nodes.reduce(true, { $0.0 && $0.1.isIdent }) {
+                unlabeled.append(nodes.map({ $0.value }).joined(separator: ", "))
+            } else {
+                children.append(contentsOf: nodes)
+            }
 
         case .litInteger(let val, _):
             unlabeled.append("'" + val.description + "'")
@@ -422,8 +461,28 @@ extension AstNode {
             unlabeled.append("\"" + val + "\"")
 
         case .litProc(let type, let body, _):
-//            labeled["type"] = type.typeDescription
-            children.append(type)
+            labeled.append(("type", type.typeDescription))
+            guard case .typeProc(let params, let results, _) = type else {
+                panic()
+            }
+
+            let emptyList = AstNode.list([], SourceLocation.unknown ..< .unknown)
+            var paramsList = emptyList
+            for param in params {
+                for decl in explode(param) {
+                    paramsList = append(paramsList, decl)
+                }
+            }
+
+            var resultList = emptyList
+            for result in results {
+                for decl in explode(result) {
+                    resultList = append(resultList, decl)
+                }
+            }
+            renamedChildren.append(("parameters", paramsList))
+            renamedChildren.append(("results", resultList))
+
             children.append(body)
 
         case .exprUnary(let op, let expr, _):
@@ -491,23 +550,53 @@ extension AstNode {
         case .stmtBreak, .stmtContinue, .stmtFallthrough:
             break
 
-        case .declValue(_, let names, _, let values, _):
-            names.forEach({ unlabeled.append($0.value) })
-            values.forEach({ children.append($0) })
+        case .declValue(_, let names, let type, let values, _):
+
+            if names.reduce(true, { $0.0 && $0.1.isIdent }) {
+                labeled.append(("names", names.map({ $0.value }).joined(separator: ", ")))
+            } else {
+                children += names
+            }
+            if let type = type {
+                labeled.append(("type", type.typeDescription))
+            }
+            if values.reduce(true, { $0.0 && $0.1.isIdent }) {
+                labeled.append(("values", values.map({ $0.value }).joined(separator: ", ")))
+            } else {
+                children += values
+            }
 
         case .declImport(let path, _, importName: let importName, _):
             unlabeled.append(path.value)
             if let importName = importName {
-                labeled["as"] = importName.value
+                labeled.append(("as", importName.value))
             } else if case .litString(let pathString, _) = path {
-                labeled["as"] = Checker.pathToEntityName(pathString)
+                labeled.append(("as", Checker.pathToEntityName(pathString)))
             }
 
         case .declLibrary(let path, let libName, _):
             unlabeled.append(path.value)
-            labeled["as"] = libName.value
+            labeled.append(("as", libName.value))
 
-        case .typeProc, .typeStruct, .typeEnum, .typeArray:
+        case .typeProc(let params, let results, _):
+            let emptyList = AstNode.list([], SourceLocation.unknown ..< .unknown)
+            var paramsList = emptyList
+            for param in params {
+                for decl in explode(param) {
+                    paramsList = append(paramsList, decl)
+                }
+            }
+
+            var resultList = emptyList
+            for result in results {
+                for decl in explode(result) {
+                    resultList = append(resultList, decl)
+                }
+            }
+            renamedChildren.append(("parameters", paramsList))
+            renamedChildren.append(("results", resultList))
+
+        case .typeStruct, .typeEnum, .typeArray:
             unlabeled.append("'" + self.typeDescription + "'")
         }
 
@@ -518,10 +607,16 @@ extension AstNode {
             str.append("(")
         }
 
-        str.append(shortName.colored(.blue))
-        str.append(unlabeled.reduce("", { [$0.0, " ", $0.1.colored(.red)].joined() }))
-        str.append(labeled.reduce("", { [$0.0, " ", $0.1.key.colored(.white), ":'", $0.1.value.colored(.red), "'"].joined() }))
+        if let specialName = specialName {
+            str.append(specialName.colored(.blue))
+        } else {
+            str.append(shortName.colored(.blue))
+        }
 
+        str.append(unlabeled.reduce("", { [$0.0, " ", $0.1.colored(.red)].joined() }))
+        str.append(labeled.reduce("", { [$0.0, " ", $0.1.0.colored(.white), ": '", $0.1.1.colored(.red), "'"].joined() }))
+
+        renamedChildren.map({ $0.1.pretty(depth: depth + 1, specialName: $0.0) }).forEach({ str.append($0) })
         children.map({ $0.pretty(depth: depth + 1, includeParens: true) }).forEach({ str.append($0) })
 
         if includeParens {
