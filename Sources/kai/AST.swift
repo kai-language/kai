@@ -38,7 +38,6 @@ indirect enum AstNode {
     case ident(String, SourceRange)
     case directive(String, args: [AstNode], SourceRange)
 
-    case field(name: AstNode, type: AstNode, SourceRange)
     case list([AstNode], SourceRange)
 
     case litInteger(Int64, SourceRange)
@@ -124,7 +123,6 @@ extension AstNode {
              .ident(_, let location),
              .directive(_, _, let location),
              .list(_, let location),
-             .field(_, _, let location),
              .litInteger(_, let location),
              .litFloat(_, let location),
              .litString(_, let location),
@@ -198,16 +196,6 @@ extension AstNode {
     var isProcLit: Bool {
         switch self {
         case .litProc:
-            return true
-
-        default:
-            return false
-        }
-    }
-
-    var isField: Bool {
-        switch self {
-        case .field:
             return true
 
         default:
@@ -316,9 +304,6 @@ extension AstNode {
         case .litFloat(let f, _):
             return "'" + f.description + "'"
 
-        case .field(name: let name, type: let type, _):
-            return name.value + ": " + type.value
-
         case .declValue(isRuntime: true, let names, let type, let values, _):
             return names.map({ $0.value }).joined(separator: ", ") + ": " + type!.value + values.map({ $0.value }).joined(separator: ", ")
 
@@ -385,7 +370,6 @@ extension AstNode {
         case .invalid: return "invalid"
         case .ident: return "ident"
         case .directive: return "directive"
-        case .field: return "field"
         case .list: return "list"
         case .litInteger: return "litInteger"
         case .litFloat: return "litFloat"
@@ -439,9 +423,6 @@ extension AstNode {
 
         case .directive(let directive, _, _):
             unlabeled.append(directive)
-
-        case .field(let name, _, _):
-            children.append(name)
 
         case .list(let nodes, _):
 
