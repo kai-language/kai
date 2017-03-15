@@ -1,16 +1,6 @@
 
-tau :: 6.2831853071
+x, y, z: f32
 
-pi  :: 3.14
-
-x, y, z :: 1, 2
-
-circumference :: (r: f64) -> f64 {
-    return tau * r
+makeQuaternion :: (x, y, z: f32, w: f64) -> Quaternion {
+    return x + y
 }
-
-main :: () -> void {
-    c := circumference(1)
-    printf("The circumference of a unit circle is %\n", c)
-}
-

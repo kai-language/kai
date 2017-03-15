@@ -13,8 +13,7 @@ struct Parser {
     var imports: [ImportedFile] = []
 
     var lexer: Lexer!
-
-    var errors: UInt = 0
+    var state: State = .default
 
     init(relativePath: String) {
 
@@ -30,6 +29,15 @@ struct Parser {
 
     var currentFile: ASTFile! {
         return files.last!
+    }
+
+    struct State: ExpressibleByIntegerLiteral, OptionSet {
+        let rawValue: UInt8
+        init(rawValue: UInt8) { self.rawValue = rawValue }
+        init(integerLiteral value: UInt8) { self.rawValue = value }
+
+        static let `default`:     State = 0b0000
+        static let disallowComma: State = 0b0001
     }
 }
 
@@ -75,6 +83,7 @@ extension Parser {
             rbp < lbp
         {
             left = try led(for: nextToken, with: left)
+            if case .declValue = left { break }
         }
 
         return left
@@ -89,17 +98,17 @@ extension Parser {
         case .operator(let symbol):
             return Operator.table.first(where: { $0.symbol == symbol })?.lbp
 
-        case .colon:
+        case .lbrack, .lparen, .dot:
+            return 20
+
+        case .colon, .equals:
             return 160
+
+        case .comma where state.contains(.disallowComma):
+            return 0
 
         case .comma:
             return 180
-
-        case .equals:
-            return 160
-
-        case .lbrack, .lparen, .dot:
-            return 20
 
         default:
             return 0
@@ -111,7 +120,10 @@ extension Parser {
         switch token {
         case .operator(let symbol):
             guard let nud = Operator.table.first(where: { $0.symbol == symbol })?.nud else {
-                throw error(.nonInfixOperator(token))
+                let (_, location) = try consume()
+                reportError("Non prefix operator", at: location)
+                let expr = try expression()
+                return AstNode.invalid(location ..< expr.endLocation)
             }
             return try nud(&self)
 
@@ -132,25 +144,13 @@ extension Parser {
             return AstNode.litFloat(dbl, location ..< lexer.location)
 
         case .lparen:
-
-            /*
-             z :: (x + y)
-             z :: (f32) -> f32 #foreign libc
-             z :: (x: f32) -> f32 { /* .. */ }
-            */
+            let prevState = state
+            defer { state = prevState }
+            state.remove(.disallowComma)
 
             let (_, lLocation) = try consume(.lparen)
             let expr = try expression()
             let (_, rLocation) = try consume(.rparen)
-
-            // TODO(vdka):
-            /*
-             (x * y)
-             vs
-             (x: int) -> foo {
-                something else?
-             }
-            */
 
             return AstNode.exprParen(expr, lLocation ..< rLocation)
 
@@ -279,7 +279,9 @@ extension Parser {
         switch token {
         case .operator(let symbol):
             guard let led = Operator.table.first(where: { $0.symbol == symbol })?.led else {
-                throw error(.nonInfixOperator(token))
+                reportError("Non infix operator \(symbol)", at: lexer.lastLocation)
+                let rhs = try expression() // NOTE(vdka): Maybe we need some default precedence?
+                return AstNode.invalid(lvalue.startLocation ..< rhs.endLocation)
             }
             return try led(&self, lvalue)
 
@@ -287,7 +289,8 @@ extension Parser {
             let (_, location) = try consume(.dot)
 
             guard case (.ident(let member), let memberLocation)? = try lexer.peek() else {
-                throw error(.expectedMemberName)
+                reportError("Expected member name", at: lexer.lastLocation)
+                return AstNode.invalid(location ..< location)
             }
 
             try consume() // .ident(_)
@@ -300,7 +303,7 @@ extension Parser {
             try consume()
             let bp = lbp(for: .comma)!
             let next = try expression(bp - 1) // allows chaining of `,`
-            return append(next, to: lvalue)
+            return append(lvalue, next)
  
         case .lparen:
             let (_, lparen) = try consume(.lparen)
@@ -308,7 +311,7 @@ extension Parser {
             let args = try expression()
 
             let (_, rparen) = try consume(.rparen)
-            return AstNode.exprCall(receiver: lvalue, args: args.explode(), lparen ..< rparen)
+            return AstNode.exprCall(receiver: lvalue, args: explode(args), lparen ..< rparen)
 
         case .equals:
 
@@ -325,7 +328,8 @@ extension Parser {
                 try consume(.colon)
 
                 guard let (token, _) = try lexer.peek() else {
-                    throw error(.invalidDeclaration)
+                    reportError("Expected an initial value for type infered declaration", at: lvalue)
+                    return AstNode.invalid(lvalue.location)
                 }
 
                 switch token {
@@ -334,24 +338,16 @@ extension Parser {
 
                     unimplemented("parsing struct and enum type declarations")
 
-                    /*
-                        tau :: (pi * 2), wtfareyoudoing
-                        abs :: (f32) -> f32 #foreign libc "fabs" // not supported right now.
-                        hypot :: (x: f32, y: f32) -> f32 #foreign libc "hypotf"
-                        tau :: (pi * 2), secondVar, wtfAreYouDoingHaveAParserError
-                    */
                 case .lparen: // litProc or a exprParen `x :: () -> void` | `(5)`
                     let (_, lparen) = try consume()
 
                     // Q(vdka): Do we want to outlaw `()` in favor of always requiring a type within `(void)`? Is that just being authoritarian?
                     if case .rparen? = try lexer.peek()?.kind { // `some :: () -> void` no arg procedures
-                        let (_, rparen) = try consume(.rparen)
-
-                        let argumentList = AstNode.list([], lparen ..< rparen)
+                        try consume(.rparen)
 
                         try consume(.keyword(.returnArrow))
                         let resultType = try parseType()
-                        let type = AstNode.typeProc(params: argumentList, results: resultType, range(from: argumentList, toEndOf: resultType))
+                        let type = AstNode.typeProc(params: [], results: explode(resultType), lparen ..< resultType.endLocation)
 
                         let body = try expression()
 
@@ -359,30 +355,31 @@ extension Parser {
                         return AstNode.declValue(isRuntime: false, names: [lvalue], type: nil, values: [litProc], lvalue.startLocation ..< litProc.endLocation)
                     }
 
+//                    let prevState = state
+//                    state.insert(.disallowComma)
+
                     let expr = try expression()
+//                    state = prevState
 
                     if case .comma? = try lexer.peek()?.kind { // `(x: f32, `
                         guard case .declValue = expr else {
                             panic("Shouldn't happen") // syntax error? `x :: (x, y) // no tuples`
                         }
 
-                        var exprs: [AstNode] = [expr]
+                        var args: [AstNode] = [expr]
 
                         while case .comma? = try lexer.peek()?.kind {
                             try consume(.comma)
 
-                            let expr = try expression()
-                            exprs.append(expr)
+                            let arg = try expression()
+                            args.append(arg)
                         }
 
-                        let (_, rparen) = try consume(.rparen)
-
-                        let fields = exprs.flatMap(convertDeclValueToFields)
-                        let argumentList = AstNode.list(fields, lparen ..< rparen)
+                        try consume(.rparen)
 
                         try consume(.keyword(.returnArrow))
                         let resultType = try parseType()
-                        let type = AstNode.typeProc(params: argumentList, results: resultType, range(from: argumentList, toEndOf: resultType))
+                        let type = AstNode.typeProc(params: args, results: explode(resultType), lparen ..< resultType.endLocation)
 
                         let body = try expression()
 
@@ -393,13 +390,11 @@ extension Parser {
                     let (_, rparen) = try consume(.rparen)
 
                     if case .keyword(.returnArrow)? = try lexer.peek()?.kind {
-                        let field = convertDeclValueToFields(expr)
-                        let argumentList = AstNode.list(field, lparen ..< rparen)
 
                         try consume(.keyword(.returnArrow)) // .returnArrow
 
                         let resultType = try parseType()
-                        let type = AstNode.typeProc(params: argumentList, results: resultType, range(from: argumentList, toEndOf: resultType))
+                        let type = AstNode.typeProc(params: explode(expr), results: explode(resultType), lparen ..< resultType.endLocation)
 
                         let body = try expression() // TODO(vdka): If this fails it should error with a message about assigning values to proc types
 
@@ -412,14 +407,14 @@ extension Parser {
 
                 default:
                     let rvalue = try expression()
-                    return AstNode.declValue(isRuntime: false, names: lvalue.explode(), type: nil, values: rvalue.explode(), lvalue.startLocation ..< lexer.location)
+                    return AstNode.declValue(isRuntime: false, names: explode(lvalue), type: nil, values: explode(rvalue), lvalue.startLocation ..< lexer.location)
                 }
 
 
             case .equals?: // type infered runtime decl
                 try consume(.equals)
                 let rvalue = try expression()
-                return AstNode.declValue(isRuntime: true, names: lvalue.explode(), type: nil, values: rvalue.explode(), lvalue.startLocation ..< lexer.location)
+                return AstNode.declValue(isRuntime: true, names: explode(lvalue), type: nil, values: explode(rvalue), lvalue.startLocation ..< lexer.location)
 
             default: // type is provided `x : int`
 
@@ -431,79 +426,18 @@ extension Parser {
                     unimplemented("Explicit type for compile time declarations")
 
                 case .equals?: // `x : int = y` | `x, y : int = 1, 2`
+                    try consume()
                     let rvalue = try expression()
-                    return AstNode.declValue(isRuntime: true, names: lvalue.explode(), type: type, values: rvalue.explode(), lvalue.startLocation ..< lexer.location)
+                    return AstNode.declValue(isRuntime: true, names: explode(lvalue), type: type, values: explode(rvalue), lvalue.startLocation ..< lexer.location)
 
                 default: // `x : int` | `x, y, z: f32`
-                    return AstNode.declValue(isRuntime: true, names: lvalue.explode(), type: type, values: [], lvalue.startLocation ..< lexer.location)
+                    return AstNode.declValue(isRuntime: true, names: explode(lvalue), type: type, values: [], lvalue.startLocation ..< lexer.location)
                 }
             }
 
         default:
             unimplemented()
         }
-    }
-
-
-    // MARK: Sub parsers
-
-    mutating func parseFieldList() throws -> AstNode {
-        let (_, _) = try consume(.lparen)
-        var wasComma = false
-
-        var fields: [AstNode] = []
-
-        // TODO(vdka): Add support for labeled fields (Only relivant to type decl names)?
-
-        while let (token, location) = try lexer.peek(), token != .rparen {
-
-            switch token {
-            case .comma:
-                try consume(.comma)
-                if fields.isEmpty && wasComma {
-                    reportError("Unexpected comma", at: location)
-                    continue
-                }
-
-                wasComma = true
-
-            case .ident(let name):
-                try consume()
-                let nameNode = AstNode.ident(name, location ..< lexer.location)
-                var names = [nameNode]
-                while case (.comma, _)? = try lexer.peek() {
-
-                    try consume(.comma)
-                    guard case (.ident(let name), let location)? = try lexer.peek() else {
-                        reportError("Expected identifier", at: lexer.lastConsumedRange)
-                        try consume()
-                        continue
-                    }
-
-                    let nameNode = AstNode.ident(name, location ..< lexer.location)
-                    names.append(nameNode)
-                }
-
-                try consume(.colon)
-                let type = try parseType()
-                let newFields = names.map({ AstNode.field(name: $0, type: type, $0.location) })
-                fields.append(contentsOf: newFields)
-
-                wasComma = false
-
-            default:
-                if wasComma {
-                    // comma with no fields
-                    reportError("Unexpected comma", at: location)
-                }
-
-                wasComma = false
-            }
-        }
-
-        try consume(.rparen)
-
-        return AstNode.list(fields, lexer.lastConsumedRange)
     }
 
     mutating func parseType() throws -> AstNode {
@@ -513,6 +447,9 @@ extension Parser {
         }
 
         if case .lparen = token {
+            let prevState = state
+            defer { state = prevState }
+            state.remove(.disallowComma)
             let (_, lparen) = try consume()
 
             let expr = try expression()
@@ -521,33 +458,28 @@ extension Parser {
                 try consume()
 
                 let expr = try expression()
+                explode(expr)
+                    .forEach({ exprs.append($0) })
                 exprs.append(expr)
             }
 
             let (_, rparen) = try consume(.rparen)
-
-            exprs = exprs.flatMap { expr -> [AstNode] in
-                if expr.isDecl {
-                    return convertDeclValueToFields(expr)
-                } else {
-                    return expr.explode()
-                }
-            }
-
-            let fieldList = AstNode.list(exprs, lparen ..< rparen)
 
             if case .keyword(.returnArrow)? = try lexer.peek()?.kind {
                 try consume(.keyword(.returnArrow))
 
                 let retType = try parseType()
 
-                return AstNode.typeProc(params: fieldList, results: retType, startLocation ..< lexer.location)
+                return AstNode.typeProc(params: exprs.flatMap(explode), results: explode(retType), startLocation ..< lexer.location)
             }
             
-            return fieldList
+            return AstNode.list(exprs, lparen ..< rparen)
         }
 
-        return try expression()
+        let prevState = state
+        defer { state = prevState }
+        state.insert(.disallowComma)
+        return try expression(lbp(for: .colon)!)
     }
 }
 
@@ -567,41 +499,16 @@ extension Parser {
 
         guard try lexer.peek()?.kind == expected else {
             // FIXME(vdka): What is that error message. That's horrid.
-            throw error(.expected("something TODO ln Parser.swift:324"), location: try lexer.peek()!.location)
+            if let (actual, location) = try lexer.peek() {
+                reportError("Expected \(expected), got \(actual) instead", at: location)
+                return (.ident("<invalid>"), location)
+            } else {
+                reportError("Expected \(expected), but we reached the end of file", at: lexer.lastLocation)
+                return (.ident("<invalid>"), lexer.lastLocation)
+            }
         }
 
         return try lexer.pop()
-    }
-
-    func convertDeclValueToFields(_ decl: AstNode) -> [AstNode] {
-        guard case .declValue(let decl) = decl else {
-            preconditionFailure() // TODO(vdka): Report error
-        }
-
-        assert(decl.values.isEmpty) // `(x: int = 5) -> int
-                                    //            - default values unsupported
-
-        assert(decl.type != nil) // TODO(vdka): if the decl type is nil then maybe the user has done: `(x := 5) -> int`
-
-        return decl.names.map({ AstNode.field(name: $0, type: decl.type!, $0.location) })
-    }
-
-    func append(_ l: AstNode, to r: AstNode) -> AstNode {
-
-        let newRange = l.startLocation ..< r.endLocation
-        switch (l, r) {
-        case (.list(let lNodes, _), .list(let rNodes, _)):
-            return AstNode.list(lNodes + rNodes, newRange)
-
-        case (_, .list(let nodes, _)):
-            return AstNode.list([l] + nodes, newRange)
-
-        case (.list(let nodes, _), _):
-            return AstNode.list(nodes + [r], newRange)
-
-        case (_, _):
-            return AstNode.list([l, r], newRange)
-        }
     }
 
     func range(from a: AstNode?, toEndOf b: AstNode?) -> SourceRange {

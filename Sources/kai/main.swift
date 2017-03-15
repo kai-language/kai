@@ -6,63 +6,63 @@ struct Compiler {
     enum Error: Swift.Error {
         case fileNameNotProvided
     }
-    
+
     let console: Terminal
     let fileManager: FileManager
-    
+
     let args: [String]
     let fileName: String?
-    
+
     let version = "0.0.0"
-    
+
     var currentDirectory: String {
         return fileManager.currentDirectoryPath
     }
-    
+
     init(args: [String]) {
         console = Terminal(arguments: args)
         fileManager = FileManager.default
         fileName = args.last
         self.args = Array(args.dropFirst())
     }
-    
+
     func run() throws {
         var options: Set<String> = []
         var optimizations: [String] = []
-        
+
         args.forEach {
             switch $0 {
             case "--help", "-h":
                 printHelp()
-                
+
             case "--version", "-v":
                 printVersion()
-                
+
             case "--emit-ast":
                 options.insert("emit-ast")
-                
+
             case "--emit-ir":
                 options.insert("emit-ir")
-                
+
             case "--emit-all":
                 options.insert("emit-ast")
                 options.insert("emit-ir")
-                
+
             case "--time", "-t":
                 options.insert("time")
-                
+
             case "-O0", "--O0", "--Onone":
                 optimizations.append("O0")
-                
+
             case "-O1", "--O1":
                 optimizations.append("O1")
-                
+
             case "-O2", "--O2":
                 optimizations.append("O2")
-                
+
             case "-O3", "--O3":
                 optimizations.append("O3")
-                
+
             default:
                 if !$0.hasSuffix(".kai") {
                     print("invalid option: \($0)")
@@ -70,12 +70,12 @@ struct Compiler {
                 break
             }
         }
-        
+
         //default to `O0` optimization
         if optimizations.count == 0 {
             optimizations.append("O1")
         }
-        
+
         guard optimizations.count == 1 else {
             print(
                 "error: multiple optimizations provided: " +
@@ -83,25 +83,25 @@ struct Compiler {
             )
             exit(1)
         }
-        
+
         let optimization = optimizations[0]
-        
+
         try build(options: options, optimization: optimization)
     }
-    
+
     func printVersion() {
         print("Kai version \(version)")
         exit(0)
     }
-    
+
     func printHelp() {
         let cyan = "\u{001B}[35m"
         let reset = "\u{001B}[0m"
-        
+
         print("\(cyan)OVERVIEW\(reset): Kai compiler\n")
-        
+
         print("\(cyan)USAGE\(reset): kai [options] <inputs>\n")
-        
+
         print("\(cyan)OPTIONS\(reset):")
         print("  --emit-ast             Output generated abstract syntax tree")
         print("  --emit-ir              Output generated LLVM IR")
@@ -115,13 +115,13 @@ struct Compiler {
         print("  -O3, --O3              Compile with 02 and arg. promotion")
         print("")
         print("  --version, -v          Show version information and exit")
-        
+
         exit(0)
     }
-    
+
     func build(options: Set<String>, optimization: String) throws {
         let filePath = try extractFilePath()
-        
+
 
         var parser = Parser(relativePath: filePath)
 
@@ -144,7 +144,7 @@ struct Compiler {
         checker.checkParsedFiles()
 
         guard errors.isEmpty else {
-            print("There were \(errors.count) errors during parsing\nexiting")
+            print("There were \(errors.count) errors during checking\nexiting")
             emitErrors()
             exit(1)
         }
@@ -166,7 +166,7 @@ struct Compiler {
         guard let fileName = fileName else {
             throw Error.fileNameNotProvided
         }
-        
+
         let filePath: String
 
         // Test to see if fileName is a relative path
@@ -176,12 +176,12 @@ struct Compiler {
             guard let absolutePath = fileManager.absolutePath(for: fileName) else {
                 fatalError("\(fileName) not found")
             }
-            
+
             filePath = absolutePath
         } else { // `fileName` doesn't exist
             fatalError("\(fileName) not found")
         }
-        
+
         return filePath
     }
 }

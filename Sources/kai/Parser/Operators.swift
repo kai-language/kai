@@ -40,7 +40,7 @@ extension Operator {
 
 
         let led = led ?? { parser, lhs in
-            try parser.consume()
+            let (_, symbolLocation) = try parser.consume()
             let bp = (associativity == .left) ? lbp : lbp - 1
 
             let rhs = try parser.expression(bp)
@@ -48,7 +48,8 @@ extension Operator {
                 case .exprBinary(let sym, lhs: _, rhs: _, _) = rhs,
                 case .none? = Operator.lookup(sym)?.associativity {
 
-                throw parser.error(.ambigiousOperatorUse)
+                reportError("Ambigious use of operator \(symbol)", at: symbolLocation)
+                return AstNode.invalid(lhs.startLocation ..< rhs.endLocation)
             }
 
             return AstNode.exprBinary(symbol, lhs: lhs, rhs: rhs, lhs.startLocation ..< rhs.endLocation)
