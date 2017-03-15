@@ -240,8 +240,16 @@ extension Lexer {
 
 			switch char {
 			case "/":
-				if scanner.peek(aheadBy: 1) == "*" { try skipBlockComment() }
-				else if scanner.peek(aheadBy: 1) == "/" { skipLineComment() }
+                switch scanner.peek(aheadBy: 1) {
+                case "*"?:
+                    try skipBlockComment()
+
+                case "/"?:
+                    skipLineComment()
+
+                default:
+                    return
+                }
 				try skipWhitespace() // skip consecutive comments or newlines after comments
 
 			case _ where whitespace.contains(char):
