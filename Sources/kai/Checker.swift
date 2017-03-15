@@ -100,11 +100,6 @@ class DeclInfo {
 
     var typeExpr: AstNode?
     var initExpr: AstNode?
-    // TODO(vdka): This should be an enum _kind_
-//    var procLit:  AstNode // AstNode_ProcLit
-
-    /// The entities this entity requires to exist
-    var deps: Set<Entity> = []
 
     init(scope: Scope, entities: [Entity] = [], typeExpr: AstNode? = nil, initExpr: AstNode? = nil) {
         self.scope = scope
@@ -137,8 +132,6 @@ struct Checker {
     var info: Info
     var globalScope: Scope
     var context: Context
-
-    var procs: [ProcInfo] = []
 
     var procStack: [Type] = []
 
@@ -446,20 +439,6 @@ extension Checker {
         }
 
         info.uses[identifier] = e
-    }
-
-    mutating func addDeclarationDependency(_ e: Entity) {
-        /*
-        guard let decl = context.decl else { return }
-
-        if let found = info.entities[e] {
-            addDependency(context.decl!, e)
-        }
-        */
-    }
-
-    mutating func addDependency(_ d: DeclInfo, _ e: Entity) {
-        d.deps.insert(e)
     }
 
     @discardableResult

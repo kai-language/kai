@@ -71,15 +71,31 @@ extension Checker {
 
         if (d.scope.isFile || d.scope.isGlobal || d.scope.isInit) && e.name == "main" {
             // FIXME(vdka): Lookup and validate 'main' symbol
-            /*
-            guard case .literal(.proc(let source, type: let type, _)) = procExpr else {
-                preconditionFailure()
+
+            guard case .litProc(let type, let body, _) = procExpr else {
+                panic(procExpr)
             }
-            guard case .type(.proc(params: let params, results: let results, _)) = type else {
+
+            guard case .typeProc(let params, let results, _) = type else {
                 reportError("Symbol 'main' must be a procedure type", at: procExpr)
                 return
             }
-            */
+
+            guard (params.count == 1 || params.isEmpty) && results.count == 1 else {
+                reportError("Symbol 'main' must be of type '(void) -> void'", at: procExpr)
+                return
+            }
+
+            switch (params.first, results.first) {
+            case (nil, .ident("void", _)?),
+                 (.ident("void", _)?, .ident("void", _)?):
+                self.main = e
+
+            default:
+                reportError("Symbol 'main' must be of type '(void) -> void'", at: procExpr)
+            }
+
+            e.type = Type(kind: .proc(scope: body, params: params, returns: results, isVariadic: false))
         }
     }
 
@@ -137,13 +153,11 @@ extension Checker {
 
     mutating func checkCompileTimeDecl(_ e: Entity, typeExpr: AstNode?, valueExpr: AstNode?, namedType: Type?) {
 
-        guard case .compileTime = e.kind else { preconditionFailure() }
+        guard case .compileTime = e.kind else { panic(e) }
         assert(e.type == nil)
 
         if e.flags.contains(.visited) {
-            // TODO(vdka): @Understand
-            e.type = .invalid
-            return
+            panic(e) // we shouldn't ever visit an entity twice.
         }
         e.flags.insert(.visited)
 

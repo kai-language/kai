@@ -7,6 +7,8 @@ class IRGenerator {
     var file: ASTFile
     var context = Context()
 
+    var checker: Checker
+
     let module: Module
     let builder: IRBuilder
     let internalFuncs: InternalFuncs
@@ -73,15 +75,16 @@ class IRGenerator {
         case preconditionNotMet(expected: String, got: String)
     }
     
-    init(_ file: ASTFile) throws {
+    init(_ file: ASTFile, checker: Checker) throws {
+        self.checker = checker
         self.file = file
         module = Module(name: file.name)
         builder = IRBuilder(module: module)
         internalFuncs = InternalFuncs(builder: builder)
     }
     
-    static func build(for file: ASTFile) throws -> Module {
-        let generator = try IRGenerator(file)
+    static func build(for file: ASTFile, checker: Checker) throws -> Module {
+        let generator = try IRGenerator(file, checker: checker)
         try generator.emitGlobals()
         try generator.emitMain()
         
@@ -92,7 +95,17 @@ class IRGenerator {
 extension IRGenerator {
 
     func emitMain() throws {
-        unimplemented("Finding and emitting 'main'")
+//        unimplemented("Finding and emitting 'main'")
+
+        guard let mainEntity = checker.main else {
+            unimplemented("files without mains. Should be easy though...")
+        }
+
+//        let mainType = FunctionType(argTypes: [], returnType: VoidType())
+        let main = builder.addFunction("main", type: try mainEntity.canonicalized() as! FunctionType)
+        mainEntity.llvm = main
+        let entry = main.appendBasicBlock(named: "entry")
+        builder.positionAtEnd(of: entry)
 
         /*
         // TODO(Brett): Update to emit function definition

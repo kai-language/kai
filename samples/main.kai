@@ -1,6 +1,6 @@
 
-x, y, z: f32
+str :: "Hello, Kai!"
 
-makeQuaternion :: (x, y, z: f32, w: f64) -> Quaternion {
-    return x + y
+main :: () -> void {
+    print(str)
 }
