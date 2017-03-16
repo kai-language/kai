@@ -70,34 +70,6 @@ extension Scope {
     }
 }
 
-// TODO(vdka): Fill this in.
-/// Used to store intermediate information during type checking.
-class Operand {
-
-    var kind: Kind
-    var type: Type?
-    var expr: AstNode?
-    var value: ExactValue
-
-    init(kind: Kind = .invalid, expr: AstNode? = nil) {
-        self.kind = kind
-        self.type = nil
-        self.expr = expr
-        self.value = .invalid
-    }
-
-    enum Kind {
-        case invalid
-        case noValue
-        case value
-        case runtime
-        case compileTime
-        case type
-    }
-
-    static let invalid = Operand(kind: .invalid)
-}
-
 class DeclInfo {
 
     unowned var scope: Scope
@@ -119,18 +91,6 @@ class DeclInfo {
 struct DelayedDecl {
     unowned var parent: Scope
     var decl: AstNode
-}
-
-struct TypeAndValue {
-    var type: Type
-    var value: ExactValue
-}
-
-/// stores information used for "untyped" expressions
-struct UntypedExprInfo {
-    var isLhs: Bool
-    var type: Type
-    var value: ExactValue
 }
 
 struct Checker {
@@ -296,7 +256,6 @@ extension Checker {
 
                         entity = Entity(kind: .procedure, name: name.identifier, scope: declInfo.scope, identifier: name)
                         declInfo.initExpr = value
-//                        declInfo.typeExpr = procType
                     } else {
                         entity = Entity(kind: .compileTime(.invalid), name: name.identifier, scope: declInfo.scope, identifier: name)
                         declInfo.typeExpr = type
@@ -659,10 +618,4 @@ extension Checker {
         return str.unicodeScalars.dropFirst()
             .contains(where: { identChars.contains($0) || digits.contains($0) })
     }
-}
-
-enum ErrorType {
-    case syntax
-    case typeMismatch
-    case `default`
 }
