@@ -72,7 +72,7 @@ extension Checker {
         if (d.scope.isFile || d.scope.isGlobal || d.scope.isInit) && e.name == "main" {
             // FIXME(vdka): Lookup and validate 'main' symbol
 
-            guard case .litProc(let type, let body, _) = procExpr else {
+            guard case .litProc(let type, _, _) = procExpr else {
                 panic(procExpr)
             }
 
@@ -94,8 +94,6 @@ extension Checker {
             default:
                 reportError("Symbol 'main' must be of type '(void) -> void'", at: procExpr)
             }
-
-            e.type = Type(kind: .proc(scope: body, params: params, returns: results, isVariadic: false))
         }
     }
 

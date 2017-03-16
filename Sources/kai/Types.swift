@@ -104,7 +104,9 @@ class Type {
 
         case named(String, base: Type?, typeName: Entity?)
 
-        case proc(scope: AstNode?, params: [AstNode], returns: [AstNode], isVariadic: Bool)
+        case proc(params: [Type], returns: [Type], isVariadic: Bool)
+
+        case typeInfo(Type)
     }
 
     var isNamed: Bool {

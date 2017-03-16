@@ -23,11 +23,17 @@ class Scope {
 
         var s = Scope(parent: nil)
 
-        // TODO(vdka): Insert types into universal scope
+        // TODO(vdka): Create a stdtypes.kai file to refer to for location
 
-        for type in BasicType.allBasicTypes {
-            let e = Entity(kind: .typeName, name: type.name, location: .unknown, flags: [], scope: s, identifier: nil)
+        for type in Type.allBasicTypes {
+            guard case .basic(let basicType) = type.kind else {
+                panic()
+            }
+
+            let e = Entity(kind: .builtin, name: basicType.name, location: .unknown, flags: [], scope: s, identifier: nil)
+            e.type = type
             s.insert(e)
+
         }
 
         Entity.declareBuiltinConstant(name: "true", value: .bool(true), scope: s)
@@ -408,7 +414,6 @@ extension Checker {
             }
 
             fillType(d)
-
         }
     }
 
@@ -464,7 +469,8 @@ extension Checker {
 
 extension Checker {
 
-    mutating func fillType(_ d: DeclInfo) {
+    @discardableResult
+    mutating func fillType(_ d: DeclInfo) -> Type {
 
         var type: Type
         switch (d.typeExpr, d.initExpr) {
@@ -484,12 +490,12 @@ extension Checker {
                     panic()
                 }
 
+                var paramTypes:  [Type] = []
+                var returnTypes: [Type] = []
+
                 switch body {
                 case .stmtBlock:
                     let scope = Scope(parent: context.scope)
-                    context.scope = scope
-                    // FIXME(vdka): Pop scope?
-
 
                     /*
                      Fill types for each parameter
@@ -514,13 +520,12 @@ extension Checker {
 
                             let entity = Entity(kind: Entity.Kind.runtime, name: ident.identifier, location: ident.startLocation, flags: .param, scope: scope, identifier: ident)
                             let paramDecl = DeclInfo(scope: scope, entities: [entity], typeExpr: type, initExpr: nil)
-                            fillType(paramDecl)
+                            let paramType = fillType(paramDecl)
+                            paramTypes.append(paramType)
 
                         default:
-                            break
-                            // If it is not a `declValue` it *must* be a type
-
-                            // TODO(vdka): Lookup the type for a node.
+                            let paramType = lookupType(param)
+                            paramTypes.append(paramType)
                         }
                     }
 
@@ -539,15 +544,17 @@ extension Checker {
                                 unimplemented("Default procedure argument values")
                             }
 
-                            // TODO(vdka): Lookup the type for a node.
+                            let returnType = lookupType(type)
+                            returnTypes.append(returnType)
 
                         default:
-                            break
                             // If it is not a `declValue` it *must* be a type
-
-                            // TODO(vdka): Lookup the type for a node.
+                            let returnType = lookupType(result)
+                            returnTypes.append(returnType)
                         }
                     }
+
+                    type = Type(kind: .proc(params: paramTypes, returns: returnTypes, isVariadic: false))
 
                 case .directive:
                     unimplemented("Foreign body functions")
@@ -556,20 +563,70 @@ extension Checker {
                     panic()
                 }
 
-                unimplemented("Filling in type information for proc literals")
-
             default:
                 reportError("Type cannot be inferred from \(initExpr)", at: initExpr)
-                return
+                return Type.invalid
             }
 
         default:
+            // FIXME(vdka): Why is this a print not anything else?
             print("failed filling declinfo \(d)")
-            return
+            return Type.invalid
         }
 
         for e in d.entities {
             e.type = type
+        }
+
+        return type
+    }
+
+    func lookupType(_ n: AstNode) -> Type {
+
+        switch n {
+        case .ident(let ident, _):
+
+            guard let entity = context.scope.lookup(ident) else {
+                reportError("Undeclared entity '\(ident)'", at: n)
+              return Type.invalid
+            }
+
+            switch entity.kind {
+            case .typeName, .builtin:
+                return entity.type!
+
+            default:
+                reportError("Entity '\(ident)' cannot be used as type", at: n)
+                return Type.invalid
+            }
+
+        case .exprSelector(let receiver, let member, _):
+
+            // TODO(vdka): Determine (define) the realm of possibility in terms of what can be a node representing a type
+            guard case .ident(let receiverIdent, _) = receiver else {
+                reportError("'\(n)' cannot be used as a type", at: n)
+                return Type.invalid
+            }
+            guard case .ident(let memberIdent, _) = member else {
+                reportError("'\(n)' cannot be used as a type", at: n)
+                return Type.invalid
+            }
+            guard let receiverEntity = context.scope.lookup(receiverIdent) else {
+                reportError("Undeclared entity '\(receiverIdent)'", at: receiver)
+                return Type.invalid
+            }
+            _ = memberIdent
+            /* TODO(vdka):
+             In the receiverEntities scope lookup the child entity.
+             Determine how to access the scope the receiver would have to create.
+             In this scenario the recvr should have a child scope.
+            */
+            _ = receiverEntity
+            unimplemented("Child types")
+
+        default:
+            reportError("'\(n)' cannot be used as a type", at: n)
+            return Type.invalid
         }
     }
 }
