@@ -40,22 +40,12 @@ class Entity {
     var identifier: AstNode?
     var llvm: IRValue?
 
-    init(kind: Kind = .invalid, name: String, location: SourceLocation, flags: Flag = [], scope: Scope, identifier: AstNode?) {
+    init(kind: Kind = .invalid, name: String, location: SourceLocation? = nil, flags: Flag = [], scope: Scope, identifier: AstNode?) {
         self.kind = kind
         self.name = name
         self.flags = flags
         self.scope = scope
-        self.location = location
-        self.type = nil
-        self.identifier = identifier
-    }
-
-    init(kind: Kind = .invalid, name: String, location: SourceLocation? = nil, flags: Flag = [], scope: Scope, identifier: AstNode) {
-        self.kind = kind
-        self.name = name
-        self.flags = flags
-        self.scope = scope
-        self.location = location ?? identifier.startLocation
+        self.location = location ?? identifier?.startLocation ?? .unknown
         self.type = nil
         self.identifier = identifier
     }

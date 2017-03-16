@@ -1,6 +1,11 @@
 
 str :: "Hello, Kai!"
 
+//circumference :: (r: f64) -> f64 {
+//    return tau * r
+//}
+
 main :: () -> void {
     print(str)
+    //j := circumference(1)
 }

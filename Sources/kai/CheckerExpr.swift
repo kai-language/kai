@@ -26,7 +26,7 @@ extension Checker {
         }
     }
 
-    mutating func checkType(_ e: AstNode, namedType: Type?) -> Type {
+    mutating func checkType(_ e: AstNode) -> Type {
 
         switch e {
         case .ident:
@@ -36,7 +36,7 @@ extension Checker {
             unimplemented("Selector lookup for type checking")
 
         case .exprParen(let expr, _):
-            return checkType(expr, namedType: namedType)
+            return checkType(expr)
 
         case .exprUnary:
             unimplemented("Unary operator type checking")
@@ -46,7 +46,7 @@ extension Checker {
         }
     }
 
-    mutating func checkType(_ e: Entity, typeExpr: AstNode, def: Type? = nil) -> Type {
+    mutating func checkType(_ e: Entity, typeExpr: AstNode) -> Type {
         unimplemented("Checking any expr type")
     }
 

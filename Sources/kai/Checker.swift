@@ -96,6 +96,7 @@ class DeclInfo {
 
     unowned var scope: Scope
 
+    /// Each entity represents a reference to the original decl `x := 5; x = x + 8` would have a DeclInfo for `x` with 3 entities
     var entities: [Entity]
 
     var typeExpr: AstNode?
@@ -280,21 +281,23 @@ extension Checker {
                         entity = Entity(kind: .typeName, name: name.identifier, scope: declInfo.scope, identifier: name)
                         declInfo.typeExpr = value
                         declInfo.initExpr = value
-                    } else if let value = value, case .litProc(let procType, _, _) = value {
+                    } else if let value = value, case .litProc = value {
 
-                        // TODO(vdka): Some validation around:
+                        // TODO(vdka): Some validation around explicit typing for procLits?
                         /*
                          someProc : (int) -> void : (n: int) -> void { /* ... */ }
                          */
 
                         entity = Entity(kind: .procedure, name: name.identifier, scope: declInfo.scope, identifier: name)
                         declInfo.initExpr = value
-                        declInfo.typeExpr = procType
+//                        declInfo.typeExpr = procType
                     } else {
                         entity = Entity(kind: .compileTime(.invalid), name: name.identifier, scope: declInfo.scope, identifier: name)
                         declInfo.typeExpr = type
                         declInfo.initExpr = value
                     }
+
+                    declInfo.entities.append(entity)
 
                     addEntity(to: entity.scope, identifier: name, entity)
                     info.entities[entity] = declInfo
@@ -380,7 +383,9 @@ extension Checker {
 
         for (e, d) in info.entities {
 
-            if d.scope !== e.scope { // TODO(vdka): Understand why this may happen and it's implications better.
+            // of course the declaration can be in a scope that is beyond the use scope as in:
+            // `tau :: 6.18; circumference :: (r: f64) -> f64 { return tau * r }`
+            if d.scope !== e.scope {
                 continue
             }
 
@@ -402,7 +407,8 @@ extension Checker {
                 self.main = e
             }
 
-            checkEntityDecl(e, d, namedType: nil)
+            fillType(d)
+
         }
     }
 
@@ -433,17 +439,8 @@ extension Checker {
         return true
     }
 
-    mutating func addEntityUse(identifier: AstNode, _ e: Entity) {
-        guard identifier.isIdent else {
-            return
-        }
-
-        info.uses[identifier] = e
-    }
-
     @discardableResult
     mutating func checkArityMatch(_ node: AstNode) -> Bool {
-
 
         if case .declValue(_, let names, let type, let values, _) = node {
             if values.isEmpty && type == nil {
@@ -459,6 +456,121 @@ extension Checker {
         }
 
         return true
+    }
+}
+
+
+// MARK: Actual Checking
+
+extension Checker {
+
+    mutating func fillType(_ d: DeclInfo) {
+
+        var type: Type
+        switch (d.typeExpr, d.initExpr) {
+        case (nil, let initExpr?):
+            switch initExpr {
+            case .litInteger:
+                type = .unconstrInteger
+
+            case .litFloat:
+                type = .unconstrFloat
+
+            case .litString:
+                type = .unconstrString
+
+            case .litProc(let typeExpr, let body, _):
+                guard case .typeProc(let params, let results, _) = typeExpr else {
+                    panic()
+                }
+
+                switch body {
+                case .stmtBlock:
+                    let scope = Scope(parent: context.scope)
+                    context.scope = scope
+                    // FIXME(vdka): Pop scope?
+
+
+                    /*
+                     Fill types for each parameter
+                     There are only 3 valid cases:
+                        - `(int, int) -> void` has no declValues (only types) FIXME(vdka): Could (should)? make this illegal
+                        - `(x: int, y: int) -> void` has decl values
+                        - `(x: int, y: int) -> (x: int, y: int)` would also be valid, however for results we only care about the types
+                    */
+                    for param in params {
+                        switch param {
+                        case .declValue(_, let names, let type, let values, _):
+
+                            assert(names.count == 1, "Parser should explode parameters so each decl has exactly 1 value")
+                            assert(type != nil)
+
+                            guard let ident = names.first, let type = type else {
+                                panic()
+                            }
+                            if !values.isEmpty {
+                                unimplemented("Default procedure argument values")
+                            }
+
+                            let entity = Entity(kind: Entity.Kind.runtime, name: ident.identifier, location: ident.startLocation, flags: .param, scope: scope, identifier: ident)
+                            let paramDecl = DeclInfo(scope: scope, entities: [entity], typeExpr: type, initExpr: nil)
+                            fillType(paramDecl)
+
+                        default:
+                            break
+                            // If it is not a `declValue` it *must* be a type
+
+                            // TODO(vdka): Lookup the type for a node.
+                        }
+                    }
+
+                    for result in results {
+                        switch result {
+                        case .declValue(_, let names, let type, let values, _):
+                            // NOTE(vdka): In the results, we don't care about the identifier name. Just the type.
+
+                            assert(names.count == 1, "Parser should explode results so each decl has exactly 1 value")
+                            assert(type != nil)
+
+                            guard let type = type else {
+                                panic()
+                            }
+                            if !values.isEmpty {
+                                unimplemented("Default procedure argument values")
+                            }
+
+                            // TODO(vdka): Lookup the type for a node.
+
+                        default:
+                            break
+                            // If it is not a `declValue` it *must* be a type
+
+                            // TODO(vdka): Lookup the type for a node.
+                        }
+                    }
+
+                case .directive:
+                    unimplemented("Foreign body functions")
+
+                default:
+                    panic()
+                }
+
+                unimplemented("Filling in type information for proc literals")
+
+            default:
+                reportError("Type cannot be inferred from \(initExpr)", at: initExpr)
+                return
+            }
+
+        default:
+            print("failed filling declinfo \(d)")
+            return
+        }
+
+        for e in d.entities {
+            e.type = type
+        }
     }
 }
 
