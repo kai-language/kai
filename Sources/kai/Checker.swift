@@ -1,23 +1,244 @@
 
+/// Defines a type declaration
+class TypeRecord {
+
+    var kind: Kind
+    var flags: Flag
+    var source: AstNode
+    var size: UInt
+
+    enum Kind {
+        case builtin
+        case alias(of: TypeRecord)
+    }
+
+    struct Flag: OptionSet {
+        var rawValue: UInt64
+        init(rawValue: UInt64) { self.rawValue = rawValue }
+
+        static let boolean        = Flag(rawValue: 0b00000001)
+        static let integer        = Flag(rawValue: 0b00000010)
+        static let unsigned       = Flag(rawValue: 0b00000100)
+        static let float          = Flag(rawValue: 0b00001000)
+        static let pointer        = Flag(rawValue: 0b00010000)
+        static let string         = Flag(rawValue: 0b00100000)
+        static let unconstrained  = Flag(rawValue: 0b01000000)
+
+        static let none:     Flag = []
+        static let numeric:  Flag = [.integer, .unsigned, .float]
+        static let ordered:  Flag = [.numeric, .string, .pointer]
+        static let constant: Flag = [.boolean, .numeric, .pointer, .string]
+    }
+}
+
+enum std {
+    private static let baseAddr = (#file).split("/").dropLast(3).append("stdlib").joined(separator: "/")
+
+    static let types: String = "stdtypes.kai"
+}
+
+extension TypeRecord {
+
+    // TODO(vdka): All these types could be mapped to the `stdtypes.kai` file
+
+    static let builtinTypes: [TypeRecord] = {
+
+        // Order is important later.
+        let short: [(String, UInt, UInt, Flag)] = [
+            ("void", 0, 0, .none),
+            ("bool", 1, 0, .boolean),
+
+            ("i8",  1, 0, [.integer]),
+            ("u8",  1, 0, [.integer, .unsigned]),
+            ("i16", 2, 0, [.integer]),
+            ("u16", 2, 0, [.integer, .unsigned]),
+            ("i32", 4, 0, [.integer]),
+            ("u32", 4, 0, [.integer, .unsigned]),
+            ("i64", 8, 0, [.integer]),
+            ("u64", 8, 0, [.integer, .unsigned]),
+
+            ("f32", 4, 0, .float),
+            ("f64", 8, 0, .float),
+
+            // ("int", 0, 0), // TODO(vdka)
+            // ("uint", 0, 0),
+            ("string", 8, 0, .string), // FIXME(vdka): Currently strings are just pointers
+
+            ("unconstrBool",    0, 0, [.unconstrained, .boolean]),
+            ("unconstrInteger", 0, 0, [.unconstrained, .integer]),
+            ("unconstrFloat",   0, 0, [.unconstrained, .float]),
+            ("unconstrString",  0, 0, [.unconstrained, .string]),
+            ("unconstrNil",     0, 0, [.unconstrained]),
+        ]
+
+        return short.map { (name, size, lineNumber, flags) in
+            let location = SourceLocation(file: std.types, line: lineNumber, column: 0)
+
+            return TypeRecord(kind: .builtin, flags: flags, source: .ident(name, location: location), size: size)
+        }
+    }()
+
+    static let void = builtinTypes[0]
+    static let bool = builtinTypes[1]
+
+    static let i8   = builtinTypes[2]
+    static let u8   = builtinTypes[3]
+    static let i16  = builtinTypes[4]
+    static let u16  = builtinTypes[5]
+    static let i32  = builtinTypes[6]
+    static let u32  = builtinTypes[7]
+    static let i64  = builtinTypes[8]
+    static let u64  = builtinTypes[9]
+
+    static let f32  = builtinTypes[10]
+    static let f64  = builtinTypes[11]
+
+    static let string = builtinTypes[12]
+
+    static let unconstrBool     = builtinTypes[13]
+    static let unconstrInteger  = builtinTypes[14]
+    static let unconstrFloat    = builtinTypes[15]
+    static let unconstrString   = builtinTypes[16]
+    static let unconstrNil      = builtinTypes[17]
+}
+
+/// Defines a type in which something can take
+class Type {
+
+    var kind: Kind
+    unowned var record: TypeRecord
+
+    enum Kind {
+        case named(CheckedEntity)
+        case typeInfo(TypeRecord)
+        case proc(params: [Type], returns: [Type])
+    }
+}
+
+class CheckedEntity {
+    var name: String
+    var kind: Kind
+    var flags: Flag
+    var type: Type
+
+    var childScope: Scope?
+    var mangledName: String
+
+    enum Kind {
+        case runtime
+        case compiletime
+    }
+
+    struct Flag: OptionSet {
+        let rawValue: UInt8
+
+        static let none       = Flag(rawValue: 0b00000000)
+        static let parameter  = Flag(rawValue: 0b00000001)
+    }
+}
+
+class Entity {
+    var kind: Kind
+    var flags: Flag
+    var name: String
+    var location: SourceLocation
+    unowned var scope: Scope
+
+    /// Set in the checker
+    var type: Type? = nil
+    var identifier: AstNode?
+
+    enum Kind {
+        case invalid
+        case compiletime
+        case runtime
+        case typeName
+        case procedure // (isForeign (foreignDetails), tags, overload: OverloadKind)
+        case builtin
+        case importName  //path, name: String, scope: Scope, used: Bool)
+        case libraryName // (path, name: String, used: Bool)
+        case `nil`
+    }
+
+    static func declareBuiltinConstant(name: String, value: ExactValue, scope: Scope) {
+        var type: Type
+        switch value {
+        case .invalid:
+            type = .invalid
+
+        case .bool(_):
+            type = .unconstrBoolean
+
+        case .float(_):
+            type = .unconstrFloat
+
+        case .integer(_):
+            type = .unconstrInteger
+
+        case .string(_):
+            type = .unconstrString
+        }
+
+        let e = Entity(kind: .compileTime(value), name: name, location: .unknown, scope: scope, identifier: nil)
+        e.type = type
+
+        scope.insert(e)
+    }
+}
+
+struct Library {
+    var importPath: String
+    var fullpath: String
+}
+
+indirect enum CheckedAstNode {
+
+    case invalid(AstNode)
+
+    case file(name: String, Scope)
+
+    case scope(Scope)
+    case entityUse(CheckedEntity)
+    case entityDecl(CheckedEntity)
+
+    case litInteger(Int64)
+    case litFloat(Double)
+    case litString(String)
+    case litProc(params: [CheckedEntity], type: Type, body: Scope)
+    case foreignProc(params: [CheckedEntity], type: Type, sourceLib: Library, symbolName: String)
+
+    case exprCall(receiver: CheckedAstNode, args: [CheckedAstNode])
+    case exprUnary(UnaryOperator, expr: CheckedAstNode)
+    case exprBinary(BinaryOperator, lhs: CheckedAstNode, rhs: CheckedAstNode)
+    case exprTernary(cond: CheckedAstNode, CheckedAstNode, CheckedAstNode)
+
+    case stmtAssign(AssignOperator, lhs: [CheckedAstNode], rhs: [CheckedAstNode])
+
+    case stmtIf(cond: CheckedAstNode, body: CheckedAstNode, CheckedAstNode?)
+    case stmtReturn([CheckedAstNode])
+    case stmtCase(list: [CheckedAstNode], statements: Scope)
+    case stmtDefer(CheckedAstNode)
+    case stmtBreak
+    case stmtContinue
+    case stmtFallthrough
+}
 
 class Scope {
     weak var parent: Scope?
-    var prev: Scope?
-    var next: Scope?
-    var children: [Scope?] = []
-    var elements: [String: Entity] = [:]
-    var implicit: [Entity: Bool] = [:]
-
-    var shared: [Scope] = []
+    var children: [Scope] = []
     var imported: [Scope] = []
-    var isProc:   Bool = false
-    var isGlobal: Bool = false
-    var isFile:   Bool = false
-    var isInit:   Bool = false
-    /// Only relevant for file scopes
-    var hasBeenImported: Bool = false
+    var shared: [Scope] = []
 
-    var file: ASTFile?
+    var elements: [String: Entity] = [:]
+    var isProc: Bool = false
+
+    /// Only set if scope is file
+    var file: ASTFile? = nil
+    var isFile: Bool { return file != nil }
+
+    init(parent: Scope?) {
+        self.parent = parent
+    }
 
     static var universal: Scope = {
 
