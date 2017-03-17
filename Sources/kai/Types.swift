@@ -77,36 +77,6 @@ class TypeRecord {
     }
 }
 
-struct ProcInfo {
-    var scope: AstNode?
-    var labels: [(callsite: String?, binding: String)]?
-    var params: [AstNode]
-    var returns: [AstNode]
-    var isVariadic: Bool
-    var callingConvention: CallingConvention
-
-    init(
-        scope: AstNode? = nil,
-        labels: [(callsite: String?, binding: String)]?,
-        params: [AstNode],
-        returns: [AstNode],
-        isVariadic: Bool = false,
-        callingConvention: CallingConvention = .kai) {
-
-        self.scope = scope
-        self.labels = labels
-        self.params = params
-        self.returns = returns
-        self.isVariadic = isVariadic
-        self.callingConvention = callingConvention
-    }
-
-    enum CallingConvention {
-        case kai
-        case c
-    }
-}
-
 class Type {
 
     var kind: Kind
@@ -134,7 +104,9 @@ class Type {
 
         case named(String, base: Type?, typeName: Entity?)
 
-        case proc(ProcInfo)
+        case proc(params: [Type], returns: [Type], isVariadic: Bool)
+
+        case typeInfo(Type)
     }
 
     var isNamed: Bool {
@@ -277,15 +249,4 @@ extension Type {
         rawptr, string,
         unconstrBoolean, unconstrInteger, unconstrFloat, unconstrString, unconstrNil
     ]
-}
-
-extension ProcInfo: Equatable {
-
-    static func == (lhs: ProcInfo, rhs: ProcInfo) -> Bool {
-        //lhs.scope === rhs.scope &&
-        return lhs.params == rhs.params &&
-            lhs.returns == rhs.returns &&
-            lhs.isVariadic == rhs.isVariadic &&
-            isMemoryEquivalent(lhs.callingConvention, rhs.callingConvention)
-    }
 }

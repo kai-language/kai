@@ -611,7 +611,7 @@ extension AstNode {
 extension ASTFile {
 
     func pretty() -> String {
-        var description = "(" + "file".colored(.blue) + "'" + fullpath.colored(.red) + "'"
+        var description = "(" + "file".colored(.blue) + " '" + fullpath.colored(.red) + "'"
         for node in nodes {
             description += node.pretty(depth: 1)
         }

@@ -151,7 +151,7 @@ struct Compiler {
 
         for file in files {
 
-            let module = try IRGenerator.build(for: file)
+            let module = try IRGenerator.build(for: file, checker: checker)
 
             // FIXME(vdka): emit object files for each and every importation
             try TargetMachine().emitToFile(module: module, type: .object, path: "main.o")

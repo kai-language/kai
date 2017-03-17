@@ -1,6 +1,11 @@
 
-x, y, z: f32
+str :: "Hello, Kai!"
 
-makeQuaternion :: (x, y, z: f32, w: f64) -> Quaternion {
-    return x + y
+//circumference :: (r: f64) -> f64 {
+//    return tau * r
+//}
+
+main :: () -> void {
+    print(str)
+    //j := circumference(1)
 }

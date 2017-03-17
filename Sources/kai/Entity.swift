@@ -7,9 +7,6 @@ enum ExactValue: Equatable {
     case string(String)
     case integer(Int64)
     case float(Double)
-    case compound(AstNode)
-
-    // NOTE(vdka): Odin has an value_pointer here also. Not sure how to do so I omitted it.
 
     static func ==(lhs: ExactValue, rhs: ExactValue) -> Bool {
         switch (lhs, rhs) {
@@ -23,9 +20,6 @@ enum ExactValue: Equatable {
             return l == r
 
         case let (.float(l), .float(r)):
-            return l == r
-
-        case let (.compound(l), .compound(r)):
             return l == r
 
         default:
@@ -46,22 +40,12 @@ class Entity {
     var identifier: AstNode?
     var llvm: IRValue?
 
-    init(kind: Kind = .invalid, name: String, location: SourceLocation, flags: Flag = [], scope: Scope, identifier: AstNode?) {
+    init(kind: Kind = .invalid, name: String, location: SourceLocation? = nil, flags: Flag = [], scope: Scope, identifier: AstNode?) {
         self.kind = kind
         self.name = name
         self.flags = flags
         self.scope = scope
-        self.location = location
-        self.type = nil
-        self.identifier = identifier
-    }
-
-    init(kind: Kind = .invalid, name: String, location: SourceLocation? = nil, flags: Flag = [], scope: Scope, identifier: AstNode) {
-        self.kind = kind
-        self.name = name
-        self.flags = flags
-        self.scope = scope
-        self.location = location ?? identifier.startLocation
+        self.location = location ?? identifier?.startLocation ?? .unknown
         self.type = nil
         self.identifier = identifier
     }
@@ -83,9 +67,6 @@ class Entity {
 
         case .string(_):
             type = .unconstrString
-
-        case .compound(_):
-            unimplemented("Builtin compound types")
         }
 
         let e = Entity(kind: .compileTime(value), name: name, location: .unknown, scope: scope, identifier: nil)
