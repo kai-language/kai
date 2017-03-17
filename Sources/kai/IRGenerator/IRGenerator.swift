@@ -102,10 +102,10 @@ extension IRGenerator {
         }
 
 //        let mainType = FunctionType(argTypes: [], returnType: VoidType())
-        let main = builder.addFunction("main", type: try mainEntity.canonicalized() as! FunctionType)
-        mainEntity.llvm = main
-        let entry = main.appendBasicBlock(named: "entry")
-        builder.positionAtEnd(of: entry)
+//        let main = builder.addFunction("main", type: try mainEntity.canonicalized() as! FunctionType)
+//        mainEntity.llvm = main
+//        let entry = main.appendBasicBlock(named: "entry")
+//        builder.positionAtEnd(of: entry)
 
         /*
         // TODO(Brett): Update to emit function definition
@@ -384,7 +384,8 @@ extension IRGenerator {
         let lvalueEntity = context.scope.lookup(ident)!
         let rvalue = emitStmt(for: rhs[0])
 
-        return builder.buildStore(rvalue, to: lvalueEntity.llvm!)
+        fatalError()
+//        return builder.buildStore(rvalue, to: lvalueEntity.llvm!)
     }
 
     @discardableResult

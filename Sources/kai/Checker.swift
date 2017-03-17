@@ -2,10 +2,22 @@
 /// Defines a type declaration
 class TypeRecord {
 
+    var name: String?
     var kind: Kind
     var flags: Flag
-    var source: AstNode
     var size: UInt
+    var location: SourceLocation?
+
+    // TODO(vdka): Give procedures an actual record.
+    static let procedure = TypeRecord(name: nil, kind: .builtin, flags: .none, size: 0, location: nil)
+
+    init(name: String?, kind: Kind, flags: Flag, size: UInt, location: SourceLocation?) {
+        self.name = name
+        self.kind = kind
+        self.flags = flags
+        self.size = size
+        self.location = location
+    }
 
     enum Kind {
         case builtin
@@ -31,20 +43,40 @@ class TypeRecord {
     }
 }
 
+/// Defines a type in which something can take
+class Type {
+
+    var kind: Kind
+    var record: TypeRecord
+
+    init(kind: Kind, record: TypeRecord) {
+        self.kind = kind
+        self.record = record
+    }
+
+    enum Kind {
+        case named(String)
+        case typeInfo
+        case proc(params: [Type], returns: [Type])
+    }
+}
+
 enum std {
-    private static let baseAddr = (#file).split("/").dropLast(3).append("stdlib").joined(separator: "/")
 
     static let types: String = "stdtypes.kai"
 }
 
-extension TypeRecord {
+extension Type {
 
-    // TODO(vdka): All these types could be mapped to the `stdtypes.kai` file
+    var metatype: Type {
+        return Type(kind: .typeInfo, record: record)
+    }
 
-    static let builtinTypes: [TypeRecord] = {
+    static let builtin: [Type] = {
 
-        // Order is important later.
-        let short: [(String, UInt, UInt, Flag)] = [
+        // NOTE(vdka): Order is important later.
+                  /* Name,   size, line, flags */
+        let short: [(String, UInt, UInt, TypeRecord.Flag)] = [
             ("void", 0, 0, .none),
             ("bool", 1, 0, .boolean),
 
@@ -60,114 +92,136 @@ extension TypeRecord {
             ("f32", 4, 0, .float),
             ("f64", 8, 0, .float),
 
-            // ("int", 0, 0), // TODO(vdka)
+             // TODO(vdka): Get platform native size. `MemoryLayout<Int>.size`??
+            // ("int", 0, 0),
             // ("uint", 0, 0),
-            ("string", 8, 0, .string), // FIXME(vdka): Currently strings are just pointers
+
+            // FIXME(vdka): Currently strings are just pointers hence length 8 (will remain?)
+            ("string", 8, 0, .string),
 
             ("unconstrBool",    0, 0, [.unconstrained, .boolean]),
             ("unconstrInteger", 0, 0, [.unconstrained, .integer]),
             ("unconstrFloat",   0, 0, [.unconstrained, .float]),
             ("unconstrString",  0, 0, [.unconstrained, .string]),
             ("unconstrNil",     0, 0, [.unconstrained]),
+
+            ("<invalid>", 0, 0, .none),
         ]
 
         return short.map { (name, size, lineNumber, flags) in
-            let location = SourceLocation(file: std.types, line: lineNumber, column: 0)
+            let location = SourceLocation(line: lineNumber, column: 0, file: std.types)
 
-            return TypeRecord(kind: .builtin, flags: flags, source: .ident(name, location: location), size: size)
+            let record = TypeRecord(name: name, kind: .builtin, flags: flags, size: size, location: location)
+
+            return Type(kind: .named(name), record: record)
         }
     }()
 
-    static let void = builtinTypes[0]
-    static let bool = builtinTypes[1]
+    static let void = builtin[0]
+    static let bool = builtin[1]
 
-    static let i8   = builtinTypes[2]
-    static let u8   = builtinTypes[3]
-    static let i16  = builtinTypes[4]
-    static let u16  = builtinTypes[5]
-    static let i32  = builtinTypes[6]
-    static let u32  = builtinTypes[7]
-    static let i64  = builtinTypes[8]
-    static let u64  = builtinTypes[9]
+    static let i8   = builtin[2]
+    static let u8   = builtin[3]
+    static let i16  = builtin[4]
+    static let u16  = builtin[5]
+    static let i32  = builtin[6]
+    static let u32  = builtin[7]
+    static let i64  = builtin[8]
+    static let u64  = builtin[9]
 
-    static let f32  = builtinTypes[10]
-    static let f64  = builtinTypes[11]
+    static let f32  = builtin[10]
+    static let f64  = builtin[11]
 
-    static let string = builtinTypes[12]
+    static let string = builtin[12]
 
-    static let unconstrBool     = builtinTypes[13]
-    static let unconstrInteger  = builtinTypes[14]
-    static let unconstrFloat    = builtinTypes[15]
-    static let unconstrString   = builtinTypes[16]
-    static let unconstrNil      = builtinTypes[17]
+    static let unconstrBool     = builtin[13]
+    static let unconstrInteger  = builtin[14]
+    static let unconstrFloat    = builtin[15]
+    static let unconstrString   = builtin[16]
+    static let unconstrNil      = builtin[17]
+
+    static let invalid = builtin[18]
 }
 
-/// Defines a type in which something can take
-class Type {
-
-    var kind: Kind
-    unowned var record: TypeRecord
-
-    enum Kind {
-        case named(CheckedEntity)
-        case typeInfo(TypeRecord)
-        case proc(params: [Type], returns: [Type])
-    }
+enum ExactValue {
+    case invalid
+    case bool(Bool)
+    case string(String)
+    case integer(Int64)
+    case float(Double)
+    case type
 }
 
 class CheckedEntity {
     var name: String
     var kind: Kind
-    var flags: Flag
     var type: Type
 
     var childScope: Scope?
     var mangledName: String
 
+    init(name: String, kind: Kind, type: Type, childScope: Scope?, mangledName: String) {
+        self.name = name
+        self.kind = kind
+        self.type = type
+        self.childScope = childScope
+        self.mangledName = mangledName
+    }
+
     enum Kind {
         case runtime
         case compiletime
-    }
-
-    struct Flag: OptionSet {
-        let rawValue: UInt8
-
-        static let none       = Flag(rawValue: 0b00000000)
-        static let parameter  = Flag(rawValue: 0b00000001)
+        case builtin
     }
 }
 
-class Entity {
-    var kind: Kind
-    var flags: Flag
+class Entity: PointerHashable {
     var name: String
     var location: SourceLocation
-    unowned var scope: Scope
+    var kind: Kind
 
-    /// Set in the checker
-    var type: Type? = nil
+    var type: Type?
+
     var identifier: AstNode?
+
+    var childScope: Scope?
+    var value: ExactValue?
+    var mangledName: String?
+
+    init(name: String, location: SourceLocation, kind: Kind) {
+        self.name = name
+        self.location = location
+        self.kind = kind
+    }
+
+    init(identifier: AstNode, kind: Kind) {
+        guard case .ident(let name, let location) = identifier else {
+            panic()
+        }
+        self.name = name
+        self.location = location.lowerBound
+        self.kind = kind
+        self.identifier = identifier
+    }
 
     enum Kind {
         case invalid
         case compiletime
         case runtime
-        case typeName
-        case procedure // (isForeign (foreignDetails), tags, overload: OverloadKind)
         case builtin
+        case typeName
         case importName  //path, name: String, scope: Scope, used: Bool)
         case libraryName // (path, name: String, used: Bool)
-        case `nil`
     }
 
     static func declareBuiltinConstant(name: String, value: ExactValue, scope: Scope) {
         var type: Type
         switch value {
-        case .invalid:
-            type = .invalid
+        case .invalid, .type:
+            panic()
 
         case .bool(_):
-            type = .unconstrBoolean
+            type = .unconstrBool
 
         case .float(_):
             type = .unconstrFloat
@@ -179,8 +233,10 @@ class Entity {
             type = .unconstrString
         }
 
-        let e = Entity(kind: .compileTime(value), name: name, location: .unknown, scope: scope, identifier: nil)
+        let e = Entity(name: name, location: .unknown, kind: .compiletime)
         e.type = type
+        e.mangledName = name
+        e.value = value
 
         scope.insert(e)
     }
@@ -208,11 +264,11 @@ indirect enum CheckedAstNode {
     case foreignProc(params: [CheckedEntity], type: Type, sourceLib: Library, symbolName: String)
 
     case exprCall(receiver: CheckedAstNode, args: [CheckedAstNode])
-    case exprUnary(UnaryOperator, expr: CheckedAstNode)
-    case exprBinary(BinaryOperator, lhs: CheckedAstNode, rhs: CheckedAstNode)
+    case exprUnary(String, expr: CheckedAstNode)
+    case exprBinary(String, lhs: CheckedAstNode, rhs: CheckedAstNode)
     case exprTernary(cond: CheckedAstNode, CheckedAstNode, CheckedAstNode)
 
-    case stmtAssign(AssignOperator, lhs: [CheckedAstNode], rhs: [CheckedAstNode])
+    case stmtAssign(String, lhs: [CheckedAstNode], rhs: [CheckedAstNode])
 
     case stmtIf(cond: CheckedAstNode, body: CheckedAstNode, CheckedAstNode?)
     case stmtReturn([CheckedAstNode])
@@ -231,6 +287,7 @@ class Scope {
 
     var elements: [String: Entity] = [:]
     var isProc: Bool = false
+    var isMainFile: Bool = false
 
     /// Only set if scope is file
     var file: ASTFile? = nil
@@ -246,30 +303,27 @@ class Scope {
 
         // TODO(vdka): Create a stdtypes.kai file to refer to for location
 
-        for type in Type.allBasicTypes {
-            guard case .basic(let basicType) = type.kind else {
+        for type in Type.builtin {
+
+            guard let location = type.record.location else {
                 panic()
             }
 
-            let e = Entity(kind: .builtin, name: basicType.name, location: .unknown, flags: [], scope: s, identifier: nil)
-            e.type = type
+            let e = Entity(name: type.record.name!, location: location, kind: .compiletime)
+            e.type = type.metatype
+            e.mangledName = type.record.name
             s.insert(e)
-
         }
 
         Entity.declareBuiltinConstant(name: "true", value: .bool(true), scope: s)
         Entity.declareBuiltinConstant(name: "false", value: .bool(true), scope: s)
 
-        let e = Entity(kind: .nil, name: "nil", location: .unknown, scope: s, identifier: nil)
+        let e = Entity(name: "nil", location: .unknown, kind: .compiletime)
         e.type = Type.unconstrNil
         s.insert(e)
 
         return s
     }()
-
-    init(parent: Scope?) {
-        self.parent = parent
-    }
 }
 
 extension Scope {
@@ -349,29 +403,13 @@ struct Checker {
     }
 
     struct Info {
-        var types:       [AstNode: Type]    = [:]
-        var definitions: [AstNode: Entity]  = [:]
-        var uses:        [AstNode: Entity]  = [:]
-        var scopes:      [AstNode: Scope]   = [:]
-        var untyped:     [AstNode: Entity]  = [:]
-        var entities:    [Entity: DeclInfo] = [:]
+//        var types:       [AstNode: Type]    = [:]
+//        var definitions: [AstNode: Entity]  = [:]
+//        var uses:        [AstNode: Entity]  = [:]
+//        var scopes:      [AstNode: Scope]   = [:]
+//        var untyped:     [AstNode: Entity]  = [:]
+        var entities: [Entity: DeclInfo] = [:]
     }
-
-    /*
-    // CheckerInfo stores all the symbol information for a type-checked program
-    typedef struct CheckerInfo {
-        MapTypeAndValue      types;           // Key: AstNode * | Expression -> Type (and value)
-        MapEntity            definitions;     // Key: AstNode * | Identifier -> Entity
-        MapEntity            uses;            // Key: AstNode * | Identifier -> Entity
-        MapScope             scopes;          // Key: AstNode * | Node       -> Scope
-        MapExprInfo          untyped;         // Key: AstNode * | Expression -> ExprInfo
-        MapDeclInfo          entities;        // Key: Entity *
-        MapEntity            foreigns;        // Key: String
-        MapAstFile           files;           // Key: String (full path)
-        MapIsize             type_info_map;   // Key: Type *
-        isize                type_info_count;
-    } CheckerInfo;
-    */
 
     struct Context {
         var scope: Scope
@@ -394,6 +432,23 @@ struct Checker {
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // MARK: Checker functions
 
 extension Checker {
@@ -404,12 +459,10 @@ extension Checker {
 
         for file in parser.files {
             let scope = Scope(parent: globalScope)
-            scope.isGlobal = true
-            scope.isFile = true
             scope.file = file
-            scope.isInit = true // TODO(vdka): Is this the first scope we parsed? (The file the compiler was called upon)
 
-            if scope.isGlobal {
+            // FIXME(vdka): Only do this if we directly import that file.
+            if scope.isFile {
                 globalScope.shared.append(scope)
             }
 
@@ -465,7 +518,7 @@ extension Checker {
                     let declInfo = DeclInfo(scope: context.scope)
                     var entity: Entity
                     if let value = value, value.isType {
-                        entity = Entity(kind: .typeName, name: name.identifier, scope: declInfo.scope, identifier: name)
+                        entity = Entity(identifier: name, kind: .compiletime)
                         declInfo.typeExpr = value
                         declInfo.initExpr = value
                     } else if let value = value, case .litProc = value {
@@ -475,17 +528,17 @@ extension Checker {
                          someProc : (int) -> void : (n: int) -> void { /* ... */ }
                          */
 
-                        entity = Entity(kind: .procedure, name: name.identifier, scope: declInfo.scope, identifier: name)
+                        entity = Entity(identifier: name, kind: .compiletime)
                         declInfo.initExpr = value
                     } else {
-                        entity = Entity(kind: .compileTime(.invalid), name: name.identifier, scope: declInfo.scope, identifier: name)
+                        entity = Entity(identifier: name, kind: .compiletime)
                         declInfo.typeExpr = type
                         declInfo.initExpr = value
                     }
 
                     declInfo.entities.append(entity)
 
-                    addEntity(to: entity.scope, identifier: name, entity)
+                    addEntity(to: declInfo.scope, entity)
                     info.entities[entity] = declInfo
                 }
                 checkArityMatch(node)
@@ -520,10 +573,6 @@ extension Checker {
 
             assert(parentScope.isFile)
 
-            guard parentScope.hasBeenImported else {
-                continue
-            }
-
             // TODO(vdka): Fail gracefully
             let scope = fileScopes[fullpath]!
 
@@ -535,27 +584,21 @@ extension Checker {
                 reportError("Multiple imports for a single file in current scope", at: imp.decl)
             }
 
-            scope.hasBeenImported = true
-
+            // import entities into current scope
             if importName?.identifier == "." {
                 // NOTE(vdka): add imported entities into this files scope.
 
                 for entity in scope.elements.values {
-                    if entity.scope === parentScope {
-                        continue
-                    }
-                    if !entity.isExported {
-                        continue
-                    }
-                    addEntity(to: scope, identifier: nil, entity)
+                    addEntity(to: scope, entity)
                 }
             } else {
-                let importName = Checker.pathToEntityName(fullpath)
-                if importName == "_" {
+                let (importName, error) = Checker.pathToEntityName(fullpath)
+                if error {
                     reportError("File name cannot be automatically assigned an identifier name, you will have to manually specify one.", at: path)
                 } else {
-                    let entity = Entity(kind: .importName, name: importName, scope: scope, identifier: path)
-                    addEntity(to: parentScope, identifier: nil, entity)
+                    let e = Entity(name: importName, location: path.startLocation, kind: .importName)
+                    e.childScope = scope
+                    addEntity(to: parentScope, e)
                 }
             }
         }
@@ -571,18 +614,14 @@ extension Checker {
 
             // of course the declaration can be in a scope that is beyond the use scope as in:
             // `tau :: 6.18; circumference :: (r: f64) -> f64 { return tau * r }`
-            if d.scope !== e.scope {
-                continue
-            }
+            // TODO(vdka): Limit the check to the first use of an entity, it's instantiation
+//            if d.scope !== e.scope {
+//                continue
+//            }
 
             setCurrentFile(d.scope.file!)
 
-            guard d.scope.hasBeenImported || d.scope.isInit else {
-                // How did we even get into a file that wasn't imported?
-                continue
-            }
-
-            if case .procedure = e.kind, e.name == "main" {
+            if case .compiletime = e.kind, e.name == "main" {
                 // TODO(vdka): Ensure we're in the initial file scope
                 // guard e.scope.isInit else { continue with error }
                 guard self.main == nil else {
@@ -605,7 +644,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func addEntity(to scope: Scope, identifier: AstNode?, _ entity: Entity) -> Bool {
+    mutating func addEntity(to scope: Scope, _ entity: Entity) -> Bool {
 
         if let conflict = scope.insert(entity) {
 
@@ -614,11 +653,6 @@ extension Checker {
 
             reportError(msg, at: entity.location)
             return false
-        }
-
-        // Set the entity for the declaring node.
-        if let identifier = identifier {
-            info.definitions[identifier] = entity
         }
 
         return true
@@ -698,8 +732,8 @@ extension Checker {
                                 unimplemented("Default procedure argument values")
                             }
 
-                            let entity = Entity(kind: Entity.Kind.runtime, name: ident.identifier, location: ident.startLocation, flags: .param, scope: scope, identifier: ident)
-                            let paramDecl = DeclInfo(scope: scope, entities: [entity], typeExpr: type, initExpr: nil)
+                            let e = Entity(identifier: ident, kind: .runtime)
+                            let paramDecl = DeclInfo(scope: scope, entities: [e], typeExpr: type, initExpr: nil)
                             let paramType = fillType(paramDecl)
                             paramTypes.append(paramType)
 
@@ -734,7 +768,7 @@ extension Checker {
                         }
                     }
 
-                    type = Type(kind: .proc(params: paramTypes, returns: returnTypes, isVariadic: false))
+                    type = Type(kind: .proc(params: paramTypes, returns: returnTypes), record: .procedure)
 
                 case .directive:
                     unimplemented("Foreign body functions")
@@ -813,7 +847,7 @@ extension Checker {
 
 extension Checker {
 
-    static func pathToEntityName(_ path: String) -> String {
+    static func pathToEntityName(_ path: String) -> (String, error: Bool) {
         precondition(!path.isEmpty)
 
         let filename = String(path.unicodeScalars
@@ -821,9 +855,9 @@ extension Checker {
             .split(separator: ".").first!)
 
         if isValidIdentifier(filename) {
-            return filename
+            return (filename, error: false)
         } else {
-            return "_"
+            return ("_", error: true)
         }
     }
 

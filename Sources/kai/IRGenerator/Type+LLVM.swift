@@ -1,5 +1,6 @@
 import LLVM
 
+#if false
 extension Type {
 
     func canonicalized() throws -> IRType {
@@ -67,3 +68,4 @@ extension Type {
         }
     }
 }
+#endif

@@ -1,6 +1,8 @@
 
 import LLVM
 
+#if false
+
 enum ExactValue: Equatable {
     case invalid
     case bool(Bool)
@@ -152,3 +154,5 @@ extension Entity {
         static let typeField = Flag(rawValue: 0b10000000)
     }
 }
+
+#endif

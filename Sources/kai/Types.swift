@@ -1,6 +1,7 @@
 
 import LLVM
 
+#if false
 /// These are the basic types within the language.
 struct BasicType {
     var kind: Kind
@@ -250,3 +251,4 @@ extension Type {
         unconstrBoolean, unconstrInteger, unconstrFloat, unconstrString, unconstrNil
     ]
 }
+#endif

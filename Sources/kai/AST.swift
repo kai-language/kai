@@ -552,7 +552,12 @@ extension AstNode {
             if let importName = importName {
                 labeled.append(("as", importName.value))
             } else if case .litString(let pathString, _) = path {
-                labeled.append(("as", Checker.pathToEntityName(pathString)))
+                let (importName, error) = Checker.pathToEntityName(pathString)
+                if error {
+                    labeled.append(("as", "<invalid>"))
+                } else {
+                    labeled.append(("as", importName))
+                }
             }
 
         case .declLibrary(let path, let libName, _):

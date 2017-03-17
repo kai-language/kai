@@ -1,6 +1,20 @@
 
 import Foundation.NSFileManager
 
+protocol PointerHashable: Hashable {}
+extension PointerHashable {
+
+    var hashValue: Int {
+        assert(MemoryLayout<Self>.size == MemoryLayout<Int>.size)
+
+        return unsafeBitCast(self, to: Int.self)
+    }
+
+    static func ==(lhs: Self, rhs: Self) -> Bool {
+        return lhs.hashValue == rhs.hashValue
+    }
+}
+
 extension FileManager {
 
     func absolutePath(for filePath: String) -> String? {
