@@ -55,8 +55,9 @@ class Type {
     }
 
     enum Kind {
-        case named(String)
-        case typeInfo
+        case named
+        case builtin
+        case metatype
         case proc(params: [Type], returns: [Type])
     }
 }
@@ -69,7 +70,7 @@ enum std {
 extension Type {
 
     var metatype: Type {
-        return Type(kind: .typeInfo, record: record)
+        return Type(kind: .metatype, record: record)
     }
 
     static let builtin: [Type] = {
@@ -113,7 +114,7 @@ extension Type {
 
             let record = TypeRecord(name: name, kind: .builtin, flags: flags, size: size, location: location)
 
-            return Type(kind: .named(name), record: record)
+            return Type(kind: .named, record: record)
         }
     }()
 
@@ -206,10 +207,9 @@ class Entity: PointerHashable {
 
     enum Kind {
         case invalid
-        case compiletime
+        case type
         case runtime
-        case builtin
-        case typeName
+        case compiletime
         case importName  //path, name: String, scope: Scope, used: Bool)
         case libraryName // (path, name: String, used: Bool)
     }
@@ -309,7 +309,7 @@ class Scope {
                 panic()
             }
 
-            let e = Entity(name: type.record.name!, location: location, kind: .compiletime)
+            let e = Entity(name: type.record.name!, location: location, kind: .type)
             e.type = type.metatype
             e.mangledName = type.record.name
             s.insert(e)
@@ -461,10 +461,7 @@ extension Checker {
             let scope = Scope(parent: globalScope)
             scope.file = file
 
-            // FIXME(vdka): Only do this if we directly import that file.
-            if scope.isFile {
-                globalScope.shared.append(scope)
-            }
+            globalScope.shared.append(scope)
 
             file.scope = scope
             fileScopes[file.fullpath] = scope
@@ -475,7 +472,8 @@ extension Checker {
 
             setCurrentFile(file)
 
-            collectEntities(file.nodes, isFileScope: true)
+            // Create entity records for things in file scopes
+            collectEntities(file.nodes)
 
             context = prevContext
         }
@@ -485,12 +483,7 @@ extension Checker {
         checkAllGlobalEntities()
     }
 
-    mutating func collectEntities(_ nodes: [AstNode], isFileScope: Bool) {
-        if isFileScope {
-            assert(context.scope.isFile)
-        } else {
-            assert(!context.scope.isFile)
-        }
+    mutating func collectEntities(_ nodes: [AstNode]) {
 
         for node in nodes {
 
@@ -502,11 +495,13 @@ extension Checker {
             }
 
             switch node {
-            case .declValue(isRuntime: let isRuntime, names: let names, type: let type, values: let values, _):
+            case .declValue(let isRuntime, let names, let type, let values, _):
                 guard !isRuntime else {
+                    // TODO(vdka): Permit
                     reportError("Runtime declarations not allowed at file scope (for now)", at: node)
                     return
                 }
+
                 for (index, name) in names.enumerated() {
                     guard name.isIdent else {
                         reportError("A declaration's name must be an identifier", at: name)
@@ -806,7 +801,7 @@ extension Checker {
             }
 
             switch entity.kind {
-            case .typeName, .builtin:
+            case .type:
                 return entity.type!
 
             default:
