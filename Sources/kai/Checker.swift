@@ -279,7 +279,7 @@ indirect enum CheckedAstNode {
     case stmtFallthrough
 }
 
-class Scope {
+class Scope: PointerHashable {
     weak var parent: Scope?
     var children: [Scope] = []
     var imported: [Scope] = []
@@ -409,6 +409,7 @@ struct Checker {
 //        var scopes:      [AstNode: Scope]   = [:]
 //        var untyped:     [AstNode: Entity]  = [:]
         var entities: [Entity: DeclInfo] = [:]
+        var decls: [Scope: [DeclInfo]] = [:]
     }
 
     struct Context {
@@ -457,11 +458,16 @@ extension Checker {
 
         var fileScopes: [String: Scope] = [:]
 
-        for file in parser.files {
-            let scope = Scope(parent: globalScope)
-            scope.file = file
+        for (index, file) in parser.files.enumerated() {
 
-            globalScope.shared.append(scope)
+            let scope = Scope(parent: globalScope)
+            scope.file = parser.files[index]
+
+            // globalScope.shared.append(scope)
+
+            if index == parser.files.startIndex {
+                scope.isMainFile = true
+            }
 
             file.scope = scope
             fileScopes[file.fullpath] = scope
@@ -480,7 +486,8 @@ extension Checker {
 
         importEntities(&fileScopes)
 
-        checkAllGlobalEntities()
+        let firstScope = fileScopes[parser.files[0].fullpath]!
+        checkEntities(in: firstScope)
     }
 
     mutating func collectEntities(_ nodes: [AstNode]) {
@@ -488,8 +495,6 @@ extension Checker {
         for node in nodes {
 
             guard node.isDecl else {
-                // NOTE(vdka): For now only declarations are valid at file scope.
-                // TODO(vdka): Report an error
                 reportError("Currently only declarations are valid at file scope", at: node)
                 continue
             }
@@ -503,17 +508,18 @@ extension Checker {
                 }
 
                 for (index, name) in names.enumerated() {
+
                     guard name.isIdent else {
                         reportError("A declaration's name must be an identifier", at: name)
                         continue
                     }
 
-                    let value = values[safe: index].map({ $0.unparenExpr() })
+                    let value = values[safe: index].map(unparenExpr)
 
                     let declInfo = DeclInfo(scope: context.scope)
                     var entity: Entity
                     if let value = value, value.isType {
-                        entity = Entity(identifier: name, kind: .compiletime)
+                        entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime)
                         declInfo.typeExpr = value
                         declInfo.initExpr = value
                     } else if let value = value, case .litProc = value {
@@ -523,10 +529,10 @@ extension Checker {
                          someProc : (int) -> void : (n: int) -> void { /* ... */ }
                          */
 
-                        entity = Entity(identifier: name, kind: .compiletime)
+                        entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime)
                         declInfo.initExpr = value
                     } else {
-                        entity = Entity(identifier: name, kind: .compiletime)
+                        entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime)
                         declInfo.typeExpr = type
                         declInfo.initExpr = value
                     }
@@ -534,6 +540,12 @@ extension Checker {
                     declInfo.entities.append(entity)
 
                     addEntity(to: declInfo.scope, entity)
+
+                    if let decls = info.decls[context.scope] {
+                        info.decls[context.scope] = decls + [declInfo]
+                    } else {
+                        info.decls[context.scope] = [declInfo]
+                    }
                     info.entities[entity] = declInfo
                 }
                 checkArityMatch(node)
@@ -556,7 +568,7 @@ extension Checker {
 
         for imp in delayedImports {
             guard case .declImport(let path, let fullpathOpt, let importName, _) = imp.decl else {
-                preconditionFailure()
+                panic()
             }
 
             guard let fullpath = fullpathOpt else {
@@ -568,7 +580,6 @@ extension Checker {
 
             assert(parentScope.isFile)
 
-            // TODO(vdka): Fail gracefully
             let scope = fileScopes[fullpath]!
 
             let previouslyAdded = parentScope.imported.contains(where: { $0 === scope })
@@ -603,28 +614,20 @@ extension Checker {
         }
     }
 
-    mutating func checkAllGlobalEntities() {
+    mutating func checkEntities(in scope: Scope) {
 
-        for (e, d) in info.entities {
+        setCurrentFile(scope.file!)
 
-            // of course the declaration can be in a scope that is beyond the use scope as in:
-            // `tau :: 6.18; circumference :: (r: f64) -> f64 { return tau * r }`
-            // TODO(vdka): Limit the check to the first use of an entity, it's instantiation
-//            if d.scope !== e.scope {
-//                continue
-//            }
+        let decls = info.decls[scope]!
 
-            setCurrentFile(d.scope.file!)
+        for d in decls {
 
-            if case .compiletime = e.kind, e.name == "main" {
-                // TODO(vdka): Ensure we're in the initial file scope
-                // guard e.scope.isInit else { continue with error }
-                guard self.main == nil else {
-                    reportError("Duplicate definition of symbol 'main'", at: e.location)
-                    continue
+            for e in d.entities {
+
+                if scope.isMainFile, case .compiletime = e.kind, e.name == "main" {
+                    // NOTE(vdka): redeclarations are already reported
+                    main = e
                 }
-
-                self.main = e
             }
 
             fillType(d)

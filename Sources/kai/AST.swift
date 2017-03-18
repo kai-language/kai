@@ -223,15 +223,6 @@ extension AstNode {
         }
     }
 
-    func unparenExpr() -> AstNode {
-        var curr = self
-        while case .exprParen(let expr, _) = curr {
-            curr = expr
-        }
-
-        return curr
-    }
-
     var identifier: String {
         if case .ident(let ident, _) = self {
             return ident
@@ -240,6 +231,15 @@ extension AstNode {
     }
 }
 
+
+func unparenExpr(_ e: AstNode) -> AstNode {
+    var curr = e
+    while case .exprParen(let expr, _) = curr {
+        curr = expr
+    }
+
+    return curr
+}
 
 /// Expands any list or decl into non list nodes into [AstNode]
 func explode(_ n: AstNode) -> [AstNode] {
