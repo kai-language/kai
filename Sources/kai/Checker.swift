@@ -699,6 +699,7 @@ extension Checker {
 
                             // Generate a dummy entity for foreign body procedures
                             let e = Entity(name: "_", location: param.startLocation, kind: .runtime, owningScope: scope)
+                            e.type = type
 
                             paramEntities.append(e)
                         }
@@ -813,7 +814,7 @@ extension Checker {
             panic()
         }
 
-        guard case .proc(let params, let results) = type.kind else {
+        guard case .proc(_, let results) = type.kind else {
             panic()
         }
 
