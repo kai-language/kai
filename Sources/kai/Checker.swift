@@ -153,41 +153,20 @@ enum ExactValue {
     case type
 }
 
-class CheckedEntity {
-    var name: String
-    var kind: Kind
-    var type: Type
-
-    var childScope: Scope?
-    var mangledName: String
-
-    init(name: String, kind: Kind, type: Type, childScope: Scope?, mangledName: String) {
-        self.name = name
-        self.kind = kind
-        self.type = type
-        self.childScope = childScope
-        self.mangledName = mangledName
-    }
-
-    enum Kind {
-        case runtime
-        case compiletime
-        case builtin
-    }
-}
-
 class Entity: PointerHashable {
     var name: String
     var location: SourceLocation
     var kind: Kind
 
+
+    // NOTE(vdka): All filled in by the checker
+
     var type: Type?
 
-    var identifier: AstNode?
+    var mangledName: String
 
     var childScope: Scope?
     var value: ExactValue?
-    var mangledName: String?
 
     init(name: String, location: SourceLocation, kind: Kind) {
         self.name = name
@@ -202,16 +181,16 @@ class Entity: PointerHashable {
         self.name = name
         self.location = location.lowerBound
         self.kind = kind
-        self.identifier = identifier
     }
 
     enum Kind {
-        case invalid
-        case type
         case runtime
         case compiletime
+        case type
+
         case importName  //path, name: String, scope: Scope, used: Bool)
         case libraryName // (path, name: String, used: Bool)
+        case invalid
     }
 
     static func declareBuiltinConstant(name: String, value: ExactValue, scope: Scope) {
@@ -235,7 +214,6 @@ class Entity: PointerHashable {
 
         let e = Entity(name: name, location: .unknown, kind: .compiletime)
         e.type = type
-        e.mangledName = name
         e.value = value
 
         scope.insert(e)
@@ -245,38 +223,6 @@ class Entity: PointerHashable {
 struct Library {
     var importPath: String
     var fullpath: String
-}
-
-indirect enum CheckedAstNode {
-
-    case invalid(AstNode)
-
-    case file(name: String, Scope)
-
-    case scope(Scope)
-    case entityUse(CheckedEntity)
-    case entityDecl(CheckedEntity)
-
-    case litInteger(Int64)
-    case litFloat(Double)
-    case litString(String)
-    case litProc(params: [CheckedEntity], type: Type, body: Scope)
-    case foreignProc(params: [CheckedEntity], type: Type, sourceLib: Library, symbolName: String)
-
-    case exprCall(receiver: CheckedAstNode, args: [CheckedAstNode])
-    case exprUnary(String, expr: CheckedAstNode)
-    case exprBinary(String, lhs: CheckedAstNode, rhs: CheckedAstNode)
-    case exprTernary(cond: CheckedAstNode, CheckedAstNode, CheckedAstNode)
-
-    case stmtAssign(String, lhs: [CheckedAstNode], rhs: [CheckedAstNode])
-
-    case stmtIf(cond: CheckedAstNode, body: CheckedAstNode, CheckedAstNode?)
-    case stmtReturn([CheckedAstNode])
-    case stmtCase(list: [CheckedAstNode], statements: Scope)
-    case stmtDefer(CheckedAstNode)
-    case stmtBreak
-    case stmtContinue
-    case stmtFallthrough
 }
 
 class Scope: PointerHashable {
@@ -311,7 +257,6 @@ class Scope: PointerHashable {
 
             let e = Entity(name: type.record.name!, location: location, kind: .type)
             e.type = type.metatype
-            e.mangledName = type.record.name
             s.insert(e)
         }
 
@@ -403,8 +348,11 @@ struct Checker {
     }
 
     struct Info {
+        // FIXME(vdka): This makes little sense.
+        //   `definitions` should be ref's to `DeclInfo` where, `entities` should be [AstNode: Entity] 
+        
+        var definitions: [AstNode: Entity]  = [:]
 //        var types:       [AstNode: Type]    = [:]
-//        var definitions: [AstNode: Entity]  = [:]
 //        var uses:        [AstNode: Entity]  = [:]
 //        var scopes:      [AstNode: Scope]   = [:]
 //        var untyped:     [AstNode: Entity]  = [:]
@@ -547,6 +495,7 @@ extension Checker {
                         info.decls[context.scope] = [declInfo]
                     }
                     info.entities[entity] = declInfo
+                    info.definitions[name] = entity
                 }
                 checkArityMatch(node)
 
