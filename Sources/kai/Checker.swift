@@ -814,7 +814,7 @@ extension Checker {
             panic()
         }
 
-        guard case .proc(_, let results) = type.kind else {
+        guard case .proc(let params, let results) = type.kind else {
             panic()
         }
 
@@ -825,6 +825,10 @@ extension Checker {
         let prevContext = context
         let s = Scope(parent: decl.scope)
         context.scope = s
+
+        for entity in params {
+            addEntity(to: s, entity)
+        }
 
         pushProc(type)
 
