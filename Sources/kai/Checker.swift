@@ -747,6 +747,9 @@ extension Checker {
                 return Type.invalid
             }
 
+        case (let typeExpr?, nil):
+            type = lookupType(typeExpr)
+
         default:
             // FIXME(vdka): Why is this a print not anything else?
             print("failed filling declinfo \(d)")
