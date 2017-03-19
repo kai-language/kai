@@ -213,6 +213,34 @@ extension AstNode {
         }
     }
 
+    var isExpr: Bool {
+        switch self {
+        case .exprParen,
+             .exprUnary, .exprBinary, .exprTernary,
+             .exprCall,
+             .exprSelector:
+
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    var isStmt: Bool {
+        switch self {
+        case .stmtBlock, .stmtEmpty, .stmtAssign,
+             .stmtIf,
+             .stmtFor,
+             .stmtReturn, .stmtDefer,
+             .stmtCase, .stmtBreak, .stmtContinue, .stmtFallthrough:
+            return true
+
+        default:
+            return false
+        }
+    }
+
     var isDecl: Bool {
         switch self {
         case .declValue, .declImport, .declLibrary:

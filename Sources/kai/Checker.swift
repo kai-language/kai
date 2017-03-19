@@ -93,9 +93,8 @@ extension Type {
             ("f32", 4, 0, .float),
             ("f64", 8, 0, .float),
 
-             // TODO(vdka): Get platform native size. `MemoryLayout<Int>.size`??
-            // ("int", 0, 0),
-            // ("uint", 0, 0),
+            ("int", UInt(MemoryLayout<Int>.size), 0, [.integer]),
+            ("uint", UInt(MemoryLayout<Int>.size), 0, [.integer, .unsigned]),
 
             // FIXME(vdka): Currently strings are just pointers hence length 8 (will remain?)
             ("string", 8, 0, .string),
@@ -157,30 +156,32 @@ class Entity: PointerHashable {
     var name: String
     var location: SourceLocation
     var kind: Kind
-
+    unowned var owningScope: Scope
 
     // NOTE(vdka): All filled in by the checker
 
     var type: Type?
 
-    var mangledName: String
+    var mangledName: String?
 
     var childScope: Scope?
     var value: ExactValue?
 
-    init(name: String, location: SourceLocation, kind: Kind) {
+    init(name: String, location: SourceLocation, kind: Kind, owningScope: Scope) {
         self.name = name
         self.location = location
         self.kind = kind
+        self.owningScope = owningScope
     }
 
-    init(identifier: AstNode, kind: Kind) {
+    init(identifier: AstNode, kind: Kind, owningScope: Scope) {
         guard case .ident(let name, let location) = identifier else {
             panic()
         }
         self.name = name
         self.location = location.lowerBound
         self.kind = kind
+        self.owningScope = owningScope
     }
 
     enum Kind {
@@ -212,7 +213,7 @@ class Entity: PointerHashable {
             type = .unconstrString
         }
 
-        let e = Entity(name: name, location: .unknown, kind: .compiletime)
+        let e = Entity(name: name, location: .unknown, kind: .compiletime, owningScope: scope)
         e.type = type
         e.value = value
 
@@ -255,7 +256,7 @@ class Scope: PointerHashable {
                 panic()
             }
 
-            let e = Entity(name: type.record.name!, location: location, kind: .type)
+            let e = Entity(name: type.record.name!, location: location, kind: .type, owningScope: s)
             e.type = type.metatype
             s.insert(e)
         }
@@ -263,7 +264,7 @@ class Scope: PointerHashable {
         Entity.declareBuiltinConstant(name: "true", value: .bool(true), scope: s)
         Entity.declareBuiltinConstant(name: "false", value: .bool(true), scope: s)
 
-        let e = Entity(name: "nil", location: .unknown, kind: .compiletime)
+        let e = Entity(name: "nil", location: .unknown, kind: .compiletime, owningScope: s)
         e.type = Type.unconstrNil
         s.insert(e)
 
@@ -290,7 +291,7 @@ extension Scope {
     }
 }
 
-class DeclInfo {
+class DeclInfo: PointerHashable {
 
     unowned var scope: Scope
 
@@ -348,40 +349,26 @@ struct Checker {
     }
 
     struct Info {
-        // FIXME(vdka): This makes little sense.
-        //   `definitions` should be ref's to `DeclInfo` where, `entities` should be [AstNode: Entity] 
-        
-        var definitions: [AstNode: Entity]  = [:]
-//        var types:       [AstNode: Type]    = [:]
-//        var uses:        [AstNode: Entity]  = [:]
-//        var scopes:      [AstNode: Scope]   = [:]
-//        var untyped:     [AstNode: Entity]  = [:]
-        var entities: [Entity: DeclInfo] = [:]
-        var decls: [Scope: [DeclInfo]] = [:]
+        var entities:    [Entity: DeclInfo] = [:]
+        var types:       [AstNode: Type]    = [:] // Key: AstNode.expr*
+        var definitions: [AstNode: Entity]  = [:] // Key: AstNode.ident
+        var uses:        [AstNode: Entity]  = [:] // Key: AstNode.ident
+        var scopes:      [AstNode: Scope]   = [:] // Key: Any AstNode
     }
 
     struct Context {
         var scope: Scope
         var fileScope: Scope? = nil
-        var decl: DeclInfo?   = nil
         var inDefer: Bool     = false
-        var procName: String? = nil
-        var typeHint: Type?   = nil
 
         init(scope: Scope) {
             self.scope = scope
 
             fileScope = nil
-            decl      = nil
             inDefer   = false
-            procName  = nil
-            typeHint  = nil
         }
     }
 }
-
-
-
 
 
 
@@ -467,7 +454,7 @@ extension Checker {
                     let declInfo = DeclInfo(scope: context.scope)
                     var entity: Entity
                     if let value = value, value.isType {
-                        entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime)
+                        entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime, owningScope: context.scope)
                         declInfo.typeExpr = value
                         declInfo.initExpr = value
                     } else if let value = value, case .litProc = value {
@@ -477,10 +464,10 @@ extension Checker {
                          someProc : (int) -> void : (n: int) -> void { /* ... */ }
                          */
 
-                        entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime)
+                        entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime, owningScope: context.scope)
                         declInfo.initExpr = value
                     } else {
-                        entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime)
+                        entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime, owningScope: context.scope)
                         declInfo.typeExpr = type
                         declInfo.initExpr = value
                     }
@@ -489,11 +476,7 @@ extension Checker {
 
                     addEntity(to: declInfo.scope, entity)
 
-                    if let decls = info.decls[context.scope] {
-                        info.decls[context.scope] = decls + [declInfo]
-                    } else {
-                        info.decls[context.scope] = [declInfo]
-                    }
+                    // TODO(vdka): Check entities are not used in their own intialization.
                     info.entities[entity] = declInfo
                     info.definitions[name] = entity
                 }
@@ -551,7 +534,7 @@ extension Checker {
                 if error {
                     reportError("File name cannot be automatically assigned an identifier name, you will have to manually specify one.", at: path)
                 } else {
-                    let e = Entity(name: importName, location: path.startLocation, kind: .importName)
+                    let e = Entity(name: importName, location: path.startLocation, kind: .importName, owningScope: scope)
                     e.childScope = scope
                     addEntity(to: parentScope, e)
                 }
@@ -567,25 +550,22 @@ extension Checker {
 
         setCurrentFile(scope.file!)
 
-        let decls = info.decls[scope]!
-
-        for d in decls {
-
-            for e in d.entities {
-
-                if scope.isMainFile, case .compiletime = e.kind, e.name == "main" {
-                    // NOTE(vdka): redeclarations are already reported
-                    main = e
-                }
+        for entity in scope.elements.values {
+            guard let decl = info.entities[entity] else {
+                panic()
             }
 
-            fillType(d)
+            // TODO(vdka): Should this be global
+            if scope.isMainFile, entity.name == "main" {
+                main = entity
+            }
+
+            fillType(decl)
         }
     }
 
     mutating func setCurrentFile(_ file: ASTFile) {
         self.currentFile = file
-        self.context.decl = file.declInfo
         self.context.scope = file.scope!
         self.context.fileScope = file.scope!
     }
@@ -679,7 +659,7 @@ extension Checker {
                                 unimplemented("Default procedure argument values")
                             }
 
-                            let e = Entity(identifier: ident, kind: .runtime)
+                            let e = Entity(identifier: ident, kind: .runtime, owningScope: scope)
                             let paramDecl = DeclInfo(scope: scope, entities: [e], typeExpr: type, initExpr: nil)
                             let paramType = fillType(paramDecl)
                             paramTypes.append(paramType)
@@ -791,6 +771,30 @@ extension Checker {
         }
     }
 }
+
+
+// MARK: Checker helpers
+
+extension Checker {
+
+
+    mutating func openScope(_ node: AstNode) {
+        assert(node.isType || node.isStmt)
+        let scope = Scope(parent: context.scope)
+        info.scopes[node] = scope
+        if case .typeProc = node {
+            scope.isProc = true
+        }
+        context.scope = scope
+    }
+
+    mutating func closeScope() {
+        context.scope = context.scope.parent!
+    }
+}
+
+
+// MARK: Universal helpers
 
 extension Checker {
 
