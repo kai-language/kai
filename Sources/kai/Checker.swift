@@ -58,7 +58,7 @@ class Type {
         case named
         case builtin
         case metatype
-        case proc(params: [Type], returns: [Type])
+        case proc(params: [Entity], returns: [Type])
     }
 }
 
@@ -291,6 +291,12 @@ extension Scope {
     }
 }
 
+struct ProcInfo {
+    var decl: DeclInfo
+    var type: Type
+    var node: AstNode // AstNode.litProc
+}
+
 class DeclInfo: PointerHashable {
 
     unowned var scope: Scope
@@ -321,6 +327,20 @@ struct Checker {
     var globalScope: Scope
     var context: Context
 
+    /*
+     // ProcedureInfo stores the information needed for checking a procedure
+     typedef struct ProcedureInfo {
+         AstFile * file;
+         Token     token;
+         DeclInfo *decl;
+         Type *    type; // Type_Procedure
+         AstNode * body; // AstNode_BlockStmt
+         u32       tags;
+     } ProcedureInfo;
+
+    */
+
+    var procs: [ProcInfo] = []
     var procStack: [Type] = []
 
     var delayedImports:  [DelayedDecl] = []
@@ -423,24 +443,27 @@ extension Checker {
 
         let firstScope = fileScopes[parser.files[0].fullpath]!
         checkEntities(in: firstScope)
+
+        for pi in procs {
+            let prevContext = context
+
+            checkProcBody(pi.decl, pi.type, pi.node)
+
+            context = prevContext
+        }
     }
 
     mutating func collectEntities(_ nodes: [AstNode]) {
 
         for node in nodes {
 
-            guard node.isDecl else {
+            if context.scope.isFile, !node.isDecl {
                 reportError("Currently only declarations are valid at file scope", at: node)
                 continue
             }
 
             switch node {
             case .declValue(let isRuntime, let names, let type, let values, _):
-                guard !isRuntime else {
-                    // TODO(vdka): Permit
-                    reportError("Runtime declarations not allowed at file scope (for now)", at: node)
-                    return
-                }
 
                 for (index, name) in names.enumerated() {
 
@@ -491,7 +514,9 @@ extension Checker {
                 delayedImports.append(decl)
 
             default:
-                fatalError()
+                // The node doesn't declare anything
+                assert(!context.scope.isFile)
+                break
             }
         }
     }
@@ -547,8 +572,6 @@ extension Checker {
     }
 
     mutating func checkEntities(in scope: Scope) {
-
-        setCurrentFile(scope.file!)
 
         for entity in scope.elements.values {
             guard let decl = info.entities[entity] else {
@@ -631,8 +654,8 @@ extension Checker {
                     panic()
                 }
 
-                var paramTypes:  [Type] = []
-                var returnTypes: [Type] = []
+                var paramEntities: [Entity] = []
+                var returnTypes:   [Type]   = []
 
                 switch body {
                 case .stmtBlock:
@@ -661,12 +684,23 @@ extension Checker {
 
                             let e = Entity(identifier: ident, kind: .runtime, owningScope: scope)
                             let paramDecl = DeclInfo(scope: scope, entities: [e], typeExpr: type, initExpr: nil)
-                            let paramType = fillType(paramDecl)
-                            paramTypes.append(paramType)
+
+                            fillType(paramDecl)
+
+                            paramEntities.append(e)
+
+                            info.definitions[ident] = e
+                            info.entities[e] = paramDecl
 
                         default:
-                            let paramType = lookupType(param)
-                            paramTypes.append(paramType)
+                            // TODO(vdka): Validate that the procedure has a foreign body if arg names are omitted.
+
+                            let type = lookupType(param)
+
+                            // Generate a dummy entity for foreign body procedures
+                            let e = Entity(name: "_", location: param.startLocation, kind: .runtime, owningScope: scope)
+
+                            paramEntities.append(e)
                         }
                     }
 
@@ -695,7 +729,10 @@ extension Checker {
                         }
                     }
 
-                    type = Type(kind: .proc(params: paramTypes, returns: returnTypes), record: .procedure)
+                    type = Type(kind: .proc(params: paramEntities, returns: returnTypes), record: .procedure)
+
+                    let procInfo = ProcInfo(decl: d, type: type, node: initExpr)
+                    procs.append(procInfo)
 
                 case .directive:
                     unimplemented("Foreign body functions")
@@ -770,6 +807,43 @@ extension Checker {
             return Type.invalid
         }
     }
+
+    mutating func checkProcBody(_ decl: DeclInfo, _ type: Type, _ lit: AstNode) {
+        guard case .litProc(_, let body, _) = lit else {
+            panic()
+        }
+
+        guard case .proc(let params, let results) = type.kind else {
+            panic()
+        }
+
+        guard case .stmtBlock(let stmts, _) = body else {
+            fatalError() // TODO(vdka): Report error
+        }
+
+        let prevContext = context
+        let s = Scope(parent: decl.scope)
+        context.scope = s
+
+        pushProc(type)
+
+        collectEntities(stmts)
+        checkEntities(in: s)
+        switch (results.count, results.first) {
+        case (1, let type?) where type !== Type.void: // no return stmt needed
+            break
+
+        default: // Requires return stmt
+            // FIXME(vdka): Be smarter. There are way more cases.
+            if !(stmts.last?.isTerminating ?? false) {
+                reportError("Missing return at end of procedure", at: body.endLocation)
+            }
+        }
+
+        popProc()
+
+        context = prevContext
+    }
 }
 
 
@@ -777,6 +851,13 @@ extension Checker {
 
 extension Checker {
 
+    mutating func pushProc(_ type: Type) {
+        procStack.append(type)
+    }
+
+    mutating func popProc() {
+        procStack.removeLast()
+    }
 
     mutating func openScope(_ node: AstNode) {
         assert(node.isType || node.isStmt)

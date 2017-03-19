@@ -6,6 +6,7 @@ str :: "Hello, Kai!"
 //}
 
 main :: () -> void {
-    print(str)
+    x := 5
+    //print(str)
     //j := circumference(1)
 }

@@ -251,6 +251,19 @@ extension AstNode {
         }
     }
 
+    var isTerminating: Bool {
+
+        switch self {
+        case .stmtReturn:
+            return true
+
+        // TODO(vdka): Other things can be terminating (if stmt logic ...)
+
+        default:
+            return false
+        }
+    }
+
     var identifier: String {
         if case .ident(let ident, _) = self {
             return ident
