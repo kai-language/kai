@@ -262,7 +262,7 @@ class Scope: PointerHashable {
         }
 
         Entity.declareBuiltinConstant(name: "true", value: .bool(true), scope: s)
-        Entity.declareBuiltinConstant(name: "false", value: .bool(true), scope: s)
+        Entity.declareBuiltinConstant(name: "false", value: .bool(false), scope: s)
 
         let e = Entity(name: "nil", location: .unknown, kind: .compiletime, owningScope: s)
         e.type = Type.unconstrNil
