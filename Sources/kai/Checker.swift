@@ -30,7 +30,7 @@ class TypeRecord {
 
         static let boolean        = Flag(rawValue: 0b00000001)
         static let integer        = Flag(rawValue: 0b00000010)
-        static let unsigned       = Flag(rawValue: 0b00000100)
+        static let unsigned       = Flag(rawValue: 0b00000110)
         static let float          = Flag(rawValue: 0b00001000)
         static let pointer        = Flag(rawValue: 0b00010000)
         static let string         = Flag(rawValue: 0b00100000)
@@ -291,10 +291,18 @@ extension Scope {
     }
 }
 
-struct ProcInfo {
-    var decl: DeclInfo
+class ProcInfo {
+    unowned var owningScope: Scope
+    var decl: DeclInfo?
     var type: Type
     var node: AstNode // AstNode.litProc
+
+    init(owningScope: Scope, decl: DeclInfo?, type: Type, node: AstNode) {
+        self.owningScope = owningScope
+        self.decl = decl
+        self.type = type
+        self.node = node
+    }
 }
 
 class DeclInfo: PointerHashable {
@@ -447,7 +455,7 @@ extension Checker {
         for pi in procs {
             let prevContext = context
 
-            checkProcBody(pi.decl, pi.type, pi.node)
+            checkProcBody(pi)
 
             context = prevContext
         }
@@ -633,131 +641,148 @@ extension Checker {
 
 extension Checker {
 
+    /// - Warning: You must queue the procedure to have it's body checked later.
+    /// - Returns: The type for the procedure
+    mutating func checkProcLitType(_ node: AstNode) -> Type {
+        guard case .litProc(let typeNode, _, _) = node else {
+            panic()
+        }
+
+        guard case .typeProc(let params, let results, _) = typeNode else {
+            panic()
+        }
+
+
+        var paramEntities: [Entity] = []
+        var returnTypes:   [Type]   = []
+
+        // NOTE(vdka): Ensure that this is the scope used when checking the body of the procedure later
+        let scope = Scope(parent: context.scope)
+        for param in params {
+            switch param {
+            case .declValue(_, let names, let type, let values, _):
+
+                assert(names.count == 1, "Parser should explode parameters so each decl has exactly 1 value")
+                assert(type != nil)
+
+                guard let ident = names.first, let type = type else {
+                    panic()
+                }
+                if !values.isEmpty {
+                    unimplemented("Default procedure argument values")
+                }
+
+
+                let e = Entity(identifier: ident, kind: .runtime, owningScope: scope)
+                let paramDecl = DeclInfo(scope: scope, entities: [e], typeExpr: type, initExpr: nil)
+
+                fillType(paramDecl)
+
+                paramEntities.append(e)
+
+                info.definitions[ident] = e
+                info.entities[e] = paramDecl
+
+            default:
+                // TODO(vdka): Validate that the procedure has a foreign body if arg names are omitted.
+
+                let type = lookupType(param)
+
+                let e = Entity(name: "_", location: param.startLocation, kind: .runtime, owningScope: scope)
+                e.type = type
+
+                paramEntities.append(e)
+            }
+        }
+
+        for result in results {
+            switch result {
+            case .declValue(_, let names, let type, let values, _):
+                // NOTE(vdka): In the results, we don't care about the identifier name. Just the type.
+
+                assert(names.count == 1, "Parser should explode results so each decl has exactly 1 value")
+                assert(type != nil)
+
+                guard let type = type else {
+                    panic()
+                }
+                if !values.isEmpty {
+                    unimplemented("Default procedure argument values")
+                }
+
+                let returnType = lookupType(type)
+                returnTypes.append(returnType)
+
+            default:
+                // If it is not a `declValue` it *must* be a type
+                let returnType = lookupType(result)
+                returnTypes.append(returnType)
+            }
+        }
+
+        let type = Type(kind: .proc(params: paramEntities, returns: returnTypes), record: .procedure)
+
+        return type
+    }
+
+    func canImplicitlyConvert(_ a: Type, to b: Type) -> Bool {
+        if a === b {
+            return true
+        }
+        if a.record.flags.contains(.unconstrained) {
+
+            if a.record.flags.contains(.float), b.record.flags.contains(.float) || b.record.flags.contains(.integer) {
+                // `x: f32 = integerValue` | `y: f32 = floatValue`
+                return true
+            }
+            if a.record.flags.contains(.integer), b.record.flags.contains(.integer) {
+                return true
+            }
+            if a.record.flags.contains(.unsigned), b.record.flags.contains(.unsigned) {
+                return true
+            }
+
+            return false
+        }
+        return false
+    }
+
     @discardableResult
     mutating func fillType(_ d: DeclInfo) -> Type {
 
-        var type: Type
-        switch (d.typeExpr, d.initExpr) {
-        case (nil, let initExpr?):
-            switch initExpr {
-            case .litInteger:
-                type = .unconstrInteger
+        var type = Type.invalid
+        var mismatch = false
+        let explicitType = d.typeExpr.map(lookupType) // TODO(vdka): Check if the type is invalid; if so then we don't need to check the rvalue
+        if let rvalueType = d.initExpr.map({ checkExpr($0) }), explicitType !== Type.invalid {
 
-            case .litFloat:
-                type = .unconstrFloat
+            if let explicitType = explicitType {
 
-            case .litString:
-                type = .unconstrString
-
-            case .litProc(let typeExpr, let body, _):
-                guard case .typeProc(let params, let results, _) = typeExpr else {
-                    panic()
+                if !canImplicitlyConvert(rvalueType, to: explicitType) {
+                    reportError("Cannot implicitly convert type '\(rvalueType.record.name)' to type '\(explicitType.record.name)'", at: d.typeExpr!)
+                    mismatch = true
                 }
 
-                var paramEntities: [Entity] = []
-                var returnTypes:   [Type]   = []
+                type = explicitType
+            } else {
 
-                switch body {
-                case .stmtBlock:
-                    let scope = Scope(parent: context.scope)
-
-                    /*
-                     Fill types for each parameter
-                     There are only 3 valid cases:
-                        - `(int, int) -> void` has no declValues (only types) FIXME(vdka): Could (should)? make this illegal
-                        - `(x: int, y: int) -> void` has decl values
-                        - `(x: int, y: int) -> (x: int, y: int)` would also be valid, however for results we only care about the types
-                    */
-                    for param in params {
-                        switch param {
-                        case .declValue(_, let names, let type, let values, _):
-
-                            assert(names.count == 1, "Parser should explode parameters so each decl has exactly 1 value")
-                            assert(type != nil)
-
-                            guard let ident = names.first, let type = type else {
-                                panic()
-                            }
-                            if !values.isEmpty {
-                                unimplemented("Default procedure argument values")
-                            }
-
-                            let e = Entity(identifier: ident, kind: .runtime, owningScope: scope)
-                            let paramDecl = DeclInfo(scope: scope, entities: [e], typeExpr: type, initExpr: nil)
-
-                            fillType(paramDecl)
-
-                            paramEntities.append(e)
-
-                            info.definitions[ident] = e
-                            info.entities[e] = paramDecl
-
-                        default:
-                            // TODO(vdka): Validate that the procedure has a foreign body if arg names are omitted.
-
-                            let type = lookupType(param)
-
-                            // Generate a dummy entity for foreign body procedures
-                            let e = Entity(name: "_", location: param.startLocation, kind: .runtime, owningScope: scope)
-                            e.type = type
-
-                            paramEntities.append(e)
-                        }
-                    }
-
-                    for result in results {
-                        switch result {
-                        case .declValue(_, let names, let type, let values, _):
-                            // NOTE(vdka): In the results, we don't care about the identifier name. Just the type.
-
-                            assert(names.count == 1, "Parser should explode results so each decl has exactly 1 value")
-                            assert(type != nil)
-
-                            guard let type = type else {
-                                panic()
-                            }
-                            if !values.isEmpty {
-                                unimplemented("Default procedure argument values")
-                            }
-
-                            let returnType = lookupType(type)
-                            returnTypes.append(returnType)
-
-                        default:
-                            // If it is not a `declValue` it *must* be a type
-                            let returnType = lookupType(result)
-                            returnTypes.append(returnType)
-                        }
-                    }
-
-                    type = Type(kind: .proc(params: paramEntities, returns: returnTypes), record: .procedure)
-
-                    let procInfo = ProcInfo(decl: d, type: type, node: initExpr)
-                    procs.append(procInfo)
-
-                case .directive:
-                    unimplemented("Foreign body functions")
-
-                default:
-                    panic()
-                }
-
-            default:
-                reportError("Type cannot be inferred from \(initExpr)", at: initExpr)
-                return Type.invalid
+                type = rvalueType
             }
+        } else {
 
-        case (let typeExpr?, nil):
-            type = lookupType(typeExpr)
+            type = explicitType!
+        }
 
-        default:
-            // FIXME(vdka): Why is this a print not anything else?
-            print("failed filling declinfo \(d)")
-            return Type.invalid
+        if mismatch {
+            type = Type.invalid
         }
 
         for e in d.entities {
             e.type = type
+        }
+
+        /// Provide the procInfo that *must* have been created with the decl it was created as part of
+        if case .litProc(_, let body, _)? = d.initExpr, body.isStmt {
+            procs.last!.decl = d
         }
 
         return type
@@ -770,7 +795,7 @@ extension Checker {
 
             guard let entity = context.scope.lookup(ident) else {
                 reportError("Undeclared entity '\(ident)'", at: n)
-              return Type.invalid
+                return Type.invalid
             }
 
             switch entity.kind {
@@ -812,28 +837,32 @@ extension Checker {
         }
     }
 
-    mutating func checkProcBody(_ decl: DeclInfo, _ type: Type, _ lit: AstNode) {
-        guard case .litProc(_, let body, _) = lit else {
+    mutating func checkProcBody(_ pi: ProcInfo) {
+        guard case .litProc(_, let body, _) = pi.node else {
             panic()
         }
 
-        guard case .proc(let params, let results) = type.kind else {
+        guard case .proc(let params, let results) = pi.type.kind else {
             panic()
         }
+
+        openScope(body)
+        defer { closeScope() }
 
         guard case .stmtBlock(let stmts, _) = body else {
             fatalError() // TODO(vdka): Report error
         }
 
         let prevContext = context
-        let s = Scope(parent: decl.scope)
+        let s = Scope(parent: pi.owningScope)
         context.scope = s
 
         for entity in params {
             addEntity(to: s, entity)
         }
 
-        pushProc(type)
+        pushProc(pi.type)
+        defer { popProc() }
 
         collectEntities(stmts)
         checkEntities(in: s)
@@ -848,9 +877,44 @@ extension Checker {
             }
         }
 
-        popProc()
-
         context = prevContext
+    }
+
+    @discardableResult
+    mutating func checkExpr(_ node: AstNode) -> Type {
+
+        switch node {
+        case .litInteger:
+            return Type.unconstrInteger
+
+        case .litFloat:
+            return Type.unconstrFloat
+
+        case .litString:
+            return Type.unconstrString
+
+        case .ident:
+            let t = lookupType(node)
+            return t
+
+        case .directive("file", let args, _):
+            assert(args.isEmpty)
+            return Type.unconstrString
+
+        case .directive("line", let args, _):
+            assert(args.isEmpty)
+            return Type.unconstrInteger
+
+        case .litProc(_, let body, _):
+            let type = checkProcLitType(node)
+            if case .stmtBlock = body {
+                queueCheckProc(node, type: type, decl: nil) // no decl as this is an anon proc
+            }
+            return type
+
+        default:
+            panic(node)
+        }
     }
 }
 
@@ -858,6 +922,11 @@ extension Checker {
 // MARK: Checker helpers
 
 extension Checker {
+
+    mutating func queueCheckProc(_ litProcNode: AstNode, type: Type, decl: DeclInfo?) {
+        let procInfo = ProcInfo(owningScope: context.scope, decl: decl, type: type, node: litProcNode)
+        procs.append(procInfo)
+    }
 
     mutating func pushProc(_ type: Type) {
         procStack.append(type)
