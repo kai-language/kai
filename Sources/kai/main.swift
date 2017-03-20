@@ -166,9 +166,12 @@ struct Compiler {
         endTiming()
 
         if options.contains("emit-time") {
+            var total = 0.0
             for timing in timings {
+                total += timing.duration
                 print("\(timing.name) took \(String(format: "%.3f", timing.duration)) seconds")
             }
+            print("Total time was \(String(format: "%.3f", total)) seconds")
         }
     }
 
