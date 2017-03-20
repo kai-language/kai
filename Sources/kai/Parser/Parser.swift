@@ -110,6 +110,9 @@ extension Parser {
         case .comma:
             return 180
 
+        case .keyword(.returnArrow):
+            return 200 // TODO(vdka): Work out actual value.
+
         default:
             return 0
         }
@@ -148,11 +151,20 @@ extension Parser {
             defer { state = prevState }
             state.remove(.disallowComma)
 
-            let (_, lLocation) = try consume(.lparen)
-            let expr = try expression()
-            let (_, rLocation) = try consume(.rparen)
+            let (_, lparen) = try consume(.lparen)
 
-            return AstNode.exprParen(expr, lLocation ..< rLocation)
+            switch try lexer.peek()?.kind {
+            case .rparen?:
+                let (_, rparen) = try consume()
+                let empty = AstNode.stmtEmpty(lparen ..< rparen)
+                return AstNode.exprParen(empty, lparen ..< rparen)
+
+            default:
+                let expr = try expression()
+                let (_, rparen) = try consume(.rparen)
+
+                return AstNode.exprParen(expr, lparen ..< rparen)
+            }
 
         case .keyword(.if):
             let (_, startLocation) = try consume(.keyword(.if))
@@ -269,6 +281,11 @@ extension Parser {
 
             return node
 
+        case .keyword(.struct),
+             .keyword(.enum):
+
+            unimplemented("parsing struct and enum type declarations")
+
         default:
             panic(lexer)
         }
@@ -327,89 +344,11 @@ extension Parser {
             case .colon?: // type infered compiletime decl
                 try consume(.colon)
 
-                guard let (token, _) = try lexer.peek() else {
-                    reportError("Expected an initial value for type infered declaration", at: lvalue)
-                    return AstNode.invalid(lvalue.location)
-                }
+                // FIXME(vdka): I expect we would crash when we call expression here at end of file
 
-                switch token {
-                case .keyword(.struct),
-                     .keyword(.enum):
+                let rvalue = try expression()
 
-                    unimplemented("parsing struct and enum type declarations")
-
-                case .lparen: // litProc or a exprParen `x :: () -> void` | `(5)`
-                    let (_, lparen) = try consume()
-
-                    // Q(vdka): Do we want to outlaw `()` in favor of always requiring a type within `(void)`? Is that just being authoritarian?
-                    if case .rparen? = try lexer.peek()?.kind { // `some :: () -> void` no arg procedures
-                        try consume(.rparen)
-
-                        try consume(.keyword(.returnArrow))
-                        let resultType = try parseType()
-                        let type = AstNode.typeProc(params: [], results: explode(resultType), lparen ..< resultType.endLocation)
-
-                        let body = try expression()
-
-                        let litProc = AstNode.litProc(type: type, body: body, type.startLocation ..< body.endLocation)
-                        return AstNode.declValue(isRuntime: false, names: [lvalue], type: nil, values: [litProc], lvalue.startLocation ..< litProc.endLocation)
-                    }
-
-//                    let prevState = state
-//                    state.insert(.disallowComma)
-
-                    let expr = try expression()
-//                    state = prevState
-
-                    if case .comma? = try lexer.peek()?.kind { // `(x: f32, `
-                        guard case .declValue = expr else {
-                            panic("Shouldn't happen") // syntax error? `x :: (x, y) // no tuples`
-                        }
-
-                        var args: [AstNode] = [expr]
-
-                        while case .comma? = try lexer.peek()?.kind {
-                            try consume(.comma)
-
-                            let arg = try expression()
-                            args.append(arg)
-                        }
-
-                        try consume(.rparen)
-
-                        try consume(.keyword(.returnArrow))
-                        let resultType = try parseType()
-                        let type = AstNode.typeProc(params: args, results: explode(resultType), lparen ..< resultType.endLocation)
-
-                        let body = try expression()
-
-                        let litProc = AstNode.litProc(type: type, body: body, range(from: type, toEndOf: body))
-                        return AstNode.declValue(isRuntime: false, names: [lvalue], type: nil, values: [litProc], lvalue.startLocation ..< litProc.endLocation)
-                    }
-
-                    let (_, rparen) = try consume(.rparen)
-
-                    if case .keyword(.returnArrow)? = try lexer.peek()?.kind {
-
-                        try consume(.keyword(.returnArrow)) // .returnArrow
-
-                        let resultType = try parseType()
-                        let type = AstNode.typeProc(params: explode(expr), results: explode(resultType), lparen ..< resultType.endLocation)
-
-                        let body = try expression() // TODO(vdka): If this fails it should error with a message about assigning values to proc types
-
-
-                        let litProc = AstNode.litProc(type: type, body: body, range(from: type, toEndOf: body))
-                        return AstNode.declValue(isRuntime: false, names: [lvalue], type: nil, values: [litProc], lvalue.startLocation ..< litProc.endLocation)
-                    }
-
-                    return AstNode.exprParen(expr, lparen ..< rparen)
-
-                default:
-                    let rvalue = try expression()
-                    return AstNode.declValue(isRuntime: false, names: explode(lvalue), type: nil, values: explode(rvalue), lvalue.startLocation ..< lexer.location)
-                }
-
+                return AstNode.declValue(isRuntime: false, names: explode(lvalue), type: nil, values: explode(rvalue), lvalue.startLocation ..< rvalue.endLocation)
 
             case .equals?: // type infered runtime decl
                 try consume(.equals)
@@ -435,8 +374,28 @@ extension Parser {
                 }
             }
 
+        // TODO(vdka): Make compile time decl's use this instead of the current special logic.
+        case .keyword(.returnArrow):
+            try consume()
+            guard case .exprParen = lvalue else {
+                reportError("Parameter lists must be surrounded by parenthesis", at: lvalue)
+                return AstNode.invalid(lvalue.location)
+            }
+            let lvalue = unparenExpr(lvalue)
+
+            let results = try parseType()
+            let type = AstNode.typeProc(params: explode(lvalue), results: explode(results), lvalue.startLocation ..< results.endLocation)
+            guard case .lbrace? = try lexer.peek()?.kind else {
+                reportError("Procedure types cannot be used as values", at: type)
+                return AstNode.invalid(type.location)
+            }
+
+            let body = try expression()
+
+            return AstNode.litProc(type: type, body: body, type.startLocation ..< body.endLocation)
+
         default:
-            unimplemented()
+            panic()
         }
     }
 

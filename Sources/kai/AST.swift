@@ -286,6 +286,9 @@ func unparenExpr(_ e: AstNode) -> AstNode {
 func explode(_ n: AstNode) -> [AstNode] {
 
     switch n {
+    case .stmtEmpty:
+        return []
+
     case .list(let vals, _):
         return vals
 

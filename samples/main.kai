@@ -7,6 +7,7 @@ circumference :: (r: f64) -> f64 {
 
 main :: () -> void {
     x := 5
+    square := (n: int) -> int { return n * n }
     //print(str)
     //j := circumference(1)
 }
