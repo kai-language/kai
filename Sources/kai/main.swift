@@ -44,12 +44,13 @@ struct Compiler {
             case "--emit-ir":
                 options.insert("emit-ir")
 
+            case "--emit-time":
+                options.insert("emit-time")
+
             case "--emit-all":
                 options.insert("emit-ast")
                 options.insert("emit-ir")
-
-            case "--time", "-t":
-                options.insert("time")
+                options.insert("emit-time")
 
             case "-O0", "--O0", "--Onone":
                 optimizations.append("O0")
@@ -120,12 +121,12 @@ struct Compiler {
     }
 
     func build(options: Set<String>, optimization: String) throws {
+
         let filePath = try extractFilePath()
 
-
+        startTiming("Parsing")
         var parser = Parser(relativePath: filePath)
 
-        //            let (ast, errors) = try parser.parse()
         let files = try parser.parseFiles()
 
         guard errors.isEmpty else {
@@ -140,6 +141,7 @@ struct Compiler {
             }
         }
 
+        startTiming("Checking")
         var checker = Checker(parser: parser)
         checker.checkParsedFiles()
 
@@ -149,6 +151,7 @@ struct Compiler {
             exit(1)
         }
 
+        startTiming("Code Generation")
         for file in files {
 
             let module = try IRGenerator.build(for: file, checker: checker)
@@ -158,6 +161,13 @@ struct Compiler {
             if options.contains("emit-ir") {
                 // TODO(vdka): Do we emit file names?
                 module.dump()
+            }
+        }
+        endTiming()
+
+        if options.contains("emit-time") {
+            for timing in timings {
+                print("\(timing.name) took \(String(format: "%.3f", timing.duration)) seconds")
             }
         }
     }
