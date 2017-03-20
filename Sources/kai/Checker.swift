@@ -729,16 +729,19 @@ extension Checker {
         if a === b {
             return true
         }
+
         if a.record.flags.contains(.unconstrained) {
 
-            if a.record.flags.contains(.float), b.record.flags.contains(.float) || b.record.flags.contains(.integer) {
+            if a.record.flags.contains(.float) && b.record.flags.contains(.float) || b.record.flags.contains(.integer) {
                 // `x: f32 = integerValue` | `y: f32 = floatValue`
                 return true
             }
-            if a.record.flags.contains(.integer), b.record.flags.contains(.integer) {
+            if a.record.flags.contains(.integer) && b.record.flags.contains(.integer) {
+                // Currently we support converting any integer to any other integer implicitely
                 return true
             }
-            if a.record.flags.contains(.unsigned), b.record.flags.contains(.unsigned) {
+            if TypeRecord.Flag.numeric.contains(a.record.flags) && b.record.flags.contains(.boolean) {
+                // Any numeric type can be cast to booleans
                 return true
             }
 
