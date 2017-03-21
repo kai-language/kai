@@ -237,7 +237,6 @@ struct Library {
 
 class Scope: PointerHashable {
     weak var parent: Scope?
-    var children: [Scope] = []
     var imported: [Scope] = []
     var shared: [Scope] = []
 
@@ -319,16 +318,15 @@ class DeclInfo: PointerHashable {
     unowned var scope: Scope
 
     /// Each entity represents a reference to the original decl `x := 5; x = x + 8` would have a DeclInfo for `x` with 3 entities
-    var entities: [Entity]
+    var entities:  [Entity]
+    var typeExpr:   AstNode?
+    var initExprs: [AstNode]
 
-    var typeExpr: AstNode?
-    var initExpr: AstNode?
-
-    init(scope: Scope, entities: [Entity] = [], typeExpr: AstNode? = nil, initExpr: AstNode? = nil) {
+    init(scope: Scope, entities: [Entity] = [], typeExpr: AstNode? = nil, initExprs: [AstNode] = []) {
         self.scope = scope
         self.entities = entities
         self.typeExpr = typeExpr
-        self.initExpr = initExpr
+        self.initExprs = initExprs
     }
 }
 
@@ -478,71 +476,74 @@ extension Checker {
         }
     }
 
+    /// - Precondition: node.isDecl
+    @discardableResult
+    mutating func collectEntities(_ node: AstNode) -> [Entity] {
+        precondition(node.isDecl)
+
+        switch node {
+        case .declValue(let isRuntime, let names, let type, let values, _):
+
+            let declInfo = DeclInfo(scope: context.scope)
+            declInfo.typeExpr = type
+
+            for (index, name) in names.enumerated() {
+
+                guard name.isIdent else {
+                    reportError("A declaration's name must be an identifier", at: name)
+                    continue
+                }
+
+                let value = values[safe: index].map(unparenExpr)
+
+                var entity: Entity
+                if let value = value {
+                    entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime, owningScope: context.scope)
+                    declInfo.initExprs.append(value)
+                } else {
+                    assert(values.isEmpty)
+                    entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime, owningScope: context.scope)
+                }
+
+                declInfo.entities.append(entity)
+
+                addEntity(to: declInfo.scope, entity)
+
+                // TODO(vdka): Check entities are not used in their own intialization.
+                info.entities[entity] = declInfo
+                info.definitions[name] = entity
+            }
+            checkArityMatch(node)
+
+            return declInfo.entities
+
+        case .declImport, .declLibrary:
+            if !context.scope.isFile {
+                reportError("#import and #library directives are only valid at file scope", at: node)
+            }
+
+            let decl = DelayedDecl(parent: context.scope, decl: node)
+            delayedImports.append(decl)
+            return []
+
+        default:
+            // The node doesn't declare anything
+            assert(!context.scope.isFile)
+            return []
+        }
+    }
+
     mutating func collectEntities(_ nodes: [AstNode]) {
 
         for node in nodes {
-
-            if context.scope.isFile, !node.isDecl {
-                reportError("Currently only declarations are valid at file scope", at: node)
+            guard node.isDecl else {
+                if context.scope.isFile {
+                    reportError("Currently only declarations are valid at file scope", at: node)
+                }
                 continue
             }
 
-            switch node {
-            case .declValue(let isRuntime, let names, let type, let values, _):
-
-                for (index, name) in names.enumerated() {
-
-                    guard name.isIdent else {
-                        reportError("A declaration's name must be an identifier", at: name)
-                        continue
-                    }
-
-                    let value = values[safe: index].map(unparenExpr)
-
-                    let declInfo = DeclInfo(scope: context.scope)
-                    var entity: Entity
-                    if let value = value, value.isType {
-                        entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime, owningScope: context.scope)
-                        declInfo.typeExpr = value
-                        declInfo.initExpr = value
-                    } else if let value = value, case .litProc = value {
-
-                        // TODO(vdka): Some validation around explicit typing for procLits?
-                        /*
-                         someProc : (int) -> void : (n: int) -> void { /* ... */ }
-                         */
-
-                        entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime, owningScope: context.scope)
-                        declInfo.initExpr = value
-                    } else {
-                        entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime, owningScope: context.scope)
-                        declInfo.typeExpr = type
-                        declInfo.initExpr = value
-                    }
-
-                    declInfo.entities.append(entity)
-
-                    addEntity(to: declInfo.scope, entity)
-
-                    // TODO(vdka): Check entities are not used in their own intialization.
-                    info.entities[entity] = declInfo
-                    info.definitions[name] = entity
-                }
-                checkArityMatch(node)
-
-            case .declImport, .declLibrary:
-                if !context.scope.isFile {
-                    reportError("#import and #library directives are only valid at file scope", at: node)
-                }
-
-                let decl = DelayedDecl(parent: context.scope, decl: node)
-                delayedImports.append(decl)
-
-            default:
-                // The node doesn't declare anything
-                assert(!context.scope.isFile)
-                break
-            }
+            collectEntities(node)
         }
     }
 
@@ -596,14 +597,18 @@ extension Checker {
         }
     }
 
+    mutating func checkEntity(_ e: Entity) {
+        guard let decl = info.entities[e] else {
+            panic()
+        }
+
+        fillType(decl)
+    }
+
     mutating func checkEntities(in scope: Scope) {
 
-        for entity in scope.elements.values {
-            guard let decl = info.entities[entity] else {
-                panic()
-            }
-
-            fillType(decl)
+        for e in scope.elements.values {
+            checkEntity(e)
         }
     }
 
@@ -692,7 +697,7 @@ extension Checker {
 
 
                 let e = Entity(identifier: ident, kind: .runtime, owningScope: scope)
-                let paramDecl = DeclInfo(scope: scope, entities: [e], typeExpr: type, initExpr: nil)
+                let paramDecl = DeclInfo(scope: scope, entities: [e], typeExpr: type, initExprs: [])
 
                 fillType(paramDecl)
 
@@ -769,44 +774,41 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func fillType(_ d: DeclInfo) -> Type {
+    mutating func fillType(_ d: DeclInfo) {
 
-        var type = Type.invalid
-        var mismatch = false
         let explicitType = d.typeExpr.map(lookupType) // TODO(vdka): Check if the type is invalid; if so then we don't need to check the rvalue
-        if let rvalueType = d.initExpr.map({ checkExpr($0) }), explicitType !== Type.invalid {
 
-            if let explicitType = explicitType {
+        for (i, e) in d.entities.enumerated() {
+            let initExpr = d.initExprs[safe: i]
+            let rvalueType = initExpr.map({ checkExpr($0) })
 
+            if let rvalueType = rvalueType, let explicitType = explicitType {
+
+                // if there is an explicit type ensure we do not conflict with it
                 if !canImplicitlyConvert(rvalueType, to: explicitType) {
                     reportError("Cannot implicitly convert type '\(rvalueType.record.name)' to type '\(explicitType.record.name)'", at: d.typeExpr!)
-                    mismatch = true
+                    e.type = Type.invalid
+                    continue
                 }
 
-                type = explicitType
+                e.type = explicitType
+            } else if let explicitType = explicitType {
+
+                e.type = explicitType
+            } else if let rvalueType = rvalueType {
+
+                e.type = rvalueType
             } else {
-
-                type = rvalueType
+                panic() // NOTE(vdka): No explicit type or rvalue
             }
-        } else {
-
-            type = explicitType!
         }
 
-        if mismatch {
-            type = Type.invalid
-        }
-
-        for e in d.entities {
-            e.type = type
-        }
-
-        /// Provide the procInfo that *must* have been created with the decl it was created as part of
-        if case .litProc(_, let body, _)? = d.initExpr, body.isStmt {
+        // Provide the procInfo that *must* have been created with the decl it was created as part of
+        // TODO(vdka): Multiple litProcs as rvalues? 
+        // `add, sub :: (l, r: int) -> int { return l + r }, (l, r: int) -> int { return l - r }`
+        if case .litProc(_, let body, _)? = d.initExprs.first, body.isStmt {
             procs.last!.decl = d
         }
-
-        return type
     }
 
     func lookupType(_ n: AstNode) -> Type {
@@ -858,6 +860,50 @@ extension Checker {
         }
     }
 
+    mutating func checkAssign(_ op: String, _ lhs: [AstNode], _ rhs: [AstNode]) {
+        precondition(op == "=") // for now only `=` is supported
+
+        // TODO(vdka): Type check assignments.
+    }
+
+    mutating func checkStmts(_ nodes: [AstNode]) {
+
+        for node in nodes {
+
+            switch node {
+            case .declValue, .declImport, .declLibrary:
+                let entities = collectEntities(node)
+                for e in entities {
+                    checkEntity(e)
+                }
+
+            case _ where node.isExpr:
+                let type = checkExpr(node)
+                info.types[node] = type
+
+            case .stmtBlock(let stmts, _):
+                let prevContext = context
+
+                let s = Scope(parent: context.scope)
+                info.scopes[node] = s
+                context.scope = s
+                checkStmts(stmts)
+
+                context = prevContext
+
+            case .stmtAssign(let op, let lhs, let rhs, _):
+                checkAssign(op, lhs, rhs)
+
+            case .stmtReturn(_, _):
+                // TODO(vdka): Check we are in a proc. Check return types match.
+                break
+
+            default:
+                unimplemented("Checking for nodes of kind \(node.shortName)")
+            }
+        }
+    }
+
     mutating func checkProcBody(_ pi: ProcInfo) {
         guard case .litProc(_, let body, _) = pi.node else {
             panic()
@@ -885,10 +931,7 @@ extension Checker {
         pushProc(pi.type)
         defer { popProc() }
 
-        collectEntities(stmts)
-        checkEntities(in: s)
-
-        // TODO(vdka): Check the rest of the _non-decl_ nodes
+        checkStmts(stmts)
 
         // TODO(vdka): Detect return stmt required & matches
         switch (results.count, results.first) {
