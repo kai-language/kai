@@ -209,6 +209,7 @@ try Operator.infix("?", bindingPower: 20) { parser, cond in
 }
 
 try Operator.prefix("-")
+try Operator.prefix("+")
 try Operator.prefix("!")
 try Operator.prefix("~")
 
