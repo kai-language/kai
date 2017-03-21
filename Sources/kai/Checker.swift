@@ -459,6 +459,14 @@ extension Checker {
 
             context = prevContext
         }
+
+        // For now we should require compiler invocation on a single file.
+        let mainFile = fileScopes.first(where: { $0.value.isMainFile })!
+
+        main = mainFile.value.lookup("main")
+        if main == nil {
+            reportError("Undefined entry point 'main'", at: SourceLocation(line: 1, column: 1, file: mainFile.key))
+        }
     }
 
     mutating func collectEntities(_ nodes: [AstNode]) {
@@ -584,11 +592,6 @@ extension Checker {
         for entity in scope.elements.values {
             guard let decl = info.entities[entity] else {
                 panic()
-            }
-
-            // TODO(vdka): Should this be global
-            if scope.isMainFile, entity.name == "main" {
-                main = entity
             }
 
             fillType(decl)
