@@ -6,7 +6,7 @@ class TypeRecord {
     var kind: Kind
     var flags: Flag
     var size: UInt
-    var location: SourceLocation?
+    var location: SourceLocation? // TODO(vdka): This should not be optional
 
     // TODO(vdka): Give procedures an actual record.
     static let procedure = TypeRecord(name: nil, kind: .builtin, flags: .none, size: 0, location: nil)
@@ -156,6 +156,7 @@ class Entity: PointerHashable {
     var name: String
     var location: SourceLocation
     var kind: Kind
+    var flags: Flag = []
     unowned var owningScope: Scope
 
     // NOTE(vdka): All filled in by the checker
@@ -192,6 +193,14 @@ class Entity: PointerHashable {
         case importName  //path, name: String, scope: Scope, used: Bool)
         case libraryName // (path, name: String, used: Bool)
         case invalid
+    }
+
+    struct Flag: OptionSet {
+        var rawValue: UInt8
+        init(rawValue: UInt8) { self.rawValue = rawValue }
+
+        static let none = Flag(rawValue: 0b00000000)
+        static let used = Flag(rawValue: 0b00000001)
     }
 
     static func declareBuiltinConstant(name: String, value: ExactValue, scope: Scope) {
@@ -620,6 +629,12 @@ extension Checker {
     }
 
     @discardableResult
+    mutating func addEntityUse(_ ident: AstNode, _ entity: Entity) {
+        assert(ident.isIdent)
+        info.uses[ident] = entity
+    }
+
+    @discardableResult
     mutating func checkArityMatch(_ node: AstNode) -> Bool {
 
         if case .declValue(_, let names, let type, let values, _) = node {
@@ -872,6 +887,10 @@ extension Checker {
 
         collectEntities(stmts)
         checkEntities(in: s)
+
+        // TODO(vdka): Check the rest of the _non-decl_ nodes
+
+        // TODO(vdka): Detect return stmt required & matches
         switch (results.count, results.first) {
         case (1, let type?) where type !== Type.void: // no return stmt needed
             break
@@ -900,8 +919,7 @@ extension Checker {
             return Type.unconstrString
 
         case .ident:
-            let t = lookupType(node)
-            return t
+            return checkIdent(node)
 
         case .directive("file", let args, _):
             assert(args.isEmpty)
@@ -918,8 +936,78 @@ extension Checker {
             }
             return type
 
+        case .exprParen(let node, _):
+            return checkExpr(node)
+
+        case .exprUnary(let op, expr: let expr, _):
+            return checkUnary(op, expr)
+
         default:
             panic(node)
+        }
+    }
+
+    mutating func checkUnary(_ operation: String, _ expr: AstNode) -> Type {
+
+        func describeType(_ type: Type) -> String {
+            if let name = type.record.name {
+                return "type '\(name)'"
+            } else {
+                return "anonymous type"
+            }
+        }
+
+        switch operation {
+        case "+", "-", "!", "~":
+            let operandType = checkExpr(expr)
+            guard operandType.record.flags.contains(.numeric) else {
+                reportError("Undefined operator '+' for" + describeType(operandType), at: expr)
+                return Type.invalid
+            }
+
+            return operandType
+
+        default:
+            reportError("Undefined operator '\(operation)'", at: expr)
+            return Type.invalid
+        }
+    }
+
+    mutating func checkIdent(_ node: AstNode) -> Type {
+        guard case .ident(let name, _) = node else {
+            panic()
+        }
+
+        guard let e = context.scope.lookup(name) else {
+            if name == "_" {
+                reportError("'_' cannot be used as a value", at: node)
+            } else {
+                reportError(("Undeclared name: '\(name)'"), at: node)
+            }
+
+            info.types[node] = Type.invalid
+            return Type.invalid
+        }
+
+        addEntityUse(node, e)
+
+        switch e.kind {
+        case .importName:
+            reportError("Invalid use of import '\(e.name)'", at: e.location)
+            return Type.invalid
+
+        case .libraryName:
+            reportError("Invalid use of library '\(e.name)'", at: e.location)
+            return Type.invalid
+
+        case .invalid:
+            // NOTE(vdka): Should have already warned about this.
+            // NOTE(vdka): e.type is likely unset
+            return Type.invalid
+
+        default:
+            // We should have a type by this point
+            return e.type!
         }
     }
 }
