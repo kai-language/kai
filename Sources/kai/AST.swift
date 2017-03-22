@@ -54,14 +54,12 @@ indirect enum AstNode {
     case declImport(path: AstNode, fullpath: String?, importName: AstNode?, SourceRange)
     case declLibrary(path: AstNode, libName: AstNode, SourceRange)
 
+    case exprCall(receiver: AstNode, args: [AstNode], SourceRange)
+    case exprParen(AstNode, SourceRange)
     case exprUnary(String, expr: AstNode, SourceRange)
     case exprBinary(String, lhs: AstNode, rhs: AstNode, SourceRange)
-    case exprParen(AstNode, SourceRange)
-    case exprSelector(receiver: AstNode, member: AstNode, SourceRange)
-
-    /// - Parameter args: an array of `arg` nodes
-    case exprCall(receiver: AstNode, args: [AstNode], SourceRange)
     case exprTernary(cond: AstNode, AstNode, AstNode, SourceRange)
+    case exprSelector(receiver: AstNode, member: AstNode, SourceRange)
 
 
 

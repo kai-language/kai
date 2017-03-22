@@ -1,18 +1,13 @@
 
-/// Defines a type declaration
-class TypeRecord {
+/// Defines a type in which something can take
+class Type {
 
-    var name: String?
     var kind: Kind
     var flags: Flag
     var size: UInt
-    var location: SourceLocation? // TODO(vdka): This should not be optional
+    var location: SourceLocation?
 
-    // TODO(vdka): Give procedures an actual record.
-    static let procedure = TypeRecord(name: nil, kind: .builtin, flags: .none, size: 0, location: nil)
-
-    init(name: String?, kind: Kind, flags: Flag, size: UInt, location: SourceLocation?) {
-        self.name = name
+    init(kind: Kind, flags: Flag, size: UInt, location: SourceLocation?) {
         self.kind = kind
         self.flags = flags
         self.size = size
@@ -20,8 +15,11 @@ class TypeRecord {
     }
 
     enum Kind {
-        case builtin
-        case alias(of: TypeRecord)
+        case named(String)
+        case typeInfo(Type)
+        case alias(String, Type)
+        case proc(params: [Entity], returns: [Type])
+        case `struct`(String)
     }
 
     struct Flag: OptionSet {
@@ -41,43 +39,22 @@ class TypeRecord {
         static let ordered:  Flag = [.numeric, .string, .pointer]
         static let constant: Flag = [.boolean, .numeric, .pointer, .string]
     }
-}
 
-/// Defines a type in which something can take
-class Type {
+    var name: String? {
+        switch self.kind {
+        case .named(let name), .alias(let name, _), .struct(let name):
+            return name
 
-    var kind: Kind
-    var record: TypeRecord
-
-    init(kind: Kind, record: TypeRecord) {
-        self.kind = kind
-        self.record = record
-    }
-
-    enum Kind {
-        case named
-        case builtin
-        case metatype
-        case proc(params: [Entity], returns: [Type])
-    }
-}
-
-enum std {
-
-    static let types: String = "stdtypes.kai"
-}
-
-extension Type {
-
-    var metatype: Type {
-        return Type(kind: .metatype, record: record)
+        default:
+            return nil
+        }
     }
 
     static let builtin: [Type] = {
 
         // NOTE(vdka): Order is important later.
                   /* Name,   size, line, flags */
-        let short: [(String, UInt, UInt, TypeRecord.Flag)] = [
+        let short: [(String, UInt, UInt, Flag)] = [
             ("void", 0, 0, .none),
             ("bool", 1, 0, .boolean),
 
@@ -111,11 +88,11 @@ extension Type {
         return short.map { (name, size, lineNumber, flags) in
             let location = SourceLocation(line: lineNumber, column: 0, file: std.types)
 
-            let record = TypeRecord(name: name, kind: .builtin, flags: flags, size: size, location: location)
-
-            return Type(kind: .named, record: record)
+            return Type(kind: .named(name), flags: flags, size: size, location: location)
         }
     }()
+
+    static let typeInfo = Type(kind: .struct("TypeInfo"), flags: .constant, size: 0, location: nil)
 
     static let void = builtin[0]
     static let bool = builtin[1]
@@ -260,12 +237,12 @@ class Scope: PointerHashable {
 
         for type in Type.builtin {
 
-            guard let location = type.record.location else {
+            guard let location = type.location else {
                 panic()
             }
 
-            let e = Entity(name: type.record.name!, location: location, kind: .type, owningScope: s)
-            e.type = type.metatype
+            let e = Entity(name: type.name!, location: location, kind: .type, owningScope: s)
+            e.type = Type.typeInfo
             s.insert(e)
         }
 
@@ -745,7 +722,7 @@ extension Checker {
             }
         }
 
-        let type = Type(kind: .proc(params: paramEntities, returns: returnTypes), record: .procedure)
+        let type = Type(kind: .proc(params: paramEntities, returns: returnTypes), flags: .none, size: 0, location: nil)
 
         return type
     }
@@ -755,17 +732,17 @@ extension Checker {
             return true
         }
 
-        if a.record.flags.contains(.unconstrained) {
+        if a.flags.contains(.unconstrained) {
 
-            if a.record.flags.contains(.float) && b.record.flags.contains(.float) || b.record.flags.contains(.integer) {
+            if a.flags.contains(.float) && b.flags.contains(.float) || b.flags.contains(.integer) {
                 // `x: f32 = integerValue` | `y: f32 = floatValue`
                 return true
             }
-            if a.record.flags.contains(.integer) && b.record.flags.contains(.integer) {
+            if a.flags.contains(.integer) && b.flags.contains(.integer) {
                 // Currently we support converting any integer to any other integer implicitely
                 return true
             }
-            if TypeRecord.Flag.numeric.contains(a.record.flags) && b.record.flags.contains(.boolean) {
+            if Type.Flag.numeric.contains(a.flags) && b.flags.contains(.boolean) {
                 // Any numeric type can be cast to booleans
                 return true
             }
@@ -788,7 +765,7 @@ extension Checker {
 
                 // if there is an explicit type ensure we do not conflict with it
                 if !canImplicitlyConvert(rvalueType, to: explicitType) {
-                    reportError("Cannot implicitly convert type '\(rvalueType.record.name)' to type '\(explicitType.record.name)'", at: d.typeExpr!)
+                    reportError("Cannot implicitly convert type '\(rvalueType.name)' to type '\(explicitType.name)'", at: d.typeExpr!)
                     e.type = Type.invalid
                     continue
                 }
@@ -993,6 +970,15 @@ extension Checker {
         case .exprUnary(let op, expr: let expr, _):
             type = checkUnary(op, expr)
 
+        case .exprCall(let receiver, _, _):
+            type = checkExpr(receiver)
+            guard case .proc = type.kind else {
+                reportError("cannot call non-procedure '\(receiver.value)' (type \(type.name ?? ""))", at: node)
+                type = Type.invalid
+                break
+            }
+            // TODO(vdka): Check arg types match
+
         default:
             panic(node)
         }
@@ -1004,7 +990,7 @@ extension Checker {
     mutating func checkUnary(_ operation: String, _ expr: AstNode) -> Type {
 
         func describeType(_ type: Type) -> String {
-            if let name = type.record.name {
+            if let name = type.name {
                 return "type '\(name)'"
             } else {
                 return "anonymous type"
@@ -1014,7 +1000,7 @@ extension Checker {
         switch operation {
         case "+", "-", "!", "~":
             let operandType = checkExpr(expr)
-            guard operandType.record.flags.contains(.numeric) else {
+            guard operandType.flags.contains(.numeric) else {
                 reportError("Undefined operator '+' for" + describeType(operandType), at: expr)
                 return Type.invalid
             }

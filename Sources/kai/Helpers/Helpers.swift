@@ -1,6 +1,12 @@
 
 import Foundation.NSFileManager
 
+/// Stdlib files
+enum std {
+
+    static let types: String = "stdtypes.kai"
+}
+
 protocol PointerHashable: Hashable {}
 extension PointerHashable {
 
