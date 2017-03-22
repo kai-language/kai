@@ -207,9 +207,7 @@ extension Parser {
         case .keyword(.return):
             let (_, startLocation) = try consume(.keyword(.return))
 
-            // TODO(vdka): parseMultiple comma seperated expr's
-            // FIXME(vdka): This will fail pretty badly if the return is not the last stmt in the block
-            // TODO(vdka): Validate that our current context permits return statements
+            // FIXME(vdka): This currently requires there to be an expr for return
             var exprs: [AstNode] = []
             while true {
                 let expr = try expression()

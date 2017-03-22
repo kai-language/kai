@@ -1,6 +1,12 @@
 
 str :: "Hello, Kai!"
 
-main :: () -> void {
+foo :: (n: int) -> int { return n }
+
+main :: () -> int {
     x := 5
+    bar := (n: int) -> int { return !n }
+    foo(x)
+    bar("")  // Incompatible type for argument, expected 'int' but got 'unconstrString'
+    return 5
 }

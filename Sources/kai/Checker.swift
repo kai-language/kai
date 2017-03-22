@@ -16,7 +16,6 @@ class Type {
 
     enum Kind {
         case named(String)
-        case typeInfo(Type)
         case alias(String, Type)
         case proc(params: [Entity], returns: [Type])
         case `struct`(String)
@@ -37,7 +36,6 @@ class Type {
         static let none:     Flag = []
         static let numeric:  Flag = [.integer, .unsigned, .float]
         static let ordered:  Flag = [.numeric, .string, .pointer]
-        static let constant: Flag = [.boolean, .numeric, .pointer, .string]
     }
 
     var name: String? {
@@ -92,7 +90,7 @@ class Type {
         }
     }()
 
-    static let typeInfo = Type(kind: .struct("TypeInfo"), flags: .constant, size: 0, location: nil)
+    static let typeInfo = Type(kind: .struct("TypeInfo"), flags: .none, size: 0, location: nil)
 
     static let void = builtin[0]
     static let bool = builtin[1]
@@ -109,15 +107,18 @@ class Type {
     static let f32  = builtin[10]
     static let f64  = builtin[11]
 
-    static let string = builtin[12]
+    static let int  = builtin[12]
+    static let uint = builtin[13]
 
-    static let unconstrBool     = builtin[13]
-    static let unconstrInteger  = builtin[14]
-    static let unconstrFloat    = builtin[15]
-    static let unconstrString   = builtin[16]
-    static let unconstrNil      = builtin[17]
+    static let string = builtin[14]
 
-    static let invalid = builtin[18]
+    static let unconstrBool     = builtin[15]
+    static let unconstrInteger  = builtin[16]
+    static let unconstrFloat    = builtin[17]
+    static let unconstrString   = builtin[18]
+    static let unconstrNil      = builtin[19]
+
+    static let invalid = builtin[20]
 }
 
 enum ExactValue {
@@ -165,7 +166,7 @@ class Entity: PointerHashable {
     enum Kind {
         case runtime
         case compiletime
-        case type
+        case type(Type)
 
         case importName  //path, name: String, scope: Scope, used: Bool)
         case libraryName // (path, name: String, used: Bool)
@@ -241,7 +242,7 @@ class Scope: PointerHashable {
                 panic()
             }
 
-            let e = Entity(name: type.name!, location: location, kind: .type, owningScope: s)
+            let e = Entity(name: type.name!, location: location, kind: .type(type), owningScope: s)
             e.type = Type.typeInfo
             s.insert(e)
         }
@@ -372,14 +373,12 @@ struct Checker {
         var scope: Scope
         var fileScope: Scope? = nil
         var inDefer: Bool     = false
-        var inProcBody: Bool  = false
 
         init(scope: Scope) {
             self.scope = scope
 
             fileScope = nil
             inDefer   = false
-            inProcBody    = false
         }
     }
 }
@@ -586,9 +585,14 @@ extension Checker {
 
     mutating func checkEntities(in scope: Scope) {
 
+        let prevContext = context
+        context.scope = scope
+
         for e in scope.elements.values {
             checkEntity(e)
         }
+
+        context = prevContext
     }
 
     mutating func setCurrentFile(_ file: ASTFile) {
@@ -734,7 +738,8 @@ extension Checker {
 
         if a.flags.contains(.unconstrained) {
 
-            if a.flags.contains(.float) && b.flags.contains(.float) || b.flags.contains(.integer) {
+            if a.flags.contains(.float) && b.flags.contains(.float) {
+//            if a.flags.contains(.float) && b.flags.contains(.float) || b.flags.contains(.integer) {
                 // `x: f32 = integerValue` | `y: f32 = floatValue`
                 return true
             }
@@ -746,8 +751,6 @@ extension Checker {
                 // Any numeric type can be cast to booleans
                 return true
             }
-
-            return false
         }
         return false
     }
@@ -801,8 +804,8 @@ extension Checker {
             }
 
             switch entity.kind {
-            case .type:
-                return entity.type!
+            case .type(let type):
+                return type
 
             default:
                 reportError("Entity '\(ident)' cannot be used as type", at: n)
@@ -877,8 +880,8 @@ extension Checker {
                 for val in vals {
                     checkExpr(val)
                 }
-                guard context.inProcBody else {
-                    reportError("'return' is not valid in this context", at: node)
+                guard context.scope.isProc else {
+                    reportError("'return' is not valid in this scope", at: node)
                     return
                 }
 
@@ -906,8 +909,8 @@ extension Checker {
 
         let prevContext = context
         let s = Scope(parent: pi.owningScope)
+        s.isProc = true
         context.scope = s
-        context.inProcBody = true
 
         for entity in params {
             addEntity(to: s, entity)
@@ -936,7 +939,7 @@ extension Checker {
     @discardableResult
     mutating func checkExpr(_ node: AstNode) -> Type {
 
-        var type: Type
+        var type = Type.invalid
         switch node {
         case .litInteger:
             type = Type.unconstrInteger
@@ -970,14 +973,28 @@ extension Checker {
         case .exprUnary(let op, expr: let expr, _):
             type = checkUnary(op, expr)
 
-        case .exprCall(let receiver, _, _):
+        case .exprCall(let receiver, let args, _):
             type = checkExpr(receiver)
-            guard case .proc = type.kind else {
+            guard case .proc(let params, _) = type.kind else {
                 reportError("cannot call non-procedure '\(receiver.value)' (type \(type.name ?? ""))", at: node)
-                type = Type.invalid
                 break
             }
-            // TODO(vdka): Check arg types match
+
+            if args.count < params.count {
+                reportError("too few arguments to procedure '\(receiver.value)'", at: node)
+                break
+            } else if args.count > params.count {
+                reportError("Too many arguments for procedure '\(receiver.value)", at: node)
+                break
+            }
+
+            for (arg, param) in zip(args, params) {
+                let argType = checkExpr(arg)
+                if !canImplicitlyConvert(argType, to: param.type!) {
+                    reportError("Incompatible type for argument, expected '\(param.type!.name ?? "")' but got '\(argType.name ?? "")'", at: arg)
+                    continue
+                }
+            }
 
         default:
             panic(node)
