@@ -395,12 +395,14 @@ struct Checker {
         var scope: Scope
         var fileScope: Scope? = nil
         var inDefer: Bool     = false
+        var inProcBody: Bool  = false
 
         init(scope: Scope) {
             self.scope = scope
 
             fileScope = nil
             inDefer   = false
+            inProcBody    = false
         }
     }
 }
@@ -878,8 +880,7 @@ extension Checker {
                 }
 
             case _ where node.isExpr:
-                let type = checkExpr(node)
-                info.types[node] = type
+                checkExpr(node)
 
             case .stmtBlock(let stmts, _):
                 let prevContext = context
@@ -894,9 +895,15 @@ extension Checker {
             case .stmtAssign(let op, let lhs, let rhs, _):
                 checkAssign(op, lhs, rhs)
 
-            case .stmtReturn(_, _):
-                // TODO(vdka): Check we are in a proc. Check return types match.
-                break
+            case .stmtReturn(let vals, _):
+
+                for val in vals {
+                    checkExpr(val)
+                }
+                guard context.inProcBody else {
+                    reportError("'return' is not valid in this context", at: node)
+                    return
+                }
 
             default:
                 unimplemented("Checking for nodes of kind \(node.shortName)")
@@ -923,6 +930,7 @@ extension Checker {
         let prevContext = context
         let s = Scope(parent: pi.owningScope)
         context.scope = s
+        context.inProcBody = true
 
         for entity in params {
             addEntity(to: s, entity)
@@ -951,43 +959,46 @@ extension Checker {
     @discardableResult
     mutating func checkExpr(_ node: AstNode) -> Type {
 
+        var type: Type
         switch node {
         case .litInteger:
-            return Type.unconstrInteger
+            type = Type.unconstrInteger
 
         case .litFloat:
-            return Type.unconstrFloat
+            type = Type.unconstrFloat
 
         case .litString:
-            return Type.unconstrString
+            type = Type.unconstrString
 
         case .ident:
-            return checkIdent(node)
+            type = checkIdent(node)
 
         case .directive("file", let args, _):
             assert(args.isEmpty)
-            return Type.unconstrString
+            type = Type.unconstrString
 
         case .directive("line", let args, _):
             assert(args.isEmpty)
-            return Type.unconstrInteger
+            type = Type.unconstrInteger
 
         case .litProc(_, let body, _):
-            let type = checkProcLitType(node)
+            type = checkProcLitType(node)
             if case .stmtBlock = body {
                 queueCheckProc(node, type: type, decl: nil) // no decl as this is an anon proc
             }
-            return type
 
         case .exprParen(let node, _):
-            return checkExpr(node)
+            type = checkExpr(node)
 
         case .exprUnary(let op, expr: let expr, _):
-            return checkUnary(op, expr)
+            type = checkUnary(op, expr)
 
         default:
             panic(node)
         }
+
+        info.types[node] = type
+        return type
     }
 
     mutating func checkUnary(_ operation: String, _ expr: AstNode) -> Type {
@@ -1028,7 +1039,6 @@ extension Checker {
                 reportError(("Undeclared name: '\(name)'"), at: node)
             }
 
-            info.types[node] = Type.invalid
             return Type.invalid
         }
 

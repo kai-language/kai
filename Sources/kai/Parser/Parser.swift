@@ -211,12 +211,14 @@ extension Parser {
             // FIXME(vdka): This will fail pretty badly if the return is not the last stmt in the block
             // TODO(vdka): Validate that our current context permits return statements
             var exprs: [AstNode] = []
-            while try lexer.peek()?.kind != .rbrace {
+            while true {
                 let expr = try expression()
                 exprs.append(expr)
-                if case .comma? = try lexer.peek()?.kind {
-                    try consume(.comma)
+
+                guard case .comma? = try lexer.peek()?.kind else {
+                    break
                 }
+                try consume(.comma)
             }
             return AstNode.stmtReturn(exprs, startLocation ..< lexer.location)
 
