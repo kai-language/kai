@@ -3,10 +3,10 @@ str :: "Hello, Kai!"
 
 foo :: (n: int) -> int { return n }
 
-main :: () -> int {
+main :: () -> void {
     x := 5
     bar := (n: int) -> int { return !n }
     foo(x)
-    bar("")  // Incompatible type for argument, expected 'int' but got 'unconstrString'
-    return 5
+    bar(1)  // Incompatible type for argument, expected 'int' but got 'unconstrString'
+    return
 }

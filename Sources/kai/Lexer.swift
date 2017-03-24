@@ -159,7 +159,11 @@ struct Lexer {
 
         case ";":
             scanner.pop()
-            return (.scolon, location)
+            return (.semicolon, location)
+
+        case "\n":
+            scanner.pop()
+            return (.newline, location)
 
 		case ",":
 			scanner.pop()
@@ -342,11 +346,15 @@ extension Lexer {
         case rbrack
 
         case equals
-        case scolon
         case colon
         case comma
         case dot
 
+        /// Hard line terminator
+        case semicolon
+
+        /// Soft line terminator
+        case newline
 
         enum Keyword: String {
             case `struct`
@@ -403,14 +411,15 @@ extension Lexer.Token: Equatable {
         case (.float(let l), .float(let r)):
             return l == r
 
-        case (.lparen, .lparen),
+        case (.semicolon, .semicolon),
+             (.newline, .newline),
+             (.lparen, .lparen),
              (.rparen, .rparen),
              (.lbrace, .lbrace),
              (.rbrace, .rbrace),
              (.lbrack, .lbrack),
              (.rbrack, .rbrack),
              (.equals, .equals),
-             (.scolon, .scolon),
              (.colon, .colon),
              (.comma, .comma),
              (.dot, .dot):
