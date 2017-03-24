@@ -208,15 +208,24 @@ extension Parser {
             let (_, startLocation) = try consume(.keyword(.return))
 
             // FIXME(vdka): This currently requires there to be an expr for return
-            var exprs: [AstNode] = []
-            while true {
-                let expr = try expression()
-                exprs.append(expr)
 
-                guard case .comma? = try lexer.peek()?.kind else {
-                    break
+            var exprs: [AstNode] = []
+            loop: while true {
+
+                switch try lexer.peek()?.kind {
+                case .newline?, .semicolon?, .rbrace?:
+                    break loop
+
+                case .comma?:
+                    let (_, location) = try consume(.comma)
+                    if exprs.isEmpty {
+                        reportError("Expected expression", at: location)
+                    }
+
+                default:
+                    let expr = try expression()
+                    exprs.append(expr)
                 }
-                try consume(.comma)
             }
             return AstNode.stmtReturn(exprs, startLocation ..< lexer.location)
 
