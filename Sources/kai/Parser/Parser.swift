@@ -392,6 +392,12 @@ extension Parser {
             }
             let lvalue = unparenExpr(lvalue)
 
+            if case (.lbrace, let location)? = try lexer.peek() {
+                reportError("Expected return type", at: location)
+                let expr = try expression() // consume the block statement
+                return AstNode.invalid(lvalue.startLocation ..< expr.endLocation)
+            }
+
             let results = try parseType()
             let type = AstNode.typeProc(params: explode(lvalue), results: explode(results), lvalue.startLocation ..< results.endLocation)
             guard case .lbrace? = try lexer.peek()?.kind else {
