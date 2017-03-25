@@ -751,6 +751,9 @@ extension Checker {
                 // Any numeric type can be cast to booleans
                 return true
             }
+            if a.flags.contains(.boolean) && b.flags.contains(.boolean) {
+                return true
+            }
         } else if Type.Flag.numeric.contains(a.flags) && b.flags.contains(.boolean) {
             // Numeric types can be converted to booleans through truncation
             return true
@@ -797,6 +800,9 @@ extension Checker {
     }
 
     func lookupType(_ n: AstNode) -> Type {
+        if let type = info.types[n] {
+            return type
+        }
 
         switch n {
         case .ident(let ident, _):
@@ -944,27 +950,54 @@ extension Checker {
 
         checkStmts(stmts)
 
-        // TODO(vdka): Iterate over *every* node within the in stmts (incl. children) checking for return statements.
-        //   Ensure the return types match the method signature. 
-        //   Ensure there is no _dead code_ as a result of statements post return.
+        // NOTE(vdka): There must be at least 1 return type or it's an error.
+        guard let firstResult = results.first else {
+            panic()
+        }
+        let voidResultTypes = results.count(where: { $0 === Type.void })
+        if voidResultTypes > 1 {
+            reportError("Multiple returns with a void value is forbidden.", at: pi.node)
+        }
 
-        // TODO(vdka): Detect return stmt required & matches
-        switch (results.count, results.first) {
-        case (1, let type?) where type !== Type.void: // no return stmt needed
-            break
+        let (terminatingStatements, branches) = terminatingStatments(body)
+        guard branches.contains(.terminated) && !branches.contains(.unTerminated) else {
+            reportError("Not all procedure body branches return", at: body) // FIXME(vdka): More context on this.
+            return
+        }
 
-        default: // Requires return stmt
-            // FIXME(vdka): Be smarter. There are way more cases.
-            if !(stmts.last?.isTerminating ?? false) {
-                reportError("Missing return at end of procedure", at: body.endLocation)
+        for returnStmt in terminatingStatements {
+            guard case .stmtReturn(let returnedExprs, _) = returnStmt else {
+                panic() // implementation error in terminatingStatements
+            }
+
+            if returnedExprs.count == 0 && firstResult === Type.void {
+                return
+            }
+            if returnedExprs.count < results.count {
+                reportError("Too few return values for procedure. Expected \(results.count), got \(returnedExprs.count)", at: returnStmt)
+                break
+            } else if returnedExprs.count > results.count {
+                reportError("Too many return values for procedure. Expected \(results.count), got \(returnedExprs.count)", at: returnStmt)
+                break
+            }
+
+            for (returnExpr, resultType) in zip(returnedExprs, results) {
+                let returnExprType = checkExpr(returnExpr)
+                if !canImplicitlyConvert(returnExprType, to: resultType) {
+                    reportError("Incompatible type for return expression. Expected '\(resultType.name ?? "")' but got '\(returnExprType.name ?? "")'", at: returnExpr)
+                    continue
+                }
             }
         }
 
         context = prevContext
     }
 
-    @discardableResult
+    @discardableResult // TODO(vdka): How is this different to `lookupType`?
     mutating func checkExpr(_ node: AstNode) -> Type {
+        if let type = info.types[node] {
+            return type
+        }
 
         var type = Type.invalid
         switch node {
@@ -1029,6 +1062,50 @@ extension Checker {
 
         info.types[node] = type
         return type
+    }
+
+    struct Branch: OptionSet {
+        let rawValue: UInt8
+
+        /// Not a branch
+        static let notApplicable = Branch(rawValue: 0b00)
+        static let terminated    = Branch(rawValue: 0b01)
+        static let unTerminated  = Branch(rawValue: 0b10)
+    }
+
+    /// - Returns: returns all nodes of kind `stmtReturn` that can be exit points for a scope.
+    /// - Note: If not all branches terminate then an empty array is returned.
+    func terminatingStatments(_ node: AstNode) -> ([AstNode], Branch) {
+
+        switch node {
+        case .stmtReturn:
+            return ([node], .terminated)
+
+        case .stmtExpr(let expr):
+            return terminatingStatments(expr)
+
+        case .stmtIf(_, let body, let elseExpr, _):
+            let bodyTerminators = terminatingStatments(body)
+            guard let elseExpr = elseExpr else {
+                return (bodyTerminators.0, .unTerminated)
+            }
+
+            let elseTerminators = terminatingStatments(elseExpr)
+
+            let allBranchesTerminate = bodyTerminators.1.union(elseTerminators.1)
+            return (bodyTerminators.0 + elseTerminators.0, allBranchesTerminate)
+
+        case .stmtBlock(let nodes, _):
+            let stmts = nodes.map(terminatingStatments)
+
+            return stmts.reduce(([AstNode](), Branch.notApplicable)) { prior, curr in
+                return (prior.0 + curr.0, prior.1.union(curr.1))
+            }
+
+        // TODO(vdka): `switch` & `for`
+        default:
+            return ([], .notApplicable)
+        }
     }
 
     mutating func checkUnary(_ operation: String, _ expr: AstNode) -> Type {

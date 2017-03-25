@@ -10,9 +10,6 @@ main :: () -> void {
     x := 5
     y := x
 
-    foo := (n: int) -> void { return n }
-    bar :: (n: int) -> void { return n }
-
     return
 }
 

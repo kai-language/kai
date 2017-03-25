@@ -170,6 +170,15 @@ extension Collection where Index: Comparable {
     }
 }
 
+extension Sequence {
+
+    func count(where predicate: @escaping (Iterator.Element) -> Bool) -> Int {
+        return reduce(0) { total, el in
+            return total + (predicate(el) ? 1 : 0)
+        }
+    }
+}
+
 func longZip<S1: Sequence, S2: Sequence>(_ seq1: S1, _ seq2: S2) -> AnySequence<(S1.Iterator.Element?, S2.Iterator.Element?)> {
 
     var (iter1, iter2) = (seq1.makeIterator(), seq2.makeIterator())
