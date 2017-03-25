@@ -167,6 +167,10 @@ extension Parser {
             }
 
         case .keyword(.if):
+            // TODO(vdka): Support checking this: `if val, err := couldFail(); err == nil { /* ... */ }`
+            // NOTE(vdka): With `;` it's unclear what the cond expr is (it's whatever the second last expr is.
+            //   Instead we could use `,` to do this.
+
             let (_, startLocation) = try consume(.keyword(.if))
 
             let condExpr = try expression()
@@ -209,22 +213,28 @@ extension Parser {
 
             // FIXME(vdka): This currently requires there to be an expr for return
 
+            var wasComma = false
             var exprs: [AstNode] = []
             loop: while true {
 
                 switch try lexer.peek()?.kind {
-                case .newline?, .semicolon?, .rbrace?:
+                case .semicolon?, .rbrace?:
                     break loop
 
                 case .comma?:
                     let (_, location) = try consume(.comma)
-                    if exprs.isEmpty {
+                    if wasComma || exprs.isEmpty {
                         reportError("Expected expression", at: location)
                     }
+                    wasComma = true
 
                 default:
+                    if !wasComma && !exprs.isEmpty {
+                        break loop
+                    }
                     let expr = try expression()
                     exprs.append(expr)
+                    wasComma = false
                 }
             }
             return AstNode.stmtReturn(exprs, startLocation ..< lexer.location)

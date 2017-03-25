@@ -751,6 +751,9 @@ extension Checker {
                 // Any numeric type can be cast to booleans
                 return true
             }
+        } else if Type.Flag.numeric.contains(a.flags) && b.flags.contains(.boolean) {
+            // Numeric types can be converted to booleans through truncation
+            return true
         }
         return false
     }
@@ -848,46 +851,64 @@ extension Checker {
         // TODO(vdka): Type check assignments.
     }
 
+    mutating func checkStmt(_ node: AstNode) {
+
+        switch node {
+        case .declValue, .declImport, .declLibrary:
+            let entities = collectEntities(node)
+            for e in entities {
+                checkEntity(e)
+            }
+
+        case _ where node.isExpr:
+            checkExpr(node)
+
+        case .stmtBlock(let stmts, _):
+            let prevContext = context
+
+            let s = Scope(parent: context.scope)
+            info.scopes[node] = s
+            context.scope = s
+            checkStmts(stmts)
+
+            context = prevContext
+
+        case .stmtAssign(let op, let lhs, let rhs, _):
+            checkAssign(op, lhs, rhs)
+
+        case .stmtReturn(let vals, _):
+
+            for val in vals {
+                checkExpr(val)
+            }
+            guard context.scope.isProc else {
+                reportError("'return' is not valid in this scope", at: node)
+                return
+            }
+
+        case .stmtIf(let cond, let body, let elseExpr, _):
+
+            let condType = checkExpr(cond)
+            guard canImplicitlyConvert(condType, to: Type.bool) else {
+                reportError("Cannot use expression as boolean value", at: cond)
+                return
+            }
+
+            checkStmt(body)
+
+            if let elseExpr = elseExpr {
+                checkStmt(elseExpr)
+            }
+
+        default:
+            unimplemented("Checking for nodes of kind \(node.shortName)")
+        }
+    }
+
     mutating func checkStmts(_ nodes: [AstNode]) {
 
         for node in nodes {
-
-            switch node {
-            case .declValue, .declImport, .declLibrary:
-                let entities = collectEntities(node)
-                for e in entities {
-                    checkEntity(e)
-                }
-
-            case _ where node.isExpr:
-                checkExpr(node)
-
-            case .stmtBlock(let stmts, _):
-                let prevContext = context
-
-                let s = Scope(parent: context.scope)
-                info.scopes[node] = s
-                context.scope = s
-                checkStmts(stmts)
-
-                context = prevContext
-
-            case .stmtAssign(let op, let lhs, let rhs, _):
-                checkAssign(op, lhs, rhs)
-
-            case .stmtReturn(let vals, _):
-
-                for val in vals {
-                    checkExpr(val)
-                }
-                guard context.scope.isProc else {
-                    reportError("'return' is not valid in this scope", at: node)
-                    return
-                }
-
-            default:
-                unimplemented("Checking for nodes of kind \(node.shortName)")
-            }
+            checkStmt(node)
         }
     }
 
@@ -922,6 +943,10 @@ extension Checker {
         defer { popProc() }
 
         checkStmts(stmts)
+
+        // TODO(vdka): Iterate over *every* node within the in stmts (incl. children) checking for return statements.
+        //   Ensure the return types match the method signature. 
+        //   Ensure there is no _dead code_ as a result of statements post return.
 
         // TODO(vdka): Detect return stmt required & matches
         switch (results.count, results.first) {

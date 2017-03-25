@@ -1,12 +1,25 @@
 
 str :: "Hello, Kai!"
 
-foo :: (n: int) -> int { return n }
+isNonZero :: (n: int) -> bool {
+    if n return true
+    else return false
+}
 
 main :: () -> void {
     x := 5
-    bar := (n: int) -> int { return !n }
-    foo(x)
-    bar(1)  // Incompatible type for argument, expected 'int' but got 'unconstrString'
+    y := x
+
+    foo := (n: int) -> void { return n }
+    bar :: (n: int) -> void { return n }
+
     return
 }
+
+/*
+entities: 4
+types: 4
+definitions: 4
+uses: 1
+scopes: 1
+*/
