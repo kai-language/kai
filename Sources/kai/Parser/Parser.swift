@@ -211,8 +211,6 @@ extension Parser {
         case .keyword(.return):
             let (_, startLocation) = try consume(.keyword(.return))
 
-            // FIXME(vdka): This currently requires there to be an expr for return
-
             var wasComma = false
             var exprs: [AstNode] = []
             loop: while true {
