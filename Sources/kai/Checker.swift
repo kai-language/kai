@@ -912,6 +912,8 @@ extension Checker {
         s.isProc = true
         context.scope = s
 
+        pi.decl?.entities.forEach({ $0.childScope = s })
+
         for entity in params {
             addEntity(to: s, entity)
         }
