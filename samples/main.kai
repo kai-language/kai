@@ -1,9 +1,14 @@
 
 str :: "Hello, Kai!"
 
-isNonZero :: (n: int) -> bool {
+isNonZero :: (n: int, e: int) -> bool {
     if n return true
     else return false
+}
+
+canFail :: (i: int, j: int) -> int, bool {
+    if false return i, false
+    else return j, false
 }
 
 main :: () -> void {

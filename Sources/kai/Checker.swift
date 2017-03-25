@@ -799,6 +799,7 @@ extension Checker {
         }
     }
 
+    /// Use this when you expect the node you pass in to be a type
     func lookupType(_ n: AstNode) -> Type {
         if let type = info.types[n] {
             return type
@@ -993,7 +994,7 @@ extension Checker {
         context = prevContext
     }
 
-    @discardableResult // TODO(vdka): How is this different to `lookupType`?
+    @discardableResult
     mutating func checkExpr(_ node: AstNode) -> Type {
         if let type = info.types[node] {
             return type

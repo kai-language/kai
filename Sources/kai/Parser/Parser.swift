@@ -149,22 +149,53 @@ extension Parser {
         case .lparen:
             let prevState = state
             defer { state = prevState }
-            state.remove(.disallowComma)
+            state.insert(.disallowComma)
 
             let (_, lparen) = try consume(.lparen)
-
-            switch try lexer.peek()?.kind {
-            case .rparen?:
-                let (_, rparen) = try consume()
+            if case .rparen? = try lexer.peek()?.kind {
+                let (_, rparen) = try consume(.rparen)
                 let empty = AstNode.stmtEmpty(lparen ..< rparen)
                 return AstNode.exprParen(empty, lparen ..< rparen)
-
-            default:
-                let expr = try expression()
-                let (_, rparen) = try consume(.rparen)
-
-                return AstNode.exprParen(expr, lparen ..< rparen)
             }
+
+            // Even if it's just a paran'd expr we have to entertain the possibility of something more. (parameter list)
+            var wasComma = false
+            var exprs: [AstNode] = []
+            loop: while true {
+
+                switch try lexer.peek()?.kind {
+                case .rparen?:
+                    break loop
+
+                case .comma?:
+                    let (_, location) = try consume(.comma)
+                    if wasComma || exprs.isEmpty {
+                        reportError("Unexpected comma", at: location)
+                    }
+                    wasComma = true
+
+                default:
+                    if !wasComma && !exprs.isEmpty {
+                        break loop
+                    }
+                    let expr = try expression()
+                    exprs.append(expr)
+                    wasComma = false
+                }
+            }
+
+            if wasComma {
+                reportError("Unexpected comma", at: lexer.lastLocation)
+            }
+
+            let (_, rparen) = try consume(.rparen)
+            if exprs.count == 1, let first = exprs.first {
+                return AstNode.exprParen(first, lparen ..< rparen)
+            } else {
+                let listNode = AstNode.list(exprs, exprs.first!.startLocation ..< exprs.last!.endLocation)
+                return AstNode.exprParen(listNode, lparen ..< rparen)
+            }
+
 
         case .keyword(.if):
             // TODO(vdka): Support checking this: `if val, err := couldFail(); err == nil { /* ... */ }`
@@ -209,8 +240,11 @@ extension Parser {
             return AstNode.stmtContinue(startLocation ..< lexer.location)
 
         case .keyword(.return):
-            let (_, startLocation) = try consume(.keyword(.return))
+            let prevState = state
+            defer { state = prevState }
+            state.insert(.disallowComma)
 
+            let (_, startLocation) = try consume(.keyword(.return))
             var wasComma = false
             var exprs: [AstNode] = []
             loop: while true {
@@ -406,7 +440,7 @@ extension Parser {
                 return AstNode.invalid(lvalue.startLocation ..< expr.endLocation)
             }
 
-            let results = try parseType()
+            let results = try expression()
             let type = AstNode.typeProc(params: explode(lvalue), results: explode(results), lvalue.startLocation ..< results.endLocation)
             guard case .lbrace? = try lexer.peek()?.kind else {
                 reportError("Procedure types cannot be used as values", at: type)
