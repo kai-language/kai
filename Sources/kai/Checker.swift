@@ -528,6 +528,17 @@ extension Checker {
     mutating func importEntities(_ fileScopes: inout [String: Scope]) {
 
         for imp in delayedImports {
+            if case .declLibrary(let path, _, let libName, _) = imp.decl {
+                guard case .litString("c", _) = path else {
+                    unimplemented("Library support that is not \"c\"")
+                }
+
+                // FIXME(vdka): For now I don't extract name from path
+                let e = Entity(name: libName!.identifier, location: path.startLocation, kind: .libraryName, owningScope: imp.parent)
+                addEntity(to: imp.parent, e)
+                continue
+            }
+
             guard case .declImport(let path, let fullpathOpt, let importName, _) = imp.decl else {
                 panic()
             }
@@ -555,6 +566,7 @@ extension Checker {
             if importName?.identifier == "." {
                 // NOTE(vdka): add imported entities into this files scope.
 
+                // FIXME(vdka): THIS IS A BUG. IT LOOKS LIKE YOU ARE ADDING ENTITIES TO THE FILE FROM WHICH THEY RESIDE.
                 for entity in scope.elements.values {
                     addEntity(to: scope, entity)
                 }
@@ -576,11 +588,17 @@ extension Checker {
     }
 
     mutating func checkEntity(_ e: Entity) {
-        guard let decl = info.entities[e] else {
-            panic()
-        }
+        switch e.kind {
+        case .libraryName:
+            return
 
-        fillType(decl)
+        default:
+            guard let decl = info.entities[e] else {
+                panic()
+            }
+
+            fillType(decl)
+        }
     }
 
     mutating func checkEntities(in scope: Scope) {

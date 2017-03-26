@@ -380,6 +380,7 @@ extension Lexer {
             case file
             case line
             case `import`
+            case library
             case foreign = "foreign"
             case foreignLLVM = "foreign(LLVM)"
         }

@@ -52,7 +52,7 @@ indirect enum AstNode {
 
     case declValue(isRuntime: Bool, names: [AstNode], type: AstNode?, values: [AstNode], SourceRange)
     case declImport(path: AstNode, fullpath: String?, importName: AstNode?, SourceRange)
-    case declLibrary(path: AstNode, libName: AstNode, SourceRange)
+    case declLibrary(path: AstNode, fullpath: String?, libName: AstNode?, SourceRange)
 
     case exprCall(receiver: AstNode, args: [AstNode], SourceRange)
     case exprParen(AstNode, SourceRange)
@@ -127,7 +127,7 @@ extension AstNode {
              .litProc(_, _, let location),
              .declValue(_, _, _, _, let location),
              .declImport(_, _, _, let location),
-             .declLibrary(_, _, let location),
+             .declLibrary(_, _, _, let location),
              .exprUnary(_, _, let location),
              .exprBinary(_, _, _, let location),
              .exprParen(_, let location),
@@ -605,9 +605,18 @@ extension AstNode {
                 }
             }
 
-        case .declLibrary(let path, let libName, _):
+        case .declLibrary(let path, _, let libName, _):
             unlabeled.append(path.value)
-            labeled.append(("as", libName.value))
+            if let libName = libName {
+                labeled.append(("as", libName.value))
+            } else if case .litString(let pathString, _) = path {
+                let (importName, error) = Checker.pathToEntityName(pathString)
+                if error {
+                    labeled.append(("as", "<invalid>"))
+                } else {
+                    labeled.append(("as", importName))
+                }
+            }
 
         case .typeProc(let params, let results, _):
             let emptyList = AstNode.list([], SourceLocation.unknown ..< .unknown)

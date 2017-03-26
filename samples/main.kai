@@ -1,5 +1,9 @@
 
+#library "c" libc
+
 str :: "Hello, Kai!"
+
+open :: (path: u8, mode: int, perm: u32) -> void #foreign libc "open"
 
 isNonZero :: (n: int, e: int) -> bool {
     if n return true

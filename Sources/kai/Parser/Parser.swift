@@ -332,6 +332,29 @@ extension Parser {
 
             return node
 
+        case .directive(.library):
+            let (_, location) = try consume()
+
+            guard case .string(let path)? = try lexer.peek()?.kind else {
+                reportError("Expected library path (or name) as a string", at: location)
+                return AstNode.invalid(location ..< lexer.lastLocation)
+            }
+            try consume() // .string("file.dylib")
+
+            let pathNode = AstNode.litString(path, lexer.lastConsumedRange)
+
+            let fullpath = FileManager.default.absolutePath(for: path, relativeTo: currentFile)
+
+            if case .ident(let alias)? = try lexer.peek()?.kind {
+
+                try consume()
+
+                let aliasNode = AstNode.ident(alias, lexer.lastConsumedRange)
+                return AstNode.declLibrary(path: pathNode, fullpath: fullpath, libName: aliasNode, location ..< aliasNode.endLocation)
+            }
+
+            return AstNode.declLibrary(path: pathNode, fullpath: fullpath, libName: nil, location ..< pathNode.endLocation)
+
         case .keyword(.struct),
              .keyword(.enum):
 
@@ -434,7 +457,7 @@ extension Parser {
             }
             let lvalue = unparenExpr(lvalue)
 
-            if case (.lbrace, let location)? = try lexer.peek() {
+            if case (.lbrace, let location)? = try lexer.peek() { // `(n: int) ->`
                 reportError("Expected return type", at: location)
                 let expr = try expression() // consume the block statement
                 return AstNode.invalid(lvalue.startLocation ..< expr.endLocation)
@@ -442,14 +465,40 @@ extension Parser {
 
             let results = try expression()
             let type = AstNode.typeProc(params: explode(lvalue), results: explode(results), lvalue.startLocation ..< results.endLocation)
-            guard case .lbrace? = try lexer.peek()?.kind else {
-                reportError("Procedure types cannot be used as values", at: type)
+
+            switch try lexer.peek()?.kind {
+            case .lbrace?:
+                let body = try expression()
+
+                return AstNode.litProc(type: type, body: body, type.startLocation ..< body.endLocation)
+
+            case .directive(.foreign)?: // #foreign libc "open"
+                let (_, location) = try consume()
+
+                guard case .ident(let libIdent)? = try lexer.peek()?.kind else {
+                    reportError("Expected an identifier for library", at: lexer.location)
+                    return AstNode.invalid(lvalue.startLocation ..< location)
+                }
+                try consume()
+
+                let libNameNode = AstNode.ident(libIdent, lexer.lastConsumedRange)
+
+                guard case .string(let path)? = try lexer.peek()?.kind else {
+                    reportError("Expected path or special name for library", at: lexer.location)
+                    return AstNode.invalid(lvalue.startLocation ..< location)
+                }
+                try consume()
+
+                let libPathNode = AstNode.litString(path, lexer.lastConsumedRange)
+
+                let directiveNode = AstNode.directive("foreign", args: [libPathNode, libNameNode], location ..< libNameNode.endLocation)
+
+                return AstNode.litProc(type: type, body: directiveNode, lvalue.startLocation ..< directiveNode.endLocation)
+
+            default:
+                reportError("Procedure types cannot be used as values", at: type) // NOTE(vdka): Should this warn more about missing body in proc literal?
                 return AstNode.invalid(type.location)
             }
-
-            let body = try expression()
-
-            return AstNode.litProc(type: type, body: body, type.startLocation ..< body.endLocation)
 
         default:
             panic()
