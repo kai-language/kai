@@ -8,7 +8,8 @@ class IRGenerator {
     var context = Context()
 
     var checker: Checker
-
+    var llvmPointers:   [Entity: IRValue]  = [:]
+    
     let module: Module
     let builder: IRBuilder
     let internalFuncs: InternalFuncs
@@ -97,7 +98,7 @@ extension IRGenerator {
     func emitMain() throws {
 //        unimplemented("Finding and emitting 'main'")
 
-        guard let mainEntity = checker.main else {
+        guard let _ = checker.main else {
             unimplemented("files without mains. Should be easy though...")
         }
 
@@ -131,20 +132,13 @@ extension IRGenerator {
     }
     
     func emitGlobals() throws {
-
         for node in file.nodes {
             switch node {
-            case .declValue(_, _, let type, _, _):
-
-                // TODO(vdka): Other types also need emitting.
-                switch type {
-                case .typeProc?:
-                    try emitProcedureDefinition(node)
-
-                default:
-                    break
-                }
+            case .declValue:
+                emitDeclaration(for: node)
+                
             default:
+                print("unsupported type for: \(node.identifier)")
                 break
             }
         }
@@ -155,7 +149,6 @@ extension IRGenerator {
 
     @discardableResult
     func emitLiteral(for node: AstNode) -> IRValue {
-
         switch node {
         case .litInteger(let val, _):
             return IntType.int64.constant(val)
@@ -172,11 +165,17 @@ extension IRGenerator {
     }
 
     func emitStmt(for node: AstNode) -> IRValue {
-
         switch node {
         case .litString, .litFloat, .litInteger, .litProc:
             return emitLiteral(for: node)
 
+        case .ident(let identifier, _):
+            let entity = context.scope.lookup(identifier)!
+            return builder.buildLoad(llvmPointers[entity]!)
+        
+        case .declValue:
+            return emitDeclaration(for: node)
+            
         case .stmtDefer:
             return emitDeferStmt(for: node)
 
@@ -198,11 +197,18 @@ extension IRGenerator {
         case .stmtAssign:
             return emitAssignment(for: node)
 
+        case .stmtBlock(let statements, _):
+            statements.forEach {
+                _ = emitStmt(for: $0)
+            }
+            return VoidType().null()
+            
+        case .stmtReturn:
+            return emitReturnStmt(for: node)
+            
         default:
             fatalError()
         }
-
-        return VoidType().null()
     }
 
     #if false
@@ -336,37 +342,51 @@ extension IRGenerator {
     }
 
     @discardableResult
-    func emitDeclaration(for node: AstNode) throws -> IRValue? {
-        unimplemented()
-        /*
->>>>>>> round2
-        guard
-            case .declaration(let symbol) = node.kind,
-            let type = symbol.type
-        else {
-            throw Error.preconditionNotMet(expected: "declaration", got: "\(node)")
+    func emitDeclaration(for node: AstNode) -> IRValue {
+        guard case let .declValue(_, names, _, values, _) = node else {
+            preconditionFailure()
         }
         
-        // what should we do here about forward declarations of foreign variables?
-        var defaultValue: IRValue? = nil
+        // TODO(Brett): multiple declarations
+        let name = names[0]
+        let value = values.first
         
-        if let valueChild = node.children.first {
-            defaultValue = try emitExpression(for: valueChild)
-        }
-        
-        let typeCanonicalized = try type.canonicalized()
+        // FIXME(Brett): use scope lookup when scope traversal setup
+        let entity = checker.info.definitions[name]!
+        let type = entity.type!
 
-        let llvm = emitEntryBlockAlloca(
-            in: currentProcedure!.pointer,
-            type: typeCanonicalized,
-            named: symbol.name.string,
-            default: defaultValue
-        )
+        switch type.kind {
+        case .proc:
+            return emitProcedureDefinition(name, value!)
+            
+        default:
+            break
+        }
         
-        symbol.llvm = llvm
+        let canonicalizedType = type.canonicalized()
         
-        return llvm
-        */
+        let defaultValue: IRValue?
+        if let value = value {
+            defaultValue = emitStmt(for: value)
+        } else {
+            defaultValue = nil
+        }
+        
+        let pointer: IRValue
+        if let currentProcedure = context.currentProcedure?.pointer {
+            pointer = emitEntryBlockAlloca(
+                in: currentProcedure,
+                type: canonicalizedType,
+                named: name.identifier,
+                default: defaultValue
+            )
+        } else {
+            pointer = emitGlobal(name: name.identifier, type: canonicalizedType, value: defaultValue)
+        }
+        
+        llvmPointers[entity] = pointer
+        
+        return pointer
     }
 
     @discardableResult
@@ -384,8 +404,7 @@ extension IRGenerator {
         let lvalueEntity = context.scope.lookup(ident)!
         let rvalue = emitStmt(for: rhs[0])
 
-        fatalError()
-//        return builder.buildStore(rvalue, to: lvalueEntity.llvm!)
+        return builder.buildStore(rvalue, to: llvmPointers[lvalueEntity]!)
     }
 
     @discardableResult
@@ -409,14 +428,6 @@ extension IRGenerator {
         if ident == "print" {
             return emitPrintCall(for: args)
         }
-        
-        // FIXME(Brett): why is this lookup failing?
-        /*guard let symbol = SymbolTable.current.lookup(identifier) else {
-            return
-        }
-        guard let function = symbol.pointer else {
-            unimplemented("lazy-generation of procedures")
-        }*/
         
         let function = module.function(named: ident)!
 

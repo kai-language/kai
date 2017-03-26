@@ -1,3 +1,4 @@
+import LLVM
 
 /// Defines a type in which something can take
 class Type: CustomStringConvertible {
@@ -152,7 +153,7 @@ class Entity: PointerHashable {
 
     var childScope: Scope?
     var value: ExactValue?
-
+    
     init(name: String, location: SourceLocation, kind: Kind, owningScope: Scope) {
         self.name = name
         self.location = location

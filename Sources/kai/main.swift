@@ -167,12 +167,13 @@ struct Compiler {
 
             let module = try IRGenerator.build(for: file, checker: checker)
 
-            // FIXME(vdka): emit object files for each and every importation
-            try TargetMachine().emitToFile(module: module, type: .object, path: "main.o")
             if options.contains("emit-ir") {
                 // TODO(vdka): Do we emit file names?
                 module.dump()
             }
+            
+            // FIXME(vdka): emit object files for each and every importation
+            try TargetMachine().emitToFile(module: module, type: .object, path: "main.o")
         }
         endTiming()
 

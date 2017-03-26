@@ -1,18 +1,56 @@
 import LLVM
 
-#if false
 extension Type {
-
-    func canonicalized() throws -> IRType {
-        if let llvm = self.llvm { return llvm }
-
+    func canonicalized() -> IRType {
         switch self.kind {
-        case .basic(let basicType):
-            switch basicType.kind {
-            case .invalid:
-                fatalError("invalid types should result in an abortion prior to calling \(#function)")
-
-            case .void:
+        case .named(_):
+            switch self {
+            case _ where self === Type.void || self === Type.unconstrNil:
+                return VoidType()
+                
+            case _ where self === Type.bool:
+                return IntType.int1
+                
+            case _ where self === Type.i8 || self === Type.u8:
+                return IntType.int8
+    
+            case _ where self === Type.i16 || self === Type.u16:
+                return IntType.int16
+                
+            case _ where self === Type.i32 || self === Type.u32:
+                return IntType.int32
+                
+            case _ where self === Type.i64 ||
+                self === Type.int ||
+                self === Type.unconstrInteger ||
+                self === Type.u64:
+                return IntType.int64
+                
+            case _ where self === Type.f32:
+                return FloatType.float
+                
+            case _ where self === Type.f64 || self === Type.unconstrFloat:
+                return FloatType.double
+                
+            case _ where self === Type.string || self === Type.unconstrString:
+                return PointerType(pointee: IntType.int8)
+                
+            default:
+                unimplemented()
+            }
+            
+            unimplemented()
+            
+        case .alias(_, let type):
+            return type.canonicalized()
+            
+        case .proc(_, _):
+            unimplemented("Procedures")
+            
+        case .struct(_):
+            unimplemented("Structures")
+            
+            /*case .void:
                 return VoidType()
 
             case .bool:
@@ -52,20 +90,19 @@ extension Type {
                 fatalError("Unconstrained types should be transformed at the site of their use.")
                 // TODO(vdka): This isn't compatible with distributing binaries.
                 //   It only works in a whole module sense I guess you could say. Not good.
-            }
-
-        case .invalid:
-            fatalError("\(#function) called on invalid type")
-
-        case .record(_):
-            unimplemented("Canonicalizing records for types")
-
-        case .proc(_):
-            unimplemented("Canonicalizing procedure types")
-
-        default:
-            unimplemented()
+            */
         }
     }
 }
-#endif
+
+extension Entity {
+    func canonicalized() -> IRType {
+        switch kind {
+        case .type(let type):
+            return type.canonicalized()
+            
+        default:
+            return type!.canonicalized()
+        }
+    }
+}

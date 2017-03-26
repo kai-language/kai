@@ -7,6 +7,18 @@ extension IRGenerator {
             name: name ?? ""
         )
     }
+    
+    func emitGlobal(name: String? = nil, type: IRType? = nil, value: IRValue? = nil) -> IRValue {
+        let name = name ?? ""
+        
+        if let value = value {
+            return builder.addGlobal(name, initializer: value)
+        } else if let type = type {
+            return builder.addGlobal(name, type: type)
+        } else {
+            preconditionFailure()
+        }
+    }
 }
 
 extension String {

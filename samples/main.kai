@@ -1,4 +1,6 @@
+test := 5
 
+<<<<<<< HEAD
 #import "globals.kai"
 #library "c" libc
 
@@ -18,6 +20,19 @@ main :: () -> void {
 
     print(str)
 
+=======
+nestedProc :: (message: string) -> void {
+    return
+}
+
+testProc :: (message: string) -> void {
+    nestedProc(message)    
+
+    return
+}
+
+main :: () -> void {
+>>>>>>> Brought back some of the IR generation. Heavily WIP.
     return
 }
 

@@ -34,8 +34,42 @@ extension IRGenerator {
         return allocation
     }
 
-    func emitProcedurePrototype(for proc: AstNode) -> Function {
-        unimplemented()
+    func emitProcedurePrototype(for name: String, params: [AstNode], results: [AstNode], isVarArg: Bool) -> Function {
+        if let function = module.function(named: name) {
+            return function
+        }
+        
+        let argTypes = params.map { decl -> IRType in
+            guard case let .declValue(_, names, _, _, _) = decl else {
+                preconditionFailure()
+            }
+           
+            return checker.info.definitions[names[0]]!.canonicalized()
+        }
+        
+        let resultTypes = results.map {
+            context.scope.lookup($0.identifier)!.canonicalized()
+        }
+        guard results.count == 1 else { unimplemented() }
+        
+        // TODO(Brett): multiple return
+        let procType = FunctionType(
+            argTypes: argTypes,
+            returnType: resultTypes[0],
+            isVarArg: isVarArg
+        )
+        
+        let procedure = builder.addFunction(name, type: procType)
+        
+        for (var param, decl) in zip(procedure.parameters, params) {
+            guard case let .declValue(_, names, _, _, _) = decl else {
+                preconditionFailure()
+            }
+            
+            param.name = names[0].identifier
+        }
+        
+        return procedure
     }
 
     /*
@@ -71,10 +105,84 @@ extension IRGenerator {
     */
 
     @discardableResult
-    func emitProcedureDefinition(_ node: AstNode) throws -> Function {
-
-        fatalError()
-
+    func emitProcedureDefinition(_ identifier: AstNode, _ node: AstNode) -> Function {
+        guard case let .litProc(type, body, _) = node, case let .typeProc(params, results, _) = type else {
+            preconditionFailure()
+        }
+        
+        let entity = checker.info.definitions[identifier]!
+        // TODO(Brett): use mangled name when available
+        let proc = emitProcedurePrototype(
+            for: entity.name,
+            params: params,
+            results: results,
+            isVarArg: false
+        )
+        
+        // TODO(Brett): early return on foreign procedures
+        
+        let scope = entity.childScope!
+        context.scope = scope
+        
+        let entryBlock = proc.appendBasicBlock(named: "entry")
+        let returnBlock = proc.appendBasicBlock(named: "return")
+        
+        // TODO(Brett): multiple returns
+        let returnType = context.scope.lookup(results[0].identifier)!.canonicalized()
+        var resultPtr: IRValue? = nil
+        
+        builder.positionAtEnd(of: entryBlock)
+        
+        if !(returnType is VoidType) {
+            resultPtr = emitEntryBlockAlloca(in: proc, type: returnType, named: "result")
+        }
+        
+        for (i, param) in params.enumerated() {
+            guard case let .declValue(_, names, _, _, _) = param else {
+                preconditionFailure()
+            }
+            
+            let entity = checker.info.definitions[names[0]]!
+            
+            // TODO(Brett): values
+            
+            let arg = proc.parameter(at: i)!
+            let argPointer = emitEntryBlockAlloca(
+                in: proc,
+                type: arg.type,
+                named: entity.name
+            )
+            
+            llvmPointers[entity] = argPointer
+        }
+        
+        context.currentProcedure = ProcedurePointer(
+            scope: scope,
+            pointer: proc,
+            args: [],
+            returnType: returnType,
+            returnBlock: returnBlock,
+            returnValuePointer: resultPtr
+        )
+        
+        _ = emitStmt(for: body)
+        
+        let insert = builder.insertBlock!
+        if !insert.hasTerminatingInstruction {
+            builder.buildBr(returnBlock)
+        }
+        
+        returnBlock.moveAfter(proc.lastBlock!)
+        builder.positionAtEnd(of: returnBlock)
+        
+        if returnType is VoidType {
+            builder.buildRetVoid()
+        } else {
+            let result = builder.buildLoad(resultPtr!, name: "result")
+            builder.buildRet(result)
+        }
+        
+        return proc
         /*
         guard case .procedure(let symbol) = node.kind,
               case .proc(let procInfo)? = symbol.type?.kind
@@ -177,7 +285,7 @@ extension IRGenerator {
         */
     }
 
-    func emitReturnStmt(for node: AstNode) {
+    func emitReturnStmt(for node: AstNode) -> IRValue {
         guard let currentProcedure = context.currentProcedure else {
             // TODO(vdka): This will be fine for instances such as scopes.
             fatalError("Return statement outside of procedure")
@@ -189,12 +297,16 @@ extension IRGenerator {
 
         unimplemented("Multiple returns", if: values.count > 1)
 
-        let value = emitStmt(for: values[0])
-
-        if !(value is VoidType) {
-            builder.buildStore(value, to: currentProcedure.returnValuePointer!)
+        if values.count > 0 {
+            let value = emitStmt(for: values[0])
+            
+            if !(value is VoidType) {
+                builder.buildStore(value, to: currentProcedure.returnValuePointer!)
+            }
         }
-
+        
+        
         builder.buildBr(currentProcedure.returnBlock)
+        return VoidType().null()
     }
 }
