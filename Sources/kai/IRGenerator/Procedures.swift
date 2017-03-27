@@ -72,38 +72,6 @@ extension IRGenerator {
         return procedure
     }
 
-    /*
-    func emitProcedurePrototype(for symbol: Symbol) throws -> Function {
-
-        // FIXME(vdka): What to do when we have no type for our symbol. Is that a compiler bug?
-        let type = symbol.type!
-        let name = symbol.name.string
-        if let function = module.function(named: name) {
-            return function
-        }
-
-        guard case .proc(let procInfo) = type.kind else { preconditionFailure() }
-
-        let args = try procInfo.params.map { try $0.canonicalized() }
-
-        let rets = try procInfo.returns.map { try $0.canonicalized() }
-        guard rets.count == 1 else { unimplemented() }
-
-         // FIXME: @multiplereturns
-        let fnType = FunctionType(argTypes: args, returnType: rets.first ?? VoidType(), isVarArg: procInfo.isVariadic)
-
-        let function = builder.addFunction(name, type: fnType)
-
-        if let labels = procInfo.labels, case .native = type.source {
-            for (var param, name) in zip(function.parameters, labels) {
-                param.name = name.binding.string
-            }
-        }
-
-        return function
-    }
-    */
-
     @discardableResult
     func emitProcedureDefinition(_ identifier: AstNode, _ node: AstNode) -> Function {
         guard case let .litProc(type, body, _) = node, case let .typeProc(params, results, _) = type else {
@@ -122,7 +90,11 @@ extension IRGenerator {
         // TODO(Brett): early return on foreign procedures
         
         let scope = entity.childScope!
+        let previousScope = context.scope
         context.scope = scope
+        defer {
+            context.scope = previousScope
+        }
         
         let entryBlock = proc.appendBasicBlock(named: "entry")
         let returnBlock = proc.appendBasicBlock(named: "return")
@@ -137,6 +109,7 @@ extension IRGenerator {
             resultPtr = emitEntryBlockAlloca(in: proc, type: returnType, named: "result")
         }
         
+        var args: [IRValue] = []
         for (i, param) in params.enumerated() {
             guard case let .declValue(_, names, _, _, _) = param else {
                 preconditionFailure()
@@ -154,16 +127,23 @@ extension IRGenerator {
             )
             
             llvmPointers[entity] = argPointer
+            args.append(argPointer)
         }
         
-        context.currentProcedure = ProcedurePointer(
+        let procPointer = ProcedurePointer(
             scope: scope,
             pointer: proc,
-            args: [],
+            args: args,
             returnType: returnType,
             returnBlock: returnBlock,
             returnValuePointer: resultPtr
         )
+        
+        let previousProcPointer = context.currentProcedure
+        context.currentProcedure = procPointer
+        defer {
+            context.currentProcedure = previousProcPointer
+        }
         
         _ = emitStmt(for: body)
         
@@ -183,106 +163,6 @@ extension IRGenerator {
         }
         
         return proc
-        /*
-        guard case .procedure(let symbol) = node.kind,
-              case .proc(let procInfo)? = symbol.type?.kind
-            else {
-                throw Error.preconditionNotMet(expected: "procedure", got: "\(node)")
-        }
-
-        let function = try emitProcedurePrototype(for: symbol)
-
-        switch symbol.source {
-        case .llvm(let funcName):
-            emitLLVMForeignDefinition(funcName, func: function)
-            return function
-
-        case .extern(_):
-            return function
-
-        case .native:
-            guard
-                let scopeChild = node.children.first,
-                case .scope(let scope) = scopeChild.kind
-                else {
-                    throw Error.preconditionNotMet(expected: "scope", got: "")
-            }
-
-            SymbolTable.current = scope
-            defer {
-                SymbolTable.pop()
-            }
-
-            // FIXME: @multiplereturns
-            let returnType = procInfo.returns.first!
-
-            let entryBlock = function.appendBasicBlock(named: "entry")
-            let returnBlock = function.appendBasicBlock(named: "return")
-            let returnTypeCanonicalized = try returnType.canonicalized()
-            var resultPtr: IRValue? = nil
-
-            builder.positionAtEnd(of: entryBlock)
-
-            // TODO: We don't need to rely upon LLVM for this, we should check if the returnType is a basicType.void. Or is another zerowidth value?
-            if !(returnTypeCanonicalized is VoidType) {
-                resultPtr = emitEntryBlockAlloca(in: function, type: returnTypeCanonicalized, named: "result")
-            }
-
-            var argPointers: [IRValue] = []
-
-            let args = try procInfo.params.map { try $0.canonicalized() }
-            for (i, arg) in args.enumerated() {
-                //TODO(Brett): insert pointers into current symbol table
-                let parameter = function.parameter(at: i)!
-                let name = procInfo.labels?[i].binding.string ?? ""
-                let argPointer = emitEntryBlockAlloca(in: function, type: arg, named: name, default: parameter)
-
-                //NOTE(Brett): It may be better to add these to the symbol instead
-                //TODO(Brett): Yup! Add these to the symbol table.
-
-                let newSymbol = Symbol(procInfo.labels![i].binding, location: SourceLocation.unknown, llvm: argPointer)
-                
-                try SymbolTable.current.insert(newSymbol)
-
-                argPointers.append(argPointer)
-            }
-
-            // NOTE(Brett): May have to work out some sort of stack when nested
-            // procedures are supported.
-            currentProcedure = ProcedurePointer(
-                symbol: symbol,
-                pointer: function,
-                args: argPointers,
-                returnType: returnTypeCanonicalized,
-                returnBlock: returnBlock,
-                returnValuePointer: resultPtr
-            )
-
-            defer {
-                currentProcedure = nil
-            }
-            
-            _ = try emitExpression(for: scopeChild)
-         
-            let insert = builder.insertBlock!
-            if !insert.hasTerminatingInstruction {
-                builder.buildBr(returnBlock)
-            }
-
-            returnBlock.moveAfter(function.lastBlock!)
-            builder.positionAtEnd(of: returnBlock)
-
-            // TODO: We don't need to rely upon LLVM for this, we should check if the returnType is a basicType.void. Or is another zerowidth value?
-            if returnTypeCanonicalized is VoidType {
-                builder.buildRetVoid()
-            } else {
-                let result = builder.buildLoad(resultPtr!, name: "result")
-                builder.buildRet(result)
-            }
-
-            return function
-        }
-        */
     }
 
     func emitReturnStmt(for node: AstNode) -> IRValue {

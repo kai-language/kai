@@ -1,5 +1,3 @@
-import LLVM
-
 /// Defines a type in which something can take
 class Type: CustomStringConvertible {
 
