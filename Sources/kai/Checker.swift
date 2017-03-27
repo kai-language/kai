@@ -368,11 +368,12 @@ struct Checker {
     }
 
     struct Info {
-        var entities:    [Entity: DeclInfo] = [:]
-        var types:       [AstNode: Type]    = [:] // Key: AstNode.expr*
-        var definitions: [AstNode: Entity]  = [:] // Key: AstNode.ident
-        var uses:        [AstNode: Entity]  = [:] // Key: AstNode.ident
-        var scopes:      [AstNode: Scope]   = [:] // Key: Any AstNode
+        var entities:    [Entity: DeclInfo]  = [:]
+        var definitions: [AstNode: Entity]   = [:] // Key: AstNode.ident
+        var decls:       [AstNode: DeclInfo] = [:] // Key: AstNode.declValue
+        var types:       [AstNode: Type]     = [:] // Key: AstNode.expr*
+        var uses:        [AstNode: Entity]   = [:] // Key: AstNode.ident
+        var scopes:      [AstNode: Scope]    = [:] // Key: Any AstNode
     }
 
     struct Context {
@@ -443,8 +444,9 @@ extension Checker {
 
         importEntities(&fileScopes)
 
-        let firstScope = fileScopes[parser.files[0].fullpath]!
-        checkEntities(in: firstScope)
+        for scope in fileScopes.values {
+            checkEntities(in: scope)
+        }
 
         for pi in procs {
             let prevContext = context
@@ -501,6 +503,8 @@ extension Checker {
                 info.definitions[name] = entity
             }
             checkArityMatch(node)
+
+            info.decls[node] = declInfo
 
             return declInfo.entities
 

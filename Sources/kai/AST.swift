@@ -715,7 +715,6 @@ extension AstNode {
             unlabeled.append("\"" + val + "\"")
 
         case .litProc(let type, let body, _):
-            labeled.append(("type", type.typeDescription))
             guard case .typeProc(let params, let results, _) = type else {
                 panic()
             }
@@ -804,15 +803,12 @@ extension AstNode {
         case .stmtBreak, .stmtContinue, .stmtFallthrough:
             break
 
-        case .declValue(_, let names, let type, let values, _):
+        case .declValue(_, let names, _, let values, _):
 
             if names.reduce(true, { $0.0 && $0.1.isIdent }) {
                 labeled.append(("names", names.map({ $0.value }).joined(separator: ", ")))
             } else {
                 children += names
-            }
-            if let type = type {
-                labeled.append(("type", type.typeDescription))
             }
             if !values.isEmpty {
                 if values.reduce(true, { $0.0 && $0.1.isIdent }) {
@@ -889,6 +885,11 @@ extension AstNode {
         if let type = checker.info.types[self] {
             str.append(" type: ".colored(.cyan))
             str.append("'" + type.description + "'")
+        } else if let decl = checker.info.decls[self] {
+            str.append(" types: '")
+
+            str.append(decl.entities.map({ $0.type!.description }).joined(separator: ", "))
+            str.append("'")
         }
 
         renamedChildren.map({ $0.1.pretty(depth: depth + 1, specialName: $0.0) }).forEach({ str.append($0) })
