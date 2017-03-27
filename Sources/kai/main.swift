@@ -41,7 +41,7 @@ struct Compiler {
             case "--emit-ast":
                 options.insert("emit-ast")
 
-            case "emit-typed-ast":
+            case "--emit-typed-ast":
                 options.insert("emit-typed-ast")
 
             case "--emit-ir":
