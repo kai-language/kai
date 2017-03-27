@@ -404,6 +404,10 @@ extension Parser {
  
         case .lparen:
             let (_, lparen) = try consume(.lparen)
+            if case (.rparen, let rparen)? = try lexer.peek() {
+                try consume(.rparen)
+                return AstNode.exprCall(receiver: lvalue, args: [], lparen ..< rparen)
+            }
 
             let args = try expression()
 
