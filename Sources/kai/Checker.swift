@@ -33,9 +33,10 @@ class Type: CustomStringConvertible {
         static let string         = Flag(rawValue: 0b00100000)
         static let unconstrained  = Flag(rawValue: 0b01000000)
 
-        static let none:     Flag = []
-        static let numeric:  Flag = [.integer, .unsigned, .float]
-        static let ordered:  Flag = [.numeric, .string, .pointer]
+        static let none:         Flag = []
+        static let numeric:      Flag = [.integer, .unsigned, .float]
+        static let ordered:      Flag = [.numeric, .string, .pointer]
+        static let booleanesque: Flag = [.numeric, .boolean]
     }
 
     var description: String {
@@ -1247,9 +1248,10 @@ extension Checker {
         case "+" where !Type.Flag.numeric.union(lhsType.flags).isEmpty && !Type.Flag.numeric.union(lhsType.flags).isEmpty,
              "-",
              "*",
-             "/":
+             "/",
+             "%":
             // NOTE(vdka): The first matching case duplicates this so that `string + string` doesn't enter this case body
-            guard !Type.Flag.numeric.union(lhsType.flags).isEmpty && !Type.Flag.numeric.union(lhsType.flags).isEmpty else {
+            guard !Type.Flag.numeric.union(lhsType.flags).isEmpty && !Type.Flag.numeric.union(rhsType.flags).isEmpty else {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
             }
@@ -1263,6 +1265,83 @@ extension Checker {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
             }
+
+            // TODO(vdka): '%' modulo does % work on Float types?
+
+        case "<<",
+             ">>":
+            guard !Type.Flag.integer.union(lhsType.flags).isEmpty && !Type.Flag.integer.union(rhsType.flags).isEmpty else {
+                reportError(invalidOpError, at: node)
+                return Type.invalid
+            }
+            if lhsType === rhsType {
+                return lhsType
+            } else if lhsType.flags.contains(.unconstrained) {
+                return rhsType
+            } else if rhsType.flags.contains(.unsigned) {
+                return lhsType
+            } else {
+                reportError(invalidOpError, at: node)
+                return Type.invalid
+            }
+
+        case "<",
+             ">",
+             "<=",
+             ">=",
+             "==":
+            guard !Type.Flag.ordered.union(lhsType.flags).isEmpty && !Type.Flag.ordered.union(rhsType.flags).isEmpty else {
+                    reportError(invalidOpError, at: node)
+                    return Type.invalid
+            }
+
+            if !Type.Flag.unconstrained.union(lhsType.flags).union(rhsType.flags).isEmpty {
+                return Type.unconstrBool
+            }
+
+            return Type.bool
+
+        case "&",
+             "^",
+             "|":
+            guard !Type.Flag.integer.union(lhsType.flags).isEmpty && !Type.Flag.integer.union(rhsType.flags).isEmpty else {
+                reportError(invalidOpError, at: node)
+                return Type.invalid
+            }
+
+            if !Type.Flag.unconstrained.union(lhsType.flags).isEmpty && !Type.Flag.unconstrained.union(rhsType.flags).isEmpty {
+                return Type.unconstrInteger
+            }
+
+            if lhsType === rhsType {
+                return lhsType
+            }
+            if lhsType.size == rhsType.size {
+                assert(lhsType.flags.contains(.unsigned) || rhsType.flags.contains(.unsigned))
+                reportError("Unable to infer type for result", at: node) // TODO(vdka): Better error
+                return Type.invalid
+            }
+            if lhsType.size < rhsType.size {
+                return rhsType
+            }
+            if lhsType.size > rhsType.size {
+                return lhsType
+            }
+
+            panic()
+
+        case "&&",
+             "||":
+            guard !Type.Flag.booleanesque.union(lhsType.flags).isEmpty && !Type.Flag.booleanesque.union(rhsType.flags).isEmpty else {
+                reportError(invalidOpError, at: node)
+                return Type.invalid
+            }
+
+            if !Type.Flag.unconstrained.union(lhsType.flags).isEmpty && !Type.Flag.unconstrained.union(rhsType.flags).isEmpty {
+                return Type.unconstrBool
+            }
+
+            return Type.bool
 
         default:
             reportError(invalidOpError, at: node)
