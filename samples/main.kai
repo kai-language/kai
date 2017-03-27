@@ -12,7 +12,7 @@ print :: (s: string) -> void #foreign libc "printf"
 
 main :: () -> void {
     x := random()
-    y := globals.tau
+    y := globals.tau + globals.pi + 5
 
     x = random()
 

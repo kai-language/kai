@@ -780,11 +780,15 @@ extension Checker {
                 // `x: f32 = integerValue` | `y: f32 = floatValue`
                 return true
             }
+            if a.flags.contains(.integer) && b.flags.contains(.float) {
+                // implicitely upcast an integer into a float is fine.
+                return true
+            }
             if a.flags.contains(.integer) && b.flags.contains(.integer) {
                 // Currently we support converting any integer to any other integer implicitely
                 return true
             }
-            if Type.Flag.numeric.contains(a.flags) && b.flags.contains(.boolean) {
+            if !Type.Flag.numeric.union(a.flags).isEmpty && b.flags.contains(.boolean) {
                 // Any numeric type can be cast to booleans
                 return true
             }
@@ -1101,7 +1105,10 @@ extension Checker {
             type = checkExpr(node)
 
         case .exprUnary(let op, expr: let expr, _):
-            type = checkUnary(op, expr)
+            type = checkUnary(node)
+
+        case .exprBinary(let op, let lhs, let rhs, _):
+            type = checkBinary(node)
 
         case .exprCall(let receiver, let args, _):
             type = checkExpr(receiver)
@@ -1205,20 +1212,60 @@ extension Checker {
         }
     }
 
-    mutating func checkUnary(_ operation: String, _ expr: AstNode) -> Type {
+    mutating func checkUnary(_ node: AstNode) -> Type {
+        guard case .exprUnary(let operation, let expr, let location) = node else {
+            panic()
+        }
 
         switch operation {
         case "+", "-", "!", "~":
             let operandType = checkExpr(expr)
             guard operandType.flags.contains(.numeric) else {
-                reportError("Undefined operator '+' for \(operandType)", at: expr)
+                reportError("Undefined unary operation '+' for \(operandType)", at: location)
                 return Type.invalid
             }
 
             return operandType
 
         default:
-            reportError("Undefined operator '\(operation)'", at: expr)
+            reportError("Undefined unary operation '\(operation)'", at: location)
+            return Type.invalid
+        }
+    }
+
+    mutating func checkBinary(_ node: AstNode) -> Type {
+        guard case .exprBinary(let op, let lhs, let rhs, _) = node else {
+            panic()
+        }
+
+        let lhsType = checkExpr(lhs)
+        let rhsType = checkExpr(rhs)
+
+        let invalidOpError = "Invalid operation binary operation \(op) between types \(lhsType) and \(rhsType)"
+
+        switch op {
+        case "+" where !Type.Flag.numeric.union(lhsType.flags).isEmpty && !Type.Flag.numeric.union(lhsType.flags).isEmpty,
+             "-",
+             "*",
+             "/":
+            // NOTE(vdka): The first matching case duplicates this so that `string + string` doesn't enter this case body
+            guard !Type.Flag.numeric.union(lhsType.flags).isEmpty && !Type.Flag.numeric.union(lhsType.flags).isEmpty else {
+                reportError(invalidOpError, at: node)
+                return Type.invalid
+            }
+            if lhsType === rhsType {
+                return lhsType
+            } else if canImplicitlyConvert(lhsType, to: rhsType) {
+                return lhsType
+            } else if canImplicitlyConvert(rhsType, to: lhsType) {
+                return rhsType
+            } else {
+                reportError(invalidOpError, at: node)
+                return Type.invalid
+            }
+
+        default:
+            reportError(invalidOpError, at: node)
             return Type.invalid
         }
     }
