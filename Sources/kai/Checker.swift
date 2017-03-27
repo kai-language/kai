@@ -1116,6 +1116,33 @@ extension Checker {
                 }
             }
 
+        case .exprSelector(let receiver, let member, _):
+
+            //
+            // TODO(vdka): This is temp code just to make importName entity have their members accessible. 
+            //   Should be fine since we don't currently have structures of any sort.
+            //
+
+            guard let fileEntity = context.scope.lookup(receiver.identifier) else {
+                panic() // NOTE: The 'tempness' of this code. Only works for importName entities
+            }
+
+            guard case .importName = fileEntity.kind else {
+                panic()
+            }
+
+            guard case .ident(let memberName, _) = member else {
+                panic()
+            }
+
+            guard let scopeEntity = fileEntity.childScope!.lookup(memberName) else {
+                reportError("Member '\(memberName)' not found in file scope", at: member)
+                return Type.invalid
+            }
+
+            checkEntity(scopeEntity)
+            return scopeEntity.type!
+
         default:
             panic(node)
         }
