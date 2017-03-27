@@ -777,6 +777,10 @@ extension Checker {
             if a.flags.contains(.boolean) && b.flags.contains(.boolean) {
                 return true
             }
+            if a.flags.contains(.string) && b.flags.contains(.string) {
+                return true
+            }
+
         } else if Type.Flag.numeric.contains(a.flags) && b.flags.contains(.boolean) {
             // Numeric types can be converted to booleans through truncation
             return true
