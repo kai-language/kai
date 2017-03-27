@@ -591,10 +591,6 @@ extension Checker {
                 }
             }
         }
-
-        for _ in delayedLibaries {
-            unimplemented("Foreign libraries") // TODO(vdka): This should be super easy.
-        }
     }
 
     mutating func checkEntity(_ e: Entity) {
@@ -956,6 +952,11 @@ extension Checker {
         }
 
         guard case .stmtBlock(let stmts, _) = body else {
+
+            let prevContext = context
+            defer { context = prevContext }
+            context.scope = pi.owningScope
+
             guard case .directive("foreign", let args, _) = body else {
                 reportError("Expected a procedure body to be a block or foreign statement", at: body)
                 return
