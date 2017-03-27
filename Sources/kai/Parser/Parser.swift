@@ -311,18 +311,24 @@ extension Parser {
 
             let fullpath = FileManager.default.absolutePath(for: path, relativeTo: currentFile)
 
-            if case .ident("as")? = try lexer.peek()?.kind {
-                guard case .ident(let alias)? = try lexer.peek()?.kind else {
-                    reportError("Expected identifier for import alias", at: lexer.lastLocation)
-                    return AstNode.invalid(location ..< lexer.lastLocation)
-                }
+            var node: AstNode
+            switch try lexer.peek()?.kind {
+            case .dot?:
                 try consume()
 
-                let aliasNode = AstNode.ident(alias, lexer.lastConsumedRange)
-                return AstNode.declImport(path: pathNode, fullpath: fullpath, importName: aliasNode, location ..< lexer.location)
-            }
+                let aliasNode = AstNode.ident(".", lexer.lastConsumedRange)
 
-            let node = AstNode.declImport(path: pathNode, fullpath: fullpath, importName: nil, location ..< pathNode.endLocation)
+                node = AstNode.declImport(path: pathNode, fullpath: fullpath, importName: aliasNode, location ..< lexer.location)
+
+            case .ident(let name)?:
+                try consume()
+
+                let aliasNode = AstNode.ident(name, lexer.lastConsumedRange)
+                node = AstNode.declImport(path: pathNode, fullpath: fullpath, importName: aliasNode, location ..< lexer.location)
+
+            default:
+                node = AstNode.declImport(path: pathNode, fullpath: fullpath, importName: nil, location ..< pathNode.endLocation)
+            }
 
             // bad paths are reported in the checker
             if let fullpath = fullpath {
@@ -491,7 +497,7 @@ extension Parser {
 
                 let libPathNode = AstNode.litString(path, lexer.lastConsumedRange)
 
-                let directiveNode = AstNode.directive("foreign", args: [libPathNode, libNameNode], location ..< libNameNode.endLocation)
+                let directiveNode = AstNode.directive("foreign", args: [libNameNode, libPathNode], location ..< libNameNode.endLocation)
 
                 return AstNode.litProc(type: type, body: directiveNode, lvalue.startLocation ..< directiveNode.endLocation)
 

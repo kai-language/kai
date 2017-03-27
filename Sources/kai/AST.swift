@@ -239,6 +239,13 @@ extension AstNode {
         }
     }
 
+    var isDirective: Bool {
+        if case .directive = self {
+            return true
+        }
+        return false
+    }
+
     var isDecl: Bool {
         switch self {
         case .declValue, .declImport, .declLibrary:

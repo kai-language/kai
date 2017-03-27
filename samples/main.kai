@@ -3,8 +3,6 @@
 
 str :: "Hello, Kai!"
 
-open :: (path: u8, mode: int, perm: u32) -> void #foreign libc "open"
-
 isNonZero :: (n: int, e: int) -> bool {
     if n return true
     else return false
@@ -14,6 +12,8 @@ canFail :: (i: int, j: int) -> int, bool {
     if false return i, false
     else return j, false
 }
+
+print :: (s: string) -> void #foreign libc "printf"
 
 main :: () -> void {
     x := 5

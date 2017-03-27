@@ -371,13 +371,11 @@ struct Checker {
 
     struct Context {
         var scope: Scope
-        var fileScope: Scope? = nil
-        var inDefer: Bool     = false
+        var inDefer: Bool = false
 
         init(scope: Scope) {
             self.scope = scope
 
-            fileScope = nil
             inDefer   = false
         }
     }
@@ -430,6 +428,11 @@ extension Checker {
             collectEntities(file.nodes)
 
             context = prevContext
+
+            /* If you want to print all entities found in said file
+             print("entities found in file \(file.path): ")
+             print(Array(file.scope!.elements.keys!))
+            */
         }
 
         importEntities(&fileScopes)
@@ -495,9 +498,26 @@ extension Checker {
 
             return declInfo.entities
 
-        case .declImport, .declLibrary:
+        case .declLibrary(let libPathNode, _, let libNameNode, _):
+
+            guard case .litString = libPathNode else {
+                panic()
+            }
+
+            guard case .ident = libNameNode! else {
+                panic()
+            }
+
+            let e = Entity(identifier: libNameNode!, kind: .libraryName, owningScope: context.scope)
+            addEntity(to: context.scope, e)
+
+            return [e]
+
+            // TODO(vdka): Set any flags for the linking phase to use
+
+        case .declImport:
             if !context.scope.isFile {
-                reportError("#import and #library directives are only valid at file scope", at: node)
+                reportError("#import directives are only valid at file scope", at: node)
             }
 
             let decl = DelayedDecl(parent: context.scope, decl: node)
@@ -528,16 +548,6 @@ extension Checker {
     mutating func importEntities(_ fileScopes: inout [String: Scope]) {
 
         for imp in delayedImports {
-            if case .declLibrary(let path, _, let libName, _) = imp.decl {
-                guard case .litString("c", _) = path else {
-                    unimplemented("Library support that is not \"c\"")
-                }
-
-                // FIXME(vdka): For now I don't extract name from path
-                let e = Entity(name: libName!.identifier, location: path.startLocation, kind: .libraryName, owningScope: imp.parent)
-                addEntity(to: imp.parent, e)
-                continue
-            }
 
             guard case .declImport(let path, let fullpathOpt, let importName, _) = imp.decl else {
                 panic()
@@ -589,7 +599,7 @@ extension Checker {
 
     mutating func checkEntity(_ e: Entity) {
         switch e.kind {
-        case .libraryName:
+        case .libraryName, .importName:
             return
 
         default:
@@ -616,7 +626,6 @@ extension Checker {
     mutating func setCurrentFile(_ file: ASTFile) {
         self.currentFile = file
         self.context.scope = file.scope!
-        self.context.fileScope = file.scope!
     }
 
     @discardableResult
@@ -946,12 +955,37 @@ extension Checker {
             panic()
         }
 
+        guard case .stmtBlock(let stmts, _) = body else {
+            guard case .directive("foreign", let args, _) = body else {
+                reportError("Expected a procedure body to be a block or foreign statement", at: body)
+                return
+            }
+
+            guard let libNameNode = args[safe: 0], case .ident(let libName, let libLocation) = libNameNode else {
+                reportError("Expected the name of the library the symbol will come from", at: args.last?.endLocation ?? body.endLocation)
+                return
+            }
+
+            guard let entity = context.scope.lookup(libName) else {
+                reportError("Undeclared name: '\(libName)'", at: libNameNode)
+                return
+            }
+
+            guard case .libraryName = entity.kind else {
+                reportError("Expected a library identifier", at: libNameNode)
+                return
+            }
+
+            guard case .litString(let path, let pathLocation)? = args[safe: 1] else {
+                reportError("Expected a string literal as the symbol to bind from the library", at: args.first?.startLocation ?? body.endLocation)
+                return
+            }
+
+            return
+        }
+
         openScope(body)
         defer { closeScope() }
-
-        guard case .stmtBlock(let stmts, _) = body else {
-            fatalError() // TODO(vdka): Report error
-        }
 
         let prevContext = context
         let s = Scope(parent: pi.owningScope)
@@ -1042,9 +1076,7 @@ extension Checker {
 
         case .litProc(_, let body, _):
             type = checkProcLitType(node)
-            if case .stmtBlock = body {
-                queueCheckProc(node, type: type, decl: nil) // no decl as this is an anon proc
-            }
+            queueCheckProc(node, type: type, decl: nil) // no decl as this is an anon proc
 
         case .exprParen(let node, _):
             type = checkExpr(node)
@@ -1162,7 +1194,7 @@ extension Checker {
             if name == "_" {
                 reportError("'_' cannot be used as a value", at: node)
             } else {
-                reportError(("Undeclared name: '\(name)'"), at: node)
+                reportError("Undeclared name: '\(name)'", at: node)
             }
 
             return Type.invalid
