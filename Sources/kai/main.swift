@@ -41,6 +41,9 @@ struct Compiler {
             case "--emit-ast":
                 options.insert("emit-ast")
 
+            case "emit-typed-ast":
+                options.insert("emit-typed-ast")
+
             case "--emit-ir":
                 options.insert("emit-ir")
 
@@ -49,6 +52,7 @@ struct Compiler {
 
             case "--emit-all":
                 options.insert("emit-ast")
+                options.insert("emit-typed-ast")
                 options.insert("emit-ir")
                 options.insert("emit-time")
 
@@ -105,6 +109,7 @@ struct Compiler {
 
         print("\(cyan)OPTIONS\(reset):")
         print("  --emit-ast             Output generated abstract syntax tree")
+        print("  --emit-typed-ast       Output type annotated syntax tree")
         print("  --emit-ir              Output generated LLVM IR")
         print("  --emit-all             Output both AST and LLVM IR")
         print("")
@@ -149,6 +154,12 @@ struct Compiler {
             print("There were \(errors.count) errors during checking\nexiting")
             emitErrors()
             exit(1)
+        }
+
+        if options.contains("emit-typed-ast") {
+            for file in files {
+                print(file.prettyTyped(checker))
+            }
         }
 
         startTiming("Code Generation")

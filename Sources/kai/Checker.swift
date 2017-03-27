@@ -1,6 +1,6 @@
 
 /// Defines a type in which something can take
-class Type {
+class Type: CustomStringConvertible {
 
     var kind: Kind
     var flags: Flag
@@ -38,13 +38,19 @@ class Type {
         static let ordered:  Flag = [.numeric, .string, .pointer]
     }
 
-    var name: String? {
-        switch self.kind {
-        case .named(let name), .alias(let name, _), .struct(let name):
+    var description: String {
+        switch kind {
+        case .named(let name):
             return name
 
-        default:
-            return nil
+        case .alias(let name, let type):
+            return name + " aka " + type.description
+
+        case .proc(let params, let returns):
+            return "(" + params.map({ $0.type!.description }).joined(separator: ", ") + ") -> " + returns.map({ $0.description }).joined(separator: ", ")
+
+        case .struct(let name):
+            return name
         }
     }
 
@@ -242,7 +248,7 @@ class Scope: PointerHashable {
                 panic()
             }
 
-            let e = Entity(name: type.name!, location: location, kind: .type(type), owningScope: s)
+            let e = Entity(name: type.description, location: location, kind: .type(type), owningScope: s)
             e.type = Type.typeInfo
             s.insert(e)
         }
@@ -805,7 +811,7 @@ extension Checker {
 
                 // if there is an explicit type ensure we do not conflict with it
                 if !canImplicitlyConvert(rvalueType, to: explicitType) {
-                    reportError("Cannot implicitly convert type '\(rvalueType.name)' to type '\(explicitType.name)'", at: d.typeExpr!)
+                    reportError("Cannot implicitly convert type '\(rvalueType)' to type '\(explicitType)'", at: d.typeExpr!)
                     e.type = Type.invalid
                     continue
                 }
@@ -1046,7 +1052,7 @@ extension Checker {
             for (returnExpr, resultType) in zip(returnedExprs, results) {
                 let returnExprType = checkExpr(returnExpr)
                 if !canImplicitlyConvert(returnExprType, to: resultType) {
-                    reportError("Incompatible type for return expression. Expected '\(resultType.name ?? "")' but got '\(returnExprType.name ?? "")'", at: returnExpr)
+                    reportError("Incompatible type for return expression. Expected '\(resultType)' but got '\(returnExprType)'", at: returnExpr)
                     continue
                 }
             }
@@ -1083,7 +1089,7 @@ extension Checker {
             assert(args.isEmpty)
             type = Type.unconstrInteger
 
-        case .litProc(_, let body, _):
+        case .litProc:
             type = checkProcLitType(node)
             queueCheckProc(node, type: type, decl: nil) // no decl as this is an anon proc
 
@@ -1096,7 +1102,7 @@ extension Checker {
         case .exprCall(let receiver, let args, _):
             type = checkExpr(receiver)
             guard case .proc(let params, _) = type.kind else {
-                reportError("cannot call non-procedure '\(receiver.value)' (type \(type.name ?? ""))", at: node)
+                reportError("cannot call non-procedure '\(receiver.value)' (type \(type))", at: node)
                 break
             }
 
@@ -1111,7 +1117,7 @@ extension Checker {
             for (arg, param) in zip(args, params) {
                 let argType = checkExpr(arg)
                 if !canImplicitlyConvert(argType, to: param.type!) {
-                    reportError("Incompatible type for argument, expected '\(param.type!.name ?? "")' but got '\(argType.name ?? "")'", at: arg)
+                    reportError("Incompatible type for argument, expected '\(param.type!)' but got '\(argType)'", at: arg)
                     continue
                 }
             }
@@ -1197,19 +1203,11 @@ extension Checker {
 
     mutating func checkUnary(_ operation: String, _ expr: AstNode) -> Type {
 
-        func describeType(_ type: Type) -> String {
-            if let name = type.name {
-                return "type '\(name)'"
-            } else {
-                return "anonymous type"
-            }
-        }
-
         switch operation {
         case "+", "-", "!", "~":
             let operandType = checkExpr(expr)
             guard operandType.flags.contains(.numeric) else {
-                reportError("Undefined operator '+' for" + describeType(operandType), at: expr)
+                reportError("Undefined operator '+' for \(operandType)", at: expr)
                 return Type.invalid
             }
 

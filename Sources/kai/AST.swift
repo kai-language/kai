@@ -593,10 +593,12 @@ extension AstNode {
             if let type = type {
                 labeled.append(("type", type.typeDescription))
             }
-            if values.reduce(true, { $0.0 && $0.1.isIdent }) {
-                labeled.append(("values", values.map({ $0.value }).joined(separator: ", ")))
-            } else {
-                children += values
+            if !values.isEmpty {
+                if values.reduce(true, { $0.0 && $0.1.isIdent }) {
+                    labeled.append(("values", values.map({ $0.value }).joined(separator: ", ")))
+                } else {
+                    children += values
+                }
             }
 
         case .declImport(let path, _, importName: let importName, _):
@@ -672,6 +674,232 @@ extension AstNode {
 
         return str
     }
+
+
+    /// - Parameter specialName: An name to use in place of the nodes short name.
+    func prettyTyped(checker: Checker, depth: Int = 0, includeParens: Bool = true, specialName: String? = nil) -> String {
+
+        var unlabeled: [String] = []
+        var labeled: [(String, String)] = []
+
+        var children: [AstNode] = []
+
+        // used to emit a node with a different short name ie: list node as parameters or results
+        var renamedChildren: [(String, AstNode)] = []
+
+        switch self {
+        case .invalid(let location):
+            labeled.append(("location", location.description))
+
+        case .ident(let ident, _):
+            unlabeled.append(ident)
+
+        case .directive(let directive, _, _):
+            unlabeled.append(directive)
+
+        case .list(let nodes, _):
+
+            if nodes.reduce(true, { $0.0 && $0.1.isIdent }) {
+                unlabeled.append(nodes.map({ $0.value }).joined(separator: ", "))
+            } else {
+                children.append(contentsOf: nodes)
+            }
+
+        case .litInteger(let val, _):
+            unlabeled.append("'" + val.description + "'")
+
+        case .litFloat(let val, _):
+            unlabeled.append("'" + val.description + "'")
+
+        case .litString(let val, _):
+            unlabeled.append("\"" + val + "\"")
+
+        case .litProc(let type, let body, _):
+            labeled.append(("type", type.typeDescription))
+            guard case .typeProc(let params, let results, _) = type else {
+                panic()
+            }
+
+            let emptyList = AstNode.list([], SourceLocation.unknown ..< .unknown)
+            var paramsList = emptyList
+            for param in params {
+                for decl in explode(param) {
+                    paramsList = append(paramsList, decl)
+                }
+            }
+
+            var resultList = emptyList
+            for result in results {
+                for decl in explode(result) {
+                    resultList = append(resultList, decl)
+                }
+            }
+            renamedChildren.append(("parameters", paramsList))
+            renamedChildren.append(("results", resultList))
+
+            children.append(body)
+
+        case .exprUnary(let op, let expr, _):
+            unlabeled.append(op)
+            children.append(expr)
+
+        case .exprBinary(let op, let lhs, let rhs, _):
+            unlabeled.append(op)
+            children.append(lhs)
+            children.append(rhs)
+
+        case .exprParen(let expr, _):
+            children.append(expr)
+
+        case .exprSelector(let receiver, let selector, _):
+            children.append(receiver)
+            children.append(selector)
+
+        case .exprCall(let receiver, let args, _):
+            unlabeled.append(receiver.value)
+            children.append(contentsOf: args)
+
+        case .exprTernary(let cond, let trueBranch, let falseBranch, _):
+            children.append(cond)
+            children.append(trueBranch)
+            children.append(falseBranch)
+
+        case .stmtEmpty(_):
+            break
+
+        case .stmtExpr(let ast):
+            children.append(ast)
+
+        case .stmtAssign(let op, let lhs, let rhs, _):
+            unlabeled.append(op)
+            children.append(contentsOf: lhs)
+            children.append(contentsOf: rhs)
+
+        case .stmtBlock(let stmts, _):
+            children.append(contentsOf: stmts)
+
+        case .stmtIf(let cond, let trueBranch, let falseBranch, _):
+            children.append(cond)
+            children.append(trueBranch)
+            if let falseBranch = falseBranch {
+                children.append(falseBranch)
+            }
+
+        case .stmtReturn(let results, _):
+            children.append(contentsOf: results)
+
+        case .stmtFor(let initializer, let cond, let post, let body, _):
+            children.append(initializer)
+            children.append(cond)
+            children.append(post)
+            children.append(body)
+
+        case .stmtCase(let list, let stmts, _):
+            children.append(contentsOf: list)
+            children.append(contentsOf: stmts)
+
+        case .stmtDefer(let stmt, _):
+            children.append(stmt)
+
+        case .stmtBreak, .stmtContinue, .stmtFallthrough:
+            break
+
+        case .declValue(_, let names, let type, let values, _):
+
+            if names.reduce(true, { $0.0 && $0.1.isIdent }) {
+                labeled.append(("names", names.map({ $0.value }).joined(separator: ", ")))
+            } else {
+                children += names
+            }
+            if let type = type {
+                labeled.append(("type", type.typeDescription))
+            }
+            if !values.isEmpty {
+                if values.reduce(true, { $0.0 && $0.1.isIdent }) {
+                    labeled.append(("values", values.map({ $0.value }).joined(separator: ", ")))
+                } else {
+                    children += values
+                }
+            }
+
+        case .declImport(let path, _, importName: let importName, _):
+            unlabeled.append(path.value)
+            if let importName = importName {
+                labeled.append(("as", importName.value))
+            } else if case .litString(let pathString, _) = path {
+                let (importName, error) = Checker.pathToEntityName(pathString)
+                if error {
+                    labeled.append(("as", "<invalid>"))
+                } else {
+                    labeled.append(("as", importName))
+                }
+            }
+
+        case .declLibrary(let path, _, let libName, _):
+            unlabeled.append(path.value)
+            if let libName = libName {
+                labeled.append(("as", libName.value))
+            } else if case .litString(let pathString, _) = path {
+                let (importName, error) = Checker.pathToEntityName(pathString)
+                if error {
+                    labeled.append(("as", "<invalid>"))
+                } else {
+                    labeled.append(("as", importName))
+                }
+            }
+
+        case .typeProc(let params, let results, _):
+            let emptyList = AstNode.list([], SourceLocation.unknown ..< .unknown)
+            var paramsList = emptyList
+            for param in params {
+                for decl in explode(param) {
+                    paramsList = append(paramsList, decl)
+                }
+            }
+
+            var resultList = emptyList
+            for result in results {
+                for decl in explode(result) {
+                    resultList = append(resultList, decl)
+                }
+            }
+            renamedChildren.append(("parameters", paramsList))
+            renamedChildren.append(("results", resultList))
+
+        case .typeStruct, .typeEnum, .typeArray:
+            unlabeled.append("'" + self.typeDescription + "'")
+        }
+
+        let indent = (0...depth).reduce("\n", { $0.0 + "  " })
+        var str = indent
+
+        if includeParens {
+            str.append("(")
+        }
+
+        if let specialName = specialName {
+            str.append(specialName.colored(.blue))
+        } else {
+            str.append(shortName.colored(.blue))
+        }
+
+        str.append(unlabeled.reduce("", { [$0.0, " ", $0.1.colored(.red)].joined() }))
+        str.append(labeled.reduce("", { [$0.0, " ", $0.1.0.colored(.white), ": '", $0.1.1.colored(.red), "'"].joined() }))
+
+        if let type = checker.info.types[self] {
+            str.append(" type: ".colored(.cyan))
+            str.append("'" + type.description + "'")
+        }
+
+        renamedChildren.map({ $0.1.pretty(depth: depth + 1, specialName: $0.0) }).forEach({ str.append($0) })
+        children.map({ $0.pretty(depth: depth + 1, includeParens: true) }).forEach({ str.append($0) })
+        
+        if includeParens {
+            str.append(")")
+        }
+        
+        return str
+    }
 }
 
 extension ASTFile {
@@ -680,6 +908,16 @@ extension ASTFile {
         var description = "(" + "file".colored(.blue) + " '" + fullpath.colored(.red) + "'"
         for node in nodes {
             description += node.pretty(depth: 1)
+        }
+        description += ")"
+
+        return description
+    }
+
+    func prettyTyped(_ checker: Checker) -> String {
+        var description = "(" + "file".colored(.blue) + " '" + fullpath.colored(.red) + "'"
+        for node in nodes {
+            description += node.prettyTyped(checker: checker, depth: 1)
         }
         description += ")"
 
