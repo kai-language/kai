@@ -98,7 +98,7 @@ extension Parser {
         case .operator(let symbol):
             return Operator.table.first(where: { $0.symbol == symbol })?.lbp
 
-        case .lbrack, .lparen, .dot:
+        case .lbrack, .lparen:
             return 20
 
         case .colon, .equals:
@@ -109,6 +109,9 @@ extension Parser {
 
         case .comma:
             return 180
+
+        case .dot:
+            return 190
 
         case .keyword(.returnArrow):
             return 200 // TODO(vdka): Work out actual value.
