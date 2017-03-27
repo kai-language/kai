@@ -136,9 +136,12 @@ extension IRGenerator {
             switch node {
             case .declValue:
                 emitDeclaration(for: node)
+
+            case .declImport, .declLibrary:
+                break
                 
             default:
-                print("unsupported type for: \(node.identifier)")
+                print("unsupported type for: \(node.shortName)")
                 break
             }
         }

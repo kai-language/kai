@@ -86,8 +86,10 @@ extension IRGenerator {
             results: results,
             isVarArg: false
         )
-        
-        // TODO(Brett): early return on foreign procedures
+
+        if case .directive("foreign", _, _) = body {
+            return proc
+        }
         
         let scope = entity.childScope!
         let previousScope = context.scope
