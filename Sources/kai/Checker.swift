@@ -553,6 +553,10 @@ extension Checker {
                 panic()
             }
 
+            if case .ident(".", _)? = importName {
+                return
+            }
+
             guard let fullpath = fullpathOpt else {
                 reportError("Failed to import file: \(path.value)", at: path)
                 return
