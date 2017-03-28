@@ -1040,7 +1040,7 @@ extension Checker {
         }
 
         let (terminatingStatements, branches) = terminatingStatments(body)
-        guard branches.contains(.terminated) && !branches.contains(.unTerminated) else {
+        guard branches.contains(.terminated) && !branches.contains(.unTerminated) || voidResultTypes == 1 else {
             reportError("Not all procedure body branches return", at: body) // FIXME(vdka): More context on this.
             return
         }
