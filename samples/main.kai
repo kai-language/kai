@@ -17,7 +17,6 @@ main :: () -> void {
     for { /* eva */
 
     }
-*/
 
     lowerA: u8 = 64 + 32
     nextLetter := lowerA
@@ -28,11 +27,13 @@ main :: () -> void {
         nextLetter = nextLetter + 1
         putchar(nextLetter)
     }
-
-/*
-    for i := 0; i < 5; i = i + 1 {
-
-    }
 */
+
+    lim := 65 + 25
+    upperLimit : u8 = lim
+
+    for c : u8 = 65; c < upperLimit; c = c + 1 {
+        putchar(c)
+    }
 }
 

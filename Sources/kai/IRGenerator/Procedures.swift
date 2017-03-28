@@ -155,7 +155,7 @@ extension IRGenerator {
             context.currentProcedure = previousProcPointer
         }
         
-        _ = emitStmt(for: body)
+        emitStmt(for: body)
         
         let insert = builder.insertBlock!
         if !insert.hasTerminatingInstruction {

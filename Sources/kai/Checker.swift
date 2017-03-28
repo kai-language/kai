@@ -987,14 +987,7 @@ extension Checker {
 
             info.scopes[node] = bodyScope
             if let initializer = initializer {
-                let initializerEntities = collectEntities(initializer)
                 checkStmt(initializer)
-
-                // NOTE(vdka): since you pushed the scope already they should be declared throug collectEntities
-                // REVISIT
-                for entity in initializerEntities {
-                    addEntity(to: bodyScope, entity)
-                }
             }
             if let cond = cond {
                 let type = checkExpr(cond)

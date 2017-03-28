@@ -137,6 +137,7 @@ extension IRGenerator {
         }
     }
 
+    @discardableResult
     func emitStmt(for node: AstNode) -> IRValue {
         switch node {
         case .litString, .litFloat, .litInteger, .litProc:
@@ -186,6 +187,9 @@ extension IRGenerator {
             
         case .stmtReturn:
             return emitReturnStmt(for: node)
+
+        case .stmtFor:
+            return emitForStmt(for: node)
             
         default:
             fatalError()
@@ -412,6 +416,49 @@ extension IRGenerator {
         let llvmArgs = args.map(emitStmt)
         
         return builder.buildCall(function, args: llvmArgs)
+    }
+
+    @discardableResult
+    func emitForStmt(for node: AstNode) -> IRValue {
+        guard case .stmtFor(let initializer, let cond, let post, let body, _) = node else {
+            panic()
+        }
+
+        let prevContext = context
+        defer { context = prevContext }
+        context.scope = checker.info.scopes[node]!
+
+        let curFunction = builder.currentFunction!
+
+        if let initializer = initializer {
+            emitStmt(for: initializer)
+        }
+
+        let loopBlock = curFunction.appendBasicBlock(named: "loopbody")
+
+        builder.buildBr(loopBlock)
+
+        builder.positionAtEnd(of: loopBlock)
+
+        emitStmt(for: body)
+
+        if let post = post {
+            emitStmt(for: post)
+        }
+
+        let afterBlock = curFunction.appendBasicBlock(named: "afterloop")
+
+        if let cond = cond {
+            var condVal = emitStmt(for: cond)
+
+            condVal = builder.buildTrunc(condVal, type: IntType.int1)
+
+            builder.buildCondBr(condition: condVal, then: afterBlock, else: loopBlock)
+        }
+
+        builder.positionAtEnd(of: afterBlock)
+
+        return loopBlock
     }
 }
 
