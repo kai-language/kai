@@ -444,6 +444,9 @@ extension IRGenerator {
         if let cond = cond {
 
             loopCond = curFunction.appendBasicBlock(named: "for.cond")
+            if post != nil {
+                loopPost = curFunction.appendBasicBlock(named: "for.post")
+            }
             loopBody = curFunction.appendBasicBlock(named: "for.body")
             loopDone = curFunction.appendBasicBlock(named: "for.done")
 
@@ -457,6 +460,9 @@ extension IRGenerator {
 
             builder.buildCondBr(condition: condVal, then: loopBody, else: loopDone)
         } else {
+            if post != nil {
+                loopPost = curFunction.appendBasicBlock(named: "for.post")
+            }
             loopBody = curFunction.appendBasicBlock(named: "for.body")
             loopDone = curFunction.appendBasicBlock(named: "for.done")
         }
@@ -466,8 +472,6 @@ extension IRGenerator {
         emitStmt(for: body)
 
         if let post = post {
-
-            loopPost = curFunction.appendBasicBlock(named: "for.post")
 
             builder.buildBr(loopPost!)
             builder.positionAtEnd(of: loopPost!)
