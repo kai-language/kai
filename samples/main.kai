@@ -14,5 +14,9 @@ main :: () -> void {
         lower = lower + 1
         upper = upper + 1
     }
+
+    for c : u8 = 65; c < 91; c = c + 1 {
+        putchar(c)
+    }
 }
 

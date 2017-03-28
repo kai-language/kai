@@ -188,6 +188,7 @@ struct Compiler {
             } catch {
                 print("Error did occur while verifying generated IR:")
                 print(error)
+                exit(1)
             }
             
             // FIXME(vdka): emit object files for each and every importation
@@ -249,6 +250,8 @@ try Operator.infix("||",  bindingPower: 30)
 
 try Operator.infix("<",  bindingPower: 40)
 try Operator.infix(">",  bindingPower: 40)
+try Operator.infix("<=", bindingPower: 40)
+try Operator.infix(">=",  bindingPower: 40)
 try Operator.infix("==",  bindingPower: 40)
 try Operator.infix("!=",  bindingPower: 40)
 
@@ -265,8 +268,6 @@ try Operator.infix("&",   bindingPower: 100)
 try Operator.infix("^",   bindingPower: 110)
 try Operator.infix("|",   bindingPower: 120)
 
-try Operator.infix("<=", bindingPower: 80)
-try Operator.infix(">=",  bindingPower: 80)
 try Operator.infix("+=",   bindingPower: 160)
 try Operator.infix("-=",   bindingPower: 160)
 try Operator.infix("*=",   bindingPower: 160)

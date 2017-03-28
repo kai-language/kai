@@ -179,9 +179,9 @@ extension IRGenerator {
         case .stmtAssign:
             return emitAssignment(for: node)
 
-        case .stmtBlock(let statements, _):
-            statements.forEach {
-                _ = emitStmt(for: $0)
+        case .stmtBlock(let stmts, _):
+            for stmt in stmts {
+                emitStmt(for: stmt)
             }
             return VoidType().null()
             
@@ -430,35 +430,64 @@ extension IRGenerator {
 
         let curFunction = builder.currentFunction!
 
+        // Set these later to ensure correct order. (as a viewer)
+        var loopBody: BasicBlock
+        var loopDone: BasicBlock
+
+        var loopCond: BasicBlock?
+        var loopPost: BasicBlock?
+
         if let initializer = initializer {
             emitStmt(for: initializer)
         }
 
-        let loopBlock = curFunction.appendBasicBlock(named: "loopbody")
-
-        builder.buildBr(loopBlock)
-
-        builder.positionAtEnd(of: loopBlock)
-
-        emitStmt(for: body)
-
-        if let post = post {
-            emitStmt(for: post)
-        }
-
-        let afterBlock = curFunction.appendBasicBlock(named: "afterloop")
-
         if let cond = cond {
+
+            loopCond = curFunction.appendBasicBlock(named: "for.cond")
+            loopBody = curFunction.appendBasicBlock(named: "for.body")
+            loopDone = curFunction.appendBasicBlock(named: "for.done")
+
+            builder.buildBr(loopCond!)
+
+            builder.positionAtEnd(of: loopCond!)
+
             var condVal = emitStmt(for: cond)
 
             condVal = builder.buildTrunc(condVal, type: IntType.int1)
 
-            builder.buildCondBr(condition: condVal, then: loopBlock, else: afterBlock)
+            builder.buildCondBr(condition: condVal, then: loopBody, else: loopDone)
+        } else {
+            loopBody = curFunction.appendBasicBlock(named: "for.body")
+            loopDone = curFunction.appendBasicBlock(named: "for.done")
         }
 
-        builder.positionAtEnd(of: afterBlock)
+        builder.positionAtEnd(of: loopBody)
 
-        return loopBlock
+        emitStmt(for: body)
+
+        if let post = post {
+
+            loopPost = curFunction.appendBasicBlock(named: "for.post")
+
+            builder.buildBr(loopPost!)
+            builder.positionAtEnd(of: loopPost!)
+
+            emitStmt(for: post)
+
+            builder.buildBr(loopCond!)
+        } else if let loopCond = loopCond {
+            // `for x < 5 { /* ... */ }` || `for i := 1; x < 5; { /* ... */ }`
+
+            builder.buildBr(loopCond)
+        } else {
+            // `for { /* ... */ }`
+
+            builder.buildBr(loopBody)
+        }
+
+        builder.positionAtEnd(of: loopDone)
+
+        return loopDone
     }
 }
 

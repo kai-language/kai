@@ -16,16 +16,19 @@ extension IRGenerator {
         named name: String,
         default defaultValue: IRValue? = nil
     ) -> IRValue {
+
+        let prevBlock = builder.insertBlock!
+
         let entryBlock = function.entryBlock!
+
         if let first = entryBlock.firstInstruction {
             builder.position(first, block: entryBlock)
         }
 
         let allocation = builder.buildAlloca(type: type, name: name)
 
-        if let currentBlock = builder.insertBlock {
-            builder.positionAtEnd(of: currentBlock)
-        }
+        // return to the prev location
+        builder.positionAtEnd(of: prevBlock)
 
         if let defaultValue = defaultValue {
             builder.buildStore(defaultValue, to: allocation)
