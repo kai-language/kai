@@ -79,13 +79,21 @@ extension IRGenerator {
         }
         
         let entity = checker.info.definitions[identifier]!
+
         // TODO(Brett): use mangled name when available
+        var name = entity.name
+        if case .directive("foreign", let args, _) = body, case .litString(let symbolName, _)? = args[safe: 1] {
+            name = symbolName
+        }
+
         let proc = emitProcedurePrototype(
-            for: entity.name,
+            for: name,
             params: params,
             results: results,
             isVarArg: false
         )
+
+        llvmPointers[entity] = proc
 
         if case .directive("foreign", _, _) = body {
             return proc

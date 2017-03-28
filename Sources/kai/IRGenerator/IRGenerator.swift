@@ -12,7 +12,6 @@ class IRGenerator {
     
     let module: Module
     let builder: IRBuilder
-    let internalFuncs: InternalFuncs
 
     class Context {
 
@@ -38,36 +37,6 @@ class IRGenerator {
         }
     }
     
-    //FIXME(Brett):
-    //TODO(Brett): will be removed when #foreign is supported
-    struct InternalFuncs {
-        var puts: Function?
-        var printf: Function?
-        
-        init(builder: IRBuilder) {
-            puts = generatePuts(builder: builder)
-            printf = generatePrintf(builder: builder)
-        }
-        
-        func generatePuts(builder: IRBuilder) -> Function {
-            let putsType = FunctionType(
-                argTypes:[ PointerType(pointee: IntType.int8) ],
-                returnType: IntType.int32
-            )
-            
-            return builder.addFunction("puts", type: putsType)
-        }
-        
-        func generatePrintf(builder: IRBuilder) -> Function {
-            let printfType = FunctionType(
-                argTypes: [PointerType(pointee:IntType.int8)],
-                returnType: IntType.int32,
-                isVarArg: true
-            )
-            return builder.addFunction("printf", type: printfType)
-        }
-    }
-    
     enum Error: Swift.Error {
         case unimplemented(String)
         case invalidSyntax
@@ -81,7 +50,6 @@ class IRGenerator {
         self.file = file
         module = Module(name: file.name)
         builder = IRBuilder(module: module)
-        internalFuncs = InternalFuncs(builder: builder)
     }
     
     static func build(for file: ASTFile, checker: Checker) throws -> Module {
@@ -175,6 +143,14 @@ extension IRGenerator {
         case .ident(let identifier, _):
             let entity = context.scope.lookup(identifier)!
             return builder.buildLoad(llvmPointers[entity]!)
+
+        case .exprSelector:
+            unimplemented("Emitting selector expressions. Should be easy... ")
+            /*
+             #import "globals.kai"
+             
+             x := globals.tau + globals.pi
+            */
         
         case .declValue:
             return emitDeclaration(for: node)
@@ -426,26 +402,14 @@ extension IRGenerator {
             preconditionFailure()
         }
 
-        // FIXME(Brett):
-        // TODO(Brett): will be removed when #foreign is supported
-        if ident == "print" {
-            return emitPrintCall(for: args)
-        }
-        
-        let function = module.function(named: ident)!
+        let receiverEntity = context.scope.lookup(ident)!
+
+        let function = llvmPointers[receiverEntity] as! Function
+        //let function = module.function(named: ident)!
 
         let llvmArgs = args.map(emitStmt)
         
         return builder.buildCall(function, args: llvmArgs)
-    }
-    
-    // FIXME(Brett):
-    // TODO(Brett): will be removed when #foreign is supported
-    func emitPrintCall(for args: [AstNode]) -> IRValue {
-        unimplemented("Variadic print", if: args.count != 1)
-
-        let string = emitStmt(for: args[0])
-        return builder.buildCall(internalFuncs.puts!, args: [string])
     }
 }
 
