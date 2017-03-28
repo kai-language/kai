@@ -1228,9 +1228,18 @@ extension Checker {
         }
 
         switch op {
-        case "+", "-", "!", "~":
+        case "+", "-": // valid on any numeric type.
             let operandType = checkExpr(expr)
-            guard operandType.flags.contains(.numeric) else {
+            guard !Type.Flag.numeric.union(operandType.flags).isEmpty else {
+                reportError("Undefined unary operation '\(op)' for \(operandType)", at: location)
+                return Type.invalid
+            }
+
+            return operandType
+
+        case "!", "~": // valid on any integer type.
+            let operandType = checkExpr(expr)
+            guard !Type.Flag.integer.union(operandType.flags).isEmpty else {
                 reportError("Undefined unary operation '\(op)' for \(operandType)", at: location)
                 return Type.invalid
             }
