@@ -453,7 +453,7 @@ extension IRGenerator {
 
             condVal = builder.buildTrunc(condVal, type: IntType.int1)
 
-            builder.buildCondBr(condition: condVal, then: afterBlock, else: loopBlock)
+            builder.buildCondBr(condition: condVal, then: loopBlock, else: afterBlock)
         }
 
         builder.positionAtEnd(of: afterBlock)
