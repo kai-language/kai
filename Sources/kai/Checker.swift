@@ -1223,22 +1223,22 @@ extension Checker {
     }
 
     mutating func checkUnary(_ node: AstNode) -> Type {
-        guard case .exprUnary(let operation, let expr, let location) = node else {
+        guard case .exprUnary(let op, let expr, let location) = node else {
             panic()
         }
 
-        switch operation {
+        switch op {
         case "+", "-", "!", "~":
             let operandType = checkExpr(expr)
             guard operandType.flags.contains(.numeric) else {
-                reportError("Undefined unary operation '+' for \(operandType)", at: location)
+                reportError("Undefined unary operation '\(op)' for \(operandType)", at: location)
                 return Type.invalid
             }
 
             return operandType
 
         default:
-            reportError("Undefined unary operation '\(operation)'", at: location)
+            reportError("Undefined unary operation '\(op)'", at: location)
             return Type.invalid
         }
     }
