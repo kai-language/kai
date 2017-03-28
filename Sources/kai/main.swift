@@ -244,6 +244,14 @@ try Operator.prefix("+")
 try Operator.prefix("!")
 try Operator.prefix("~")
 
+try Operator.infix("&&",  bindingPower: 30)
+try Operator.infix("||",  bindingPower: 30)
+
+try Operator.infix("<",  bindingPower: 40)
+try Operator.infix(">",  bindingPower: 40)
+try Operator.infix("==",  bindingPower: 40)
+try Operator.infix("!=",  bindingPower: 40)
+
 try Operator.infix("+",  bindingPower: 50)
 try Operator.infix("-",  bindingPower: 50)
 try Operator.infix("*",  bindingPower: 60)
@@ -253,20 +261,12 @@ try Operator.infix("%",  bindingPower: 60)
 try Operator.infix("<<", bindingPower: 70)
 try Operator.infix(">>", bindingPower: 70)
 
-try Operator.infix("<",  bindingPower: 40)
-try Operator.infix("<=", bindingPower: 80)
-try Operator.infix(">",  bindingPower: 40)
-try Operator.infix(">=",  bindingPower: 80)
-try Operator.infix("==",  bindingPower: 40)
-try Operator.infix("!=",  bindingPower: 40)
-
 try Operator.infix("&",   bindingPower: 100)
 try Operator.infix("^",   bindingPower: 110)
 try Operator.infix("|",   bindingPower: 120)
 
-try Operator.infix("&&",  bindingPower: 130)
-try Operator.infix("||",  bindingPower: 140)
-
+try Operator.infix("<=", bindingPower: 80)
+try Operator.infix(">=",  bindingPower: 80)
 try Operator.infix("+=",   bindingPower: 160)
 try Operator.infix("-=",   bindingPower: 160)
 try Operator.infix("*=",   bindingPower: 160)

@@ -4,36 +4,15 @@ printf :: (s: string) -> void #foreign libc "printf"
 putchar :: (c: u8) -> void #foreign libc "putchar"
 
 main :: () -> void {
-    /*
-    upperA: u8 = 65
-    lowerA := upperA + 32
-    putchar(upperA)
-    putchar(lowerA)
 
-    nextLetter := lowerA + 1
-    */
-
-/*
-    for { /* eva */
-
-    }
-
-    lowerA: u8 = 64 + 32
-    nextLetter := lowerA
-
-    lowerZ: u8 = lowerA + 25
-
-    for nextLetter < lowerA + 25 {
-        nextLetter = nextLetter + 1
-        putchar(nextLetter)
-    }
-*/
-
-    lim := 65 + 25
-    upperLimit : u8 = lim
-
-    for c : u8 = 65; c < upperLimit; c = c + 1 {
-        putchar(c)
+    lower : u8 = 65
+    upper : u8 = 97
+    for lower <= 90 && upper <= 122 {
+        putchar(lower)
+        putchar(upper)
+        printf("\n")
+        lower = lower + 1
+        upper = upper + 1
     }
 }
 
