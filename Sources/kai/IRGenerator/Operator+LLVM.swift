@@ -10,15 +10,23 @@ extension IRGenerator {
         case .exprUnary(let op, let expr, _):
 
             let val = emitStmt(for: expr)
+            let type = checker.info.types[expr]!
 
             // TODO(vdka): There is much more to build.
             switch op {
+            case "+": // This is oddly a do nothing kind of operator. Lazy guy.
+                return val
+
             case "-":
                 return builder.buildNeg(val)
 
             case "!":
-                // TODO(vdka): Truncate to i1
-                return builder.buildNot(val)
+                if type === Type.bool {
+                    return builder.buildNot(val)
+                } else {
+                    let truncdVal = builder.buildTrunc(val, type: IntType.int1)
+                    return builder.buildNot(truncdVal)
+                }
 
             case "~":
                 return builder.buildNot(val)
