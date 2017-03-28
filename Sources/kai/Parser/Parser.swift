@@ -219,20 +219,48 @@ extension Parser {
             return AstNode.stmtIf(cond: condExpr, body: bodyExpr, elseExpr, startLocation ..< bodyExpr.endLocation)
 
         case .keyword(.for):
-            let (_, _) = try consume(.keyword(.for))
+            let (_, location) = try consume(.keyword(.for))
 
-            // NOTE(vdka): for stmt bodies *must* be braced
-            var expressions: [AstNode] = []
-            while try lexer.peek()?.kind != .lparen {
+            if case .lbrace? = try lexer.peek()?.kind {
+                let body = try expression()
+
+                return AstNode.stmtFor(initializer: nil, cond: nil, post: nil, body: body, location ..< body.endLocation)
+            }
+
+            var exprs: [AstNode] = []
+            while exprs.count <= 3 {
+                if case .semicolon? = try lexer.peek()?.kind {
+                    try consume()
+                    let emptyNode = AstNode.stmtEmpty(lexer.location ..< lexer.location)
+                    exprs.append(emptyNode)
+                    continue
+                }
+
                 let expr = try expression()
-                expressions.append(expr)
+
+                exprs.append(expr)
+
+                if case .semicolon? = try lexer.peek()?.kind {
+                    try consume()
+                }
+                if case .lbrace? = try lexer.peek()?.kind {
+                    break
+                }
             }
 
             let body = try expression()
 
-            expressions.append(body)
+            switch exprs.count {
+            case 1:
+                return AstNode.stmtFor(initializer: nil, cond: exprs[0], post: nil, body: body, location ..< body.endLocation)
 
-            unimplemented("for loops")
+            case 3:
+                return AstNode.stmtFor(initializer: exprs[safe: 0], cond: exprs[safe: 1], post: exprs[safe: 2], body: body, location ..< body.endLocation)
+
+            default:
+                reportError("For statements require 0, 1 or 3 statements", at: location ..< body.startLocation)
+                return AstNode.invalid(location ..< body.endLocation)
+            }
 
         case .keyword(.break):
             let (_, startLocation) = try consume(.keyword(.break))

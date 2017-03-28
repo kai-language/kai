@@ -70,7 +70,7 @@ indirect enum AstNode {
     case stmtBlock([AstNode], SourceRange)
     case stmtIf(cond: AstNode, body: AstNode, AstNode?, SourceRange)
     case stmtReturn([AstNode], SourceRange)
-    case stmtFor(initializer: AstNode, cond: AstNode, post: AstNode, body: AstNode, SourceRange)
+    case stmtFor(initializer: AstNode?, cond: AstNode?, post: AstNode?, body: AstNode, SourceRange)
     case stmtCase(list: [AstNode], statements: [AstNode], SourceRange)
     case stmtDefer(AstNode, SourceRange)
     case stmtBreak(SourceRange)
@@ -588,9 +588,18 @@ extension AstNode {
             children.append(contentsOf: results)
 
         case .stmtFor(let initializer, let cond, let post, let body, _):
-            children.append(initializer)
-            children.append(cond)
-            children.append(post)
+            if let initializer = initializer {
+                let wrapped = AstNode.stmtExpr(initializer)
+                renamedChildren.append(("initializer", wrapped))
+            }
+            if let cond = cond {
+                let wrapped = AstNode.stmtExpr(cond)
+                renamedChildren.append(("condition", wrapped))
+            }
+            if let post = post {
+                let wrapped = AstNode.stmtExpr(post)
+                renamedChildren.append(("post", wrapped))
+            }
             children.append(body)
 
         case .stmtCase(let list, let stmts, _):
@@ -808,9 +817,18 @@ extension AstNode {
             children.append(contentsOf: results)
 
         case .stmtFor(let initializer, let cond, let post, let body, _):
-            children.append(initializer)
-            children.append(cond)
-            children.append(post)
+            if let initializer = initializer {
+                let wrapped = AstNode.stmtExpr(initializer)
+                renamedChildren.append(("initializer", wrapped))
+            }
+            if let cond = cond {
+                let wrapped = AstNode.stmtExpr(cond)
+                renamedChildren.append(("condition", wrapped))
+            }
+            if let post = post {
+                let wrapped = AstNode.stmtExpr(post)
+                renamedChildren.append(("post", wrapped))
+            }
             children.append(body)
 
         case .stmtCase(let list, let stmts, _):

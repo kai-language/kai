@@ -978,6 +978,41 @@ extension Checker {
             checkStmt(stmt)
             // TODO(vdka): Validate that the deferal is unTerminated (defer cannot return)
 
+        case .stmtFor(let initializer, let cond, let post, let body, _):
+            var bodyScope = Scope(parent: context.scope)
+
+            let prevContext = context
+            defer { context = prevContext }
+            context.scope = bodyScope
+
+            info.scopes[node] = bodyScope
+            if let initializer = initializer {
+                let initializerEntities = collectEntities(initializer)
+                checkStmt(initializer)
+
+                // NOTE(vdka): since you pushed the scope already they should be declared throug collectEntities
+                // REVISIT
+                for entity in initializerEntities {
+                    addEntity(to: bodyScope, entity)
+                }
+            }
+            if let cond = cond {
+                let type = checkExpr(cond)
+                guard canImplicitlyConvert(type, to: Type.bool) else {
+                    reportError("Non-bool \(cond.value) (type \(type)) used as condition", at: cond)
+                    return
+                }
+            }
+            if let post = post {
+                checkStmt(post)
+            }
+
+            guard case .stmtBlock(let stmts, _) = body else {
+                panic()
+            }
+
+            checkStmts(stmts)
+
         default:
             unimplemented("Checking for nodes of kind \(node.shortName)")
         }
@@ -994,6 +1029,8 @@ extension Checker {
         guard case .litProc(_, let body, _) = pi.node else {
             panic()
         }
+
+        assert(info.types[pi.node] != nil)
 
         guard case .proc(let params, let results) = pi.type.kind else {
             panic()
@@ -1099,6 +1136,10 @@ extension Checker {
     mutating func checkExpr(_ node: AstNode) -> Type {
         if let type = info.types[node] {
             return type
+        }
+
+        if node.isDecl {
+            fatalError("Use checkStmt instead")
         }
 
         var type = Type.invalid
