@@ -122,10 +122,12 @@ extension IRGenerator {
     func emitLiteral(for node: AstNode) -> IRValue {
         switch node {
         case .litInteger(let val, _):
-            return IntType.int64.constant(val)
+            let type = checker.info.types[node]!
+            return (type.canonicalized() as! IntType).constant(val)
 
         case .litFloat(let val, _):
-            return FloatType.double.constant(val)
+            let type = checker.info.types[node]!
+            return (type.canonicalized() as! FloatType).constant(val)
 
         case .litString(let val, _):
             return builder.buildGlobalStringPtr(val.escaped)

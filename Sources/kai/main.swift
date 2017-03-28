@@ -183,6 +183,12 @@ struct Compiler {
                 // TODO(vdka): Do we emit file names?
                 module.dump()
             }
+            do {
+                try module.verify()
+            } catch {
+                print("Error did occur while verifying generated IR:")
+                print(error)
+            }
             
             // FIXME(vdka): emit object files for each and every importation
             try TargetMachine().emitToFile(module: module, type: .object, path: "main.o")

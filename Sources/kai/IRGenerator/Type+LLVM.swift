@@ -3,43 +3,38 @@ import LLVM
 extension Type {
     func canonicalized() -> IRType {
         switch self.kind {
-        case .named(_):
-            switch self {
-            case _ where self === Type.void || self === Type.unconstrNil:
+        case .named(let typeName):
+            switch typeName {
+            case "void", "unconstrNil":
                 return VoidType()
-                
-            case _ where self === Type.bool:
+
+            case "bool", "unconstrBool":
                 return IntType.int1
-                
-            case _ where self === Type.i8 || self === Type.u8:
+
+            case "i8", "u8":
                 return IntType.int8
-    
-            case _ where self === Type.i16 || self === Type.u16:
+
+            case "i16", "u16":
                 return IntType.int16
-                
-            case _ where self === Type.i32 || self === Type.u32:
+
+            case "i32", "u32":
                 return IntType.int32
-                
-            case _ where self === Type.i64 ||
-                self === Type.int ||
-                self === Type.unconstrInteger ||
-                self === Type.u64:
+
+            case "i64", "u64", "int", "uint", "unconstrInteger":
                 return IntType.int64
-                
-            case _ where self === Type.f32:
+
+            case "f32":
                 return FloatType.float
-                
-            case _ where self === Type.f64 || self === Type.unconstrFloat:
+
+            case "f64", "unconstrFloat":
                 return FloatType.double
-                
-            case _ where self === Type.string || self === Type.unconstrString:
+
+            case "string", "unconstrString":
                 return PointerType(pointee: IntType.int8)
-                
+
             default:
-                unimplemented()
+                unimplemented("Type emission for type \(self)")
             }
-            
-            unimplemented()
             
         case .alias(_, let type):
             return type.canonicalized()

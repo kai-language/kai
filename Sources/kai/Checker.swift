@@ -825,6 +825,9 @@ extension Checker {
                 }
 
                 e.type = explicitType
+
+                attemptLiteralConstraint(initExpr!, to: explicitType)
+
             } else if let explicitType = explicitType {
 
                 e.type = explicitType
@@ -913,6 +916,9 @@ extension Checker {
             let lhsType = checkExpr(lvalue)
 
             guard canImplicitlyConvert(rhsType, to: lhsType) else {
+                if rvalue.isLit {
+                    attemptLiteralConstraint(rvalue, to: lhsType)
+                }
                 reportError("Cannot use \(rvalue.value) (type \(rhsType)) as type \(lhsType) in assignment", at: rvalue)
                 return
             }
@@ -1292,8 +1298,10 @@ extension Checker {
             if lhsType === rhsType {
                 return lhsType
             } else if canImplicitlyConvert(lhsType, to: rhsType) {
+                attemptLiteralConstraint(lhs, to: rhsType)
                 return lhsType
             } else if canImplicitlyConvert(rhsType, to: lhsType) {
+                attemptLiteralConstraint(rhs, to: lhsType)
                 return rhsType
             } else {
                 reportError(invalidOpError, at: node)
@@ -1311,8 +1319,10 @@ extension Checker {
             if lhsType === rhsType {
                 return lhsType
             } else if lhsType.flags.contains(.unconstrained) {
+                attemptLiteralConstraint(lhs, to: rhsType)
                 return rhsType
-            } else if rhsType.flags.contains(.unsigned) {
+            } else if rhsType.flags.contains(.unconstrained) {
+                attemptLiteralConstraint(rhs, to: lhsType)
                 return lhsType
             } else {
                 reportError(invalidOpError, at: node)
@@ -1329,8 +1339,12 @@ extension Checker {
                     return Type.invalid
             }
 
-            if !Type.Flag.unconstrained.union(lhsType.flags).union(rhsType.flags).isEmpty {
-                return Type.unconstrBool
+            if lhsType === rhsType {
+                // do nothing
+            } else if lhsType.flags.contains(.unconstrained) {
+                attemptLiteralConstraint(lhs, to: rhsType)
+            } else if rhsType.flags.contains(.unconstrained) {
+                attemptLiteralConstraint(rhs, to: lhsType)
             }
 
             return Type.bool
@@ -1338,22 +1352,25 @@ extension Checker {
         case "&",
              "^",
              "|":
-            guard !Type.Flag.integer.union(lhsType.flags).isEmpty && !Type.Flag.integer.union(rhsType.flags).isEmpty else {
+            guard lhsType.flags.contains(.integer) && rhsType.flags.contains(.integer) else {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
-            }
-
-            if !Type.Flag.unconstrained.union(lhsType.flags).isEmpty && !Type.Flag.unconstrained.union(rhsType.flags).isEmpty {
-                return Type.unconstrInteger
             }
 
             if lhsType === rhsType {
                 return lhsType
             }
             if lhsType.size == rhsType.size {
-                assert(lhsType.flags.contains(.unsigned) || rhsType.flags.contains(.unsigned))
+                // FIXME(vdka): once we add more types with different sizes this check is not correct.
+                assert(lhsType.flags.contains(.unsigned) != rhsType.flags.contains(.unsigned))
                 reportError("Unable to infer type for result", at: node) // TODO(vdka): Better error
                 return Type.invalid
+            }
+            if rhsType.flags.contains(.unconstrained) {
+                attemptLiteralConstraint(rhs, to: lhsType)
+            }
+            if lhsType.flags.contains(.unconstrained) {
+                attemptLiteralConstraint(rhs, to: rhsType)
             }
             if lhsType.size < rhsType.size {
                 return rhsType
@@ -1366,14 +1383,6 @@ extension Checker {
 
         case "&&",
              "||":
-            guard !Type.Flag.booleanesque.union(lhsType.flags).isEmpty && !Type.Flag.booleanesque.union(rhsType.flags).isEmpty else {
-                reportError(invalidOpError, at: node)
-                return Type.invalid
-            }
-
-            if !Type.Flag.unconstrained.union(lhsType.flags).isEmpty && !Type.Flag.unconstrained.union(rhsType.flags).isEmpty {
-                return Type.unconstrBool
-            }
 
             return Type.bool
 
@@ -1425,6 +1434,37 @@ extension Checker {
 // MARK: Checker helpers
 
 extension Checker {
+
+    /// Updates the node's type to the target type if `node` matches the lit node for `type`
+    mutating func attemptLiteralConstraint(_ node: AstNode, to type: Type) {
+
+        switch node {
+        case .litInteger:
+            guard type.flags.contains(.integer) else { // We can't constrain a non integer type to an integer
+                return
+            }
+            // NOTE(vdka): If we want to detect wrap in our literals we can do it here.
+
+            info.types[node] = type
+
+        case .litFloat:
+            guard type.flags.contains(.float) else {
+                return
+            }
+
+            info.types[node] = type
+
+        case .litString:
+            guard type.flags.contains(.string) else {
+                return
+            }
+
+            info.types[node] = type
+            
+        default:
+            return
+        }
+    }
 
     mutating func queueCheckProc(_ litProcNode: AstNode, type: Type, decl: DeclInfo?) {
         let procInfo = ProcInfo(owningScope: context.scope, decl: decl, type: type, node: litProcNode)
