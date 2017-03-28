@@ -952,6 +952,10 @@ extension Checker {
                 checkStmt(elseExpr)
             }
 
+        case .stmtDefer(let stmt, _):
+            checkStmt(stmt)
+            // TODO(vdka): Validate that the deferal is unTerminated (defer cannot return)
+
         default:
             unimplemented("Checking for nodes of kind \(node.shortName)")
         }
