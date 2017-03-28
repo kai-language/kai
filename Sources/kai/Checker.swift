@@ -1104,16 +1104,16 @@ extension Checker {
         case .exprParen(let node, _):
             type = checkExpr(node)
 
-        case .exprUnary(let op, expr: let expr, _):
+        case .exprUnary:
             type = checkUnary(node)
 
-        case .exprBinary(let op, let lhs, let rhs, _):
+        case .exprBinary:
             type = checkBinary(node)
 
         case .exprCall(let receiver, let args, _):
-            type = checkExpr(receiver)
-            guard case .proc(let params, _) = type.kind else {
-                reportError("cannot call non-procedure '\(receiver.value)' (type \(type))", at: node)
+            let procType = checkExpr(receiver)
+            guard case .proc(let params, let resultTypes) = procType.kind else {
+                reportError("cannot call non-procedure '\(receiver.value)' (type \(procType))", at: node)
                 break
             }
 
@@ -1132,6 +1132,12 @@ extension Checker {
                     continue
                 }
             }
+
+            guard resultTypes.count == 1, let firstResultType = resultTypes.first else {
+                unimplemented("Type checking for calling procedures with multiple returns")
+            }
+
+            type = firstResultType
 
         case .exprSelector(let receiver, let member, _):
 
