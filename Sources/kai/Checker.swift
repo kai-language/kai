@@ -1367,7 +1367,8 @@ extension Checker {
              ">",
              "<=",
              ">=",
-             "==":
+             "==",
+             "!=":
             guard !Type.Flag.ordered.union(lhsType.flags).isEmpty && !Type.Flag.ordered.union(rhsType.flags).isEmpty else {
                     reportError(invalidOpError, at: node)
                     return Type.invalid
