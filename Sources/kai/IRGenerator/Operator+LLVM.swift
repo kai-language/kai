@@ -37,8 +37,35 @@ extension IRGenerator {
 
         case .exprBinary(let op, let lhs, let rhs, _):
 
-            let lvalue = emitStmt(for: lhs)
-            let rvalue = emitStmt(for: rhs)
+            var lvalue = emitStmt(for: lhs)
+            var rvalue = emitStmt(for: rhs)
+
+            let lhsType = checker.info.types[lhs]!
+            let rhsType = checker.info.types[rhs]!
+
+            if lhsType !== rhsType {
+                if lhsType.size == rhsType.size {
+                    //
+                    // `x: uint = 1; y: int = 1; z := x + y`
+                    // We don't know what the return type should be so it's an error caught in the checker
+                    //
+                    panic()
+                }
+                if lhsType.flags.contains(.unconstrained) && !lhs.isBasicLit {
+                    if lhsType.flags.contains(.unsigned) {
+                        lvalue = builder.buildZExt(lvalue, type: rvalue.type)
+                    } else {
+                        lvalue = builder.buildSExt(lvalue, type: rvalue.type)
+                    }
+                }
+                if rhsType.flags.contains(.unconstrained) && !rhs.isBasicLit {
+                    if rhsType.flags.contains(.unsigned) {
+                        rvalue = builder.buildZExt(rvalue, type: lvalue.type)
+                    } else {
+                        rvalue = builder.buildSExt(rvalue, type: lvalue.type)
+                    }
+                }
+            }
 
             switch op {
             case "+":

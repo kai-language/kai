@@ -191,6 +191,26 @@ extension AstNode {
         }
     }
 
+    var isLit: Bool {
+        switch self {
+        case .litFloat, .litString, .litInteger, .litProc:
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    var isBasicLit: Bool {
+        switch self {
+        case .litFloat, .litInteger, .litString:
+            return true
+
+        default:
+            return false
+        }
+    }
+
     var isProcLit: Bool {
         switch self {
         case .litProc:
