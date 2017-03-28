@@ -129,6 +129,10 @@ struct Compiler {
 
         let filePath = try extractFilePath()
 
+        if options.contains("emit-ast") {
+            print("\n === Starting Parsing === \n")
+        }
+
         startTiming("Parsing")
         var parser = Parser(relativePath: filePath)
 
@@ -144,6 +148,10 @@ struct Compiler {
             for file in files {
                 print(file.pretty())
             }
+        }
+
+        if options.contains("emit-typed-ast") {
+            print("\n === Starting Checking === \n")
         }
 
         startTiming("Checking")
@@ -162,6 +170,10 @@ struct Compiler {
             }
         }
 
+        if options.contains("emit-ir") {
+            print("\n === Starting IRGen === \n")
+        }
+
         startTiming("Code Generation")
         for file in files {
 
@@ -178,6 +190,7 @@ struct Compiler {
         endTiming()
 
         if options.contains("emit-time") {
+            print("\n === Timings === \n")
             var total = 0.0
             for timing in timings {
                 total += timing.duration
