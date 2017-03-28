@@ -897,10 +897,26 @@ extension Checker {
         }
     }
 
-    mutating func checkAssign(_ op: String, _ lhs: [AstNode], _ rhs: [AstNode]) {
-        precondition(op == "=") // for now only `=` is supported
+    mutating func checkAssign(_ node: AstNode) {
+        guard case .stmtAssign(let op, let lhs, let rhs, _) = node else {
+            panic()
+        }
+        unimplemented("Complex assignment", if: op != "=")
 
-        // TODO(vdka): Type check assignments.
+        guard lhs.count == rhs.count else {
+            reportError("assignment count mismatch: '\(lhs.count) = \(rhs.count)'", at: node)
+            return
+        }
+
+        for (lvalue, rvalue) in zip(lhs, rhs) {
+            let rhsType = checkExpr(rvalue)
+            let lhsType = checkExpr(lvalue)
+
+            guard canImplicitlyConvert(rhsType, to: lhsType) else {
+                reportError("Cannot use \(rvalue.value) (type \(rhsType)) as type \(lhsType) in assignment", at: rvalue)
+                return
+            }
+        }
     }
 
     mutating func checkStmt(_ node: AstNode) {
@@ -925,8 +941,8 @@ extension Checker {
 
             context = prevContext
 
-        case .stmtAssign(let op, let lhs, let rhs, _):
-            checkAssign(op, lhs, rhs)
+        case .stmtAssign:
+            checkAssign(node)
 
         case .stmtReturn(let vals, _):
 
