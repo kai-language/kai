@@ -71,11 +71,9 @@ indirect enum AstNode {
     case stmtIf(cond: AstNode, body: AstNode, AstNode?, SourceRange)
     case stmtReturn([AstNode], SourceRange)
     case stmtFor(initializer: AstNode?, cond: AstNode?, post: AstNode?, body: AstNode, SourceRange)
-    case stmtCase(list: [AstNode], statements: [AstNode], SourceRange)
     case stmtDefer(AstNode, SourceRange)
     case stmtBreak(SourceRange)
     case stmtContinue(SourceRange)
-    case stmtFallthrough(SourceRange)
 
     /// - Parameter params:
     case typeProc(params: [AstNode], results: [AstNode], SourceRange)
@@ -140,11 +138,9 @@ extension AstNode {
              .stmtIf(_, _, _, let location),
              .stmtReturn(_, let location),
              .stmtFor(_, _, _, _, let location),
-             .stmtCase(_, _, let location),
              .stmtDefer(_, let location),
              .stmtBreak(let location),
              .stmtContinue(let location),
-             .stmtFallthrough(let location),
              .typeProc(_, _, let location),
              .typeArray(_, _, let location),
              .typeStruct(_, let location),
@@ -251,7 +247,7 @@ extension AstNode {
              .stmtIf,
              .stmtFor,
              .stmtReturn, .stmtDefer,
-             .stmtCase, .stmtBreak, .stmtContinue, .stmtFallthrough:
+             .stmtBreak, .stmtContinue:
             return true
 
         default:
@@ -300,7 +296,7 @@ extension AstNode {
         case .stmtBlock(let stmts, _):
             return stmts
 
-        case .stmtBreak, .stmtEmpty, .stmtContinue, .stmtFallthrough, .stmtAssign:
+        case .stmtBreak, .stmtEmpty, .stmtContinue, .stmtAssign:
             return []
 
         case .stmtIf(_, let bodyStmt, let elseStmt, _):
@@ -481,11 +477,9 @@ extension AstNode {
         case .stmtIf: return "stmtIf"
         case .stmtReturn: return "stmtReturn"
         case .stmtFor: return "stmtFor"
-        case .stmtCase: return "stmtCase"
         case .stmtDefer: return "stmtDefer"
         case .stmtBreak: return "stmtBreak"
         case .stmtContinue: return "stmtContinue"
-        case .stmtFallthrough: return "stmtFallthrough"
         case .typeProc: return "typeProc"
         case .typeArray: return "typeArray"
         case .typeStruct: return "typeStruct"
@@ -621,14 +615,10 @@ extension AstNode {
             }
             children.append(body)
 
-        case .stmtCase(let list, let stmts, _):
-            children.append(contentsOf: list)
-            children.append(contentsOf: stmts)
-
         case .stmtDefer(let stmt, _):
             children.append(stmt)
 
-        case .stmtBreak, .stmtContinue, .stmtFallthrough:
+        case .stmtBreak, .stmtContinue:
             break
 
         case .declValue(_, let names, let type, let values, _):
@@ -850,14 +840,10 @@ extension AstNode {
             }
             children.append(body)
 
-        case .stmtCase(let list, let stmts, _):
-            children.append(contentsOf: list)
-            children.append(contentsOf: stmts)
-
         case .stmtDefer(let stmt, _):
             children.append(stmt)
 
-        case .stmtBreak, .stmtContinue, .stmtFallthrough:
+        case .stmtBreak, .stmtContinue:
             break
 
         case .declValue(_, let names, _, let values, _):
