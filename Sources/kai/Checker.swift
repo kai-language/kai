@@ -232,7 +232,23 @@ class Scope: PointerHashable {
     var isMainFile: Bool = false
 
     var proc: ProcInfo?
-    var isProc: Bool { return proc == nil }
+    var isProc: Bool { return proc != nil }
+    var containingProc: ProcInfo? {
+        if let proc = proc {
+            return proc
+        }
+
+        return parent?.containingProc
+    }
+
+    var isLoop: Bool = false
+    var inLoop: Bool {
+        if !isLoop {
+            return parent?.isLoop ?? false
+        }
+
+        return true
+    }
 
     /// Only set if scope is file
     var file: ASTFile? = nil
@@ -385,13 +401,11 @@ struct Checker {
 
     struct Context {
         var scope: Scope
-        var inLoop: Bool = false
         var inDefer: Bool = false
 
         init(scope: Scope) {
             self.scope = scope
 
-            inLoop = false
             inDefer = false
         }
     }
@@ -848,23 +862,21 @@ extension Checker {
             checkExpr(node)
 
         case .stmtBlock(let stmts, _):
-            let prevContext = context
 
-            let s = Scope(parent: context.scope)
+            let s = pushScope()
+            defer { popScope() }
             info.scopes[node] = s
-            context.scope = s
+
             for stmt in stmts {
                 checkStmt(stmt)
             }
-
-            context = prevContext
 
         case .stmtAssign:
             checkStmtAssign(node)
 
         case .stmtReturn(let exprs, _):
 
-            guard case .proc(let params, let results)? = context.scope.proc?.type.kind else {
+            guard case .proc(let params, let results)? = context.scope.containingProc?.type.kind else {
                 reportError("'return' is not valid in this scope", at: node)
                 return
             }
@@ -893,10 +905,8 @@ extension Checker {
         case .stmtFor(let initializer, let cond, let post, let body, _):
             var bodyScope = Scope(parent: context.scope)
 
-            let prevContext = context
-            defer { context = prevContext }
-            context.scope = bodyScope
-            context.inLoop = true
+            pushScope(isLoop: true)
+            defer { popScope() }
 
             info.scopes[node] = bodyScope
             if let initializer = initializer {
@@ -919,7 +929,7 @@ extension Checker {
             fallthrough
 
         case .stmtContinue:
-            guard context.inLoop else {
+            guard context.scope.inLoop else {
                 // TODO(vdka): Update when we add `switch` statements
                 reportError("\(node) is invalid outside of a loop", at: node)
                 return
@@ -1402,11 +1412,11 @@ extension Checker {
             return
         }
 
-        let prevContext = context
-        let s = Scope(parent: pi.owningScope)
-        s.proc = pi
-        context.scope = s
+        let s = pushScope(procInfo: pi)
+        defer { popScope() }
+        s.parent = pi.owningScope
 
+        // Set the child scopes for each of the declared entities
         pi.decl?.entities.forEach({ $0.childScope = s })
 
         for entity in params {
@@ -1463,8 +1473,6 @@ extension Checker {
                 }
             }
         }
-        
-        context = prevContext
     }
 }
 
@@ -1621,6 +1629,26 @@ extension Checker {
         default:
             return
         }
+    }
+}
+
+
+// MARK: Even more helpery..
+
+extension Checker {
+
+    @discardableResult
+    mutating func pushScope(procInfo: ProcInfo? = nil, isLoop: Bool = false) -> Scope {
+        let scope = Scope(parent: context.scope)
+        scope.proc = procInfo
+        scope.isLoop = isLoop
+
+        context.scope = scope
+        return scope
+    }
+
+    mutating func popScope() {
+        context.scope = context.scope.parent!
     }
 
     mutating func queueCheckProc(_ litProcNode: AstNode, type: Type, decl: DeclInfo?) {

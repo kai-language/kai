@@ -99,7 +99,7 @@ extension Parser {
             return Operator.table.first(where: { $0.symbol == symbol })?.lbp
 
         case .lbrack, .lparen:
-            return 20
+            return 160
 
         case .colon, .equals:
             return 160
