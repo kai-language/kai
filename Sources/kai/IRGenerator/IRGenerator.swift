@@ -17,23 +17,13 @@ class IRGenerator {
 
         var currentProcedure: ProcedurePointer?
 
-        var parent: Context? = nil
-
-        var state: State = .global
-
         var scope: Scope = .universal
 
-        enum State {
-            case global
+        var escapePoints: EscapePoints?
 
-            case procedureBody
-            case structureBody
-            case enumerationBody
-
-            // allow keywords break & continue
-            case loopBody
-            
-            case procedureCall
+        struct EscapePoints {
+            var `break`: IRValue
+            var `continue`: IRValue
         }
     }
     
@@ -190,6 +180,12 @@ extension IRGenerator {
 
         case .stmtFor:
             return emitForStmt(for: node)
+
+        case .stmtBreak:
+            return builder.buildBr(context.escapePoints!.break as! BasicBlock)
+
+        case .stmtContinue:
+            return builder.buildBr(context.escapePoints!.continue as! BasicBlock)
             
         default:
             fatalError()
@@ -467,13 +463,19 @@ extension IRGenerator {
             loopDone = curFunction.appendBasicBlock(named: "for.done")
         }
 
+        context.escapePoints = Context.EscapePoints(break: loopDone, continue: loopPost ?? loopCond ?? loopBody)
+
         builder.positionAtEnd(of: loopBody)
 
         emitStmt(for: body)
 
+        let hasJump = builder.insertBlock?.lastInstruction?.isATerminatorInst ?? false
+
         if let post = post {
 
-            builder.buildBr(loopPost!)
+            if !hasJump {
+                builder.buildBr(loopPost!)
+            }
             builder.positionAtEnd(of: loopPost!)
 
             emitStmt(for: post)
@@ -482,11 +484,14 @@ extension IRGenerator {
         } else if let loopCond = loopCond {
             // `for x < 5 { /* ... */ }` || `for i := 1; x < 5; { /* ... */ }`
 
-            builder.buildBr(loopCond)
+            if !hasJump {
+                builder.buildBr(loopCond)
+            }
         } else {
             // `for { /* ... */ }`
-
-            builder.buildBr(loopBody)
+            if !hasJump {
+                builder.buildBr(loopBody)
+            }
         }
 
         builder.positionAtEnd(of: loopDone)

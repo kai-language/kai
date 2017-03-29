@@ -378,12 +378,14 @@ struct Checker {
 
     struct Context {
         var scope: Scope
+        var inLoop: Bool = false
         var inDefer: Bool = false
 
         init(scope: Scope) {
             self.scope = scope
 
-            inDefer   = false
+            inLoop = false
+            inDefer = false
         }
     }
 }
@@ -984,6 +986,7 @@ extension Checker {
             let prevContext = context
             defer { context = prevContext }
             context.scope = bodyScope
+            context.inLoop = true
 
             info.scopes[node] = bodyScope
             if let initializer = initializer {
@@ -1005,6 +1008,16 @@ extension Checker {
             }
 
             checkStmts(stmts)
+
+        case .stmtBreak:
+            fallthrough
+
+        case .stmtContinue:
+            guard context.inLoop else {
+                // TODO(vdka): Update when we add `switch` statements
+                reportError("\(node) is invalid outside of a loop", at: node)
+                return
+            }
 
         default:
             unimplemented("Checking for nodes of kind \(node.shortName)")
