@@ -3,13 +3,15 @@ class Type: CustomStringConvertible {
 
     var kind: Kind
     var flags: Flag
-    var size: UInt
+
+    /// Size of the type (in bits)
+    var width: Int
     var location: SourceLocation?
 
-    init(kind: Kind, flags: Flag, size: UInt, location: SourceLocation?) {
+    init(kind: Kind, flags: Flag, width: Int, location: SourceLocation?) {
         self.kind = kind
         self.flags = flags
-        self.size = size
+        self.width = width
         self.location = location
     }
 
@@ -62,7 +64,7 @@ class Type: CustomStringConvertible {
 
         // NOTE(vdka): Order is important later.
                   /* Name,   size, line, flags */
-        let short: [(String, UInt, UInt, Flag)] = [
+        let short: [(String, Int, UInt, Flag)] = [
             ("void", 0, 0, .none),
             ("bool", 1, 0, .boolean),
 
@@ -78,8 +80,8 @@ class Type: CustomStringConvertible {
             ("f32", 4, 0, .float),
             ("f64", 8, 0, .float),
 
-            ("int", UInt(MemoryLayout<Int>.size), 0, [.integer]),
-            ("uint", UInt(MemoryLayout<Int>.size), 0, [.integer, .unsigned]),
+            ("int", MemoryLayout<Int>.size, 0, [.integer]),
+            ("uint", MemoryLayout<Int>.size, 0, [.integer, .unsigned]),
 
             // FIXME(vdka): Currently strings are just pointers hence length 8 (will remain?)
             ("string", 8, 0, .string),
@@ -90,19 +92,24 @@ class Type: CustomStringConvertible {
             ("unconstrString",  0, 0, [.unconstrained, .string]),
             ("unconstrNil",     0, 0, [.unconstrained]),
 
-            ("<invalid>", 0, 0, .none),
+            ("any", -1, 0, .none),
+
+            ("<invalid>", -1, 0, .none),
         ]
 
         return short.map { (name, size, lineNumber, flags) in
             let location = SourceLocation(line: lineNumber, column: 0, file: std.types)
 
-            return Type(kind: .named(name), flags: flags, size: size, location: location)
+            let width = size < 0 ? size : size * 8
+
+            return Type(kind: .named(name), flags: flags, width: width, location: location)
         }
     }()
 
-    static let typeInfo = Type(kind: .struct("TypeInfo"), flags: .none, size: 0, location: nil)
+    static let typeInfo = Type(kind: .struct("TypeInfo"), flags: .none, width: 0, location: nil)
 
     static let void = builtin[0]
+
     static let bool = builtin[1]
 
     static let i8   = builtin[2]
@@ -128,7 +135,9 @@ class Type: CustomStringConvertible {
     static let unconstrString   = builtin[18]
     static let unconstrNil      = builtin[19]
 
-    static let invalid = builtin[20]
+    static let any = builtin[20]
+
+    static let invalid = builtin[21]
 }
 
 enum ExactValue {
@@ -271,7 +280,7 @@ class Scope: PointerHashable {
             }
 
             let e = Entity(name: type.description, location: location, kind: .type(type), owningScope: s)
-            e.type = Type(kind: .typeInfo(underlyingType: type), flags: .none, size: 8, location: nil)
+            e.type = Type(kind: .typeInfo(underlyingType: type), flags: .none, width: MemoryLayout<Int>.size * 8, location: nil)
             s.insert(e)
         }
 
@@ -787,7 +796,7 @@ extension Checker {
             }
         }
 
-        let type = Type(kind: .proc(params: paramEntities, returns: returnTypes), flags: .none, size: 0, location: nil)
+        let type = Type(kind: .proc(params: paramEntities, returns: returnTypes), flags: .none, width: 0, location: nil)
 
         return type
     }
@@ -1277,7 +1286,7 @@ extension Checker {
             if lhsType === rhsType {
                 return lhsType
             }
-            if lhsType.size == rhsType.size {
+            if lhsType.width == rhsType.width {
                 // FIXME(vdka): once we add more types with different sizes this check is not correct.
                 assert(lhsType.flags.contains(.unsigned) != rhsType.flags.contains(.unsigned))
                 reportError("Unable to infer type for result", at: node) // TODO(vdka): Better error
@@ -1289,10 +1298,10 @@ extension Checker {
             if lhsType.flags.contains(.unconstrained) {
                 attemptLiteralConstraint(rhs, to: rhsType)
             }
-            if lhsType.size < rhsType.size {
+            if lhsType.width < rhsType.width {
                 return rhsType
             }
-            if lhsType.size > rhsType.size {
+            if lhsType.width > rhsType.width {
                 return lhsType
             }
 
@@ -1364,7 +1373,7 @@ extension Checker {
         //
 
         // IMPORTANT FIXME(vdka): Truncate or Ext
-        guard type.size == exprType.size else {
+        guard type.width == exprType.width else {
             unimplemented("Casting to types of different size")
         }
 

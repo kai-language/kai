@@ -46,7 +46,7 @@ extension IRGenerator {
             // TODO(vdka): Trunc or Ext if needed / possible
 
             if lhsType !== rhsType {
-                if lhsType.size == rhsType.size {
+                if lhsType.width == rhsType.width {
                     //
                     // `x: uint = 1; y: int = 1; z := x + y`
                     // We don't know what the return type should be so it's an error caught in the checker
