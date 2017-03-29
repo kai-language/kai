@@ -17,6 +17,7 @@ class Type: CustomStringConvertible {
         case named(String)
         case alias(String, Type)
         case proc(params: [Entity], returns: [Type])
+        case typeInfo(underlyingType: Type) // for now, in the future we will collapse this into the `struct` kind.
         case `struct`(String)
     }
 
@@ -51,6 +52,9 @@ class Type: CustomStringConvertible {
 
         case .struct(let name):
             return name
+
+        case .typeInfo(let underlyingType):
+            return "TypeInfo(\(underlyingType))"
         }
     }
 
@@ -249,7 +253,7 @@ class Scope: PointerHashable {
             }
 
             let e = Entity(name: type.description, location: location, kind: .type(type), owningScope: s)
-            e.type = Type.typeInfo
+            e.type = Type(kind: .typeInfo(underlyingType: type), flags: .none, size: 8, location: nil)
             s.insert(e)
         }
 
@@ -368,12 +372,13 @@ struct Checker {
     }
 
     struct Info {
-        var entities:    [Entity: DeclInfo]  = [:]
+        var entities:    [Entity:  DeclInfo] = [:]
         var definitions: [AstNode: Entity]   = [:] // Key: AstNode.ident
         var decls:       [AstNode: DeclInfo] = [:] // Key: AstNode.declValue
-        var types:       [AstNode: Type]     = [:] // Key: AstNode.expr*
+        var types:       [AstNode: Type]     = [:] // Key: AstNode.expr
         var uses:        [AstNode: Entity]   = [:] // Key: AstNode.ident
         var scopes:      [AstNode: Scope]    = [:] // Key: Any AstNode
+        var casts:       Set<AstNode>        = [ ] // Key: AstNode.call
     }
 
     struct Context {
@@ -1184,33 +1189,88 @@ extension Checker {
             type = checkBinary(node)
 
         case .exprCall(let receiver, let args, _):
-            let procType = checkExpr(receiver)
-            guard case .proc(let params, let resultTypes) = procType.kind else {
-                reportError("cannot call non-procedure '\(receiver.value)' (type \(procType))", at: node)
-                break
+
+            enum CallKind {
+                case cast
+                case call
+                case invalid
             }
 
-            if args.count < params.count {
-                reportError("too few arguments to procedure '\(receiver.value)'", at: node)
-                break
-            } else if args.count > params.count {
-                reportError("Too many arguments for procedure '\(receiver.value)", at: node)
-                break
-            }
+            /// If this returns false then we are actually dealing with a cast
+            func callKind(for type: Type) -> CallKind {
 
-            for (arg, param) in zip(args, params) {
-                let argType = checkExpr(arg)
-                if !canImplicitlyConvert(argType, to: param.type!) {
-                    reportError("Incompatible type for argument, expected '\(param.type!)' but got '\(argType)'", at: arg)
-                    continue
+                switch type.kind {
+                case .named, .struct:
+                    return CallKind.invalid
+
+                case .alias(_, let underlyingType):
+                    return callKind(for: underlyingType)
+
+                case .proc:
+                    return CallKind.call
+
+                case .typeInfo:
+                    return CallKind.cast
                 }
             }
 
-            guard resultTypes.count == 1, let firstResultType = resultTypes.first else {
-                unimplemented("Type checking for calling procedures with multiple returns")
+            let receiverType = checkExpr(receiver)
+
+            if receiverType === Type.invalid {
+                return Type.invalid
             }
 
-            type = firstResultType
+            switch callKind(for: receiverType) {
+            case .call:
+
+                guard case .proc(let params, let resultTypes) = receiverType.kind else {
+                    panic()
+                }
+
+                if args.count < params.count {
+                    reportError("too few arguments to procedure '\(receiver.value)'", at: node)
+                    break
+                } else if args.count > params.count {
+                    reportError("Too many arguments for procedure '\(receiver.value)", at: node)
+                    break
+                }
+
+                for (arg, param) in zip(args, params) {
+                    let argType = checkExpr(arg)
+                    if !canImplicitlyConvert(argType, to: param.type!) {
+                        reportError("Incompatible type for argument, expected '\(param.type!)' but got '\(argType)'", at: arg)
+                        continue
+                    }
+                }
+
+                guard resultTypes.count == 1, let firstResultType = resultTypes.first else {
+                    unimplemented("Type checking for calling procedures with multiple returns")
+                }
+
+                type = firstResultType
+
+            case .cast:
+
+                guard args.count == 1, let arg = args.first else {
+                    if args.count == 0 {
+                        reportError("Missing argument for cast to \(receiverType)", at: node)
+                    } else { // args.count > 1
+                        reportError("Too many arguments for cast to \(receiverType)", at: node)
+                    }
+                    return Type.invalid
+                }
+
+                guard case .typeInfo(let underlyingType) = receiverType.kind else {
+                    panic()
+                }
+
+                type = checkCastExpr(arg, to: underlyingType)
+
+                info.casts.insert(node)
+
+            case .invalid:
+                reportError("Cannot call expr of type \(type)", at: node)
+            }
 
         case .exprSelector(let receiver, let member, _):
 
@@ -1475,6 +1535,30 @@ extension Checker {
             // We should have a type by this point
             return e.type!
         }
+    }
+
+    mutating func checkCastExpr(_ expr: AstNode, to type: Type) -> Type {
+
+        let exprType = checkExpr(expr)
+
+        //
+        // If we can already implicitly convert then we don't need to check
+        // attempt to constrain the exprType to be `type`
+        if canImplicitlyConvert(exprType, to: type) {
+            attemptLiteralConstraint(expr, to: type)
+            return type
+        }
+
+        //
+        // Ensure the two types are of the same size
+        //
+
+        // IMPORTANT FIXME(vdka): Truncate or Ext
+        guard type.size == exprType.size else {
+            unimplemented("Casting to types of different size")
+        }
+
+        return type
     }
 }
 

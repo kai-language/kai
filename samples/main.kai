@@ -3,40 +3,19 @@
 printf :: (s: string) -> void #foreign libc "printf"
 putchar :: (c: u8) -> void #foreign libc "putchar"
 
+addFive :: (n: u8) -> u8 {
+    return n + 5
+}
+
 main :: () -> void {
 
-    if true printf("WasTrue\n")
-    if false printf("WasFalse\n")
+    printf("\n --- START ---\n")
 
-    lower : u8 = 65
-    upper : u8 = 97
-    for {
-        putchar(lower)
-        putchar(upper)
-        printf("\n")
-        lower = lower + 1
-        upper = upper + 1
-        if !(lower <= 90 && upper <= 122) break
-    }
+    x : u8 = 65
+    x = addFive(x)
+    putchar(x)
+    putchar(u8(66))
 
-    lower2 : u8 = 65
-    upper2 : u8 = 97
-    for lower2 <= 90 && upper2 <= 122 {
-        putchar(lower2)
-        putchar(upper2)
-        printf("\n")
-        lower2 = lower2 + 1
-        upper2 = upper2 + 1
-    }
-
-    for c : u8 = 65; c < 91; c = c + 1 {
-        putchar(c)
-    }
-
-    for c := 0; c < 2; c = c + 1 {
-        printf("asdfj\n")
-        continue
-    }
-
+    printf("\n ---  END  ---\n")
 }
 

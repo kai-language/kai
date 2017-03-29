@@ -164,7 +164,10 @@ extension IRGenerator {
         case .exprBinary:
             return emitOperator(for: node)
 
-        case .exprCall:
+        case .exprCall(_, let args, _):
+            if checker.info.casts.contains(node) {
+                return emitStmt(for: args.first!)
+            }
             return emitProcedureCall(for: node)
 
         case .exprParen(let expr, _):

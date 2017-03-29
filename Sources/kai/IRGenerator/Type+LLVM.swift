@@ -39,11 +39,14 @@ extension Type {
         case .alias(_, let type):
             return type.canonicalized()
             
-        case .proc(_, _):
+        case .proc:
             unimplemented("Procedures")
             
-        case .struct(_):
+        case .struct:
             unimplemented("Structures")
+
+        case .typeInfo:
+            unimplemented("Type info")
             
             /*case .void:
                 return VoidType()
