@@ -246,14 +246,10 @@ extension IRGenerator {
             if (elseStmt.children.last?.isReturn ?? false || elseStmt.isReturn) &&
                 (thenStmt.children.last?.isReturn ?? false || thenStmt.isReturn) {
 
-                // FIXME(vdka): Currently LLVMSwift crashes as a result of this line
-
                 // If both the if and the else return then there is no need for a post block
-//                postBlock.delete()
+                postBlock.removeFromParent()
 
-                // TEMP(vdka): remove when LLVMSwift is fixed.
-                builder.positionAtEnd(of: postBlock)
-                builder.buildBr(context.currentProcedure!.returnBlock)
+//                postBlock.delete()
             }
 
             //
