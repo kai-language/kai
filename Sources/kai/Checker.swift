@@ -902,12 +902,12 @@ extension Checker {
             // TODO(vdka): Validate that the deferal is unTerminated (defer cannot return)
 
         case .stmtFor(let initializer, let cond, let post, let body, _):
-            var bodyScope = Scope(parent: context.scope)
-
-            pushScope(isLoop: true)
+            
+            let bodyScope = pushScope(isLoop: true)
             defer { popScope() }
 
             info.scopes[node] = bodyScope
+            
             if let initializer = initializer {
                 checkStmt(initializer)
             }
@@ -922,7 +922,12 @@ extension Checker {
                 checkStmt(post)
             }
 
-            checkStmt(body)
+            guard case .stmtBlock(let stmts, _) = body else {
+                panic()
+            }
+            for stmt in stmts {
+                checkStmt(stmt)
+            }
 
         case .stmtBreak:
             fallthrough

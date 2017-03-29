@@ -3,14 +3,48 @@
 printf :: (s: string) -> void #foreign libc "printf"
 putchar :: (c: u8) -> void #foreign libc "putchar"
 
-fact :: (n: u8) -> u8 {
-    if n >= 1 return n * fact(n - 1)
-    else return 1
+printNum :: (n: u8) -> void {
+
+    // FIXME(vdka): Right now we need the explicit type here because it does not constrain later.
+    pow : u8 = 1
+
+    for pow * 10 <= n {
+        pow = pow * 10
+    }
+
+    for pow != 0 {
+        d := n / pow
+        putchar(48 + d)
+        n = n - d * pow
+        pow = pow / 10
+    }
 }
+
+fact :: (n: u8) -> u8 {
+    if n <= 1 return 1
+    else return n * fact(n - 1)
+}
+
+//fib :: (n: u8) -> u8 {
+//    if n == 0 return 0
+//    else if n == 1 return 1
+//    else return fib(n - 1) + fib(n - 2)
+//}
 
 main :: () -> void {
 
-    x := fact(5)
-    putchar(x)
+    printNum(83)
+    printf("\n")
+
+    printf("fact(5) = ")
+    fact5 := fact(5)
+    printNum(fact5)
+    printf("\n")
+
+    // FIXME(vdka): Not working. Emitting a if.post with no entry.
+    //printf("fib(5) = ")
+    //fib5 := fib(5)
+    //printNum(fib5)
+    //printf("\n")
 }
 
