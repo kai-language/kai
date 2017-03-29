@@ -276,13 +276,11 @@ extension AstNode {
         }
     }
 
-    var isTerminating: Bool {
+    var isReturn: Bool {
 
         switch self {
         case .stmtReturn:
             return true
-
-        // TODO(vdka): Other things can be terminating (if stmt logic ...)
 
         default:
             return false
@@ -294,6 +292,26 @@ extension AstNode {
             return ident
         }
         panic()
+    }
+
+    /// - Note: Currently limited to stmt types that can return
+    var children: [AstNode] {
+        switch self {
+        case .stmtBlock(let stmts, _):
+            return stmts
+
+        case .stmtBreak, .stmtEmpty, .stmtContinue, .stmtFallthrough, .stmtAssign:
+            return []
+
+        case .stmtIf(_, let bodyStmt, let elseStmt, _):
+            return bodyStmt.children + (elseStmt?.children ?? [])
+
+        case .stmtFor(_, _, _, let body, _):
+            return body.children
+
+        default:
+            return []
+        }
     }
 }
 
@@ -361,6 +379,7 @@ func append(_ l: AstNode, _ r: AstNode) -> AstNode {
 
 extension AstNode {
 
+    // IMPORTANT FIXME(vdka): Kill this and instead make a description. Ensure exhaustiveness.
     var value: String {
 
         switch self {
@@ -392,7 +411,7 @@ extension AstNode {
         */
 
         default:
-            panic(self)
+            return self.shortName
         }
     }
 
