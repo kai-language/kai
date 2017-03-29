@@ -439,7 +439,7 @@ extension Checker {
             setCurrentFile(file)
 
             // Create entity records for things in file scopes
-            collectEntities(file.nodes)
+            collectDecls(file.nodes)
 
             context = prevContext
 
@@ -449,10 +449,10 @@ extension Checker {
             */
         }
 
-        importEntities(&fileScopes)
+        importDecls(from: &fileScopes)
 
         for scope in fileScopes.values {
-            checkEntities(in: scope)
+            checkDecls(in: scope)
         }
 
         for pi in procs {
@@ -474,7 +474,7 @@ extension Checker {
 
     /// - Precondition: node.isDecl
     @discardableResult
-    mutating func collectEntities(_ node: AstNode) -> [Entity] {
+    mutating func collectDecl(_ node: AstNode) -> [Entity] {
         precondition(node.isDecl)
 
         switch node {
@@ -548,7 +548,7 @@ extension Checker {
         }
     }
 
-    mutating func collectEntities(_ nodes: [AstNode]) {
+    mutating func collectDecls(_ nodes: [AstNode]) {
 
         for node in nodes {
             guard node.isDecl else {
@@ -558,11 +558,11 @@ extension Checker {
                 continue
             }
 
-            collectEntities(node)
+            collectDecl(node)
         }
     }
 
-    mutating func importEntities(_ fileScopes: inout [String: Scope]) {
+    mutating func importDecls(from fileScopes: inout [String: Scope]) {
 
         for imp in delayedImports {
 
@@ -614,7 +614,7 @@ extension Checker {
         }
     }
 
-    mutating func checkEntity(_ e: Entity) {
+    mutating func checkDecl(of e: Entity) {
         switch e.kind {
         case .libraryName, .importName:
             return
@@ -628,61 +628,16 @@ extension Checker {
         }
     }
 
-    mutating func checkEntities(in scope: Scope) {
+    mutating func checkDecls(in scope: Scope) {
 
         let prevContext = context
         context.scope = scope
 
         for e in scope.elements.values {
-            checkEntity(e)
+            checkDecl(of: e)
         }
 
         context = prevContext
-    }
-
-    mutating func setCurrentFile(_ file: ASTFile) {
-        self.currentFile = file
-        self.context.scope = file.scope!
-    }
-
-    @discardableResult
-    mutating func addEntity(to scope: Scope, _ entity: Entity) -> Bool {
-
-        if let conflict = scope.insert(entity) {
-
-            let msg = "Redeclaration of \(entity.name) in this scope\n" +
-                      "Previous declaration at \(conflict.location)"
-
-            reportError(msg, at: entity.location)
-            return false
-        }
-
-        return true
-    }
-
-    @discardableResult
-    mutating func addEntityUse(_ ident: AstNode, _ entity: Entity) {
-        assert(ident.isIdent)
-        info.uses[ident] = entity
-    }
-
-    @discardableResult
-    mutating func checkArityMatch(_ node: AstNode) -> Bool {
-
-        if case .declValue(_, let names, let type, let values, _) = node {
-            if values.isEmpty && type == nil {
-                reportError("Missing type or initial expression", at: node)
-                return false
-            } else if names.count < values.count {
-                reportError("Arity mismatch, excess expressions on rhs", at: values[names.count])
-                return false
-            } else if names.count > values.count && values.count != 1 {
-                reportError("Arity mismatch, missing expressions for ident", at: names[values.count])
-                return false
-            }
-        }
-
-        return true
     }
 }
 
@@ -773,44 +728,6 @@ extension Checker {
         let type = Type(kind: .proc(params: paramEntities, returns: returnTypes), flags: .none, size: 0, location: nil)
 
         return type
-    }
-
-    func canImplicitlyConvert(_ a: Type, to b: Type) -> Bool {
-        if a === b {
-            return true
-        }
-
-        if a.flags.contains(.unconstrained) {
-
-            if a.flags.contains(.float) && b.flags.contains(.float) {
-//            if a.flags.contains(.float) && b.flags.contains(.float) || b.flags.contains(.integer) {
-                // `x: f32 = integerValue` | `y: f32 = floatValue`
-                return true
-            }
-            if a.flags.contains(.integer) && b.flags.contains(.float) {
-                // implicitely upcast an integer into a float is fine.
-                return true
-            }
-            if a.flags.contains(.integer) && b.flags.contains(.integer) {
-                // Currently we support converting any integer to any other integer implicitely
-                return true
-            }
-            if !Type.Flag.numeric.union(a.flags).isEmpty && b.flags.contains(.boolean) {
-                // Any numeric type can be cast to booleans
-                return true
-            }
-            if a.flags.contains(.boolean) && b.flags.contains(.boolean) {
-                return true
-            }
-            if a.flags.contains(.string) && b.flags.contains(.string) {
-                return true
-            }
-
-        } else if Type.Flag.numeric.contains(a.flags) && b.flags.contains(.boolean) {
-            // Numeric types can be converted to booleans through truncation
-            return true
-        }
-        return false
     }
 
     @discardableResult
@@ -907,38 +824,13 @@ extension Checker {
         }
     }
 
-    mutating func checkAssign(_ node: AstNode) {
-        guard case .stmtAssign(let op, let lhs, let rhs, _) = node else {
-            panic()
-        }
-        unimplemented("Complex assignment", if: op != "=")
-
-        guard lhs.count == rhs.count else {
-            reportError("assignment count mismatch: '\(lhs.count) = \(rhs.count)'", at: node)
-            return
-        }
-
-        for (lvalue, rvalue) in zip(lhs, rhs) {
-            let rhsType = checkExpr(rvalue)
-            let lhsType = checkExpr(lvalue)
-
-            guard canImplicitlyConvert(rhsType, to: lhsType) else {
-                if rvalue.isLit {
-                    attemptLiteralConstraint(rvalue, to: lhsType)
-                }
-                reportError("Cannot use \(rvalue.value) (type \(rhsType)) as type \(lhsType) in assignment", at: rvalue)
-                return
-            }
-        }
-    }
-
     mutating func checkStmt(_ node: AstNode) {
 
         switch node {
         case .declValue, .declImport, .declLibrary:
-            let entities = collectEntities(node)
+            let entities = collectDecl(node)
             for e in entities {
-                checkEntity(e)
+                checkDecl(of: e)
             }
 
         case _ where node.isExpr:
@@ -950,17 +842,19 @@ extension Checker {
             let s = Scope(parent: context.scope)
             info.scopes[node] = s
             context.scope = s
-            checkStmts(stmts)
+            for stmt in stmts {
+                checkStmt(stmt)
+            }
 
             context = prevContext
 
         case .stmtAssign:
-            checkAssign(node)
+            checkStmtAssign(node)
 
-        case .stmtReturn(let vals, _):
+        case .stmtReturn(let exprs, _):
 
-            for val in vals {
-                checkExpr(val)
+            for expr in exprs {
+                checkExpr(expr)
             }
             guard context.scope.isProc else {
                 reportError("'return' is not valid in this scope", at: node)
@@ -1008,11 +902,7 @@ extension Checker {
                 checkStmt(post)
             }
 
-            guard case .stmtBlock(let stmts, _) = body else {
-                panic()
-            }
-
-            checkStmts(stmts)
+            checkStmt(body)
 
         case .stmtBreak:
             fallthrough
@@ -1029,118 +919,29 @@ extension Checker {
         }
     }
 
-    mutating func checkStmts(_ nodes: [AstNode]) {
-
-        for node in nodes {
-            checkStmt(node)
-        }
-    }
-
-    mutating func checkProcBody(_ pi: ProcInfo) {
-        guard case .litProc(_, let body, _) = pi.node else {
+    mutating func checkStmtAssign(_ node: AstNode) {
+        guard case .stmtAssign(let op, let lhs, let rhs, _) = node else {
             panic()
         }
+        unimplemented("Complex assignment", if: op != "=")
 
-        assert(info.types[pi.node] != nil)
-
-        guard case .proc(let params, let results) = pi.type.kind else {
-            panic()
-        }
-
-        guard case .stmtBlock(let stmts, _) = body else {
-
-            let prevContext = context
-            defer { context = prevContext }
-            context.scope = pi.owningScope
-
-            guard case .directive("foreign", let args, _) = body else {
-                reportError("Expected a procedure body to be a block or foreign statement", at: body)
-                return
-            }
-
-            guard let libNameNode = args[safe: 0], case .ident(let libName, let libLocation) = libNameNode else {
-                reportError("Expected the name of the library the symbol will come from", at: args.last?.endLocation ?? body.endLocation)
-                return
-            }
-
-            guard let entity = context.scope.lookup(libName) else {
-                reportError("Undeclared name: '\(libName)'", at: libNameNode)
-                return
-            }
-
-            guard case .libraryName = entity.kind else {
-                reportError("Expected a library identifier", at: libNameNode)
-                return
-            }
-
-            guard case .litString(let path, let pathLocation)? = args[safe: 1] else {
-                reportError("Expected a string literal as the symbol to bind from the library", at: args.first?.startLocation ?? body.endLocation)
-                return
-            }
-
+        guard lhs.count == rhs.count else {
+            reportError("assignment count mismatch: '\(lhs.count) = \(rhs.count)'", at: node)
             return
         }
 
-        openScope(body)
-        defer { closeScope() }
+        for (lvalue, rvalue) in zip(lhs, rhs) {
+            let rhsType = checkExpr(rvalue)
+            let lhsType = checkExpr(lvalue)
 
-        let prevContext = context
-        let s = Scope(parent: pi.owningScope)
-        s.isProc = true
-        context.scope = s
-
-        pi.decl?.entities.forEach({ $0.childScope = s })
-
-        for entity in params {
-            addEntity(to: s, entity)
-        }
-
-        pushProc(pi.type)
-        defer { popProc() }
-
-        checkStmts(stmts)
-
-        // NOTE(vdka): There must be at least 1 return type or it's an error.
-        guard let firstResult = results.first else {
-            panic()
-        }
-        let voidResultTypes = results.count(where: { $0 === Type.void })
-        if voidResultTypes > 1 {
-            reportError("Multiple returns with a void value is forbidden.", at: pi.node)
-        }
-
-        let (terminatingStatements, branches) = terminatingStatments(body)
-        guard branches.contains(.terminated) && !branches.contains(.unTerminated) || voidResultTypes == 1 else {
-            reportError("Not all procedure body branches return", at: body) // FIXME(vdka): More context on this.
-            return
-        }
-
-        for returnStmt in terminatingStatements {
-            guard case .stmtReturn(let returnedExprs, _) = returnStmt else {
-                panic() // implementation error in terminatingStatements
-            }
-
-            if returnedExprs.count == 0 && firstResult === Type.void {
-                return
-            }
-            if returnedExprs.count < results.count {
-                reportError("Too few return values for procedure. Expected \(results.count), got \(returnedExprs.count)", at: returnStmt)
-                break
-            } else if returnedExprs.count > results.count {
-                reportError("Too many return values for procedure. Expected \(results.count), got \(returnedExprs.count)", at: returnStmt)
-                break
-            }
-
-            for (returnExpr, resultType) in zip(returnedExprs, results) {
-                let returnExprType = checkExpr(returnExpr)
-                if !canImplicitlyConvert(returnExprType, to: resultType) {
-                    reportError("Incompatible type for return expression. Expected '\(resultType)' but got '\(returnExprType)'", at: returnExpr)
-                    continue
+            guard canImplicitlyConvert(rhsType, to: lhsType) else {
+                if rvalue.isLit {
+                    attemptLiteralConstraint(rvalue, to: lhsType)
                 }
+                reportError("Cannot use \(rvalue.value) (type \(rhsType)) as type \(lhsType) in assignment", at: rvalue)
+                return
             }
         }
-
-        context = prevContext
     }
 
     @discardableResult
@@ -1150,7 +951,12 @@ extension Checker {
         }
 
         if node.isDecl {
-            fatalError("Use checkStmt instead")
+            reportError("Unexpected declaration, expected expression", at: node)
+            return Type.invalid
+        }
+        if node.isStmt {
+            reportError("Unexpected statement, expected expression", at: node)
+            return Type.invalid
         }
 
         var type = Type.invalid
@@ -1165,7 +971,7 @@ extension Checker {
             type = Type.unconstrString
 
         case .ident:
-            type = checkIdent(node)
+            type = checkExprIdent(node)
 
         case .directive("file", let args, _):
             assert(args.isEmpty)
@@ -1183,15 +989,15 @@ extension Checker {
             type = checkExpr(node)
 
         case .exprUnary:
-            type = checkUnary(node)
+            type = checkExprUnary(node)
 
         case .exprBinary:
-            type = checkBinary(node)
+            type = checkExprBinary(node)
 
         case .exprCall(let receiver, let args, _):
 
             enum CallKind {
-                case cast
+                case cast(to: Type)
                 case call
                 case invalid
             }
@@ -1209,8 +1015,8 @@ extension Checker {
                 case .proc:
                     return CallKind.call
 
-                case .typeInfo:
-                    return CallKind.cast
+                case .typeInfo(let underlyingType):
+                    return CallKind.cast(to: underlyingType)
                 }
             }
 
@@ -1249,7 +1055,7 @@ extension Checker {
 
                 type = firstResultType
 
-            case .cast:
+            case .cast(let targetType):
 
                 guard args.count == 1, let arg = args.first else {
                     if args.count == 0 {
@@ -1260,11 +1066,7 @@ extension Checker {
                     return Type.invalid
                 }
 
-                guard case .typeInfo(let underlyingType) = receiverType.kind else {
-                    panic()
-                }
-
-                type = checkCastExpr(arg, to: underlyingType)
+                type = checkExprCast(arg, to: targetType)
 
                 info.casts.insert(node)
 
@@ -1296,7 +1098,7 @@ extension Checker {
                 return Type.invalid
             }
 
-            checkEntity(scopeEntity)
+            checkDecl(of: scopeEntity)
             return scopeEntity.type!
 
         default:
@@ -1316,42 +1118,7 @@ extension Checker {
         static let unTerminated  = Branch(rawValue: 0b10)
     }
 
-    /// - Returns: returns all nodes of kind `stmtReturn` that can be exit points for a scope.
-    /// - Note: If not all branches terminate then an empty array is returned.
-    func terminatingStatments(_ node: AstNode) -> ([AstNode], Branch) {
-
-        switch node {
-        case .stmtReturn:
-            return ([node], .terminated)
-
-        case .stmtExpr(let expr):
-            return terminatingStatments(expr)
-
-        case .stmtIf(_, let body, let elseExpr, _):
-            let bodyTerminators = terminatingStatments(body)
-            guard let elseExpr = elseExpr else {
-                return (bodyTerminators.0, .unTerminated)
-            }
-
-            let elseTerminators = terminatingStatments(elseExpr)
-
-            let allBranchesTerminate = bodyTerminators.1.union(elseTerminators.1)
-            return (bodyTerminators.0 + elseTerminators.0, allBranchesTerminate)
-
-        case .stmtBlock(let nodes, _):
-            let stmts = nodes.map(terminatingStatments)
-
-            return stmts.reduce(([AstNode](), Branch.notApplicable)) { prior, curr in
-                return (prior.0 + curr.0, prior.1.union(curr.1))
-            }
-
-        // TODO(vdka): `switch` & `for`
-        default:
-            return ([], .notApplicable)
-        }
-    }
-
-    mutating func checkUnary(_ node: AstNode) -> Type {
+    mutating func checkExprUnary(_ node: AstNode) -> Type {
         guard case .exprUnary(let op, let expr, let location) = node else {
             panic()
         }
@@ -1381,7 +1148,7 @@ extension Checker {
         }
     }
 
-    mutating func checkBinary(_ node: AstNode) -> Type {
+    mutating func checkExprBinary(_ node: AstNode) -> Type {
         guard case .exprBinary(let op, let lhs, let rhs, _) = node else {
             panic()
         }
@@ -1500,7 +1267,7 @@ extension Checker {
         }
     }
 
-    mutating func checkIdent(_ node: AstNode) -> Type {
+    mutating func checkExprIdent(_ node: AstNode) -> Type {
         guard case .ident(let name, _) = node else {
             panic()
         }
@@ -1537,7 +1304,7 @@ extension Checker {
         }
     }
 
-    mutating func checkCastExpr(_ expr: AstNode, to type: Type) -> Type {
+    mutating func checkExprCast(_ expr: AstNode, to type: Type) -> Type {
 
         let exprType = checkExpr(expr)
 
@@ -1560,12 +1327,244 @@ extension Checker {
 
         return type
     }
+
+    mutating func checkProcBody(_ pi: ProcInfo) {
+        guard case .litProc(_, let body, _) = pi.node else {
+            panic()
+        }
+
+        assert(info.types[pi.node] != nil)
+
+        guard case .proc(let params, let results) = pi.type.kind else {
+            panic()
+        }
+
+        guard case .stmtBlock = body else {
+
+            let prevContext = context
+            defer { context = prevContext }
+            context.scope = pi.owningScope
+
+            guard case .directive("foreign", let args, _) = body else {
+                reportError("Expected a procedure body to be a block or foreign statement", at: body)
+                return
+            }
+
+            guard let libNameNode = args[safe: 0], case .ident(let libName, let libLocation) = libNameNode else {
+                reportError("Expected the name of the library the symbol will come from", at: args.last?.endLocation ?? body.endLocation)
+                return
+            }
+
+            guard let entity = context.scope.lookup(libName) else {
+                reportError("Undeclared name: '\(libName)'", at: libNameNode)
+                return
+            }
+
+            guard case .libraryName = entity.kind else {
+                reportError("Expected a library identifier", at: libNameNode)
+                return
+            }
+
+            guard case .litString(let path, let pathLocation)? = args[safe: 1] else {
+                reportError("Expected a string literal as the symbol to bind from the library", at: args.first?.startLocation ?? body.endLocation)
+                return
+            }
+
+            return
+        }
+
+        openScope(body)
+        defer { closeScope() }
+
+        let prevContext = context
+        let s = Scope(parent: pi.owningScope)
+        s.isProc = true
+        context.scope = s
+
+        pi.decl?.entities.forEach({ $0.childScope = s })
+
+        for entity in params {
+            addEntity(to: s, entity)
+        }
+
+        // checkStmt(body) would override the scope. We don't want that.
+        guard case .stmtBlock(let stmts, _) = body else {
+            panic()
+        }
+        for stmt in stmts {
+            checkStmt(stmt)
+        }
+
+        pushProc(pi.type)
+        defer { popProc() }
+
+        // NOTE(vdka): There must be at least 1 return type or it's an error.
+        guard let firstResult = results.first else {
+            panic()
+        }
+        let voidResultTypes = results.count(where: { $0 === Type.void })
+        if voidResultTypes > 1 {
+            reportError("Multiple returns with a void value is forbidden.", at: pi.node)
+        }
+
+        let (terminatingStatements, branches) = terminatingStatments(body)
+        guard branches.contains(.terminated) && !branches.contains(.unTerminated) || voidResultTypes == 1 else {
+            reportError("Not all procedure body branches return", at: body) // FIXME(vdka): More context on this.
+            return
+        }
+
+        for returnStmt in terminatingStatements {
+            guard case .stmtReturn(let returnedExprs, _) = returnStmt else {
+                panic() // implementation error in terminatingStatements
+            }
+
+            if returnedExprs.count == 0 && firstResult === Type.void {
+                return
+            }
+            if returnedExprs.count < results.count {
+                reportError("Too few return values for procedure. Expected \(results.count), got \(returnedExprs.count)", at: returnStmt)
+                break
+            } else if returnedExprs.count > results.count {
+                reportError("Too many return values for procedure. Expected \(results.count), got \(returnedExprs.count)", at: returnStmt)
+                break
+            }
+
+            for (returnExpr, resultType) in zip(returnedExprs, results) {
+                let returnExprType = checkExpr(returnExpr)
+                if !canImplicitlyConvert(returnExprType, to: resultType) {
+                    reportError("Incompatible type for return expression. Expected '\(resultType)' but got '\(returnExprType)'", at: returnExpr)
+                    continue
+                }
+            }
+        }
+        
+        context = prevContext
+    }
 }
 
 
 // MARK: Checker helpers
 
 extension Checker {
+
+    mutating func setCurrentFile(_ file: ASTFile) {
+        self.currentFile = file
+        self.context.scope = file.scope!
+    }
+
+    @discardableResult
+    mutating func addEntity(to scope: Scope, _ entity: Entity) -> Bool {
+
+        if let conflict = scope.insert(entity) {
+
+            let msg = "Redeclaration of \(entity.name) in this scope\n" +
+            "Previous declaration at \(conflict.location)"
+
+            reportError(msg, at: entity.location)
+            return false
+        }
+
+        return true
+    }
+
+    @discardableResult
+    mutating func addEntityUse(_ ident: AstNode, _ entity: Entity) {
+        assert(ident.isIdent)
+        info.uses[ident] = entity
+    }
+
+    @discardableResult
+    mutating func checkArityMatch(_ node: AstNode) -> Bool {
+
+        if case .declValue(_, let names, let type, let values, _) = node {
+            if values.isEmpty && type == nil {
+                reportError("Missing type or initial expression", at: node)
+                return false
+            } else if names.count < values.count {
+                reportError("Arity mismatch, excess expressions on rhs", at: values[names.count])
+                return false
+            } else if names.count > values.count && values.count != 1 {
+                reportError("Arity mismatch, missing expressions for ident", at: names[values.count])
+                return false
+            }
+        }
+        
+        return true
+    }
+
+    /// Checks if type `a` can be converted to type `b` implicitly.
+    /// True for converting unconstrained types into any of their constrained versions.
+    func canImplicitlyConvert(_ a: Type, to b: Type) -> Bool {
+        if a === b {
+            return true
+        }
+
+        if a.flags.contains(.unconstrained) {
+
+            if a.flags.contains(.float) && b.flags.contains(.float) {
+                // `x: f32 = integerValue` | `y: f32 = floatValue`
+                return true
+            }
+            if a.flags.contains(.integer) && b.flags.contains(.float) {
+                // implicitely upcast an integer into a float is fine.
+                return true
+            }
+            if a.flags.contains(.integer) && b.flags.contains(.integer) {
+                // Currently we support converting any integer to any other integer implicitely
+                return true
+            }
+            if !Type.Flag.numeric.union(a.flags).isEmpty && b.flags.contains(.boolean) {
+                // Any numeric type can be cast to booleans
+                return true
+            }
+            if a.flags.contains(.boolean) && b.flags.contains(.boolean) {
+                return true
+            }
+            if a.flags.contains(.string) && b.flags.contains(.string) {
+                return true
+            }
+
+        } else if Type.Flag.numeric.contains(a.flags) && b.flags.contains(.boolean) {
+            // Numeric types can be converted to booleans through truncation
+            return true
+        }
+        return false
+    }
+
+    /// - Returns: returns all nodes of kind `stmtReturn` that can be exit points for a scope.
+    /// - Note: If not all branches terminate then an empty array is returned.
+    func terminatingStatments(_ node: AstNode) -> ([AstNode], Branch) {
+
+        switch node {
+        case .stmtReturn:
+            return ([node], .terminated)
+
+        case .stmtExpr(let expr):
+            return terminatingStatments(expr)
+
+        case .stmtIf(_, let body, let elseExpr, _):
+            let bodyTerminators = terminatingStatments(body)
+            guard let elseExpr = elseExpr else {
+                return (bodyTerminators.0, .unTerminated)
+            }
+
+            let elseTerminators = terminatingStatments(elseExpr)
+
+            let allBranchesTerminate = bodyTerminators.1.union(elseTerminators.1)
+            return (bodyTerminators.0 + elseTerminators.0, allBranchesTerminate)
+
+        case .stmtBlock(let nodes, _):
+            let stmts = nodes.map(terminatingStatments)
+
+            return stmts.reduce(([AstNode](), Branch.notApplicable)) { prior, curr in
+                return (prior.0 + curr.0, prior.1.union(curr.1))
+            }
+
+        // TODO(vdka): `switch` & `for`
+        default:
+            return ([], .notApplicable)
+        }
+    }
 
     /// Updates the node's type to the target type if `node` matches the lit node for `type`
     mutating func attemptLiteralConstraint(_ node: AstNode, to type: Type) {
