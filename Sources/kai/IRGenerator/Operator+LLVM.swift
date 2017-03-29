@@ -43,6 +43,8 @@ extension IRGenerator {
             let lhsType = checker.info.types[lhs]!
             let rhsType = checker.info.types[rhs]!
 
+            // TODO(vdka): Trunc or Ext if needed / possible
+
             if lhsType !== rhsType {
                 if lhsType.size == rhsType.size {
                     //
