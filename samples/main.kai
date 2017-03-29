@@ -3,19 +3,18 @@
 printf :: (s: string) -> void #foreign libc "printf"
 putchar :: (c: u8) -> void #foreign libc "putchar"
 
+//fact :: (n: u8) -> u8 {
+//    if n >= 1 return n * fact(n)
+//    else return 1
+//}
+
 addFive :: (n: u8) -> u8 {
     return n + 5
 }
 
 main :: () -> void {
 
-    printf("\n --- START ---\n")
-
-    x : u8 = 65
-    x = addFive(x)
+    x := addFive(65)
     putchar(x)
-    putchar(u8(66))
-
-    printf("\n ---  END  ---\n")
 }
 

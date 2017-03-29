@@ -136,7 +136,8 @@ extension IRGenerator {
             let argPointer = emitEntryBlockAlloca(
                 in: proc,
                 type: arg.type,
-                named: entity.name
+                named: entity.name,
+                default: arg
             )
             
             llvmPointers[entity] = argPointer

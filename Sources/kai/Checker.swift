@@ -229,8 +229,10 @@ class Scope: PointerHashable {
     var shared: [Scope] = []
 
     var elements: [String: Entity] = [:]
-    var isProc: Bool = false
     var isMainFile: Bool = false
+
+    var proc: ProcInfo?
+    var isProc: Bool { return proc == nil }
 
     /// Only set if scope is file
     var file: ASTFile? = nil
@@ -471,6 +473,12 @@ extension Checker {
             reportError("Undefined entry point 'main'", at: SourceLocation(line: 1, column: 1, file: mainFile.key))
         }
     }
+}
+
+
+// MARK: Check Declarations
+
+extension Checker {
 
     /// - Precondition: node.isDecl
     @discardableResult
@@ -624,7 +632,7 @@ extension Checker {
                 panic()
             }
 
-            fillType(decl)
+            checkDecl(decl)
         }
     }
 
@@ -638,6 +646,47 @@ extension Checker {
         }
 
         context = prevContext
+    }
+
+    @discardableResult
+    mutating func checkDecl(_ d: DeclInfo) {
+
+        let explicitType = d.typeExpr.map(lookupType) // TODO(vdka): Check if the type is invalid; if so then we don't need to check the rvalue
+
+        for (i, e) in d.entities.enumerated() {
+            let initExpr = d.initExprs[safe: i]
+            let rvalueType = initExpr.map({ checkExpr($0, typeHint: explicitType) })
+
+            if let rvalueType = rvalueType, let explicitType = explicitType {
+
+                // if there is an explicit type ensure we do not conflict with it
+                if !canImplicitlyConvert(rvalueType, to: explicitType) {
+                    reportError("Cannot implicitly convert type '\(rvalueType)' to type '\(explicitType)'", at: d.typeExpr!)
+                    e.type = Type.invalid
+                    continue
+                }
+
+                e.type = explicitType
+
+                attemptLiteralConstraint(initExpr!, to: explicitType)
+
+            } else if let explicitType = explicitType {
+
+                e.type = explicitType
+            } else if let rvalueType = rvalueType {
+
+                e.type = rvalueType
+            } else {
+                panic() // NOTE(vdka): No explicit type or rvalue
+            }
+        }
+
+        // Provide the procInfo that *must* have been created with the decl it was created as part of
+        // TODO(vdka): Multiple litProcs as rvalues?
+        // `add, sub :: (l, r: int) -> int { return l + r }, (l, r: int) -> int { return l - r }`
+        if case .litProc(_, let body, _)? = d.initExprs.first, body.isStmt {
+            procs.last!.decl = d
+        }
     }
 }
 
@@ -681,7 +730,7 @@ extension Checker {
                 let e = Entity(identifier: ident, kind: .runtime, owningScope: scope)
                 let paramDecl = DeclInfo(scope: scope, entities: [e], typeExpr: type, initExprs: [])
 
-                fillType(paramDecl)
+                checkDecl(paramDecl)
 
                 paramEntities.append(e)
 
@@ -728,47 +777,6 @@ extension Checker {
         let type = Type(kind: .proc(params: paramEntities, returns: returnTypes), flags: .none, size: 0, location: nil)
 
         return type
-    }
-
-    @discardableResult
-    mutating func fillType(_ d: DeclInfo) {
-
-        let explicitType = d.typeExpr.map(lookupType) // TODO(vdka): Check if the type is invalid; if so then we don't need to check the rvalue
-
-        for (i, e) in d.entities.enumerated() {
-            let initExpr = d.initExprs[safe: i]
-            let rvalueType = initExpr.map({ checkExpr($0) })
-
-            if let rvalueType = rvalueType, let explicitType = explicitType {
-
-                // if there is an explicit type ensure we do not conflict with it
-                if !canImplicitlyConvert(rvalueType, to: explicitType) {
-                    reportError("Cannot implicitly convert type '\(rvalueType)' to type '\(explicitType)'", at: d.typeExpr!)
-                    e.type = Type.invalid
-                    continue
-                }
-
-                e.type = explicitType
-
-                attemptLiteralConstraint(initExpr!, to: explicitType)
-
-            } else if let explicitType = explicitType {
-
-                e.type = explicitType
-            } else if let rvalueType = rvalueType {
-
-                e.type = rvalueType
-            } else {
-                panic() // NOTE(vdka): No explicit type or rvalue
-            }
-        }
-
-        // Provide the procInfo that *must* have been created with the decl it was created as part of
-        // TODO(vdka): Multiple litProcs as rvalues? 
-        // `add, sub :: (l, r: int) -> int { return l + r }, (l, r: int) -> int { return l - r }`
-        if case .litProc(_, let body, _)? = d.initExprs.first, body.isStmt {
-            procs.last!.decl = d
-        }
     }
 
     /// Use this when you expect the node you pass in to be a type
@@ -824,6 +832,9 @@ extension Checker {
         }
     }
 
+
+    // MARK: Check Statements
+
     mutating func checkStmt(_ node: AstNode) {
 
         switch node {
@@ -853,12 +864,12 @@ extension Checker {
 
         case .stmtReturn(let exprs, _):
 
-            for expr in exprs {
-                checkExpr(expr)
-            }
-            guard context.scope.isProc else {
+            guard case .proc(let params, let results)? = context.scope.proc?.type.kind else {
                 reportError("'return' is not valid in this scope", at: node)
                 return
+            }
+            for (expr, expectedType) in zip(exprs, results) {
+                checkExpr(expr, typeHint: expectedType)
             }
 
         case .stmtIf(let cond, let body, let elseExpr, _):
@@ -932,7 +943,7 @@ extension Checker {
 
         for (lvalue, rvalue) in zip(lhs, rhs) {
             let rhsType = checkExpr(rvalue)
-            let lhsType = checkExpr(lvalue)
+            let lhsType = checkExpr(lvalue, typeHint: rhsType)
 
             guard canImplicitlyConvert(rhsType, to: lhsType) else {
                 if rvalue.isLit {
@@ -944,8 +955,11 @@ extension Checker {
         }
     }
 
+
+    // MARK: Check Expressions
+
     @discardableResult
-    mutating func checkExpr(_ node: AstNode) -> Type {
+    mutating func checkExpr(_ node: AstNode, typeHint: Type? = nil) -> Type {
         if let type = info.types[node] {
             return type
         }
@@ -963,42 +977,60 @@ extension Checker {
         switch node {
         case .litInteger:
             type = Type.unconstrInteger
+            if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
+                type = typeHint
+            }
 
         case .litFloat:
             type = Type.unconstrFloat
+            if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
+                type = typeHint
+            }
 
         case .litString:
             type = Type.unconstrString
+            if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
+                type = typeHint
+            }
 
         case .ident:
             type = checkExprIdent(node)
+            if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
+                type = typeHint
+            }
 
         case .directive("file", let args, _):
             assert(args.isEmpty)
             type = Type.unconstrString
+            if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
+                type = typeHint
+            }
 
         case .directive("line", let args, _):
             assert(args.isEmpty)
             type = Type.unconstrInteger
+            if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
+                type = typeHint
+            }
 
         case .litProc:
             type = checkProcLitType(node)
             queueCheckProc(node, type: type, decl: nil) // no decl as this is an anon proc
 
         case .exprParen(let node, _):
-            type = checkExpr(node)
+            type = checkExpr(node, typeHint: typeHint)
 
         case .exprUnary:
-            type = checkExprUnary(node)
+            type = checkExprUnary(node, typeHint: typeHint)
 
         case .exprBinary:
-            type = checkExprBinary(node)
+            type = checkExprBinary(node, typeHint: typeHint)
 
         case .exprCall(let receiver, let args, _):
 
             enum CallKind {
                 case cast(to: Type)
-                case call
+                case call(params: [Entity], results: [Type])
                 case invalid
             }
 
@@ -1012,26 +1044,22 @@ extension Checker {
                 case .alias(_, let underlyingType):
                     return callKind(for: underlyingType)
 
-                case .proc:
-                    return CallKind.call
+                case .proc(let params, let results):
+                    return CallKind.call(params: params, results: results)
 
                 case .typeInfo(let underlyingType):
                     return CallKind.cast(to: underlyingType)
                 }
             }
 
-            let receiverType = checkExpr(receiver)
+            let receiverType = checkExpr(receiver, typeHint: nil)
 
             if receiverType === Type.invalid {
                 return Type.invalid
             }
 
             switch callKind(for: receiverType) {
-            case .call:
-
-                guard case .proc(let params, let resultTypes) = receiverType.kind else {
-                    panic()
-                }
+            case .call(let params, let resultTypes):
 
                 if args.count < params.count {
                     reportError("too few arguments to procedure '\(receiver.value)'", at: node)
@@ -1042,7 +1070,7 @@ extension Checker {
                 }
 
                 for (arg, param) in zip(args, params) {
-                    let argType = checkExpr(arg)
+                    let argType = checkExpr(arg, typeHint: param.type!)
                     if !canImplicitlyConvert(argType, to: param.type!) {
                         reportError("Incompatible type for argument, expected '\(param.type!)' but got '\(argType)'", at: arg)
                         continue
@@ -1118,14 +1146,14 @@ extension Checker {
         static let unTerminated  = Branch(rawValue: 0b10)
     }
 
-    mutating func checkExprUnary(_ node: AstNode) -> Type {
+    mutating func checkExprUnary(_ node: AstNode, typeHint: Type?) -> Type {
         guard case .exprUnary(let op, let expr, let location) = node else {
             panic()
         }
 
         switch op {
         case "+", "-": // valid on any numeric type.
-            let operandType = checkExpr(expr)
+            let operandType = checkExpr(expr, typeHint: typeHint)
             guard !Type.Flag.numeric.union(operandType.flags).isEmpty else {
                 reportError("Undefined unary operation '\(op)' for \(operandType)", at: location)
                 return Type.invalid
@@ -1134,7 +1162,7 @@ extension Checker {
             return operandType
 
         case "!", "~": // valid on any integer type.
-            let operandType = checkExpr(expr)
+            let operandType = checkExpr(expr, typeHint: typeHint)
             guard !Type.Flag.integer.union(operandType.flags).isEmpty else {
                 reportError("Undefined unary operation '\(op)' for \(operandType)", at: location)
                 return Type.invalid
@@ -1148,13 +1176,13 @@ extension Checker {
         }
     }
 
-    mutating func checkExprBinary(_ node: AstNode) -> Type {
+    mutating func checkExprBinary(_ node: AstNode, typeHint: Type?) -> Type {
         guard case .exprBinary(let op, let lhs, let rhs, _) = node else {
             panic()
         }
 
-        let lhsType = checkExpr(lhs)
-        let rhsType = checkExpr(rhs)
+        let lhsType = checkExpr(lhs, typeHint: typeHint)
+        let rhsType = checkExpr(rhs, typeHint: typeHint)
 
         let invalidOpError = "Invalid operation binary operation \(op) between types \(lhsType) and \(rhsType)"
 
@@ -1306,7 +1334,8 @@ extension Checker {
 
     mutating func checkExprCast(_ expr: AstNode, to type: Type) -> Type {
 
-        let exprType = checkExpr(expr)
+        // NOTE(vdka): provide the target type as the hint, just incase we can _hint_ our way there
+        let exprType = checkExpr(expr, typeHint: type)
 
         //
         // If we can already implicitly convert then we don't need to check
@@ -1373,12 +1402,9 @@ extension Checker {
             return
         }
 
-        openScope(body)
-        defer { closeScope() }
-
         let prevContext = context
         let s = Scope(parent: pi.owningScope)
-        s.isProc = true
+        s.proc = pi
         context.scope = s
 
         pi.decl?.entities.forEach({ $0.childScope = s })
@@ -1430,7 +1456,7 @@ extension Checker {
             }
 
             for (returnExpr, resultType) in zip(returnedExprs, results) {
-                let returnExprType = checkExpr(returnExpr)
+                let returnExprType = checkExpr(returnExpr, typeHint: resultType)
                 if !canImplicitlyConvert(returnExprType, to: resultType) {
                     reportError("Incompatible type for return expression. Expected '\(resultType)' but got '\(returnExprType)'", at: returnExpr)
                     continue
@@ -1608,20 +1634,6 @@ extension Checker {
 
     mutating func popProc() {
         procStack.removeLast()
-    }
-
-    mutating func openScope(_ node: AstNode) {
-        assert(node.isType || node.isStmt)
-        let scope = Scope(parent: context.scope)
-        info.scopes[node] = scope
-        if case .typeProc = node {
-            scope.isProc = true
-        }
-        context.scope = scope
-    }
-
-    mutating func closeScope() {
-        context.scope = context.scope.parent!
     }
 }
 
