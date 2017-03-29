@@ -5,18 +5,38 @@ putchar :: (c: u8) -> void #foreign libc "putchar"
 
 main :: () -> void {
 
+    if true printf("WasTrue\n")
+    if false printf("WasFalse\n")
+
     lower : u8 = 65
     upper : u8 = 97
-    for lower <= 90 && upper <= 122 {
+    for {
         putchar(lower)
         putchar(upper)
         printf("\n")
         lower = lower + 1
         upper = upper + 1
+        if !(lower <= 90 && upper <= 122) break
+    }
+
+    lower2 : u8 = 65
+    upper2 : u8 = 97
+    for lower2 <= 90 && upper2 <= 122 {
+        putchar(lower2)
+        putchar(upper2)
+        printf("\n")
+        lower2 = lower2 + 1
+        upper2 = upper2 + 1
     }
 
     for c : u8 = 65; c < 91; c = c + 1 {
         putchar(c)
     }
+
+    for c := 0; c < 2; c = c + 1 {
+        printf("asdfj\n")
+        continue
+    }
+
 }
 
