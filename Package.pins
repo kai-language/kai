@@ -1,0 +1,42 @@
+{
+  "autoPin": true,
+  "pins": [
+    {
+      "package": "ByteHashable",
+      "reason": null,
+      "repositoryURL": "https://github.com/vdka/ByteHashable.git",
+      "version": "1.0.0"
+    },
+    {
+      "package": "Console",
+      "reason": null,
+      "repositoryURL": "https://github.com/vapor/console.git",
+      "version": "1.0.2"
+    },
+    {
+      "package": "Core",
+      "reason": null,
+      "repositoryURL": "https://github.com/vapor/core.git",
+      "version": "1.1.1"
+    },
+    {
+      "package": "LLVM",
+      "reason": null,
+      "repositoryURL": "https://github.com/trill-lang/LLVMSwift.git",
+      "version": "0.1.10"
+    },
+    {
+      "package": "Polymorphic",
+      "reason": null,
+      "repositoryURL": "https://github.com/vapor/polymorphic.git",
+      "version": "1.0.1"
+    },
+    {
+      "package": "cllvm",
+      "reason": null,
+      "repositoryURL": "https://github.com/trill-lang/cllvm.git",
+      "version": "0.0.3"
+    }
+  ],
+  "version": 1
+}

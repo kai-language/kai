@@ -148,8 +148,8 @@ func isMemoryEquivalent<A, B>(_ lhs: A, _ rhs: B) -> Bool {
     let lhsPointer = withUnsafePointer(to: &lhs) { $0 }
     let rhsPointer = withUnsafePointer(to: &rhs) { $0 }
 
-    let lhsFirstByte = unsafeBitCast(lhsPointer, to: UnsafePointer<Byte>.self)
-    let rhsFirstByte = unsafeBitCast(rhsPointer, to: UnsafePointer<Byte>.self)
+    let lhsFirstByte = lhsPointer.withMemoryRebound(to: Byte.self, capacity: MemoryLayout<A>.size) { $0 }
+    let rhsFirstByte = rhsPointer.withMemoryRebound(to: Byte.self, capacity: MemoryLayout<B>.size) { $0 }
 
     let lhsBytes = UnsafeBufferPointer(start: lhsFirstByte, count: MemoryLayout<A>.size)
     let rhsBytes = UnsafeBufferPointer(start: rhsFirstByte, count: MemoryLayout<B>.size)

@@ -662,7 +662,6 @@ extension Checker {
         context = prevContext
     }
 
-    @discardableResult
     mutating func checkDecl(_ d: DeclInfo) {
 
         let explicitType = d.typeExpr.map(lookupType) // TODO(vdka): Check if the type is invalid; if so then we don't need to check the rvalue
@@ -1501,7 +1500,6 @@ extension Checker {
         return true
     }
 
-    @discardableResult
     mutating func addEntityUse(_ ident: AstNode, _ entity: Entity) {
         assert(ident.isIdent)
         info.uses[ident] = entity

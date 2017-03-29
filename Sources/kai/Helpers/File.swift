@@ -24,7 +24,7 @@ struct File {
             guard ferror(fp) == 0 else { break }
             buffer[count] = 0
             if count > 0 {
-                let ptr = unsafeBitCast(buffer, to: UnsafePointer<CChar>.self)
+                let ptr = UnsafePointer(buffer)
                 if let newString = String(validatingUTF8: ptr) {
                     data.append(newString)
                 }

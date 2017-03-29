@@ -10,7 +10,7 @@ extension IRGenerator {
             break
             
         default:
-            unimplemented("LLVM foreign function: \(funcName.string)")
+            unimplemented("LLVM foreign function: \(funcName)")
         }
     }
 }

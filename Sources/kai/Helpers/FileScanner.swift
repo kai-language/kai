@@ -38,7 +38,6 @@ extension FileScanner {
 
 extension FileScanner {
 
-    @discardableResult
     mutating func pop(_ n: Int) {
 
         for _ in 0..<n { pop() }
