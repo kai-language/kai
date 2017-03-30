@@ -606,7 +606,7 @@ extension Checker {
             }
 
             guard let fullpath = fullpathOpt else {
-                reportError("Failed to import file: \(path.value)", at: path)
+                reportError("Failed to import file: \(path)", at: path)
                 return
             }
 
@@ -923,7 +923,7 @@ extension Checker {
             if let cond = cond {
                 let type = checkExpr(cond)
                 guard canImplicitlyConvert(type, to: Type.bool) else {
-                    reportError("Non-bool \(cond.value) (type \(type)) used as condition", at: cond)
+                    reportError("Non-bool \(cond) (type \(type)) used as condition", at: cond)
                     return
                 }
             }
@@ -972,7 +972,7 @@ extension Checker {
                 if rvalue.isLit {
                     attemptLiteralConstraint(rvalue, to: lhsType)
                 }
-                reportError("Cannot use \(rvalue.value) (type \(rhsType)) as type \(lhsType) in assignment", at: rvalue)
+                reportError("Cannot use \(rvalue) (type \(rhsType)) as type \(lhsType) in assignment", at: rvalue)
                 return
             }
         }
@@ -1085,10 +1085,10 @@ extension Checker {
             case .call(let params, let resultTypes):
 
                 if args.count < params.count {
-                    reportError("too few arguments to procedure '\(receiver.value)'", at: node)
+                    reportError("too few arguments to procedure '\(receiver)'", at: node)
                     break
                 } else if args.count > params.count {
-                    reportError("Too many arguments for procedure '\(receiver.value)", at: node)
+                    reportError("Too many arguments for procedure '\(receiver)", at: node)
                     break
                 }
 

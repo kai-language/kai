@@ -77,9 +77,6 @@ indirect enum AstNode {
 
     /// - Parameter params:
     case typeProc(params: [AstNode], results: [AstNode], SourceRange)
-    case typeArray(count: AstNode, baseType: AstNode, SourceRange)
-    case typeStruct(fields: [AstNode], SourceRange)
-    case typeEnum(baseType: AstNode, fields: [AstNode], SourceRange)
 }
 
 extension AstNode: Equatable {
@@ -141,10 +138,7 @@ extension AstNode {
              .stmtDefer(_, let location),
              .stmtBreak(let location),
              .stmtContinue(let location),
-             .typeProc(_, _, let location),
-             .typeArray(_, _, let location),
-             .typeStruct(_, let location),
-             .typeEnum(_, _, let location):
+             .typeProc(_, _, let location):
 
              return location
 
@@ -159,7 +153,7 @@ extension AstNode {
     // NOTE(vdka): Ident can be a type too.
     var isType: Bool {
         switch self {
-        case .typeProc, .typeArray, .typeStruct, .typeEnum:
+        case .typeProc:
             return true
 
         default:
@@ -371,85 +365,125 @@ func append(_ l: AstNode, _ r: AstNode) -> AstNode {
 }
 
 
-// MARK: - Printing
+// MARK: Description
 
-extension AstNode {
+extension AstNode: CustomStringConvertible {
 
-    // IMPORTANT FIXME(vdka): Kill this and instead make a description. Ensure exhaustiveness.
-    var value: String {
-
-        switch self {
-        case .ident(let s, _):
-            return s
-
-        case .litInteger(let i, _):
-            return "'" + i.description + "'"
-
-        case .litString(let s, _):
-            return "\"" + s + "\""
-
-        case .litFloat(let f, _):
-            return "'" + f.description + "'"
-
-        case .declValue(isRuntime: true, let names, let type, let values, _):
-            return names.map({ $0.value }).joined(separator: ", ") + ": " + type!.value + values.map({ $0.value }).joined(separator: ", ")
-
-        case .list:
-            return self.listDescription
-
-        case .exprSelector(let receiver, let member, _):
-            return receiver.value + "." + member.value
-
-        // TODO(vdka): There are a number of other cases which may want to be represented literally (as they were in the source)
-        // below are a selection of those.
-        /*
-        case .exprParen:
-        */
-
-        default:
-            return self.shortName
-        }
-    }
-
-    var listDescription: String {
+    var description: String {
 
         switch self {
+        case .invalid(let location):
+            return "<invalid at \(location)>"
+
         case .ident(let ident, _):
             return ident
 
+        case .directive(let directive, let args, _):
+            return "\(directive) \(args.commaSeparated)"
+
         case .list(let nodes, _):
+            return nodes.description
 
-            let str = nodes.map({ $0.value }).joined(separator: ", ")
+        case .litInteger(let i, _):
+            return i.description
 
-            return "(" + str + ")"
+        case .litFloat(let d, _):
+            return d.description
 
-        default:
-            fatalError()
-        }
-    }
+        case .litString(let s, _):
+            return "\"\(s)\""
 
-    var typeDescription: String {
+        case .litProc(let type, let body, _):
+            return "\(type) \(body)"
 
-        switch self {
-        case .ident(let name, _):
-            return name
+        case .declValue(let isRuntime, let names, let type, let values, _):
+            let declChar = isRuntime ? "=" : ":"
+
+            if values.isEmpty {
+                return "\(names.commaSeparated) : \(type!)"
+            } else if let type = type {
+                return "\(names.commaSeparated) : \(type) \(declChar) \(values.commaSeparated)"
+            }
+            return "\(names.commaSeparated) :\(declChar) \(values.commaSeparated)"
+
+        case .declImport(let path, _, let importName, _):
+            if let importName = importName {
+                return "#import \(path) \(importName)"
+            }
+            return "#import \(path)"
+
+        case .declLibrary(let path, _, let libName, _):
+            if let libName = libName {
+                return "#library \(path) \(libName)"
+            }
+            return "#library \(path)"
+
+
+        case .exprCall(let receiver, let args, _):
+            return "\(receiver)(\(args.commaSeparated))"
+
+        case .exprParen(let expr, _):
+            return "(\(expr))"
+
+        case .exprUnary(let op, let expr, _):
+            return "\(op)\(expr)"
+
+        case .exprBinary(let op, let lhs, let rhs, _):
+            return "\(lhs) \(op) \(rhs)"
+
+        case .exprTernary(let cond, let then, let el, _):
+            return "\(cond) ? \(then) : \(el)"
+
+        case .exprSelector(let receiver, let member, _):
+            return "\(receiver).\(member)"
+
+        case .stmtExpr(let expr):
+            return expr.description
+
+        case .stmtEmpty(_):
+            return ";" // NOTE(vdka): Is this right?
+
+        case .stmtAssign(let op, let lhs, let rhs, _):
+            return "\(lhs.commaSeparated) \(op) \(rhs.commaSeparated))"
+
+        case .stmtBlock:
+            return "{ /* ... */ }" // NOTE(vdka): Is this good?
+
+        case .stmtIf:
+            return "if"
+
+        case .stmtReturn(let nodes, _):
+            return "return \(nodes.commaSeparated)"
+
+        case .stmtFor:
+            return "for"
+
+        case .stmtDefer(let expr, _):
+            return "defer \(expr)"
+
+        case .stmtBreak:
+            return "break"
+
+        case .stmtContinue:
+            return "continue"
 
         case .typeProc(let params, let results, _):
-            return "(" + params.map({ $0.value }).joined(separator: ", ") + ") -> " + results.map({ $0.value }).joined(separator: ", ")
-
-        case .typeStruct:
-            return "struct"
-
-        case .typeEnum:
-            return "enum"
-
-        case .typeArray(_, let baseType, _):
-            return "[]" + baseType.typeDescription
-
-        default:
-            panic()
+            return "(\(params.commaSeparated)) -> \(results.commaSeparated)"
         }
     }
+}
+
+extension Array where Element == AstNode {
+
+    var commaSeparated: String {
+        return self.map({ $0.description }).joined(separator: ", ")
+    }
+}
+
+
+// MARK: Printing
+
+extension AstNode {
 
     var shortName: String {
 
@@ -481,9 +515,6 @@ extension AstNode {
         case .stmtBreak: return "stmtBreak"
         case .stmtContinue: return "stmtContinue"
         case .typeProc: return "typeProc"
-        case .typeArray: return "typeArray"
-        case .typeStruct: return "typeStruct"
-        case .typeEnum: return "typeEnum"
         case .stmtExpr: return "stmtExpr"
         }
     }
@@ -512,7 +543,7 @@ extension AstNode {
         case .list(let nodes, _):
 
             if nodes.reduce(true, { $0.0 && $0.1.isIdent }) {
-                unlabeled.append(nodes.map({ $0.value }).joined(separator: ", "))
+                unlabeled.append(nodes.commaSeparated)
             } else {
                 children.append(contentsOf: nodes)
             }
@@ -527,9 +558,9 @@ extension AstNode {
             unlabeled.append("\"" + val + "\"")
 
         case .litProc(let type, let body, _):
-            labeled.append(("type", type.typeDescription))
+            labeled.append(("type", type.description))
             guard case .typeProc(let params, let results, _) = type else {
-                panic()
+                break // NOTE(vdka): Do we want to break?
             }
 
             let emptyList = AstNode.list([], SourceLocation.unknown ..< .unknown)
@@ -552,11 +583,11 @@ extension AstNode {
             children.append(body)
 
         case .exprUnary(let op, let expr, _):
-            unlabeled.append(op)
+            unlabeled.append("'" + op + "'")
             children.append(expr)
 
         case .exprBinary(let op, let lhs, let rhs, _):
-            unlabeled.append(op)
+            unlabeled.append("'" + op + "'")
             children.append(lhs)
             children.append(rhs)
 
@@ -568,7 +599,7 @@ extension AstNode {
             children.append(selector)
 
         case .exprCall(let receiver, let args, _):
-            unlabeled.append(receiver.value)
+            unlabeled.append(receiver.description)
             children.append(contentsOf: args)
 
         case .exprTernary(let cond, let trueBranch, let falseBranch, _):
@@ -622,27 +653,27 @@ extension AstNode {
             break
 
         case .declValue(_, let names, let type, let values, _):
+            assert(names.reduce(true, { $0.0 && $0.1.isIdent }))
 
-            if names.reduce(true, { $0.0 && $0.1.isIdent }) {
-                labeled.append(("names", names.map({ $0.value }).joined(separator: ", ")))
-            } else {
-                children += names
-            }
+            labeled.append(("names", names.commaSeparated))
+
             if let type = type {
-                labeled.append(("type", type.typeDescription))
+                labeled.append(("type", type.description))
             }
             if !values.isEmpty {
-                if values.reduce(true, { $0.0 && $0.1.isIdent }) {
-                    labeled.append(("values", values.map({ $0.value }).joined(separator: ", ")))
+
+                // If all of the values are simple
+                if values.reduce(true, { $0.0 && ($0.1.isIdent || $0.1.isLit) }) {
+                    labeled.append(("values", values.commaSeparated))
                 } else {
                     children += values
                 }
             }
 
         case .declImport(let path, _, importName: let importName, _):
-            unlabeled.append(path.value)
+            unlabeled.append(path.description)
             if let importName = importName {
-                labeled.append(("as", importName.value))
+                labeled.append(("as", importName.description))
             } else if case .litString(let pathString, _) = path {
                 let (importName, error) = Checker.pathToEntityName(pathString)
                 if error {
@@ -653,9 +684,9 @@ extension AstNode {
             }
 
         case .declLibrary(let path, _, let libName, _):
-            unlabeled.append(path.value)
+            unlabeled.append(path.description)
             if let libName = libName {
-                labeled.append(("as", libName.value))
+                labeled.append(("as", libName.description))
             } else if case .litString(let pathString, _) = path {
                 let (importName, error) = Checker.pathToEntityName(pathString)
                 if error {
@@ -682,9 +713,6 @@ extension AstNode {
             }
             renamedChildren.append(("parameters", paramsList))
             renamedChildren.append(("results", resultList))
-
-        case .typeStruct, .typeEnum, .typeArray:
-            unlabeled.append("'" + self.typeDescription + "'")
         }
 
         let indent = (0...depth).reduce("\n", { $0.0 + "  " })
@@ -737,8 +765,8 @@ extension AstNode {
 
         case .list(let nodes, _):
 
-            if nodes.reduce(true, { $0.0 && $0.1.isIdent }) {
-                unlabeled.append(nodes.map({ $0.value }).joined(separator: ", "))
+            if nodes.reduce(true, { $0.0 && ($0.1.isIdent || $0.1.isLit) }) {
+                unlabeled.append(nodes.commaSeparated)
             } else {
                 children.append(contentsOf: nodes)
             }
@@ -793,7 +821,7 @@ extension AstNode {
             children.append(selector)
 
         case .exprCall(let receiver, let args, _):
-            unlabeled.append(receiver.value)
+            unlabeled.append(receiver.description)
             children.append(contentsOf: args)
 
         case .exprTernary(let cond, let trueBranch, let falseBranch, _):
@@ -849,22 +877,22 @@ extension AstNode {
         case .declValue(_, let names, _, let values, _):
 
             if names.reduce(true, { $0.0 && $0.1.isIdent }) {
-                labeled.append(("names", names.map({ $0.value }).joined(separator: ", ")))
+                labeled.append(("names", names.commaSeparated))
             } else {
                 children += names
             }
             if !values.isEmpty {
                 if values.reduce(true, { $0.0 && $0.1.isIdent }) {
-                    labeled.append(("values", values.map({ $0.value }).joined(separator: ", ")))
+                    labeled.append(("values", values.commaSeparated))
                 } else {
                     children += values
                 }
             }
 
         case .declImport(let path, _, importName: let importName, _):
-            unlabeled.append(path.value)
+            unlabeled.append(path.description)
             if let importName = importName {
-                labeled.append(("as", importName.value))
+                labeled.append(("as", importName.description))
             } else if case .litString(let pathString, _) = path {
                 let (importName, error) = Checker.pathToEntityName(pathString)
                 if error {
@@ -875,9 +903,9 @@ extension AstNode {
             }
 
         case .declLibrary(let path, _, let libName, _):
-            unlabeled.append(path.value)
+            unlabeled.append(path.description)
             if let libName = libName {
-                labeled.append(("as", libName.value))
+                labeled.append(("as", libName.description))
             } else if case .litString(let pathString, _) = path {
                 let (importName, error) = Checker.pathToEntityName(pathString)
                 if error {
@@ -904,9 +932,6 @@ extension AstNode {
             }
             renamedChildren.append(("parameters", paramsList))
             renamedChildren.append(("results", resultList))
-
-        case .typeStruct, .typeEnum, .typeArray:
-            unlabeled.append("'" + self.typeDescription + "'")
         }
 
         let indent = (0...depth).reduce("\n", { $0.0 + "  " })
