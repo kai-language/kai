@@ -286,6 +286,7 @@ extension AstNode {
         if case .ident(let ident, _) = self {
             return ident
         }
+        
         panic()
     }
 

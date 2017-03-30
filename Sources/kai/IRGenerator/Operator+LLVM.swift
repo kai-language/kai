@@ -8,19 +8,19 @@ extension IRGenerator {
 
         switch node {
         case .exprUnary(let op, let expr, _):
-
-            let val = emitStmt(for: expr)
             let type = checker.info.types[expr]!
 
             // TODO(vdka): There is much more to build.
             switch op {
             case "+": // This is oddly a do nothing kind of operator. Lazy guy.
-                return val
+                return emitStmt(for: expr)
 
             case "-":
+                let val = emitStmt(for: expr)
                 return builder.buildNeg(val)
 
             case "!":
+                let val = emitStmt(for: expr)
                 if type === Type.bool {
                     return builder.buildNot(val)
                 } else {
@@ -29,11 +29,36 @@ extension IRGenerator {
                 }
 
             case "~":
+                let val = emitStmt(for: expr)
                 return builder.buildNot(val)
 
             case "&":
-                unimplemented("Taking the address of an entity")
+                switch expr {
+                case .ident(let name, _):
+                    let entity = context.scope.lookup(name)!
+                    return llvmPointers[entity]!
+                    
+                default:
+                    return emitStmt(for: expr)
+                }
 
+            case "*":
+                guard case .pointer(let underlyingType) = type.kind else {
+                    preconditionFailure()
+                }
+                
+                switch underlyingType.kind {
+                case .alias(_, _):
+                    unimplemented()
+                    
+                case .named:
+                    let val = emitStmt(for: expr)
+                    return builder.buildLoad(val)
+                
+                default:
+                    preconditionFailure()
+                }
+                
             default:
                 unimplemented("Unary Operator '\(op)'")
             }

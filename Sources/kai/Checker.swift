@@ -1317,6 +1317,16 @@ extension Checker {
 
             return Type.pointer(to: operandType)
 
+        case "*":
+            let operandType = checkExpr(expr, typeHint: typeHint)
+            
+            guard case .pointer(let underlyingType) = operandType.kind else {
+                reportError("Undefined unary operator `\(op)` for `\(operandType)`", at: location)
+                return Type.invalid
+            }
+            
+            return underlyingType
+            
         default:
             reportError("Undefined unary operation '\(op)'", at: location)
             return Type.invalid

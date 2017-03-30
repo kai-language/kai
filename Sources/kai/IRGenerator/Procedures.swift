@@ -96,7 +96,20 @@ extension IRGenerator {
         let returnBlock = proc.appendBasicBlock(named: "return")
         
         // TODO(Brett): multiple returns
-        let returnType = context.scope.lookup(results[0].identifier)!.canonicalized()
+        let result = results[0]
+        let returnType: IRType
+        
+        switch result {
+        // TODO(Brett, vdka): is this hacky?
+        case .exprUnary("*", expr: let underlyingTypeIden, _):
+            // NOTE(Brett): this _may_ break on nested pointers
+            let underlyingType = context.scope.lookup(underlyingTypeIden.identifier)!
+            returnType = PointerType(pointee: underlyingType.canonicalized())
+            
+        default:
+            returnType = context.scope.lookup(results[0].identifier)!.canonicalized()
+        }
+
         var resultPtr: IRValue? = nil
         
         builder.positionAtEnd(of: entryBlock)
