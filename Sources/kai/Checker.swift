@@ -1,6 +1,6 @@
 
 /// Defines a type in which something can take
-class Type: CustomStringConvertible {
+class Type: Equatable, CustomStringConvertible {
 
     var kind: Kind
     var flags: Flag
@@ -1099,39 +1099,39 @@ extension Checker {
         case .litInteger:
             type = Type.unconstrInteger
             if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
-                type = typeHint
+                performImplicitConversion(on: &type, to: typeHint)
             }
 
         case .litFloat:
             type = Type.unconstrFloat
             if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
-                type = typeHint
+                performImplicitConversion(on: &type, to: typeHint)
             }
 
         case .litString:
             type = Type.unconstrString
             if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
-                type = typeHint
+                performImplicitConversion(on: &type, to: typeHint)
             }
 
         case .ident:
             type = checkExprIdent(node)
             if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
-                type = typeHint
+                performImplicitConversion(on: &type, to: typeHint)
             }
 
         case .directive("file", let args, _):
             assert(args.isEmpty)
             type = Type.unconstrString
             if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
-                type = typeHint
+                performImplicitConversion(on: &type, to: typeHint)
             }
 
         case .directive("line", let args, _):
             assert(args.isEmpty)
             type = Type.unconstrInteger
             if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
-                type = typeHint
+                performImplicitConversion(on: &type, to: typeHint)
             }
 
         case .litProc:
@@ -1662,6 +1662,17 @@ extension Checker {
         }
         
         return true
+    }
+
+    func performImplicitConversion(on type: inout Type, to target: Type) {
+
+        guard target != Type.any else {
+            // TODO(vdka): Once we get struct's box this with a pointer to the underlying type and it's 
+            // value if type.width < 8 otherwise put it on the heap and store a pointer
+            return
+        }
+
+        type = target
     }
 
     /// Checks if type `a` can be converted to type `b` implicitly.
