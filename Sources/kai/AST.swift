@@ -453,7 +453,7 @@ extension AstNode: CustomStringConvertible {
             return ";" // NOTE(vdka): Is this right?
 
         case .stmtAssign(let op, let lhs, let rhs, _):
-            return "\(lhs.commaSeparated) \(op) \(rhs.commaSeparated))"
+            return "\(lhs.commaSeparated) \(op) \(rhs.commaSeparated)"
 
         case .stmtBlock:
             return "{ /* ... */ }" // NOTE(vdka): Is this good?
