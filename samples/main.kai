@@ -1,6 +1,6 @@
 #library "c" libc
 
-printf :: (string, ..u8) -> void #foreign libc "printf"
+printf :: (string, ..any) -> void #foreign libc "printf"
 
 main :: () -> void {
 

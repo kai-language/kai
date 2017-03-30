@@ -1666,37 +1666,40 @@ extension Checker {
 
     /// Checks if type `a` can be converted to type `b` implicitly.
     /// True for converting unconstrained types into any of their constrained versions.
-    func canImplicitlyConvert(_ a: Type, to b: Type) -> Bool {
-        if a == b {
+    func canImplicitlyConvert(_ type: Type, to target: Type) -> Bool {
+        if type == target {
+            return true
+        }
+        if target == Type.any {
             return true
         }
 
-        if a.flags.contains(.unconstrained) {
+        if type.flags.contains(.unconstrained) {
 
-            if a.flags.contains(.float) && b.flags.contains(.float) {
+            if type.flags.contains(.float) && target.flags.contains(.float) {
                 // `x: f32 = integerValue` | `y: f32 = floatValue`
                 return true
             }
-            if a.flags.contains(.integer) && b.flags.contains(.float) {
+            if type.flags.contains(.integer) && target.flags.contains(.float) {
                 // implicitely upcast an integer into a float is fine.
                 return true
             }
-            if a.flags.contains(.integer) && b.flags.contains(.integer) {
+            if type.flags.contains(.integer) && target.flags.contains(.integer) {
                 // Currently we support converting any integer to any other integer implicitely
                 return true
             }
-            if !Type.Flag.numeric.union(a.flags).isEmpty && b.flags.contains(.boolean) {
+            if !Type.Flag.numeric.union(type.flags).isEmpty && target.flags.contains(.boolean) {
                 // Any numeric type can be cast to booleans
                 return true
             }
-            if a.flags.contains(.boolean) && b.flags.contains(.boolean) {
+            if type.flags.contains(.boolean) && target.flags.contains(.boolean) {
                 return true
             }
-            if a.flags.contains(.string) && b.flags.contains(.string) {
+            if type.flags.contains(.string) && target.flags.contains(.string) {
                 return true
             }
 
-        } else if Type.Flag.numeric.contains(a.flags) && b.flags.contains(.boolean) {
+        } else if Type.Flag.numeric.contains(type.flags) && target.flags.contains(.boolean) {
             // Numeric types can be converted to booleans through truncation
             return true
         }
