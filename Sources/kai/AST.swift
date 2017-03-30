@@ -40,6 +40,8 @@ indirect enum AstNode {
 
     case list([AstNode], SourceRange)
 
+    case ellipsis(AstNode, SourceRange)
+
     case litInteger(Int64, SourceRange)
     case litFloat(Double, SourceRange)
     case litString(String, SourceRange)
@@ -80,6 +82,8 @@ indirect enum AstNode {
 }
 
 extension AstNode: Equatable {
+
+    /// - Note: This is pointer equivalence
     static func == (lhs: AstNode, rhs: AstNode) -> Bool {
         switch (lhs, rhs) {
             default:
@@ -116,6 +120,7 @@ extension AstNode {
              .ident(_, let location),
              .directive(_, _, let location),
              .list(_, let location),
+             .ellipsis(_, let location),
              .litInteger(_, let location),
              .litFloat(_, let location),
              .litString(_, let location),
@@ -384,6 +389,9 @@ extension AstNode: CustomStringConvertible {
         case .list(let nodes, _):
             return nodes.description
 
+        case .ellipsis(let expr, _):
+            return "..\(expr)"
+
         case .litInteger(let i, _):
             return i.description
 
@@ -492,6 +500,7 @@ extension AstNode {
         case .ident: return "ident"
         case .directive: return "directive"
         case .list: return "list"
+        case .ellipsis: return "ellipsis"
         case .litInteger: return "litInteger"
         case .litFloat: return "litFloat"
         case .litString: return "litString"
@@ -547,6 +556,9 @@ extension AstNode {
             } else {
                 children.append(contentsOf: nodes)
             }
+
+        case .ellipsis(let expr, _):
+            children.append(expr)
 
         case .litInteger(let val, _):
             unlabeled.append("'" + val.description + "'")
@@ -770,6 +782,9 @@ extension AstNode {
             } else {
                 children.append(contentsOf: nodes)
             }
+
+        case .ellipsis(let expr, _):
+            children.append(expr)
 
         case .litInteger(let val, _):
             unlabeled.append("'" + val.description + "'")

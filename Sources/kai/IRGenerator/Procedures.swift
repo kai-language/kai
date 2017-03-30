@@ -37,41 +37,29 @@ extension IRGenerator {
         return allocation
     }
 
-    func emitProcedurePrototype(for name: String, params: [AstNode], results: [AstNode], isVarArg: Bool) -> Function {
+    func emitProcedurePrototype(for node: AstNode, named name: String) -> Function {
         if let function = module.function(named: name) {
             return function
         }
+
+        let procType = checker.info.types[node]!
         
-        let argTypes = params.map { decl -> IRType in
-            guard case let .declValue(_, names, _, _, _) = decl else {
-                preconditionFailure()
-            }
-           
-            return checker.info.definitions[names[0]]!.canonicalized()
-        }
+        let procIrType = procType.canonicalized() as! FunctionType
         
-        let resultTypes = results.map {
-            context.scope.lookup($0.identifier)!.canonicalized()
-        }
-        guard results.count == 1 else { unimplemented() }
-        
-        // TODO(Brett): multiple return
-        let procType = FunctionType(
-            argTypes: argTypes,
-            returnType: resultTypes[0],
-            isVarArg: isVarArg
-        )
-        
-        let procedure = builder.addFunction(name, type: procType)
-        
-        for (var param, decl) in zip(procedure.parameters, params) {
-            guard case let .declValue(_, names, _, _, _) = decl else {
-                preconditionFailure()
-            }
-            
-            param.name = names[0].identifier
-        }
-        
+        let procedure = builder.addFunction(name, type: procIrType)
+
+        // FIXME(vdka): This needs to return to have nicely named params.
+//        for (var paramIr, paramNode) in zip(procedure.parameters, params) {
+//
+//            switch paramNode {
+//            case .declValue(_, let names, _, _, _):
+//                paramIr.name = names[0].identifier
+//
+//            default:
+//                continue
+//            }
+//        }
+
         return procedure
     }
 
@@ -89,12 +77,7 @@ extension IRGenerator {
             name = symbolName
         }
 
-        let proc = emitProcedurePrototype(
-            for: name,
-            params: params,
-            results: results,
-            isVarArg: false
-        )
+        let proc = emitProcedurePrototype(for: node, named: name)
 
         llvmPointers[entity] = proc
 

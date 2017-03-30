@@ -171,6 +171,10 @@ struct Lexer {
 
 		case ".":
 			scanner.pop()
+            if scanner.peek() == "." {
+                scanner.pop()
+                return (.ellipsis, location)
+            }
 			return (.dot, location)
 
 		case "#":
@@ -350,6 +354,8 @@ extension Lexer {
         case comma
         case dot
 
+        case ellipsis
+
         /// Hard line terminator
         case semicolon
 
@@ -413,6 +419,7 @@ extension Lexer.Token: Equatable {
             return l == r
 
         case (.semicolon, .semicolon),
+             (.ellipsis, .ellipsis),
              (.newline, .newline),
              (.lparen, .lparen),
              (.rparen, .rparen),

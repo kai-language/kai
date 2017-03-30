@@ -133,6 +133,11 @@ extension Parser {
             }
             return try nud(&self)
 
+        case .ellipsis:
+            let (_, ellipsis) = try consume()
+            let expr = try expression(UInt8.max) // TODO(vdka): Binding power?
+            return AstNode.ellipsis(expr, ellipsis ..< expr.endLocation)
+
         case .ident(let symbol):
             let (_, location) = try consume()
             return AstNode.ident(symbol, location ..< lexer.location)

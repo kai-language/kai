@@ -1,3 +1,4 @@
+
 /// Defines a type in which something can take
 class Type: CustomStringConvertible {
 
@@ -18,7 +19,7 @@ class Type: CustomStringConvertible {
     enum Kind {
         case named(String)
         case alias(String, Type)
-        case proc(params: [Entity], returns: [Type])
+        case proc(params: [Entity], returns: [Type], isVariadic: Bool)
         case typeInfo(underlyingType: Type) // for now, in the future we will collapse this into the `struct` kind.
         case `struct`(String)
     }
@@ -49,8 +50,32 @@ class Type: CustomStringConvertible {
         case .alias(let name, let type):
             return name + " aka " + type.description
 
-        case .proc(let params, let returns):
-            return "(" + params.map({ $0.type!.description }).joined(separator: ", ") + ") -> " + returns.map({ $0.description }).joined(separator: ", ")
+        case .proc(let params, let results, let isVariadic):
+            var str = "("
+
+            if isVariadic {
+                if params.count > 1, let firstParam = params.first {
+                    str.append(firstParam.name)
+                    str.append(": ")
+                    str.append(firstParam.type!.description)
+                }
+                for param in params.dropFirst().dropLast() {
+                    str.append(", ")
+                    str.append(param.type!.description)
+                }
+
+                str.append(", ")
+                str.append(params.last!.name)
+                str.append("..")
+                str.append(params.last!.type!.description)
+            } else {
+                str.append(params.map({ $0.type!.description }).joined(separator: ", "))
+            }
+            str.append(")")
+            str.append(" -> ")
+            str.append(results.map({ $0.description }).joined(separator: ", "))
+
+            return str
 
         case .struct(let name):
             return name
@@ -402,7 +427,7 @@ struct Checker {
         var entities:    [Entity:  DeclInfo] = [:]
         var definitions: [AstNode: Entity]   = [:] // Key: AstNode.ident
         var decls:       [AstNode: DeclInfo] = [:] // Key: AstNode.declValue
-        var types:       [AstNode: Type]     = [:] // Key: AstNode.expr
+        var types:       [AstNode: Type]     = [:] // Key: Any AstNode that can be a type
         var uses:        [AstNode: Entity]   = [:] // Key: AstNode.ident
         var scopes:      [AstNode: Scope]    = [:] // Key: Any AstNode
         var casts:       Set<AstNode>        = [ ] // Key: AstNode.call
@@ -673,7 +698,11 @@ extension Checker {
 
     mutating func checkDecl(_ d: DeclInfo) {
 
-        let explicitType = d.typeExpr.map(lookupType) // TODO(vdka): Check if the type is invalid; if so then we don't need to check the rvalue
+        let explicitType = d.typeExpr.map(lookupType)
+
+        if let explicitType = explicitType, explicitType === Type.invalid {
+            return
+        }
 
         for (i, e) in d.entities.enumerated() {
             let initExpr = d.initExprs[safe: i]
@@ -728,6 +757,7 @@ extension Checker {
             panic()
         }
 
+        var isVariadic: Bool = false
 
         var paramEntities: [Entity] = []
         var returnTypes:   [Type]   = []
@@ -735,6 +765,8 @@ extension Checker {
         // NOTE(vdka): Ensure that this is the scope used when checking the body of the procedure later
         let scope = Scope(parent: context.scope)
         for param in params {
+
+            let e = Entity(name: "_", location: param.startLocation, kind: .runtime, owningScope: scope)
             switch param {
             case .declValue(_, let names, let type, let values, _):
 
@@ -748,11 +780,24 @@ extension Checker {
                     unimplemented("Default procedure argument values")
                 }
 
-
-                let e = Entity(identifier: ident, kind: .runtime, owningScope: scope)
+                assert(ident.isIdent)
+                e.name = ident.description
                 let paramDecl = DeclInfo(scope: scope, entities: [e], typeExpr: type, initExprs: [])
 
-                checkDecl(paramDecl)
+                if case .ellipsis(let typeNode, _) = type {
+
+                    guard params.last! == param else {
+                        reportError("Can only use `..` as final param in list", at: param)
+                        return Type.invalid
+                    }
+
+                    isVariadic = true
+                    let type = lookupType(typeNode)
+                    e.type = type
+                } else {
+
+                    checkDecl(paramDecl)
+                }
 
                 paramEntities.append(e)
 
@@ -762,13 +807,27 @@ extension Checker {
             default:
                 // TODO(vdka): Validate that the procedure has a foreign body if arg names are omitted.
 
-                let type = lookupType(param)
+                let type: Type
+                if case .ellipsis(let typeNode, _) = param {
 
-                let e = Entity(name: "_", location: param.startLocation, kind: .runtime, owningScope: scope)
+                    guard params.last! == param else {
+                        reportError("Can only use `..` as final param in list", at: param)
+                        return Type.invalid
+                    }
+
+                    isVariadic = true
+                    type = lookupType(typeNode)
+                } else {
+
+                    type = lookupType(param)
+                }
+
                 e.type = type
 
                 paramEntities.append(e)
             }
+
+            info.types[param] = e.type!
         }
 
         for result in results {
@@ -796,7 +855,7 @@ extension Checker {
             }
         }
 
-        let type = Type(kind: .proc(params: paramEntities, returns: returnTypes), flags: .none, width: 0, location: nil)
+        let type = Type(kind: .proc(params: paramEntities, returns: returnTypes, isVariadic: isVariadic), flags: .none, width: 0, location: nil)
 
         return type
     }
@@ -884,7 +943,7 @@ extension Checker {
 
         case .stmtReturn(let exprs, _):
 
-            guard case .proc(let params, let results)? = context.scope.containingProc?.type.kind else {
+            guard case .proc(_, let results, _)? = context.scope.containingProc?.type.kind else {
                 reportError("'return' is not valid in this scope", at: node)
                 return
             }
@@ -1053,7 +1112,7 @@ extension Checker {
 
             enum CallKind {
                 case cast(to: Type)
-                case call(params: [Entity], results: [Type])
+                case call(params: [Entity], results: [Type], isVariadic: Bool)
                 case invalid
             }
 
@@ -1067,8 +1126,8 @@ extension Checker {
                 case .alias(_, let underlyingType):
                     return callKind(for: underlyingType)
 
-                case .proc(let params, let results):
-                    return CallKind.call(params: params, results: results)
+                case .proc(let params, let results, let isVariadic):
+                    return CallKind.call(params: params, results: results, isVariadic: isVariadic)
 
                 case .typeInfo(let underlyingType):
                     return CallKind.cast(to: underlyingType)
@@ -1082,12 +1141,14 @@ extension Checker {
             }
 
             switch callKind(for: receiverType) {
-            case .call(let params, let resultTypes):
+            case .call(let params, let resultTypes, let isVariadic):
 
-                if args.count < params.count {
+                // NOTE(vdka): This check allows omitting variadic values.
+                if  (isVariadic && args.count - 1 < params.count) &&
+                    (!isVariadic && args.count < params.count) {
                     reportError("too few arguments to procedure '\(receiver)'", at: node)
                     break
-                } else if args.count > params.count {
+                } else if args.count > params.count && !isVariadic {
                     reportError("Too many arguments for procedure '\(receiver)", at: node)
                     break
                 }
@@ -1097,6 +1158,23 @@ extension Checker {
                     if !canImplicitlyConvert(argType, to: param.type!) {
                         reportError("Incompatible type for argument, expected '\(param.type!)' but got '\(argType)'", at: arg)
                         continue
+                    }
+                }
+
+                if isVariadic && args.count > params.count, let vaargsType = params.last?.type {
+                    // NOTE(vdka): At this point we have checked args up to the first variadic arg
+
+                    //
+                    // Check trailing varargs all convert to the final param type
+                    //
+
+                    let numberOfTrailingArgs = args.count - params.count
+                    for arg in args.suffix(numberOfTrailingArgs) {
+                        let argType = checkExpr(arg, typeHint: vaargsType)
+                        if !canImplicitlyConvert(argType, to: vaargsType) {
+                            reportError("Incompatible type for argument, expected '\(vaargsType)' but got '\(argType)'", at: arg)
+                            continue
+                        }
                     }
                 }
 
@@ -1387,9 +1465,11 @@ extension Checker {
 
         assert(info.types[pi.node] != nil)
 
-        guard case .proc(let params, let results) = pi.type.kind else {
+        guard case .proc(let params, let results, let isVariadic) = pi.type.kind else {
             panic()
         }
+
+        // TODO(vdka): Assert that all params or none of them have names
 
         guard case .stmtBlock = body else {
 

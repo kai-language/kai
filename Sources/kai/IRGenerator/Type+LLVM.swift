@@ -39,8 +39,17 @@ extension Type {
         case .alias(_, let type):
             return type.canonicalized()
             
-        case .proc:
-            unimplemented("Procedures")
+        case .proc(let params, let results, let isVariadic):
+
+            let paramTypes: [IRType]
+            if isVariadic {
+                paramTypes = params.dropLast().map({ $0.type!.canonicalized() })
+            } else {
+                paramTypes = params.map({ $0.type!.canonicalized() })
+            }
+            unimplemented("Multiple returns", if: results.count != 1)
+            let resultType = results.first!.canonicalized()
+            return FunctionType(argTypes: paramTypes, returnType: resultType, isVarArg: isVariadic)
             
         case .struct:
             unimplemented("Structures")
