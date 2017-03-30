@@ -675,7 +675,7 @@ extension AstNode {
             if !values.isEmpty {
 
                 // If all of the values are simple
-                if values.reduce(true, { $0.0 && ($0.1.isIdent || $0.1.isLit) }) {
+                if values.reduce(true, { $0.0 && ($0.1.isIdent || $0.1.isBasicLit) }) {
                     labeled.append(("values", values.commaSeparated))
                 } else {
                     children += values
@@ -777,7 +777,7 @@ extension AstNode {
 
         case .list(let nodes, _):
 
-            if nodes.reduce(true, { $0.0 && ($0.1.isIdent || $0.1.isLit) }) {
+            if nodes.reduce(true, { $0.0 && ($0.1.isIdent || $0.1.isBasicLit) }) {
                 unlabeled.append(nodes.commaSeparated)
             } else {
                 children.append(contentsOf: nodes)

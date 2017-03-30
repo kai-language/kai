@@ -245,6 +245,9 @@ try Operator.prefix("+")
 try Operator.prefix("!")
 try Operator.prefix("~")
 
+try Operator.prefix("*")
+try Operator.prefix("&")
+
 try Operator.infix("&&",  bindingPower: 30)
 try Operator.infix("||",  bindingPower: 30)
 

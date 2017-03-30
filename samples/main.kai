@@ -1,9 +1,15 @@
 #library "c" libc
 
-printf :: (s: string, ..u8) -> void #foreign libc "printf"
+printf :: (string, ..u8) -> void #foreign libc "printf"
 
 main :: () -> void {
 
-    printf("%d, %d\n", 5, 8)
+    y : u8 = 0
+    printf("%d, %d, %d\n", 5, 8, y)
+
+    //x : u8 = 0
+    //y : *u8 = &x
+    //z := &y
+
 }
 

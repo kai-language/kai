@@ -19,6 +19,7 @@ class Type: CustomStringConvertible {
     enum Kind {
         case named(String)
         case alias(String, Type)
+        case pointer(underlyingType: Type)
         case proc(params: [Entity], returns: [Type], isVariadic: Bool)
         case typeInfo(underlyingType: Type) // for now, in the future we will collapse this into the `struct` kind.
         case `struct`(String)
@@ -49,6 +50,9 @@ class Type: CustomStringConvertible {
 
         case .alias(let name, let type):
             return name + " aka " + type.description
+
+        case .pointer(let underlyingType):
+            return "*\(underlyingType)"
 
         case .proc(let params, let results, let isVariadic):
             var str = "("
@@ -83,6 +87,11 @@ class Type: CustomStringConvertible {
         case .typeInfo(let underlyingType):
             return "TypeInfo(\(underlyingType))"
         }
+    }
+
+    static func pointer(to type: Type) -> Type {
+
+        return Type(kind: .pointer(underlyingType: type), flags: .pointer, width: MemoryLayout<Int>.size * 8, location: nil)
     }
 
     static let builtin: [Type] = {
@@ -163,6 +172,32 @@ class Type: CustomStringConvertible {
     static let any = builtin[20]
 
     static let invalid = builtin[21]
+
+    static func ==(lhs: Type, rhs: Type) -> Bool {
+        switch (lhs.kind, rhs.kind) {
+        case (.struct, .struct),
+             (.alias, .alias),
+             (.named, .named):
+            return lhs === rhs
+
+        case (.pointer(let lhsUT), .pointer(let rhsUT)),
+             (.typeInfo(let lhsUT), .typeInfo(let rhsUT)):
+            return lhsUT == rhsUT
+
+        case (.proc(let lhsParams, let lhsResults, let lhsIsVariadic),
+              .proc(let rhsParams, let rhsResults, let rhsIsVariadic)):
+
+            // Whoa.
+            return lhsParams.count == rhsParams.count &&
+                zip(lhsParams, rhsParams).reduce(true, { $0.0 && $0.1.0.type! == $0.1.1.type! }) &&
+                lhsResults.count == rhsResults.count &&
+                zip(lhsResults, rhsResults).reduce(true, { $0.0 && $0.1.0 == $0.1.1 }) &&
+                lhsIsVariadic == rhsIsVariadic
+
+        default:
+            return false
+        }
+    }
 }
 
 enum ExactValue {
@@ -700,7 +735,7 @@ extension Checker {
 
         let explicitType = d.typeExpr.map(lookupType)
 
-        if let explicitType = explicitType, explicitType === Type.invalid {
+        if let explicitType = explicitType, explicitType == Type.invalid {
             return
         }
 
@@ -906,6 +941,10 @@ extension Checker {
             */
             _ = receiverEntity
             unimplemented("Child types")
+
+        case .exprUnary("*", let expr, _):
+            let underlyingType = lookupType(expr)
+            return Type.pointer(to: underlyingType)
 
         default:
             reportError("'\(n)' cannot be used as a type", at: n)
@@ -1123,7 +1162,8 @@ extension Checker {
                 case .named, .struct:
                     return CallKind.invalid
 
-                case .alias(_, let underlyingType):
+                case .alias(_, let underlyingType),
+                     .pointer(let underlyingType):
                     return callKind(for: underlyingType)
 
                 case .proc(let params, let results, let isVariadic):
@@ -1131,12 +1171,13 @@ extension Checker {
 
                 case .typeInfo(let underlyingType):
                     return CallKind.cast(to: underlyingType)
+
                 }
             }
 
             let receiverType = checkExpr(receiver, typeHint: nil)
 
-            if receiverType === Type.invalid {
+            if receiverType == Type.invalid {
                 return Type.invalid
             }
 
@@ -1271,6 +1312,11 @@ extension Checker {
 
             return operandType
 
+        case "&":
+            let operandType = checkExpr(expr, typeHint: typeHint)
+
+            return Type.pointer(to: operandType)
+
         default:
             reportError("Undefined unary operation '\(op)'", at: location)
             return Type.invalid
@@ -1298,7 +1344,7 @@ extension Checker {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
             }
-            if lhsType === rhsType {
+            if lhsType == rhsType {
                 return lhsType
             } else if canImplicitlyConvert(lhsType, to: rhsType) {
                 attemptLiteralConstraint(lhs, to: rhsType)
@@ -1319,7 +1365,7 @@ extension Checker {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
             }
-            if lhsType === rhsType {
+            if lhsType == rhsType {
                 return lhsType
             } else if lhsType.flags.contains(.unconstrained) {
                 attemptLiteralConstraint(lhs, to: rhsType)
@@ -1343,7 +1389,7 @@ extension Checker {
                     return Type.invalid
             }
 
-            if lhsType === rhsType {
+            if lhsType == rhsType {
                 // do nothing
             } else if lhsType.flags.contains(.unconstrained) {
                 attemptLiteralConstraint(lhs, to: rhsType)
@@ -1361,7 +1407,7 @@ extension Checker {
                 return Type.invalid
             }
 
-            if lhsType === rhsType {
+            if lhsType == rhsType {
                 return lhsType
             }
             if lhsType.width == rhsType.width {
@@ -1531,7 +1577,7 @@ extension Checker {
         guard let firstResult = results.first else {
             panic()
         }
-        let voidResultTypes = results.count(where: { $0 === Type.void })
+        let voidResultTypes = results.count(where: { $0 == Type.void })
         if voidResultTypes > 1 {
             reportError("Multiple returns with a void value is forbidden.", at: pi.node)
         }
@@ -1547,7 +1593,7 @@ extension Checker {
                 panic() // implementation error in terminatingStatements
             }
 
-            if returnedExprs.count == 0 && firstResult === Type.void {
+            if returnedExprs.count == 0 && firstResult == Type.void {
                 return
             }
             if returnedExprs.count < results.count {
@@ -1621,7 +1667,7 @@ extension Checker {
     /// Checks if type `a` can be converted to type `b` implicitly.
     /// True for converting unconstrained types into any of their constrained versions.
     func canImplicitlyConvert(_ a: Type, to b: Type) -> Bool {
-        if a === b {
+        if a == b {
             return true
         }
 

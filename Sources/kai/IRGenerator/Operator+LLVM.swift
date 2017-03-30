@@ -31,6 +31,9 @@ extension IRGenerator {
             case "~":
                 return builder.buildNot(val)
 
+            case "&":
+                unimplemented("Taking the address of an entity")
+
             default:
                 unimplemented("Unary Operator '\(op)'")
             }

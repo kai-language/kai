@@ -587,6 +587,14 @@ extension Parser {
             return AstNode.list(exprs, lparen ..< rparen)
         }
 
+        if case .operator("*") = token {
+            let (_, location) = try consume()
+
+            let typeName = try expression(lbp(for: .equals)!)
+
+            return AstNode.exprUnary("*", expr: typeName, location ..< typeName.endLocation)
+        }
+
         let prevState = state
         defer { state = prevState }
         state.insert(.disallowComma)
