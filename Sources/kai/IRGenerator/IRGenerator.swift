@@ -180,6 +180,9 @@ extension IRGenerator {
             return emitAssignment(for: node)
 
         case .stmtBlock(let stmts, _):
+            pushScope(for: node)
+            defer { popScope() }
+
             for stmt in stmts {
                 emitStmt(for: stmt)
             }
@@ -461,6 +464,21 @@ extension IRGenerator {
         }
 
         return val
+    }
+}
+
+extension IRGenerator {
+
+    @discardableResult
+    func pushScope(for node: AstNode) -> Scope {
+        let scope = checker.info.scopes[node]!
+
+        context.scope = scope
+        return scope
+    }
+
+    func popScope() {
+        context.scope = context.scope.parent!
     }
 }
 

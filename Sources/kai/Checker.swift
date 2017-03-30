@@ -300,6 +300,8 @@ class Scope: PointerHashable {
     var elements: [String: Entity] = [:]
     var isMainFile: Bool = false
 
+    var owningNode: AstNode?
+
     var proc: ProcInfo?
     var isProc: Bool { return proc != nil }
     var containingProc: ProcInfo? {
@@ -969,9 +971,8 @@ extension Checker {
 
         case .stmtBlock(let stmts, _):
 
-            let s = pushScope()
+            let s = pushScope(for: node)
             defer { popScope() }
-            info.scopes[node] = s
 
             for stmt in stmts {
                 checkStmt(stmt)
@@ -1010,7 +1011,7 @@ extension Checker {
 
         case .stmtFor(let initializer, let cond, let post, let body, _):
             
-            let bodyScope = pushScope(isLoop: true)
+            let bodyScope = pushScope(for: node, isLoop: true)
             defer { popScope() }
 
             info.scopes[node] = bodyScope
@@ -1527,7 +1528,7 @@ extension Checker {
 
         // TODO(vdka): Assert that all params or none of them have names
 
-        guard case .stmtBlock = body else {
+        guard case .stmtBlock(let stmts, _) = body else {
 
             let prevContext = context
             defer { context = prevContext }
@@ -1561,7 +1562,7 @@ extension Checker {
             return
         }
 
-        let s = pushScope(procInfo: pi)
+        let s = pushScope(for: body, procInfo: pi)
         defer { popScope() }
         s.parent = pi.owningScope
 
@@ -1573,9 +1574,6 @@ extension Checker {
         }
 
         // checkStmt(body) would override the scope. We don't want that.
-        guard case .stmtBlock(let stmts, _) = body else {
-            panic()
-        }
         for stmt in stmts {
             checkStmt(stmt)
         }
@@ -1800,10 +1798,13 @@ extension Checker {
 extension Checker {
 
     @discardableResult
-    mutating func pushScope(procInfo: ProcInfo? = nil, isLoop: Bool = false) -> Scope {
+    mutating func pushScope(for node: AstNode, procInfo: ProcInfo? = nil, isLoop: Bool = false) -> Scope {
         let scope = Scope(parent: context.scope)
+        scope.owningNode = node
         scope.proc = procInfo
         scope.isLoop = isLoop
+
+        info.scopes[node] = scope
 
         context.scope = scope
         return scope
