@@ -74,6 +74,21 @@ extension Parser {
 
     mutating func expression(_ rbp: UInt8 = 0) throws -> AstNode {
 
+        func consumeTerminators() throws {
+
+            while true {
+                switch try lexer.peek()?.kind {
+                case .semicolon?, .newline?:
+                    try consume()
+
+                default:
+                    return
+                }
+            }
+        }
+
+        try consumeTerminators()
+
         // TODO(vdka): Still unclear what to do with empty files
         guard let (token, _) = try lexer.peek() else { return AstNode.invalid(lexer.lastLocation ..< lexer.lastLocation) }
 
@@ -82,7 +97,10 @@ extension Parser {
         while let (nextToken, _) = try lexer.peek(), let lbp = lbp(for: nextToken),
             rbp < lbp
         {
+
             left = try led(for: nextToken, with: left)
+            if case .semicolon = nextToken { break }
+            if case .newline = nextToken { break }
             if case .declValue = left { break }
         }
 
@@ -127,7 +145,7 @@ extension Parser {
         case .operator(let symbol):
             guard let nud = Operator.table.first(where: { $0.symbol == symbol })?.nud else {
                 let (_, location) = try consume()
-                reportError("Non prefix operator", at: location)
+                reportError("Non prefix operator '\(symbol)'", at: location)
                 let expr = try expression()
                 return AstNode.invalid(location ..< expr.endLocation)
             }

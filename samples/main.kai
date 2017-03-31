@@ -1,33 +1,13 @@
 #library "c" libc
 
-print :: (string) -> void #foreign libc "puts"
-printf :: (string, ..any) -> void #foreign libc "printf"
-
-printValueOf :: (pointer : *i64) -> void {
-    printf("The value at the address `%p` is `%d`\n", pointer, *pointer)
-}
-
-makeDangerousPointer :: () -> *i64 {
-    a : i64 = 100
-    pointer := &a
-
-    print("Inside of makeDangerousPointer")
-    printValueOf(pointer)
-    print("")
-    return pointer
-}
+print :: (string, ..any) -> void #foreign libc "printf"
 
 main :: () -> void {
-    pointer : *i64 = makeDangerousPointer()
 
-    for i := 0; i < 5; i = i + 1 {
-        a : i64 = 10
+    x := 8
+    y := &x;
+    *y = 9
 
-        // only done to try to mutate values on the stack
-        printValueOf(&a)
-    }
-
-    print("left loop\n")
-    printValueOf(pointer)
+    print("%d\n", *y)
 }
 
