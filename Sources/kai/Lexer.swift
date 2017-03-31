@@ -52,8 +52,6 @@ struct Lexer {
 	var scanner: FileScanner
 	var buffer: [(kind: Token, location: SourceLocation)] = []
 
-    var passedNewlineLocation: SourceLocation?
-
     var location: SourceLocation { return scanner.position }
 	var lastLocation: SourceLocation
     var lastConsumedRange: SourceRange { return lastLocation ..< location }
@@ -89,20 +87,6 @@ struct Lexer {
 	}
 
 	internal mutating func next() throws -> (kind: Token, location: SourceLocation)? {
-
-        var pre = scanner.peek()
-        defer {
-            if let passedNewlineLocation = passedNewlineLocation {
-                print(passedNewlineLocation)
-            } else {
-                print(scanner.position)
-            }
-        }
-
-        if let passedNewlineLocation = passedNewlineLocation {
-            self.passedNewlineLocation = nil
-            return (.newline, passedNewlineLocation)
-        }
 
 		skipWhitespace()
 
@@ -269,10 +253,6 @@ extension Lexer {
 
         while let char = scanner.peek() {
             switch char {
-            case "\n":
-                passedNewlineLocation = scanner.position
-                scanner.pop()
-
             case _ where whitespace.contains(char):
                 scanner.pop()
 
@@ -334,6 +314,9 @@ extension Lexer {
 	private mutating func consumeLineComments() throws -> [String] {
 		assert(scanner.hasPrefix("//"))
 
+        scanner.pop()
+        scanner.pop()
+
         var lines: [String] = []
         var scalars: [UnicodeScalar] = []
 
@@ -343,15 +326,18 @@ extension Lexer {
         //   on the next line, but there may be a block comment.
         //
 
-		while let char = scanner.peek(), char != "\n" {
+		while let char = scanner.peek() {
             if char == "\n" {
-                scanner.pop()
                 let line = String(scalars)
                 lines.append(line)
                 scalars.removeAll(keepingCapacity: true)
-                skipWhitespace()
                 if !scanner.hasPrefix("//") {
                     return lines
+                } else {
+                    scanner.pop() // pop newline
+                    skipWhitespace()
+                    scanner.pop()
+                    scanner.pop()
                 }
             }
             let scalar = scanner.pop()

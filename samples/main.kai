@@ -1,13 +1,12 @@
 #library "c" libc
 
-// foo
 
 print :: (string, ..any) -> void #foreign libc "printf"
 
 main :: () -> void {
 
     x := 8
-    y := &x;
+    y := &x
     *y = 9
 
     print("%d\n", *y)

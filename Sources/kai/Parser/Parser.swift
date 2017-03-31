@@ -67,6 +67,8 @@ extension Parser {
 
             let node = try expression()
 
+            try consumeTerminators(justNewlines: true)
+
             // TODO(vdka): Report errors for invalid global scope nodes
             file.nodes.append(node)
         }
@@ -86,8 +88,6 @@ extension Parser {
         {
 
             left = try led(for: nextToken, with: left)
-            if case .semicolon = nextToken { break }
-            if case .newline = nextToken { break }
             if case .declValue = left { break }
         }
 
@@ -321,6 +321,7 @@ extension Parser {
             while let next = try lexer.peek()?.kind, next != .rbrace {
                 let stmt = try expression()
                 stmts.append(stmt)
+                try consumeTerminators(justNewlines: true)
             }
 
             let (_, endLocation) = try consume(.rbrace)
@@ -644,6 +645,9 @@ extension Parser {
                 try consume()
 
             case .semicolon? where !justNewlines:
+                try consume()
+
+            case .comment?:
                 try consume()
 
             default:
