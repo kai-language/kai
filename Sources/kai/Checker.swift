@@ -1011,11 +1011,9 @@ extension Checker {
 
         case .stmtFor(let initializer, let cond, let post, let body, _):
             
-            let bodyScope = pushScope(for: node, isLoop: true)
+            let bodyScope = pushScope(for: body, isLoop: true)
             defer { popScope() }
 
-            info.scopes[node] = bodyScope
-            
             if let initializer = initializer {
                 checkStmt(initializer)
             }

@@ -375,9 +375,8 @@ extension IRGenerator {
             panic()
         }
 
-        let prevContext = context
-        defer { context = prevContext }
-        context.scope = checker.info.scopes[node]!
+        pushScope(for: body)
+        defer { popScope() }
 
         let curFunction = builder.currentFunction!
 
@@ -422,7 +421,12 @@ extension IRGenerator {
 
         builder.positionAtEnd(of: loopBody)
 
-        emitStmt(for: body)
+        guard case .stmtBlock(let stmts, _) = body else {
+            panic()
+        }
+        for stmt in stmts {
+            emitStmt(for: stmt)
+        }
 
         let hasJump = builder.insertBlock?.lastInstruction?.isATerminatorInst ?? false
 
