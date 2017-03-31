@@ -38,6 +38,9 @@ struct Compiler {
             case "--version", "-v":
                 printVersion()
 
+            case "--emit-docs":
+                options.insert("emit-docs")
+
             case "--emit-ast":
                 options.insert("emit-ast")
 
@@ -51,6 +54,7 @@ struct Compiler {
                 options.insert("emit-time")
 
             case "--emit-all":
+                options.insert("emit-docs")
                 options.insert("emit-ast")
                 options.insert("emit-typed-ast")
                 options.insert("emit-ir")
@@ -108,6 +112,7 @@ struct Compiler {
         print("\(cyan)USAGE\(reset): kai [options] <inputs>\n")
 
         print("\(cyan)OPTIONS\(reset):")
+        print("  --emit-docs            Output source code documentation comments")
         print("  --emit-ast             Output generated abstract syntax tree")
         print("  --emit-typed-ast       Output type annotated syntax tree")
         print("  --emit-ir              Output generated LLVM IR")
@@ -144,7 +149,17 @@ struct Compiler {
             exit(1)
         }
 
+        if options.contains("emit-docs") {
+            print()
+            for (node, comment) in parser.documentation {
+                print(comment)
+                print(node)
+                print()
+            }
+        }
+
         if options.contains("emit-ast") {
+            print()
             for file in files {
                 print(file.pretty())
             }

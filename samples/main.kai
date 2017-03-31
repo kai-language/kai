@@ -3,6 +3,7 @@
 
 print :: (string, ..any) -> void #foreign libc "printf"
 
+// Program entry point
 main :: () -> void {
 
     x := 8

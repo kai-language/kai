@@ -12,6 +12,8 @@ struct Parser {
     var files: [ASTFile] = []
     var imports: [ImportedFile] = []
 
+    var documentation: [AstNode: String] = [:]
+
     var lexer: Lexer!
     var state: State = .default
 
@@ -143,6 +145,32 @@ extension Parser {
         case .ident(let symbol):
             let (_, location) = try consume()
             return AstNode.ident(symbol, location ..< lexer.location)
+
+        case .comment(let comment):
+            try consume()
+            if case (.newline?, .newline?) = try (lexer.peek()?.kind, lexer.peek(aheadBy: 1)?.kind) {
+
+                try consumeTerminators(justNewlines: true)
+
+                //
+                // There is a newline between the comment and the next statement. 
+                // We therefore discard the comment and return the next expression instead.
+                //
+
+                return try expression()
+            } else {
+
+                //
+                // There is only no newline between the comment and the next statement.
+                // This means we should get the next statement as an AstNode and 
+                //   annotate it with the documentation comment for output later.
+                //
+
+                let expr = try expression()
+                documentation[expr] = comment.trim()
+
+                return expr
+            }
 
         case .string(let string):
             let (_, location) = try consume()
@@ -645,9 +673,6 @@ extension Parser {
                 try consume()
 
             case .semicolon? where !justNewlines:
-                try consume()
-
-            case .comment?:
                 try consume()
 
             default:
