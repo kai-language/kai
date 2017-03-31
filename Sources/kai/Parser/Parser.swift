@@ -403,7 +403,9 @@ extension Parser {
             unimplemented("parsing struct and enum type declarations")
 
         default:
-            panic(lexer)
+            try consume()
+            reportError("Syntax error", at: lexer.lastConsumedRange)
+            return AstNode.invalid(lexer.lastConsumedRange)
         }
     }
 
@@ -547,7 +549,9 @@ extension Parser {
             }
 
         default:
-            panic()
+            try consume()
+            reportError("Syntax error", at: lexer.lastConsumedRange)
+            return AstNode.invalid(lexer.lastConsumedRange)
         }
     }
 
