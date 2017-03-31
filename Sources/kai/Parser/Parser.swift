@@ -74,19 +74,6 @@ extension Parser {
 
     mutating func expression(_ rbp: UInt8 = 0) throws -> AstNode {
 
-        func consumeTerminators() throws {
-
-            while true {
-                switch try lexer.peek()?.kind {
-                case .semicolon?, .newline?:
-                    try consume()
-
-                default:
-                    return
-                }
-            }
-        }
-
         try consumeTerminators()
 
         // TODO(vdka): Still unclear what to do with empty files
@@ -116,23 +103,20 @@ extension Parser {
         case .operator(let symbol):
             return Operator.table.first(where: { $0.symbol == symbol })?.lbp
 
-        case .lbrack, .lparen:
-            return 160
-
         case .colon, .equals:
-            return 160
+            return 10
+
+        case .lparen, .dot, .lbrack:
+            return 80
 
         case .comma where state.contains(.disallowComma):
             return 0
 
         case .comma:
-            return 180
-
-        case .dot:
-            return 190
+            return 100
 
         case .keyword(.returnArrow):
-            return 200 // TODO(vdka): Work out actual value.
+            return 120 // TODO(vdka): Work out actual value.
 
         default:
             return 0
@@ -146,7 +130,7 @@ extension Parser {
             guard let nud = Operator.table.first(where: { $0.symbol == symbol })?.nud else {
                 let (_, location) = try consume()
                 reportError("Non prefix operator '\(symbol)'", at: location)
-                let expr = try expression()
+                let expr = try expression(70) // less than '(' '.' '['
                 return AstNode.invalid(location ..< expr.endLocation)
             }
             return try nud(&self)
@@ -650,6 +634,22 @@ extension Parser {
         }
 
         return try lexer.pop()
+    }
+
+    mutating func consumeTerminators(justNewlines: Bool = false) throws {
+
+        while true {
+            switch try lexer.peek()?.kind {
+            case .newline?:
+                try consume()
+
+            case .semicolon? where !justNewlines:
+                try consume()
+
+            default:
+                return
+            }
+        }
     }
 
     func range(from a: AstNode?, toEndOf b: AstNode?) -> SourceRange {

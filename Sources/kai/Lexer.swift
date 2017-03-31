@@ -2,7 +2,7 @@
 let digits		= Array("1234567890".unicodeScalars)
 let opChars     = Array("~!%^&+-*/=<>|?".unicodeScalars)
 let identChars  = Array("_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".unicodeScalars)
-let whitespace  = Array(" \t\n".unicodeScalars)
+let whitespace  = Array(" \t".unicodeScalars)
 
 
 typealias SourceRange = Range<SourceLocation>
@@ -52,6 +52,8 @@ struct Lexer {
 	var scanner: FileScanner
 	var buffer: [(kind: Token, location: SourceLocation)] = []
 
+    var passedNewlineLocation: SourceLocation?
+
     var location: SourceLocation { return scanner.position }
 	var lastLocation: SourceLocation
     var lastConsumedRange: SourceRange { return lastLocation ..< location }
@@ -87,7 +89,22 @@ struct Lexer {
 	}
 
 	internal mutating func next() throws -> (kind: Token, location: SourceLocation)? {
-		try skipWhitespace()
+
+        var pre = scanner.peek()
+        defer {
+            if let passedNewlineLocation = passedNewlineLocation {
+                print(passedNewlineLocation)
+            } else {
+                print(scanner.position)
+            }
+        }
+
+        if let passedNewlineLocation = passedNewlineLocation {
+            self.passedNewlineLocation = nil
+            return (.newline, passedNewlineLocation)
+        }
+
+		skipWhitespace()
 
 		guard let char = scanner.peek() else { return nil }
 
@@ -102,6 +119,10 @@ struct Lexer {
             } else {
                 return (.ident(symbol), location)
             }
+
+        case _ where scanner.hasPrefix("//") || scanner.hasPrefix("/*"):
+            let comment = try consumeComment()
+            return (.comment(comment), location)
 
 		case _ where opChars.contains(char):
 			let symbol = consume(with: opChars)
@@ -243,34 +264,46 @@ struct Lexer {
 
 extension Lexer {
 
-	fileprivate mutating func skipWhitespace() throws {
-		while let char = scanner.peek() {
+    /// - Returns: `true` if a newline was passed
+    fileprivate mutating func skipWhitespace() {
 
-			switch char {
-			case "/":
-                switch scanner.peek(aheadBy: 1) {
-                case "*"?:
-                    try skipBlockComment()
+        while let char = scanner.peek() {
+            switch char {
+            case "\n":
+                passedNewlineLocation = scanner.position
+                scanner.pop()
 
-                case "/"?:
-                    skipLineComment()
+            case _ where whitespace.contains(char):
+                scanner.pop()
 
-                default:
-                    return
-                }
-				try skipWhitespace() // skip consecutive comments or newlines after comments
+            default:
+                return
+            }
+        }
+    }
 
-			case _ where whitespace.contains(char):
-				scanner.pop()
+    /// Skips whitespace until encountering a comment reinserting a newline if any were passed.
+    /// sequential line comments are packaged up into a single return.
+    fileprivate mutating func consumeComment() throws -> String {
 
-			default:
-				return
-			}
-		}
-	}
+        if scanner.hasPrefix("//") {
 
-	private mutating func skipBlockComment() throws {
+            let lines = try consumeLineComments()
+
+            assert(!lines.isEmpty)
+            return lines.joined(separator: "\n")
+        } else if scanner.hasPrefix("/*") {
+
+            return try consumeBlockComment()
+        }
+
+        preconditionFailure()
+    }
+
+	private mutating func consumeBlockComment() throws -> String {
 		assert(scanner.hasPrefix("/*"))
+
+        var scalars: [UnicodeScalar] = []
 
 		scanner.pop(2)
 
@@ -284,17 +317,47 @@ extension Lexer {
 			if scanner.hasPrefix("*/") { depth -= 1 }
 			else if scanner.hasPrefix("/*") { depth += 1 }
 
-			scanner.pop()
+			let scalar = scanner.pop()
+            scalars.append(scalar)
 
 			if depth == 0 { break }
 		} while depth > 0
 		scanner.pop()
+
+        // Remove the `/` from the `*/`
+        scalars.removeLast()
+
+        return String(scalars)
 	}
 
-	private mutating func skipLineComment() {
+    /// - Returns: An array of the line comments passed (with `//` and leading whitespace cut off)
+	private mutating func consumeLineComments() throws -> [String] {
 		assert(scanner.hasPrefix("//"))
 
-		while let char = scanner.peek(), char != "\n" { scanner.pop() }
+        var lines: [String] = []
+        var scalars: [UnicodeScalar] = []
+
+        //
+        // What this does is consume all consecutive lines starting in `//` and removes them in a single call.
+        // The final state is one where the scanner head is in a position where there is no whitespace or line comment
+        //   on the next line, but there may be a block comment.
+        //
+
+		while let char = scanner.peek(), char != "\n" {
+            if char == "\n" {
+                scanner.pop()
+                let line = String(scalars)
+                lines.append(line)
+                scalars.removeAll(keepingCapacity: true)
+                skipWhitespace()
+                if !scanner.hasPrefix("//") {
+                    return lines
+                }
+            }
+            let scalar = scanner.pop()
+            scalars.append(scalar)
+        }
+        return lines
 	}
 }
 
@@ -334,6 +397,8 @@ extension Lexer {
     enum Token {
         case directive(Directive)
         case keyword(Keyword)
+
+        case comment(String)
 
         case ident(String)
         case `operator`(String)
@@ -401,6 +466,9 @@ extension Lexer.Token: Equatable {
             return l == r
 
         case (.keyword(let l), .keyword(let r)):
+            return l == r
+
+        case (.comment(let l), .comment(let r)): // Don't compare comments though ... that'd be weird.
             return l == r
 
         case (.ident(let l), .ident(let r)):

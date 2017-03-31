@@ -1,5 +1,7 @@
 #library "c" libc
 
+// foo
+
 print :: (string, ..any) -> void #foreign libc "printf"
 
 main :: () -> void {
