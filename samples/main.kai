@@ -1,13 +1,19 @@
 #library "c" libc
 
-
 print :: (string, ..any) -> void #foreign libc "printf"
+
+// Makes ☠️ pointers
+makePointer :: () -> *i64 {
+    a : i64 = 1234
+    return &a
+}
 
 // Program entry point
 main :: () -> void {
 
     x := 8
     y := &x
+
     *y = 9
 
     print("%d\n", *y)

@@ -333,14 +333,23 @@ extension IRGenerator {
         unimplemented("Complex Assignment", if: op != "=")
         unimplemented("Multiple Assignment", if: lhs.count != 1 || rhs.count != 1)
 
-        guard case .ident(let ident, _) = lhs[0] else {
+        let lvalue: IRValue
+        
+        switch lhs[0] {
+        case .ident(let ident, _):
+            let entity = context.scope.lookup(ident)!
+            lvalue = llvmPointers[entity]!
+            
+        case .exprUnary("*", let expr, _):
+            lvalue = emitStmt(for: expr)
+            
+        default:
             unimplemented("Non ident lvalue in assignment")
         }
 
-        let lvalueEntity = context.scope.lookup(ident)!
         let rvalue = emitStmt(for: rhs[0])
 
-        return builder.buildStore(rvalue, to: llvmPointers[lvalueEntity]!)
+        return builder.buildStore(rvalue, to: lvalue)
     }
 
     @discardableResult
