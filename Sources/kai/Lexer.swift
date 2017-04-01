@@ -110,9 +110,13 @@ struct Lexer {
 
 		case _ where opChars.contains(char):
 			let symbol = consume(with: opChars)
-			if let keyword = Token.Keyword(rawValue: symbol) { return (.keyword(keyword), location) }
-			else if symbol == "=" { return (.equals, location) }
-			else { return (.operator(symbol), location) }
+			if let keyword = Token.Keyword(rawValue: symbol) {
+                return (.keyword(keyword), location)
+            } else if symbol.contains("=") {
+                return (.assign(symbol), location)
+            } else {
+                return (.operator(symbol), location)
+            }
 
 		// TODO(vdka): Correctly consume (and validate) number literals (real and integer)
 		case _ where digits.contains(char):
@@ -388,6 +392,7 @@ extension Lexer {
 
         case ident(String)
         case `operator`(String)
+        case assign(String)
 
         case string(String)
         case integer(Int64)
@@ -400,7 +405,6 @@ extension Lexer {
         case lbrack
         case rbrack
 
-        case equals
         case colon
         case comma
         case dot
@@ -463,6 +467,9 @@ extension Lexer.Token: Equatable {
         case (.operator(let l), .operator(let r)):
             return l == r
 
+        case (.assign(let l), .assign(let r)):
+            return l == r
+
         case (.string(let l), .string(let r)):
             return l == r
 
@@ -481,7 +488,6 @@ extension Lexer.Token: Equatable {
              (.rbrace, .rbrace),
              (.lbrack, .lbrack),
              (.rbrack, .rbrack),
-             (.equals, .equals),
              (.colon, .colon),
              (.comma, .comma),
              (.dot, .dot):

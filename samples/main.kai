@@ -6,9 +6,15 @@ print :: (string, ..any) -> void #foreign libc "printf"
 main :: () -> void {
 
     foo :: (n: int) -> void {
+        n += 5
+        print("foo printing %d\n", n)
+        n = 4
         print("foo printing %d\n", n)
     }
 
-    foo(228934)
+    n := 5
+    foo(n)
+
+    print("main printing %d\n", n)
 }
 

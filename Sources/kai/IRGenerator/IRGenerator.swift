@@ -321,7 +321,6 @@ extension IRGenerator {
         guard case .stmtAssign(let op, let lhs, let rhs, _) = node else {
             preconditionFailure()
         }
-        unimplemented("Complex Assignment", if: op != "=")
         unimplemented("Multiple Assignment", if: lhs.count != 1 || rhs.count != 1)
 
         guard case .ident(let ident, _) = lhs[0] else {
@@ -329,9 +328,76 @@ extension IRGenerator {
         }
 
         let lvalueEntity = context.scope.lookup(ident)!
+        let lvalueLocation = llvmPointers[lvalueEntity]!
         let rvalue = emitStmt(for: rhs[0])
 
-        return builder.buildStore(rvalue, to: llvmPointers[lvalueEntity]!)
+        if op == "=" {
+            return builder.buildStore(rvalue, to: lvalueLocation)
+        }
+
+        let lvalue = builder.buildLoad(lvalueLocation)
+
+        let lhsType = lvalueEntity.type!
+//        let rhsType = checker.info.types[rhs[0]]
+
+        switch op {
+        case "+=":
+            let r = builder.buildAdd(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "-=":
+            let r = builder.buildSub(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "*=":
+            let r = builder.buildMul(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "/=":
+            let r: IRValue
+            if lhsType.flags.contains(.unsigned) {
+
+                r = builder.buildDiv(lvalue, rvalue, signed: false)
+            } else {
+
+                r = builder.buildDiv(lvalue, rvalue, signed: true)
+            }
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "%=":
+            let r: IRValue
+            if lhsType.flags.contains(.unsigned) {
+
+                r = builder.buildRem(lvalue, rvalue, signed: false)
+            } else {
+
+                r = builder.buildRem(lvalue, rvalue, signed: true)
+            }
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case ">>=": // FIXME(vdka): Arithmatic shift?
+            let r = builder.buildShr(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "<<=":
+            let r = builder.buildShl(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "&=":
+            let r = builder.buildAnd(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "|=":
+            let r = builder.buildOr(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "^=":
+            let r = builder.buildXor(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        default:
+            panic()
+        }
     }
 
     @discardableResult

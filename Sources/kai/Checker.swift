@@ -94,6 +94,48 @@ class Type: Equatable, CustomStringConvertible {
         return Type(kind: .pointer(underlyingType: type), flags: .pointer, width: MemoryLayout<Int>.size * 8, location: nil)
     }
 
+    var isOrdered: Bool {
+        return !flags.union(.ordered).isEmpty
+    }
+
+    var isBooleanesque: Bool {
+        return !flags.union(.booleanesque).isEmpty
+    }
+
+    var isNumeric: Bool {
+        return !flags.union(.numeric).isEmpty
+    }
+
+    var isUnconstrained: Bool {
+        return flags.contains(.unconstrained)
+    }
+
+    var isString: Bool {
+        return flags.contains(.string)
+    }
+
+    var isBoolean: Bool {
+        return flags.contains(.boolean)
+    }
+
+    var isInteger: Bool {
+        return flags.contains(.integer)
+    }
+
+    var isUnsigned: Bool {
+        return flags.contains(.unsigned)
+    }
+
+    var isFloat: Bool {
+        return flags.contains(.float)
+    }
+
+    var isPointer: Bool {
+        return flags.contains(.pointer)
+    }
+
+
+
     static let builtin: [Type] = {
 
         // NOTE(vdka): Order is important later.
@@ -1051,7 +1093,11 @@ extension Checker {
         guard case .stmtAssign(let op, let lhs, let rhs, _) = node else {
             panic()
         }
-        unimplemented("Complex assignment", if: op != "=")
+
+        if op != "=" && (lhs.count != 1 || rhs.count != 1) {
+            reportError("Complex assignment is limitted to singlular l and r values", at: node)
+            return
+        }
 
         guard lhs.count == rhs.count else {
             reportError("assignment count mismatch: '\(lhs.count) = \(rhs.count)'", at: node)

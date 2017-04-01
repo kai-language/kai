@@ -105,7 +105,7 @@ extension Parser {
         case .operator(let symbol):
             return Operator.table.first(where: { $0.symbol == symbol })?.lbp
 
-        case .colon, .equals:
+        case .colon, .assign:
             return 10
 
         case .lparen, .dot, .lbrack:
@@ -451,6 +451,19 @@ extension Parser {
             }
             return try led(&self, lvalue)
 
+
+        case .assign(let symbol):
+            let (_, location) = try consume()
+
+            let rhs = try expression(10) // binding power of operators. You cannot chain assignment
+            if case .stmtAssign = rhs {
+
+                reportError("Assignment cannot be chained", at: rhs)
+                return AstNode.invalid(lvalue.startLocation ..< rhs.endLocation)
+            }
+
+            return AstNode.stmtAssign(symbol, lhs: explode(lvalue), rhs: explode(rhs), lvalue.startLocation ..< rhs.endLocation)
+
         case .dot:
             let (_, location) = try consume(.dot)
 
@@ -494,14 +507,6 @@ extension Parser {
             let (_, rparen) = try consume(.rparen)
             return AstNode.exprCall(receiver: lvalue, args: args, lparen ..< rparen)
 
-        case .equals:
-
-            try consume(.equals)
-
-            let rvalue = try expression()
-
-            return AstNode.stmtAssign("=", lhs: [lvalue], rhs: [rvalue], lvalue.startLocation ..< rvalue.endLocation)
-
         case .colon:
             try consume(.colon)
             switch try lexer.peek()?.kind {
@@ -514,8 +519,8 @@ extension Parser {
 
                 return AstNode.declValue(isRuntime: false, names: explode(lvalue), type: nil, values: explode(rvalue), lvalue.startLocation ..< rvalue.endLocation)
 
-            case .equals?: // type infered runtime decl
-                try consume(.equals)
+            case .assign("=")?: // type infered runtime decl
+                try consume()
                 let rvalue = try expression()
                 return AstNode.declValue(isRuntime: true, names: explode(lvalue), type: nil, values: explode(rvalue), lvalue.startLocation ..< lexer.location)
 
@@ -528,7 +533,7 @@ extension Parser {
                     // NOTE(vdka): We should report prohibitted type specification at least in some cases. ie: `Foo : typeName : struct { ... }` doesn't make sense
                     unimplemented("Explicit type for compile time declarations")
 
-                case .equals?: // `x : int = y` | `x, y : int = 1, 2`
+                case .assign("=")?: // `x : int = y` | `x, y : int = 1, 2`
                     try consume()
                     let rvalue = try expression()
                     return AstNode.declValue(isRuntime: true, names: explode(lvalue), type: type, values: explode(rvalue), lvalue.startLocation ..< lexer.location)
@@ -636,7 +641,7 @@ extension Parser {
         if case .operator("*") = token {
             let (_, location) = try consume()
 
-            let typeName = try expression(lbp(for: .equals)!)
+            let typeName = try expression(10) // Assignment is binding power 10
 
             return AstNode.exprUnary("*", expr: typeName, location ..< typeName.endLocation)
         }

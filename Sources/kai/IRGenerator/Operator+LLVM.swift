@@ -206,60 +206,6 @@ extension IRGenerator {
                 let r = builder.buildOr(lvalue, rvalue)
                 return builder.buildTrunc(r, type: IntType.int1)
 
-            case "+=":
-                let r = builder.buildAdd(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalue)
-
-            case "-=":
-                let r = builder.buildSub(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalue)
-
-            case "*=":
-                let r = builder.buildMul(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalue)
-
-            case "/=":
-                let r: IRValue
-                if lhsType.flags.contains(.unsigned) {
-
-                    r = builder.buildDiv(lvalue, rvalue, signed: false)
-                } else {
-
-                    r = builder.buildDiv(lvalue, rvalue, signed: true)
-                }
-                return builder.buildStore(r, to: lvalue)
-
-            case "%=":
-                let r: IRValue
-                if lhsType.flags.contains(.unsigned) {
-
-                    r = builder.buildRem(lvalue, rvalue, signed: false)
-                } else {
-
-                    r = builder.buildRem(lvalue, rvalue, signed: true)
-                }
-                return builder.buildStore(r, to: lvalue)
-
-            case ">>=": // FIXME(vdka): Arithmatic shift?
-                let r = builder.buildShr(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalue)
-
-            case "<<=":
-                let r = builder.buildShl(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalue)
-
-            case "&=":
-                let r = builder.buildAnd(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalue)
-
-            case "|=":
-                let r = builder.buildOr(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalue)
-
-            case "^=":
-                let r = builder.buildXor(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalue)
-
             default:
                 unimplemented("Binary Operator '\(op)'")
             }
