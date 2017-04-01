@@ -115,13 +115,33 @@ extension IRGenerator {
             let entity = context.scope.lookup(identifier)!
             return builder.buildLoad(llvmPointers[entity]!)
 
-        case .exprSelector:
-            unimplemented("Emitting selector expressions. Should be easy... ")
-            /*
-             #import "globals.kai"
-             
-             x := globals.tau + globals.pi
-            */
+        case .exprSelector(let receiver, let member, _):
+
+            switch receiver {
+            case .ident(let ident, _):
+                let recvEntity = context.scope.lookup(ident)!
+
+                switch recvEntity.kind {
+                case .importName:
+                    let entity = recvEntity.childScope!.lookup(member.identifier)!
+                    if let val = llvmPointers[entity] {
+
+                        return builder.buildLoad(val)
+                    } else {
+
+                        let val = builder.addGlobal(entity.name, type: entity.type!.canonicalized())
+                        llvmPointers[entity] = val
+
+                        return builder.buildLoad(val)
+                    }
+
+                default:
+                    unimplemented("Selectors for entities of kind \(recvEntity.kind)")
+                }
+
+            default:
+                unimplemented("Emitting selector on AstNodes of kind \(receiver.shortName)")
+            }
         
         case .declValue:
             return emitDeclaration(for: node)

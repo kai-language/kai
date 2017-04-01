@@ -1264,7 +1264,7 @@ extension Checker {
             }
 
             checkDecl(of: scopeEntity)
-            return scopeEntity.type!
+            type = scopeEntity.type!
 
         default:
             panic(node)

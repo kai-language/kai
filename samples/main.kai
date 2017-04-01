@@ -1,14 +1,14 @@
 #library "c" libc
 
-#import "globals.kai" .
+#import "globals.kai"
 
 print :: (string, ..any) -> void #foreign libc "printf"
 
 // Program entry point
 main :: () -> void {
 
-    if tau > pi {
-        print("tau (%f) is greater than pi (%f)\n", tau, pi)
+    if globals.tau > globals.pi {
+        print("tau (%f) is greater than pi (%f)\n", globals.tau, globals.pi)
     }
 }
 
