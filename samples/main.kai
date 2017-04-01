@@ -7,6 +7,8 @@ print :: (string, ..any) -> void #foreign libc "printf"
 // Program entry point
 main :: () -> void {
 
-    print("%f\n", tau)
+    if tau > pi {
+        print("tau (%f) is greater than pi (%f)\n", tau, pi)
+    }
 }
 

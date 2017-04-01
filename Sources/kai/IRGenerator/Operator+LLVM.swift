@@ -1,6 +1,7 @@
 
 import LLVM
 
+
 extension IRGenerator {
 
     // TODO(vdka): Check the types to determine llvm calls
@@ -108,10 +109,22 @@ extension IRGenerator {
                 return builder.buildMul(lvalue, rvalue)
 
             case "/":
-                return builder.buildDiv(lvalue, rvalue)
+                if lhsType.flags.contains(.unsigned) {
+
+                    return builder.buildDiv(lvalue, rvalue, signed: false)
+                } else {
+
+                    return builder.buildDiv(lvalue, rvalue, signed: true)
+                }
 
             case "%":
-                return builder.buildRem(lvalue, rvalue)
+                if lhsType.flags.contains(.unsigned) {
+
+                    return builder.buildRem(lvalue, rvalue, signed: false)
+                } else {
+
+                    return builder.buildRem(lvalue, rvalue, signed: true)
+                }
 
             // TODO(vdka): Are these arithmatic or logical? Which should they be?
             case "<<":
@@ -121,57 +134,131 @@ extension IRGenerator {
                 return builder.buildShr(lvalue, rvalue)
 
             case "<":
-                return builder.buildICmp(lvalue, rvalue, .unsignedLessThan)
+                if lhsType.flags.contains(.unsigned) {
+                    return builder.buildICmp(lvalue, rvalue, .unsignedLessThan)
+                } else if lhsType.flags.contains(.integer) {
+                    return builder.buildICmp(lvalue, rvalue, .signedLessThan)
+                } else if lhsType.flags.contains(.float) {
+                    return builder.buildFCmp(lvalue, rvalue, .orderedLessThan)
+                }
+                panic()
 
             case "<=":
-                return builder.buildICmp(lvalue, rvalue, .unsignedLessThanOrEqual)
+                if lhsType.flags.contains(.unsigned) {
+                    return builder.buildICmp(lvalue, rvalue, .unsignedLessThanOrEqual)
+                } else if lhsType.flags.contains(.integer) {
+                    return builder.buildICmp(lvalue, rvalue, .signedLessThanOrEqual)
+                } else if lhsType.flags.contains(.float) {
+                    return builder.buildFCmp(lvalue, rvalue, .orderedLessThanOrEqual)
+                }
+                panic()
 
             case ">":
-                return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThan)
+                if lhsType.flags.contains(.unsigned) {
+                    return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThan)
+                } else if lhsType.flags.contains(.integer) {
+                    return builder.buildICmp(lvalue, rvalue, .signedGreaterThan)
+                } else if lhsType.flags.contains(.float) {
+                    return builder.buildFCmp(lvalue, rvalue, .orderedGreaterThan)
+                }
+                panic()
 
             case ">=":
-                return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThanOrEqual)
+                if lhsType.flags.contains(.unsigned) {
+                    return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThanOrEqual)
+                } else if lhsType.flags.contains(.integer) {
+                    return builder.buildICmp(lvalue, rvalue, .signedGreaterThanOrEqual)
+                } else if lhsType.flags.contains(.float) {
+                    return builder.buildFCmp(lvalue, rvalue, .orderedGreaterThanOrEqual)
+                }
+                panic()
 
             case "==":
-                return builder.buildICmp(lvalue, rvalue, .equal)
+                if lhsType.flags.contains(.integer) {
+                    return builder.buildICmp(lvalue, rvalue, .equal)
+                } else if lhsType.flags.contains(.float) {
+                    return builder.buildFCmp(lvalue, rvalue, .orderedEqual)
+                }
+                panic()
 
             case "!=":
+                if lhsType.flags.contains(.integer) {
+                    return builder.buildICmp(lvalue, rvalue, .notEqual)
+                } else if lhsType.flags.contains(.float) {
+                    return builder.buildFCmp(lvalue, rvalue, .orderedNotEqual)
+                }
                 return builder.buildICmp(lvalue, rvalue, .notEqual)
 
-            // TODO: returns: A value representing the logical AND. This isn't what the bitwise operators are.
             case "&":
-                unimplemented()
-                //            return builder.buildAnd(lvalue, rvalue)
-
-            case "|":
-                unimplemented()
-                //            return builder.buildOr(lvalue, rvalue)
-
-            case "^":
-                unimplemented()
-                //            return builder.buildXor(lvalue, rvalue)
-
-            case "&&":
                 return builder.buildAnd(lvalue, rvalue)
 
-            case "||":
+            case "|":
                 return builder.buildOr(lvalue, rvalue)
 
-            case "+=",
-                 "-=",
-                 "*=",
-                 "/=",
-                 "%=":
-                unimplemented()
+            case "^":
+                return builder.buildXor(lvalue, rvalue)
 
-            case ">>=",
-                 "<<=":
-                unimplemented()
+            case "&&":
+                let r = builder.buildAnd(lvalue, rvalue)
+                return builder.buildTrunc(r, type: IntType.int1)
 
-            case "&=",
-                 "|=",
-                 "^=":
-                unimplemented()
+            case "||":
+                let r = builder.buildOr(lvalue, rvalue)
+                return builder.buildTrunc(r, type: IntType.int1)
+
+            case "+=":
+                let r = builder.buildAdd(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalue)
+
+            case "-=":
+                let r = builder.buildSub(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalue)
+
+            case "*=":
+                let r = builder.buildMul(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalue)
+
+            case "/=":
+                let r: IRValue
+                if lhsType.flags.contains(.unsigned) {
+
+                    r = builder.buildDiv(lvalue, rvalue, signed: false)
+                } else {
+
+                    r = builder.buildDiv(lvalue, rvalue, signed: true)
+                }
+                return builder.buildStore(r, to: lvalue)
+
+            case "%=":
+                let r: IRValue
+                if lhsType.flags.contains(.unsigned) {
+
+                    r = builder.buildRem(lvalue, rvalue, signed: false)
+                } else {
+
+                    r = builder.buildRem(lvalue, rvalue, signed: true)
+                }
+                return builder.buildStore(r, to: lvalue)
+
+            case ">>=": // FIXME(vdka): Arithmatic shift?
+                let r = builder.buildShr(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalue)
+
+            case "<<=":
+                let r = builder.buildShl(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalue)
+
+            case "&=":
+                let r = builder.buildAnd(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalue)
+
+            case "|=":
+                let r = builder.buildOr(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalue)
+
+            case "^=":
+                let r = builder.buildXor(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalue)
 
             default:
                 unimplemented("Binary Operator '\(op)'")
