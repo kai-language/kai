@@ -94,6 +94,48 @@ class Type: Equatable, CustomStringConvertible {
         return Type(kind: .pointer(underlyingType: type), flags: .pointer, width: MemoryLayout<Int>.size * 8, location: nil)
     }
 
+    var isOrdered: Bool {
+        return !flags.union(.ordered).isEmpty
+    }
+
+    var isBooleanesque: Bool {
+        return !flags.union(.booleanesque).isEmpty
+    }
+
+    var isNumeric: Bool {
+        return !flags.union(.numeric).isEmpty
+    }
+
+    var isUnconstrained: Bool {
+        return flags.contains(.unconstrained)
+    }
+
+    var isString: Bool {
+        return flags.contains(.string)
+    }
+
+    var isBoolean: Bool {
+        return flags.contains(.boolean)
+    }
+
+    var isInteger: Bool {
+        return flags.contains(.integer)
+    }
+
+    var isUnsigned: Bool {
+        return flags.contains(.unsigned)
+    }
+
+    var isFloat: Bool {
+        return flags.contains(.float)
+    }
+
+    var isPointer: Bool {
+        return flags.contains(.pointer)
+    }
+
+
+
     static let builtin: [Type] = {
 
         // NOTE(vdka): Order is important later.
@@ -301,6 +343,7 @@ class Scope: PointerHashable {
     var isMainFile: Bool = false
 
     var owningNode: AstNode?
+    var owningEntity: Entity?
 
     var proc: ProcInfo?
     var isProc: Bool { return proc != nil }
@@ -433,7 +476,6 @@ struct Checker {
     */
 
     var procs: [ProcInfo] = []
-    var procStack: [Type] = []
 
     var delayedImports:  [DelayedDecl] = []
     var delayedLibaries: [DelayedDecl] = []
@@ -542,12 +584,18 @@ extension Checker {
             checkDecls(in: scope)
         }
 
-        for pi in procs {
+        var index = procs.startIndex
+
+        while procs.indices ~= index {
+            let pi = procs[index]
+
             let prevContext = context
 
             checkProcBody(pi)
 
             context = prevContext
+
+            index = procs.index(after: index)
         }
 
         // For now we should require compiler invocation on a single file.
@@ -663,10 +711,6 @@ extension Checker {
                 panic()
             }
 
-            if case .ident(".", _)? = importName {
-                return
-            }
-
             guard let fullpath = fullpathOpt else {
                 reportError("Failed to import file: \(path)", at: path)
                 return
@@ -687,12 +731,12 @@ extension Checker {
             }
 
             // import entities into current scope
-            if importName?.identifier == "." {
-                // NOTE(vdka): add imported entities into this files scope.
+            if case .ident(".", _)? = importName {
 
                 // FIXME(vdka): THIS IS A BUG. IT LOOKS LIKE YOU ARE ADDING ENTITIES TO THE FILE FROM WHICH THEY RESIDE.
                 for entity in scope.elements.values {
-                    addEntity(to: scope, entity)
+                    addEntity(to: parentScope, entity)
+                    parentScope.file!.importedEntities.append(entity)
                 }
             } else {
                 let (importName, error) = Checker.pathToEntityName(fullpath)
@@ -743,7 +787,9 @@ extension Checker {
 
         for (i, e) in d.entities.enumerated() {
             let initExpr = d.initExprs[safe: i]
-            let rvalueType = initExpr.map({ checkExpr($0, typeHint: explicitType) })
+            let rvalueType = initExpr.map {
+                checkExpr($0, typeHint: explicitType, for: d)
+            }
 
             if let rvalueType = rvalueType, let explicitType = explicitType {
 
@@ -767,13 +813,6 @@ extension Checker {
             } else {
                 panic() // NOTE(vdka): No explicit type or rvalue
             }
-        }
-
-        // Provide the procInfo that *must* have been created with the decl it was created as part of
-        // TODO(vdka): Multiple litProcs as rvalues?
-        // `add, sub :: (l, r: int) -> int { return l + r }, (l, r: int) -> int { return l - r }`
-        if case .litProc(_, let body, _)? = d.initExprs.first, body.isStmt {
-            procs.last!.decl = d
         }
     }
 }
@@ -1050,16 +1089,30 @@ extension Checker {
         }
     }
 
+
+    static let validAssignOps = ["=", "+=", "-=", "*=", "/=", "%=", ">>=", "<<=", "&=", "^=", "|="]
+
     mutating func checkStmtAssign(_ node: AstNode) {
         guard case .stmtAssign(let op, let lhs, let rhs, _) = node else {
             panic()
         }
-        unimplemented("Complex assignment", if: op != "=")
+
+        guard Checker.validAssignOps.contains(op) else {
+            reportError("Invalid operation binary operation \(op)", at: node)
+            return
+        }
+
+        if op != "=" && (lhs.count != 1 || rhs.count != 1) {
+            reportError("Complex assignment is limitted to singlular l and r values", at: node)
+            return
+        }
 
         guard lhs.count == rhs.count else {
             reportError("assignment count mismatch: '\(lhs.count) = \(rhs.count)'", at: node)
             return
         }
+
+        // TODO(vdka): Not all of these ops are valid on all types `>>=` `%=`
 
         for (lvalue, rvalue) in zip(lhs, rhs) {
             let rhsType = checkExpr(rvalue)
@@ -1079,7 +1132,7 @@ extension Checker {
     // MARK: Check Expressions
 
     @discardableResult
-    mutating func checkExpr(_ node: AstNode, typeHint: Type? = nil) -> Type {
+    mutating func checkExpr(_ node: AstNode, typeHint: Type? = nil, for decl: DeclInfo? = nil) -> Type {
         if let type = info.types[node] {
             return type
         }
@@ -1135,7 +1188,7 @@ extension Checker {
 
         case .litProc:
             type = checkProcLitType(node)
-            queueCheckProc(node, type: type, decl: nil) // no decl as this is an anon proc
+            queueCheckProc(node, type: type, decl: decl)
 
         case .exprParen(let node, _):
             type = checkExpr(node, typeHint: typeHint)
@@ -1268,7 +1321,7 @@ extension Checker {
             }
 
             checkDecl(of: scopeEntity)
-            return scopeEntity.type!
+            type = scopeEntity.type!
 
         default:
             panic(node)
@@ -1343,13 +1396,16 @@ extension Checker {
         let invalidOpError = "Invalid operation binary operation \(op) between types \(lhsType) and \(rhsType)"
 
         switch op {
-        case "+" where !Type.Flag.numeric.union(lhsType.flags).isEmpty && !Type.Flag.numeric.union(lhsType.flags).isEmpty,
+        case "+" where lhsType.isString && rhsType.isString:
+            return Type.string
+
+        case "+" where lhsType.isNumeric && rhsType.isNumeric,
              "-",
              "*",
              "/",
              "%":
             // NOTE(vdka): The first matching case duplicates this so that `string + string` doesn't enter this case body
-            guard !Type.Flag.numeric.union(lhsType.flags).isEmpty && !Type.Flag.numeric.union(rhsType.flags).isEmpty else {
+            guard lhsType.isNumeric && rhsType.isNumeric else {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
             }
@@ -1370,16 +1426,16 @@ extension Checker {
 
         case "<<",
              ">>":
-            guard !Type.Flag.integer.union(lhsType.flags).isEmpty && !Type.Flag.integer.union(rhsType.flags).isEmpty else {
+            guard lhsType.isInteger && rhsType.isInteger else {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
             }
             if lhsType == rhsType {
                 return lhsType
-            } else if lhsType.flags.contains(.unconstrained) {
+            } else if lhsType.isUnconstrained {
                 attemptLiteralConstraint(lhs, to: rhsType)
                 return rhsType
-            } else if rhsType.flags.contains(.unconstrained) {
+            } else if rhsType.isUnconstrained {
                 attemptLiteralConstraint(rhs, to: lhsType)
                 return lhsType
             } else {
@@ -1393,16 +1449,16 @@ extension Checker {
              ">=",
              "==",
              "!=":
-            guard !Type.Flag.ordered.union(lhsType.flags).isEmpty && !Type.Flag.ordered.union(rhsType.flags).isEmpty else {
+            guard lhsType.isOrdered && rhsType.isOrdered else {
                     reportError(invalidOpError, at: node)
                     return Type.invalid
             }
 
             if lhsType == rhsType {
                 // do nothing
-            } else if lhsType.flags.contains(.unconstrained) {
+            } else if lhsType.isUnconstrained {
                 attemptLiteralConstraint(lhs, to: rhsType)
-            } else if rhsType.flags.contains(.unconstrained) {
+            } else if rhsType.isUnconstrained {
                 attemptLiteralConstraint(rhs, to: lhsType)
             }
 
@@ -1411,7 +1467,7 @@ extension Checker {
         case "&",
              "^",
              "|":
-            guard lhsType.flags.contains(.integer) && rhsType.flags.contains(.integer) else {
+            guard lhsType.isInteger && rhsType.isInteger else {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
             }
@@ -1421,14 +1477,14 @@ extension Checker {
             }
             if lhsType.width == rhsType.width {
                 // FIXME(vdka): once we add more types with different sizes this check is not correct.
-                assert(lhsType.flags.contains(.unsigned) != rhsType.flags.contains(.unsigned))
+                assert(lhsType.isUnsigned != rhsType.isUnsigned)
                 reportError("Unable to infer type for result", at: node) // TODO(vdka): Better error
                 return Type.invalid
             }
-            if rhsType.flags.contains(.unconstrained) {
+            if rhsType.isUnconstrained {
                 attemptLiteralConstraint(rhs, to: lhsType)
             }
-            if lhsType.flags.contains(.unconstrained) {
+            if lhsType.isUnconstrained {
                 attemptLiteralConstraint(rhs, to: rhsType)
             }
             if lhsType.width < rhsType.width {
@@ -1442,6 +1498,10 @@ extension Checker {
 
         case "&&",
              "||":
+            guard lhsType.isBooleanesque && rhsType.isBooleanesque else {
+                reportError(invalidOpError, at: node)
+                return Type.invalid
+            }
 
             return Type.bool
 
@@ -1457,6 +1517,7 @@ extension Checker {
         }
 
         guard let e = context.scope.lookup(name) else {
+            // TODO(vdka): `undef` specifier
             if name == "_" {
                 reportError("'_' cannot be used as a value", at: node)
             } else {
@@ -1563,6 +1624,7 @@ extension Checker {
         let s = pushScope(for: body, procInfo: pi)
         defer { popScope() }
         s.parent = pi.owningScope
+        s.owningEntity = pi.decl?.entities.first
 
         // Set the child scopes for each of the declared entities
         pi.decl?.entities.forEach({ $0.childScope = s })
@@ -1575,9 +1637,6 @@ extension Checker {
         for stmt in stmts {
             checkStmt(stmt)
         }
-
-        pushProc(pi.type)
-        defer { popProc() }
 
         // NOTE(vdka): There must be at least 1 return type or it's an error.
         guard let firstResult = results.first else {
@@ -1631,6 +1690,47 @@ extension Checker {
         self.context.scope = file.scope!
     }
 
+    func mangle(_ entity: Entity) {
+
+        var mangledName = ""
+
+        var owningEntities: [Entity] = []
+
+        var nextScope: Scope? = context.scope
+
+        while let scope = nextScope {
+            if let owningEntity = scope.owningEntity {
+                owningEntities.append(owningEntity)
+            }
+
+            nextScope = scope.parent
+        }
+
+        if owningEntities.count == 1,
+            let owningEntity = owningEntities.first,
+            case .importName = owningEntity.kind {
+
+            //
+            // Do not mangle entities from other files
+            //
+
+            entity.mangledName = entity.name
+            return
+        }
+
+        for owner in owningEntities.reversed() {
+            mangledName.append(owner.mangledName!)
+        }
+
+        // TODO(vdka): If the entity is `#foreign "symbolName"` use the symbolName as the mangled value
+
+        if !mangledName.isEmpty {
+            entity.mangledName = mangledName + "." + entity.name
+        } else {
+            entity.mangledName = entity.name
+        }
+    }
+
     @discardableResult
     mutating func addEntity(to scope: Scope, _ entity: Entity) -> Bool {
 
@@ -1642,6 +1742,8 @@ extension Checker {
             reportError(msg, at: entity.location)
             return false
         }
+
+        mangle(entity)
 
         return true
     }
@@ -1691,34 +1793,36 @@ extension Checker {
             return true
         }
 
-        if type.flags.contains(.unconstrained) {
+        if type.isUnconstrained {
 
-            if type.flags.contains(.float) && target.flags.contains(.float) {
+            if type.isFloat && target.isFloat {
                 // `x: f32 = integerValue` | `y: f32 = floatValue`
                 return true
             }
-            if type.flags.contains(.integer) && target.flags.contains(.float) {
-                // implicitely upcast an integer into a float is fine.
+            if type.isInteger && target.isFloat {
+                // implicitely upcasting an integer into a float is fine.
                 return true
             }
-            if type.flags.contains(.integer) && target.flags.contains(.integer) {
+            if type.isInteger && target.isInteger {
                 // Currently we support converting any integer to any other integer implicitely
                 return true
             }
-            if !Type.Flag.numeric.union(type.flags).isEmpty && target.flags.contains(.boolean) {
+            if type.isBooleanesque && target.isBoolean {
                 // Any numeric type can be cast to booleans
                 return true
             }
-            if type.flags.contains(.boolean) && target.flags.contains(.boolean) {
+            if type.isBoolean && target.isBoolean {
                 return true
             }
-            if type.flags.contains(.string) && target.flags.contains(.string) {
+            if type.isString && target.isString {
                 return true
             }
 
-        } else if Type.Flag.numeric.contains(type.flags) && target.flags.contains(.boolean) {
+        } else if type.isBooleanesque && target.isBoolean {
             // Numeric types can be converted to booleans through truncation
             return true
+        } else if case .pointer(let underlyingType) = type.kind, case .pointer(let underlyingTargetType) = target.kind {
+            return canImplicitlyConvert(underlyingType, to: underlyingTargetType)
         }
         return false
     }
@@ -1763,7 +1867,7 @@ extension Checker {
 
         switch node {
         case .litInteger:
-            guard type.flags.contains(.integer) else { // We can't constrain a non integer type to an integer
+            guard type.isInteger else { // We can't constrain a non integer type to an integer
                 return
             }
             // NOTE(vdka): If we want to detect wrap in our literals we can do it here.
@@ -1771,14 +1875,14 @@ extension Checker {
             info.types[node] = type
 
         case .litFloat:
-            guard type.flags.contains(.float) else {
+            guard type.isFloat else {
                 return
             }
 
             info.types[node] = type
 
         case .litString:
-            guard type.flags.contains(.string) else {
+            guard type.isString else {
                 return
             }
 
@@ -1815,14 +1919,6 @@ extension Checker {
     mutating func queueCheckProc(_ litProcNode: AstNode, type: Type, decl: DeclInfo?) {
         let procInfo = ProcInfo(owningScope: context.scope, decl: decl, type: type, node: litProcNode)
         procs.append(procInfo)
-    }
-
-    mutating func pushProc(_ type: Type) {
-        procStack.append(type)
-    }
-
-    mutating func popProc() {
-        procStack.removeLast()
     }
 }
 

@@ -15,16 +15,16 @@ extension IRGenerator {
         
         let curFunction = builder.currentFunction!
 
-        let returnBlock = curFunction.basicBlocks.reversed().first(where: { $0.name == "return" })!
-
-
-        var deferBlock: BasicBlock
-        if let existingDeferBlock = curFunction.basicBlocks.reversed().first(where: { $0.name == "defer" }) {
-            deferBlock = existingDeferBlock
-        } else {
-            deferBlock = curFunction.appendBasicBlock(named: "defer")
+        if context.currentProcedure!.deferBlock == nil {
+            context.currentProcedure!.deferBlock = curFunction.appendBasicBlock(named: "defer")
         }
 
+        let returnBlock = context.currentProcedure!.returnBlock
+        let deferBlock  = context.currentProcedure!.deferBlock!
+
+        // FIXME(vdka): This is not quite what we want. We want defer to always execute right before
+        // we return from the current proc. This will instead execute the moment you leave say, an if
+        // or for BasicBlock.
         // if there is a prexisting defer, then we need not add another jump.
         var jmp: IRValue
         if !deferBlock.hasTerminatingInstruction {

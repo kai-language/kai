@@ -1,6 +1,7 @@
 
 import LLVM
 
+
 extension IRGenerator {
 
     // TODO(vdka): Check the types to determine llvm calls
@@ -81,15 +82,15 @@ extension IRGenerator {
                     //
                     panic()
                 }
-                if lhsType.flags.contains(.unconstrained) && !lhs.isBasicLit {
-                    if lhsType.flags.contains(.unsigned) {
+                if lhsType.isUnconstrained && !lhs.isBasicLit {
+                    if lhsType.isUnsigned {
                         lvalue = builder.buildZExt(lvalue, type: rvalue.type)
                     } else {
                         lvalue = builder.buildSExt(lvalue, type: rvalue.type)
                     }
                 }
-                if rhsType.flags.contains(.unconstrained) && !rhs.isBasicLit {
-                    if rhsType.flags.contains(.unsigned) {
+                if rhsType.isUnconstrained && !rhs.isBasicLit {
+                    if rhsType.isUnsigned {
                         rvalue = builder.buildZExt(rvalue, type: lvalue.type)
                     } else {
                         rvalue = builder.buildSExt(rvalue, type: lvalue.type)
@@ -108,10 +109,22 @@ extension IRGenerator {
                 return builder.buildMul(lvalue, rvalue)
 
             case "/":
-                return builder.buildDiv(lvalue, rvalue)
+                if lhsType.isUnsigned {
+
+                    return builder.buildDiv(lvalue, rvalue, signed: false)
+                } else {
+
+                    return builder.buildDiv(lvalue, rvalue, signed: true)
+                }
 
             case "%":
-                return builder.buildRem(lvalue, rvalue)
+                if lhsType.isUnsigned {
+
+                    return builder.buildRem(lvalue, rvalue, signed: false)
+                } else {
+
+                    return builder.buildRem(lvalue, rvalue, signed: true)
+                }
 
             // TODO(vdka): Are these arithmatic or logical? Which should they be?
             case "<<":
@@ -121,57 +134,77 @@ extension IRGenerator {
                 return builder.buildShr(lvalue, rvalue)
 
             case "<":
-                return builder.buildICmp(lvalue, rvalue, .unsignedLessThan)
+                if lhsType.isUnsigned {
+                    return builder.buildICmp(lvalue, rvalue, .unsignedLessThan)
+                } else if lhsType.isInteger {
+                    return builder.buildICmp(lvalue, rvalue, .signedLessThan)
+                } else if lhsType.isFloat {
+                    return builder.buildFCmp(lvalue, rvalue, .orderedLessThan)
+                }
+                panic()
 
             case "<=":
-                return builder.buildICmp(lvalue, rvalue, .unsignedLessThanOrEqual)
+                if lhsType.isUnsigned {
+                    return builder.buildICmp(lvalue, rvalue, .unsignedLessThanOrEqual)
+                } else if lhsType.isInteger {
+                    return builder.buildICmp(lvalue, rvalue, .signedLessThanOrEqual)
+                } else if lhsType.isFloat {
+                    return builder.buildFCmp(lvalue, rvalue, .orderedLessThanOrEqual)
+                }
+                panic()
 
             case ">":
-                return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThan)
+                if lhsType.isUnsigned {
+                    return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThan)
+                } else if lhsType.isInteger {
+                    return builder.buildICmp(lvalue, rvalue, .signedGreaterThan)
+                } else if lhsType.isFloat {
+                    return builder.buildFCmp(lvalue, rvalue, .orderedGreaterThan)
+                }
+                panic()
 
             case ">=":
-                return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThanOrEqual)
+                if lhsType.isUnsigned {
+                    return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThanOrEqual)
+                } else if lhsType.isInteger {
+                    return builder.buildICmp(lvalue, rvalue, .signedGreaterThanOrEqual)
+                } else if lhsType.isFloat {
+                    return builder.buildFCmp(lvalue, rvalue, .orderedGreaterThanOrEqual)
+                }
+                panic()
 
             case "==":
-                return builder.buildICmp(lvalue, rvalue, .equal)
+                if lhsType.isInteger {
+                    return builder.buildICmp(lvalue, rvalue, .equal)
+                } else if lhsType.isFloat {
+                    return builder.buildFCmp(lvalue, rvalue, .orderedEqual)
+                }
+                panic()
 
             case "!=":
+                if lhsType.isInteger {
+                    return builder.buildICmp(lvalue, rvalue, .notEqual)
+                } else if lhsType.isFloat {
+                    return builder.buildFCmp(lvalue, rvalue, .orderedNotEqual)
+                }
                 return builder.buildICmp(lvalue, rvalue, .notEqual)
 
-            // TODO: returns: A value representing the logical AND. This isn't what the bitwise operators are.
             case "&":
-                unimplemented()
-                //            return builder.buildAnd(lvalue, rvalue)
-
-            case "|":
-                unimplemented()
-                //            return builder.buildOr(lvalue, rvalue)
-
-            case "^":
-                unimplemented()
-                //            return builder.buildXor(lvalue, rvalue)
-
-            case "&&":
                 return builder.buildAnd(lvalue, rvalue)
 
-            case "||":
+            case "|":
                 return builder.buildOr(lvalue, rvalue)
 
-            case "+=",
-                 "-=",
-                 "*=",
-                 "/=",
-                 "%=":
-                unimplemented()
+            case "^":
+                return builder.buildXor(lvalue, rvalue)
 
-            case ">>=",
-                 "<<=":
-                unimplemented()
+            case "&&":
+                let r = builder.buildAnd(lvalue, rvalue)
+                return builder.buildTrunc(r, type: IntType.int1)
 
-            case "&=",
-                 "|=",
-                 "^=":
-                unimplemented()
+            case "||":
+                let r = builder.buildOr(lvalue, rvalue)
+                return builder.buildTrunc(r, type: IntType.int1)
 
             default:
                 unimplemented("Binary Operator '\(op)'")

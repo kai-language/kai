@@ -3,8 +3,15 @@
 
 ## Current
 - [ ] Cast to different sizes emitting `trunc` or `ext`
-- [ ] Support nested procedures
-- [ ] Name mangling
+- [x] Support nested procedures
+- [x] Name mangling
+- [ ] Improve name mangling
+- [ ] Emit error for _captured_ variables in nested procedures (currently emits bad llvm)
+- [ ] Emit error for unused variables (suggesting to use the `_` throw away instead)
+- [ ] Syntax for uninitialized variables
+- [ ] Switch statements
+- [ ] Support multiple returns
+- [ ] Support multiple assignment and multiple expressions
 
 ## Big Features
 - [ ] Structs
@@ -14,7 +21,7 @@
 - [ ] Slices (maybe can just be a DynamicSizedArray)
 - [ ] Unions
 - [ ] Procedure Overloading
-- [ ] Automatic documentation generation (through --docs flag)
+- [x] Automatic documentation generation (through --emit-docs flag)
 - [ ] In Source Code Linker flags (#library)
 
 ## Small Features

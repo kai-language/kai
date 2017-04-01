@@ -5,8 +5,19 @@ struct ProcedurePointer {
     let pointer: Function
     var args: [IRValue]
     let returnType: IRType
+    var deferBlock: BasicBlock?
     var returnBlock: BasicBlock
     var returnValuePointer: IRValue?
+
+    init(scope: Scope, pointer: Function, args: [IRValue], returnType: IRType, returnBlock: BasicBlock, returnValuePointer: IRValue?) {
+        self.scope = scope
+        self.pointer = pointer
+        self.args = args
+        self.returnType = returnType
+        self.deferBlock = nil
+        self.returnBlock = returnBlock
+        self.returnValuePointer = returnValuePointer
+    }
 }
 
 extension IRGenerator {
@@ -68,11 +79,18 @@ extension IRGenerator {
         guard case let .litProc(type, body, _) = node, case let .typeProc(params, results, _) = type else {
             preconditionFailure()
         }
+
+        let prevBlock = builder.insertBlock
+        defer {
+            if let prevBlock = prevBlock {
+                builder.positionAtEnd(of: prevBlock)
+            }
+        }
         
         let entity = checker.info.definitions[identifier]!
 
         // TODO(Brett): use mangled name when available
-        var name = entity.name
+        var name = entity.mangledName!
         if case .directive("foreign", let args, _) = body, case .litString(let symbolName, _)? = args[safe: 1] {
             name = symbolName
         }
@@ -132,7 +150,7 @@ extension IRGenerator {
             let argPointer = emitEntryBlockAlloca(
                 in: proc,
                 type: arg.type,
-                named: entity.name,
+                named: entity.mangledName!,
                 default: arg
             )
             

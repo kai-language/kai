@@ -44,49 +44,20 @@ class IRGenerator {
     
     static func build(for file: ASTFile, checker: Checker) throws -> Module {
         let generator = try IRGenerator(file, checker: checker)
+        try generator.emitImported()
         try generator.emitGlobals()
-        try generator.emitMain()
-        
+
         return generator.module
     }
 }
 
 extension IRGenerator {
 
-    func emitMain() throws {
-//        unimplemented("Finding and emitting 'main'")
-
-        guard let _ = checker.main else {
-            unimplemented("files without mains. Should be easy though...")
+    func emitImported() throws {
+        for entity in file.importedEntities {
+            let global = builder.addGlobal(entity.mangledName!, type: entity.type!.canonicalized())
+            llvmPointers[entity] = global
         }
-
-//        let mainType = FunctionType(argTypes: [], returnType: VoidType())
-//        let main = builder.addFunction("main", type: try mainEntity.canonicalized() as! FunctionType)
-//        mainEntity.llvm = main
-//        let entry = main.appendBasicBlock(named: "entry")
-//        builder.positionAtEnd(of: entry)
-
-        /*
-        // TODO(Brett): Update to emit function definition
-        let mainType = FunctionType(argTypes: [], returnType: VoidType())
-        let main = builder.addFunction("main", type: mainType)
-        let entry = main.appendBasicBlock(named: "entry")
-        builder.positionAtEnd(of: entry)
-
-        for child in file.nodes {
-
-            switch child {
-            case .expr(.call(_)):
-                emitProcedureCall(for: child)
-
-            default:
-                break
-            }
-
-        }
-        
-        builder.buildRetVoid()
-        */
     }
     
     func emitGlobals() throws {
@@ -144,13 +115,33 @@ extension IRGenerator {
             let entity = context.scope.lookup(identifier)!
             return builder.buildLoad(llvmPointers[entity]!)
 
-        case .exprSelector:
-            unimplemented("Emitting selector expressions. Should be easy... ")
-            /*
-             #import "globals.kai"
-             
-             x := globals.tau + globals.pi
-            */
+        case .exprSelector(let receiver, let member, _):
+
+            switch receiver {
+            case .ident(let ident, _):
+                let recvEntity = context.scope.lookup(ident)!
+
+                switch recvEntity.kind {
+                case .importName:
+                    let entity = recvEntity.childScope!.lookup(member.identifier)!
+                    if let val = llvmPointers[entity] {
+
+                        return builder.buildLoad(val)
+                    } else {
+
+                        let val = builder.addGlobal(entity.mangledName!, type: entity.type!.canonicalized())
+                        llvmPointers[entity] = val
+
+                        return builder.buildLoad(val)
+                    }
+
+                default:
+                    unimplemented("Selectors for entities of kind \(recvEntity.kind)")
+                }
+
+            default:
+                unimplemented("Emitting selector on AstNodes of kind \(receiver.shortName)")
+            }
         
         case .declValue:
             return emitDeclaration(for: node)
@@ -330,18 +321,22 @@ extension IRGenerator {
         guard case .stmtAssign(let op, let lhs, let rhs, _) = node else {
             preconditionFailure()
         }
-        unimplemented("Complex Assignment", if: op != "=")
         unimplemented("Multiple Assignment", if: lhs.count != 1 || rhs.count != 1)
 
-        let lvalue: IRValue
+        let lvalueLocation: IRValue
+        let lvalueIsSigned: Bool
         
         switch lhs[0] {
         case .ident(let ident, _):
             let entity = context.scope.lookup(ident)!
-            lvalue = llvmPointers[entity]!
+            lvalueLocation = llvmPointers[entity]!
+            let lhsType = entity.type!
+            lvalueIsSigned = !lhsType.isUnsigned
             
         case .exprUnary("*", let expr, _):
-            lvalue = emitStmt(for: expr)
+            lvalueLocation = emitStmt(for: expr)
+            // FIXME(Brett): Can pointers be signed? 🤔
+            lvalueIsSigned = false
             
         default:
             unimplemented("Non ident lvalue in assignment")
@@ -349,7 +344,60 @@ extension IRGenerator {
 
         let rvalue = emitStmt(for: rhs[0])
 
-        return builder.buildStore(rvalue, to: lvalue)
+        if op == "=" {
+            return builder.buildStore(rvalue, to: lvalueLocation)
+        }
+
+        let lvalue = builder.buildLoad(lvalueLocation)
+
+//        let rhsType = checker.info.types[rhs[0]]
+
+        switch op {
+        case "+=":
+            let r = builder.buildAdd(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "-=":
+            let r = builder.buildSub(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "*=":
+            let r = builder.buildMul(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "/=":
+            let r = builder.buildDiv(lvalue, rvalue, signed: lvalueIsSigned)
+            
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "%=":
+            let r = builder.buildRem(lvalue, rvalue, signed: lvalueIsSigned)
+
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case ">>=": // FIXME(vdka): Arithmatic shift?
+            let r = builder.buildShr(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "<<=":
+            let r = builder.buildShl(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "&=":
+            let r = builder.buildAnd(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "|=":
+            let r = builder.buildOr(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        case "^=":
+            let r = builder.buildXor(lvalue, rvalue)
+            return builder.buildStore(r, to: lvalueLocation)
+
+        default:
+            panic()
+        }
     }
 
     @discardableResult

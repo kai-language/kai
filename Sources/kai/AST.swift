@@ -7,14 +7,15 @@ class ASTFile {
     var fullpath: String
     var name: String
     /// All of the top level declarations, statements and expressions are placed into this array
-    var nodes: [AstNode]
-    var scopeLevel: Int = 0
-    var scope: Scope?       // NOTE: Created in checker
+    var nodes: [AstNode] = []
 
-    var declInfo: DeclInfo? // NOTE: Created in checker
+
+    // NOTE: Created in checker
+
+    var scope: Scope?
+    var importedEntities: [Entity] = []
 
     var errors: Int = 0
-
     static var errorTolerance = 6
 
     init(named: String) {
@@ -23,11 +24,7 @@ class ASTFile {
         self.fullpath = file.path
         self.lexer = Lexer(file)
         self.name = named
-        self.nodes = []
-        self.scopeLevel = 0
         self.scope = nil
-        self.declInfo = nil
-        self.errors = 0
     }
 }
 
