@@ -478,10 +478,21 @@ extension Parser {
                 return AstNode.exprCall(receiver: lvalue, args: [], lparen ..< rparen)
             }
 
-            let args = try expression()
+            let prevState = state
+            defer { state = prevState }
+            state.insert(.disallowComma)
+
+            let arg = try expression()
+            var args: [AstNode] = [arg]
+            while case .comma? = try lexer.peek()?.kind {
+                try consume()
+
+                let arg = try expression()
+                args.append(arg)
+            }
 
             let (_, rparen) = try consume(.rparen)
-            return AstNode.exprCall(receiver: lvalue, args: explode(args), lparen ..< rparen)
+            return AstNode.exprCall(receiver: lvalue, args: args, lparen ..< rparen)
 
         case .equals:
 
