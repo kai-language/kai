@@ -280,19 +280,6 @@ try Operator.prefix("~")
 try Operator.prefix("*")
 try Operator.prefix("&")
 
-try Operator.infix("+=",   bindingPower: 10)
-try Operator.infix("-=",   bindingPower: 10)
-try Operator.infix("*=",   bindingPower: 10)
-try Operator.infix("/=",   bindingPower: 10)
-try Operator.infix("%=",   bindingPower: 10)
-
-try Operator.infix(">>=",  bindingPower: 10)
-try Operator.infix("<<=",  bindingPower: 10)
-
-try Operator.infix("&=",   bindingPower: 10)
-try Operator.infix("^=",   bindingPower: 10)
-try Operator.infix("|=",   bindingPower: 10)
-
 try Operator.infix("||",  bindingPower: 20)
 try Operator.infix("&&",  bindingPower: 30)
 

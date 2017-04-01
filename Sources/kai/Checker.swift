@@ -1089,9 +1089,17 @@ extension Checker {
         }
     }
 
+
+    static let validAssignOps = ["=", "+=", "-=", "*=", "/=", "%=", ">>=", "<<=", "&=", "^=", "|="]
+
     mutating func checkStmtAssign(_ node: AstNode) {
         guard case .stmtAssign(let op, let lhs, let rhs, _) = node else {
             panic()
+        }
+
+        guard Checker.validAssignOps.contains(op) else {
+            reportError("Invalid operation binary operation \(op)", at: node)
+            return
         }
 
         if op != "=" && (lhs.count != 1 || rhs.count != 1) {
@@ -1103,6 +1111,8 @@ extension Checker {
             reportError("assignment count mismatch: '\(lhs.count) = \(rhs.count)'", at: node)
             return
         }
+
+        // TODO(vdka): Not all of these ops are valid on all types `>>=` `%=`
 
         for (lvalue, rvalue) in zip(lhs, rhs) {
             let rhsType = checkExpr(rvalue)
