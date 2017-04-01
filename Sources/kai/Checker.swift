@@ -663,10 +663,6 @@ extension Checker {
                 panic()
             }
 
-            if case .ident(".", _)? = importName {
-                return
-            }
-
             guard let fullpath = fullpathOpt else {
                 reportError("Failed to import file: \(path)", at: path)
                 return
@@ -687,12 +683,12 @@ extension Checker {
             }
 
             // import entities into current scope
-            if importName?.identifier == "." {
-                // NOTE(vdka): add imported entities into this files scope.
+            if case .ident(".", _)? = importName {
 
                 // FIXME(vdka): THIS IS A BUG. IT LOOKS LIKE YOU ARE ADDING ENTITIES TO THE FILE FROM WHICH THEY RESIDE.
                 for entity in scope.elements.values {
-                    addEntity(to: scope, entity)
+                    addEntity(to: parentScope, entity)
+                    parentScope.file!.importedEntities.append(entity)
                 }
             } else {
                 let (importName, error) = Checker.pathToEntityName(fullpath)

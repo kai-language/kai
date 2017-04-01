@@ -189,6 +189,17 @@ struct Compiler {
             print("\n === Starting IRGen === \n")
         }
 
+        let buildPath = fileManager.currentDirectoryPath + "/.kai"
+
+        var isDir: ObjCBool = false
+        if fileManager.fileExists(atPath: buildPath, isDirectory: &isDir) {
+            if !isDir.boolValue {
+                print("ERROR: cannot write to output directory \(buildPath)")
+            }
+        } else {
+            try fileManager.createDirectory(atPath: buildPath, withIntermediateDirectories: false, attributes: nil)
+        }
+
         startTiming("Code Generation")
         for file in files {
 
@@ -201,13 +212,19 @@ struct Compiler {
             do {
                 try module.verify()
             } catch {
+                module.dump()
+                
                 print("Error did occur while verifying generated IR:")
                 print(error)
                 exit(1)
             }
-            
-            // FIXME(vdka): emit object files for each and every importation
-            try TargetMachine().emitToFile(module: module, type: .object, path: "main.o")
+
+            assert(file.fullpath.hasSuffix(".kai"))
+
+            let objFilename = String(file.fullpath.split(separator: "/").last!.characters.dropLast(4))
+                .appending(".o")
+
+            try TargetMachine().emitToFile(module: module, type: .object, path: buildPath + "/" + objFilename)
         }
         endTiming()
 
@@ -263,41 +280,41 @@ try Operator.prefix("~")
 try Operator.prefix("*")
 try Operator.prefix("&")
 
+try Operator.infix("+=",   bindingPower: 10)
+try Operator.infix("-=",   bindingPower: 10)
+try Operator.infix("*=",   bindingPower: 10)
+try Operator.infix("/=",   bindingPower: 10)
+try Operator.infix("%=",   bindingPower: 10)
+
+try Operator.infix(">>=",  bindingPower: 10)
+try Operator.infix("<<=",  bindingPower: 10)
+
+try Operator.infix("&=",   bindingPower: 10)
+try Operator.infix("^=",   bindingPower: 10)
+try Operator.infix("|=",   bindingPower: 10)
+
+try Operator.infix("||",  bindingPower: 20)
 try Operator.infix("&&",  bindingPower: 30)
-try Operator.infix("||",  bindingPower: 30)
 
-try Operator.infix("<",  bindingPower: 40)
-try Operator.infix(">",  bindingPower: 40)
-try Operator.infix("<=", bindingPower: 40)
-try Operator.infix(">=",  bindingPower: 40)
-try Operator.infix("==",  bindingPower: 40)
-try Operator.infix("!=",  bindingPower: 40)
+try Operator.infix("&",   bindingPower: 40)
+try Operator.infix("^",   bindingPower: 40)
+try Operator.infix("|",   bindingPower: 40)
 
-try Operator.infix("+",  bindingPower: 50)
-try Operator.infix("-",  bindingPower: 50)
-try Operator.infix("*",  bindingPower: 60)
-try Operator.infix("/",  bindingPower: 60)
-try Operator.infix("%",  bindingPower: 60)
+try Operator.infix("<",   bindingPower: 50)
+try Operator.infix(">",   bindingPower: 50)
+try Operator.infix("<=",  bindingPower: 50)
+try Operator.infix(">=",  bindingPower: 50)
+try Operator.infix("==",  bindingPower: 50)
+try Operator.infix("!=",  bindingPower: 50)
 
-try Operator.infix("<<", bindingPower: 70)
-try Operator.infix(">>", bindingPower: 70)
+try Operator.infix("<<", bindingPower: 60)
+try Operator.infix(">>", bindingPower: 60)
 
-try Operator.infix("&",   bindingPower: 100)
-try Operator.infix("^",   bindingPower: 110)
-try Operator.infix("|",   bindingPower: 120)
-
-try Operator.infix("+=",   bindingPower: 160)
-try Operator.infix("-=",   bindingPower: 160)
-try Operator.infix("*=",   bindingPower: 160)
-try Operator.infix("/=",   bindingPower: 160)
-try Operator.infix("%=",   bindingPower: 160)
-
-try Operator.infix(">>=",  bindingPower: 160)
-try Operator.infix("<<=",  bindingPower: 160)
-
-try Operator.infix("&=",   bindingPower: 160)
-try Operator.infix("^=",   bindingPower: 160)
-try Operator.infix("|=",   bindingPower: 160)
+try Operator.infix("+",  bindingPower: 70)
+try Operator.infix("-",  bindingPower: 70)
+try Operator.infix("*",  bindingPower: 80)
+try Operator.infix("/",  bindingPower: 80)
+try Operator.infix("%",  bindingPower: 80)
 
 let compiler = Compiler(args: CommandLine.arguments)
 try compiler.run()

@@ -44,49 +44,20 @@ class IRGenerator {
     
     static func build(for file: ASTFile, checker: Checker) throws -> Module {
         let generator = try IRGenerator(file, checker: checker)
+        try generator.emitImported()
         try generator.emitGlobals()
-        try generator.emitMain()
-        
+
         return generator.module
     }
 }
 
 extension IRGenerator {
 
-    func emitMain() throws {
-//        unimplemented("Finding and emitting 'main'")
-
-        guard let _ = checker.main else {
-            unimplemented("files without mains. Should be easy though...")
+    func emitImported() throws {
+        for entity in file.importedEntities {
+            let global = builder.addGlobal(entity.name, type: entity.type!.canonicalized())
+            llvmPointers[entity] = global
         }
-
-//        let mainType = FunctionType(argTypes: [], returnType: VoidType())
-//        let main = builder.addFunction("main", type: try mainEntity.canonicalized() as! FunctionType)
-//        mainEntity.llvm = main
-//        let entry = main.appendBasicBlock(named: "entry")
-//        builder.positionAtEnd(of: entry)
-
-        /*
-        // TODO(Brett): Update to emit function definition
-        let mainType = FunctionType(argTypes: [], returnType: VoidType())
-        let main = builder.addFunction("main", type: mainType)
-        let entry = main.appendBasicBlock(named: "entry")
-        builder.positionAtEnd(of: entry)
-
-        for child in file.nodes {
-
-            switch child {
-            case .expr(.call(_)):
-                emitProcedureCall(for: child)
-
-            default:
-                break
-            }
-
-        }
-        
-        builder.buildRetVoid()
-        */
     }
     
     func emitGlobals() throws {

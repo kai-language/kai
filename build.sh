@@ -13,7 +13,7 @@ run)
 
     if [ -z "$2" ]; then
         .build/debug/kai --emit-all samples/main.kai
-        clang -o main main.o
+        clang -o main .kai/*.o
     else
         .build/debug/kai --emit-all $2
     fi

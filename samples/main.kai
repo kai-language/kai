@@ -1,15 +1,12 @@
 #library "c" libc
 
+#import "globals.kai" .
 
 print :: (string, ..any) -> void #foreign libc "printf"
 
 // Program entry point
 main :: () -> void {
 
-    x := 8
-    y := &x
-    *y = 9
-
-    print("%d\n", *y)
+    print("%f\n", tau)
 }
 
