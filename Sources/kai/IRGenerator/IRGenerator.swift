@@ -355,7 +355,7 @@ extension IRGenerator {
 
         case "/=":
             let r: IRValue
-            if lhsType.flags.contains(.unsigned) {
+            if lhsType.isUnsigned {
 
                 r = builder.buildDiv(lvalue, rvalue, signed: false)
             } else {
@@ -366,7 +366,7 @@ extension IRGenerator {
 
         case "%=":
             let r: IRValue
-            if lhsType.flags.contains(.unsigned) {
+            if lhsType.isUnsigned {
 
                 r = builder.buildRem(lvalue, rvalue, signed: false)
             } else {

@@ -1386,13 +1386,16 @@ extension Checker {
         let invalidOpError = "Invalid operation binary operation \(op) between types \(lhsType) and \(rhsType)"
 
         switch op {
-        case "+" where !Type.Flag.numeric.union(lhsType.flags).isEmpty && !Type.Flag.numeric.union(lhsType.flags).isEmpty,
+        case "+" where lhsType.isString && rhsType.isString:
+            return Type.string
+
+        case "+" where lhsType.isNumeric && rhsType.isNumeric,
              "-",
              "*",
              "/",
              "%":
             // NOTE(vdka): The first matching case duplicates this so that `string + string` doesn't enter this case body
-            guard !Type.Flag.numeric.union(lhsType.flags).isEmpty && !Type.Flag.numeric.union(rhsType.flags).isEmpty else {
+            guard lhsType.isNumeric && rhsType.isNumeric else {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
             }
@@ -1413,16 +1416,16 @@ extension Checker {
 
         case "<<",
              ">>":
-            guard !Type.Flag.integer.union(lhsType.flags).isEmpty && !Type.Flag.integer.union(rhsType.flags).isEmpty else {
+            guard lhsType.isInteger && rhsType.isInteger else {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
             }
             if lhsType == rhsType {
                 return lhsType
-            } else if lhsType.flags.contains(.unconstrained) {
+            } else if lhsType.isUnconstrained {
                 attemptLiteralConstraint(lhs, to: rhsType)
                 return rhsType
-            } else if rhsType.flags.contains(.unconstrained) {
+            } else if rhsType.isUnconstrained {
                 attemptLiteralConstraint(rhs, to: lhsType)
                 return lhsType
             } else {
@@ -1436,16 +1439,16 @@ extension Checker {
              ">=",
              "==",
              "!=":
-            guard !Type.Flag.ordered.union(lhsType.flags).isEmpty && !Type.Flag.ordered.union(rhsType.flags).isEmpty else {
+            guard lhsType.isOrdered && rhsType.isOrdered else {
                     reportError(invalidOpError, at: node)
                     return Type.invalid
             }
 
             if lhsType == rhsType {
                 // do nothing
-            } else if lhsType.flags.contains(.unconstrained) {
+            } else if lhsType.isUnconstrained {
                 attemptLiteralConstraint(lhs, to: rhsType)
-            } else if rhsType.flags.contains(.unconstrained) {
+            } else if rhsType.isUnconstrained {
                 attemptLiteralConstraint(rhs, to: lhsType)
             }
 
@@ -1454,7 +1457,7 @@ extension Checker {
         case "&",
              "^",
              "|":
-            guard lhsType.flags.contains(.integer) && rhsType.flags.contains(.integer) else {
+            guard lhsType.isInteger && rhsType.isInteger else {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
             }
@@ -1464,14 +1467,14 @@ extension Checker {
             }
             if lhsType.width == rhsType.width {
                 // FIXME(vdka): once we add more types with different sizes this check is not correct.
-                assert(lhsType.flags.contains(.unsigned) != rhsType.flags.contains(.unsigned))
+                assert(lhsType.isUnsigned != rhsType.isUnsigned)
                 reportError("Unable to infer type for result", at: node) // TODO(vdka): Better error
                 return Type.invalid
             }
-            if rhsType.flags.contains(.unconstrained) {
+            if rhsType.isUnconstrained {
                 attemptLiteralConstraint(rhs, to: lhsType)
             }
-            if lhsType.flags.contains(.unconstrained) {
+            if lhsType.isUnconstrained {
                 attemptLiteralConstraint(rhs, to: rhsType)
             }
             if lhsType.width < rhsType.width {
@@ -1485,6 +1488,10 @@ extension Checker {
 
         case "&&",
              "||":
+            guard lhsType.isBooleanesque && rhsType.isBooleanesque else {
+                reportError(invalidOpError, at: node)
+                return Type.invalid
+            }
 
             return Type.bool
 
@@ -1776,34 +1783,36 @@ extension Checker {
             return true
         }
 
-        if type.flags.contains(.unconstrained) {
+        if type.isUnconstrained {
 
-            if type.flags.contains(.float) && target.flags.contains(.float) {
+            if type.isFloat && target.isFloat {
                 // `x: f32 = integerValue` | `y: f32 = floatValue`
                 return true
             }
-            if type.flags.contains(.integer) && target.flags.contains(.float) {
-                // implicitely upcast an integer into a float is fine.
+            if type.isInteger && target.isFloat {
+                // implicitely upcasting an integer into a float is fine.
                 return true
             }
-            if type.flags.contains(.integer) && target.flags.contains(.integer) {
+            if type.isInteger && target.isInteger {
                 // Currently we support converting any integer to any other integer implicitely
                 return true
             }
-            if !Type.Flag.numeric.union(type.flags).isEmpty && target.flags.contains(.boolean) {
+            if type.isBooleanesque && target.isBoolean {
                 // Any numeric type can be cast to booleans
                 return true
             }
-            if type.flags.contains(.boolean) && target.flags.contains(.boolean) {
+            if type.isBoolean && target.isBoolean {
                 return true
             }
-            if type.flags.contains(.string) && target.flags.contains(.string) {
+            if type.isString && target.isString {
                 return true
             }
 
-        } else if Type.Flag.numeric.contains(type.flags) && target.flags.contains(.boolean) {
+        } else if type.isBooleanesque && target.isBoolean {
             // Numeric types can be converted to booleans through truncation
             return true
+        } else if case .pointer(let underlyingType) = type.kind, case .pointer(let underlyingTargetType) = target.kind {
+            return canImplicitlyConvert(underlyingType, to: underlyingTargetType)
         }
         return false
     }
@@ -1848,7 +1857,7 @@ extension Checker {
 
         switch node {
         case .litInteger:
-            guard type.flags.contains(.integer) else { // We can't constrain a non integer type to an integer
+            guard type.isInteger else { // We can't constrain a non integer type to an integer
                 return
             }
             // NOTE(vdka): If we want to detect wrap in our literals we can do it here.
@@ -1856,14 +1865,14 @@ extension Checker {
             info.types[node] = type
 
         case .litFloat:
-            guard type.flags.contains(.float) else {
+            guard type.isFloat else {
                 return
             }
 
             info.types[node] = type
 
         case .litString:
-            guard type.flags.contains(.string) else {
+            guard type.isString else {
                 return
             }
 

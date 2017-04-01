@@ -82,15 +82,15 @@ extension IRGenerator {
                     //
                     panic()
                 }
-                if lhsType.flags.contains(.unconstrained) && !lhs.isBasicLit {
-                    if lhsType.flags.contains(.unsigned) {
+                if lhsType.isUnconstrained && !lhs.isBasicLit {
+                    if lhsType.isUnsigned {
                         lvalue = builder.buildZExt(lvalue, type: rvalue.type)
                     } else {
                         lvalue = builder.buildSExt(lvalue, type: rvalue.type)
                     }
                 }
-                if rhsType.flags.contains(.unconstrained) && !rhs.isBasicLit {
-                    if rhsType.flags.contains(.unsigned) {
+                if rhsType.isUnconstrained && !rhs.isBasicLit {
+                    if rhsType.isUnsigned {
                         rvalue = builder.buildZExt(rvalue, type: lvalue.type)
                     } else {
                         rvalue = builder.buildSExt(rvalue, type: lvalue.type)
@@ -109,7 +109,7 @@ extension IRGenerator {
                 return builder.buildMul(lvalue, rvalue)
 
             case "/":
-                if lhsType.flags.contains(.unsigned) {
+                if lhsType.isUnsigned {
 
                     return builder.buildDiv(lvalue, rvalue, signed: false)
                 } else {
@@ -118,7 +118,7 @@ extension IRGenerator {
                 }
 
             case "%":
-                if lhsType.flags.contains(.unsigned) {
+                if lhsType.isUnsigned {
 
                     return builder.buildRem(lvalue, rvalue, signed: false)
                 } else {
@@ -134,57 +134,57 @@ extension IRGenerator {
                 return builder.buildShr(lvalue, rvalue)
 
             case "<":
-                if lhsType.flags.contains(.unsigned) {
+                if lhsType.isUnsigned {
                     return builder.buildICmp(lvalue, rvalue, .unsignedLessThan)
-                } else if lhsType.flags.contains(.integer) {
+                } else if lhsType.isInteger {
                     return builder.buildICmp(lvalue, rvalue, .signedLessThan)
-                } else if lhsType.flags.contains(.float) {
+                } else if lhsType.isFloat {
                     return builder.buildFCmp(lvalue, rvalue, .orderedLessThan)
                 }
                 panic()
 
             case "<=":
-                if lhsType.flags.contains(.unsigned) {
+                if lhsType.isUnsigned {
                     return builder.buildICmp(lvalue, rvalue, .unsignedLessThanOrEqual)
-                } else if lhsType.flags.contains(.integer) {
+                } else if lhsType.isInteger {
                     return builder.buildICmp(lvalue, rvalue, .signedLessThanOrEqual)
-                } else if lhsType.flags.contains(.float) {
+                } else if lhsType.isFloat {
                     return builder.buildFCmp(lvalue, rvalue, .orderedLessThanOrEqual)
                 }
                 panic()
 
             case ">":
-                if lhsType.flags.contains(.unsigned) {
+                if lhsType.isUnsigned {
                     return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThan)
-                } else if lhsType.flags.contains(.integer) {
+                } else if lhsType.isInteger {
                     return builder.buildICmp(lvalue, rvalue, .signedGreaterThan)
-                } else if lhsType.flags.contains(.float) {
+                } else if lhsType.isFloat {
                     return builder.buildFCmp(lvalue, rvalue, .orderedGreaterThan)
                 }
                 panic()
 
             case ">=":
-                if lhsType.flags.contains(.unsigned) {
+                if lhsType.isUnsigned {
                     return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThanOrEqual)
-                } else if lhsType.flags.contains(.integer) {
+                } else if lhsType.isInteger {
                     return builder.buildICmp(lvalue, rvalue, .signedGreaterThanOrEqual)
-                } else if lhsType.flags.contains(.float) {
+                } else if lhsType.isFloat {
                     return builder.buildFCmp(lvalue, rvalue, .orderedGreaterThanOrEqual)
                 }
                 panic()
 
             case "==":
-                if lhsType.flags.contains(.integer) {
+                if lhsType.isInteger {
                     return builder.buildICmp(lvalue, rvalue, .equal)
-                } else if lhsType.flags.contains(.float) {
+                } else if lhsType.isFloat {
                     return builder.buildFCmp(lvalue, rvalue, .orderedEqual)
                 }
                 panic()
 
             case "!=":
-                if lhsType.flags.contains(.integer) {
+                if lhsType.isInteger {
                     return builder.buildICmp(lvalue, rvalue, .notEqual)
-                } else if lhsType.flags.contains(.float) {
+                } else if lhsType.isFloat {
                     return builder.buildFCmp(lvalue, rvalue, .orderedNotEqual)
                 }
                 return builder.buildICmp(lvalue, rvalue, .notEqual)
