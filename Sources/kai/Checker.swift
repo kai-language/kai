@@ -301,6 +301,7 @@ class Scope: PointerHashable {
     var isMainFile: Bool = false
 
     var owningNode: AstNode?
+    var owningEntity: Entity?
 
     var proc: ProcInfo?
     var isProc: Bool { return proc != nil }
@@ -433,7 +434,6 @@ struct Checker {
     */
 
     var procs: [ProcInfo] = []
-    var procStack: [Type] = []
 
     var delayedImports:  [DelayedDecl] = []
     var delayedLibaries: [DelayedDecl] = []
@@ -542,12 +542,18 @@ extension Checker {
             checkDecls(in: scope)
         }
 
-        for pi in procs {
+        var index = procs.startIndex
+
+        while procs.indices ~= index {
+            let pi = procs[index]
+
             let prevContext = context
 
             checkProcBody(pi)
 
             context = prevContext
+
+            index = procs.index(after: index)
         }
 
         // For now we should require compiler invocation on a single file.
@@ -739,7 +745,9 @@ extension Checker {
 
         for (i, e) in d.entities.enumerated() {
             let initExpr = d.initExprs[safe: i]
-            let rvalueType = initExpr.map({ checkExpr($0, typeHint: explicitType) })
+            let rvalueType = initExpr.map {
+                checkExpr($0, typeHint: explicitType, for: d)
+            }
 
             if let rvalueType = rvalueType, let explicitType = explicitType {
 
@@ -763,13 +771,6 @@ extension Checker {
             } else {
                 panic() // NOTE(vdka): No explicit type or rvalue
             }
-        }
-
-        // Provide the procInfo that *must* have been created with the decl it was created as part of
-        // TODO(vdka): Multiple litProcs as rvalues?
-        // `add, sub :: (l, r: int) -> int { return l + r }, (l, r: int) -> int { return l - r }`
-        if case .litProc(_, let body, _)? = d.initExprs.first, body.isStmt {
-            procs.last!.decl = d
         }
     }
 }
@@ -1075,7 +1076,7 @@ extension Checker {
     // MARK: Check Expressions
 
     @discardableResult
-    mutating func checkExpr(_ node: AstNode, typeHint: Type? = nil) -> Type {
+    mutating func checkExpr(_ node: AstNode, typeHint: Type? = nil, for decl: DeclInfo? = nil) -> Type {
         if let type = info.types[node] {
             return type
         }
@@ -1131,7 +1132,7 @@ extension Checker {
 
         case .litProc:
             type = checkProcLitType(node)
-            queueCheckProc(node, type: type, decl: nil) // no decl as this is an anon proc
+            queueCheckProc(node, type: type, decl: decl)
 
         case .exprParen(let node, _):
             type = checkExpr(node, typeHint: typeHint)
@@ -1453,6 +1454,7 @@ extension Checker {
         }
 
         guard let e = context.scope.lookup(name) else {
+            // TODO(vdka): `undef` specifier
             if name == "_" {
                 reportError("'_' cannot be used as a value", at: node)
             } else {
@@ -1559,6 +1561,7 @@ extension Checker {
         let s = pushScope(for: body, procInfo: pi)
         defer { popScope() }
         s.parent = pi.owningScope
+        s.owningEntity = pi.decl?.entities.first
 
         // Set the child scopes for each of the declared entities
         pi.decl?.entities.forEach({ $0.childScope = s })
@@ -1571,9 +1574,6 @@ extension Checker {
         for stmt in stmts {
             checkStmt(stmt)
         }
-
-        pushProc(pi.type)
-        defer { popProc() }
 
         // NOTE(vdka): There must be at least 1 return type or it's an error.
         guard let firstResult = results.first else {
@@ -1627,6 +1627,47 @@ extension Checker {
         self.context.scope = file.scope!
     }
 
+    func mangle(_ entity: Entity) {
+
+        var mangledName = ""
+
+        var owningEntities: [Entity] = []
+
+        var nextScope: Scope? = context.scope
+
+        while let scope = nextScope {
+            if let owningEntity = scope.owningEntity {
+                owningEntities.append(owningEntity)
+            }
+
+            nextScope = scope.parent
+        }
+
+        if owningEntities.count == 1,
+            let owningEntity = owningEntities.first,
+            case .importName = owningEntity.kind {
+
+            //
+            // Do not mangle entities from other files
+            //
+
+            entity.mangledName = entity.name
+            return
+        }
+
+        for owner in owningEntities.reversed() {
+            mangledName.append(owner.mangledName!)
+        }
+
+        // TODO(vdka): If the entity is `#foreign "symbolName"` use the symbolName as the mangled value
+
+        if !mangledName.isEmpty {
+            entity.mangledName = mangledName + "." + entity.name
+        } else {
+            entity.mangledName = entity.name
+        }
+    }
+
     @discardableResult
     mutating func addEntity(to scope: Scope, _ entity: Entity) -> Bool {
 
@@ -1638,6 +1679,8 @@ extension Checker {
             reportError(msg, at: entity.location)
             return false
         }
+
+        mangle(entity)
 
         return true
     }
@@ -1811,14 +1854,6 @@ extension Checker {
     mutating func queueCheckProc(_ litProcNode: AstNode, type: Type, decl: DeclInfo?) {
         let procInfo = ProcInfo(owningScope: context.scope, decl: decl, type: type, node: litProcNode)
         procs.append(procInfo)
-    }
-
-    mutating func pushProc(_ type: Type) {
-        procStack.append(type)
-    }
-
-    mutating func popProc() {
-        procStack.removeLast()
     }
 }
 
