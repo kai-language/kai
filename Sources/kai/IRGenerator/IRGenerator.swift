@@ -55,7 +55,7 @@ extension IRGenerator {
 
     func emitImported() throws {
         for entity in file.importedEntities {
-            let global = builder.addGlobal(entity.name, type: entity.type!.canonicalized())
+            let global = builder.addGlobal(entity.mangledName!, type: entity.type!.canonicalized())
             llvmPointers[entity] = global
         }
     }
@@ -129,7 +129,7 @@ extension IRGenerator {
                         return builder.buildLoad(val)
                     } else {
 
-                        let val = builder.addGlobal(entity.name, type: entity.type!.canonicalized())
+                        let val = builder.addGlobal(entity.mangledName!, type: entity.type!.canonicalized())
                         llvmPointers[entity] = val
 
                         return builder.buildLoad(val)
