@@ -6,7 +6,10 @@
 - [x] Support nested procedures
 - [x] Name mangling
 - [ ] Improve name mangling
-- [ ] Emit warning for _captured_ variables in nested procedures (currently emits bad llvm)
+- [ ] Emit error for _captured_ variables in nested procedures (currently emits bad llvm)
+- [ ] Emit error for unused variables (suggesting to use the `_` throw away instead)
+- [ ] Syntax for uninitialized variables
+- [ ] Switch statements
 - [ ] Support multiple returns
 - [ ] Support multiple assignment and multiple expressions
 
