@@ -3,8 +3,12 @@
 
 ## Current
 - [ ] Cast to different sizes emitting `trunc` or `ext`
-- [ ] Support nested procedures
-- [ ] Name mangling
+- [x] Support nested procedures
+- [x] Name mangling
+- [ ] Improve name mangling
+- [ ] Emit warning for _captured_ variables in nested procedures (currently emits bad llvm)
+- [ ] Support multiple returns
+- [ ] Support multiple assignment and multiple expressions
 
 ## Big Features
 - [ ] Structs
