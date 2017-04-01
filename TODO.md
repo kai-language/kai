@@ -14,7 +14,7 @@
 - [ ] Slices (maybe can just be a DynamicSizedArray)
 - [ ] Unions
 - [ ] Procedure Overloading
-- [ ] Automatic documentation generation (through --docs flag)
+- [x] Automatic documentation generation (through --emit-docs flag)
 - [ ] In Source Code Linker flags (#library)
 
 ## Small Features
