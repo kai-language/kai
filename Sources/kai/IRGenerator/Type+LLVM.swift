@@ -39,7 +39,7 @@ extension Type {
         case .alias(_, let type):
             return type.canonicalized()
 
-        case .pointer(let underlyingType):
+        case .pointer(let underlyingType), .nullablePointer(let underlyingType):
             return PointerType(pointee: underlyingType.canonicalized())
             
         case .proc(let params, let results, let isVariadic):

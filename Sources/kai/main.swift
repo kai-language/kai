@@ -277,6 +277,7 @@ try Operator.prefix("+")
 try Operator.prefix("!")
 try Operator.prefix("~")
 
+try Operator.prefix("^")
 try Operator.prefix("*")
 try Operator.prefix("&")
 

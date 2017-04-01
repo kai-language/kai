@@ -20,9 +20,34 @@ class Type: Equatable, CustomStringConvertible {
         case named(String)
         case alias(String, Type)
         case pointer(underlyingType: Type)
+        case nullablePointer(underlyingType: Type)
         case proc(params: [Entity], returns: [Type], isVariadic: Bool)
         case typeInfo(underlyingType: Type) // for now, in the future we will collapse this into the `struct` kind.
         case `struct`(String)
+    }
+
+    var info: Type {
+        return Type(kind: .typeInfo(underlyingType: self), flags: .none, width: MemoryLayout<Int>.size * 8, location: nil)
+    }
+
+    var underlyingType: Type? {
+        switch self.kind {
+        case .pointer(let underlyingType),
+             .nullablePointer(let underlyingType),
+             .typeInfo(let underlyingType):
+            return underlyingType
+
+        default:
+            return nil
+        }
+    }
+
+    static func pointer(to underlyingType: Type) -> Type {
+        return Type(kind: .pointer(underlyingType: underlyingType), flags: .pointer, width: MemoryLayout<Int>.size * 8, location: nil)
+    }
+
+    static func nullablePointer(to underlyingType: Type) -> Type {
+        return Type(kind: .nullablePointer(underlyingType: underlyingType), flags: .pointer, width: MemoryLayout<Int>.size * 8, location: nil)
     }
 
     struct Flag: OptionSet {
@@ -53,6 +78,9 @@ class Type: Equatable, CustomStringConvertible {
 
         case .pointer(let underlyingType):
             return "*\(underlyingType)"
+
+        case .nullablePointer(let underlyingType):
+            return "^\(underlyingType)"
 
         case .proc(let params, let results, let isVariadic):
             var str = "("
@@ -87,11 +115,6 @@ class Type: Equatable, CustomStringConvertible {
         case .typeInfo(let underlyingType):
             return "TypeInfo(\(underlyingType))"
         }
-    }
-
-    static func pointer(to type: Type) -> Type {
-
-        return Type(kind: .pointer(underlyingType: type), flags: .pointer, width: MemoryLayout<Int>.size * 8, location: nil)
     }
 
     var isOrdered: Bool {
@@ -134,6 +157,12 @@ class Type: Equatable, CustomStringConvertible {
         return flags.contains(.pointer)
     }
 
+    var isNullablePointer: Bool {
+        if case .nullablePointer = kind {
+            return true
+        }
+        return false
+    }
 
 
     static let builtin: [Type] = {
@@ -182,7 +211,8 @@ class Type: Equatable, CustomStringConvertible {
         }
     }()
 
-    static let typeInfo = Type(kind: .struct("TypeInfo"), flags: .none, width: 0, location: nil)
+    // TODO(vdka): Once we support structs define what these look like.
+    // static let typeInfo = Type(kind: .struct("TypeInfo"), flags: .none, width: 0, location: nil)
 
     static let void = builtin[0]
 
@@ -385,7 +415,7 @@ class Scope: PointerHashable {
             }
 
             let e = Entity(name: type.description, location: location, kind: .type(type), owningScope: s)
-            e.type = Type(kind: .typeInfo(underlyingType: type), flags: .none, width: MemoryLayout<Int>.size * 8, location: nil)
+            e.type = type.info
             s.insert(e)
         }
 
@@ -987,6 +1017,10 @@ extension Checker {
             let underlyingType = lookupType(expr)
             return Type.pointer(to: underlyingType)
 
+        case .exprUnary("^", let expr, _):
+            let underlyingType = lookupType(expr)
+            return Type.nullablePointer(to: underlyingType)
+
         default:
             reportError("'\(n)' cannot be used as a type", at: n)
             return Type.invalid
@@ -1119,11 +1153,11 @@ extension Checker {
             let lhsType = checkExpr(lvalue, typeHint: rhsType)
 
             guard canImplicitlyConvert(rhsType, to: lhsType) else {
-                if rvalue.isLit {
-                    attemptLiteralConstraint(rvalue, to: lhsType)
-                }
                 reportError("Cannot use \(rvalue) (type \(rhsType)) as type \(lhsType) in assignment", at: rvalue)
                 return
+            }
+            if rvalue.isLit || rvalue.isNil {
+                attemptLiteralConstraint(rvalue, to: lhsType)
             }
         }
     }
@@ -1215,7 +1249,8 @@ extension Checker {
                     return CallKind.invalid
 
                 case .alias(_, let underlyingType),
-                     .pointer(let underlyingType):
+                     .pointer(let underlyingType),
+                     .nullablePointer(let underlyingType):
                     return callKind(for: underlyingType)
 
                 case .proc(let params, let results, let isVariadic):
@@ -1371,14 +1406,28 @@ extension Checker {
 
         case "*":
             let operandType = checkExpr(expr, typeHint: typeHint)
-            
-            guard case .pointer(let underlyingType) = operandType.kind else {
+
+            switch operandType.kind {
+            case .pointer(let underlyingType),
+                 .nullablePointer(let underlyingType):
+
+                return underlyingType
+
+            case .typeInfo(let underlyingType):
+                return Type.pointer(to: underlyingType).info
+
+            default:
                 reportError("Undefined unary operator `\(op)` for `\(operandType)`", at: location)
                 return Type.invalid
             }
-            
-            return underlyingType
-            
+
+        case "^":
+            let operandType = checkExpr(expr, typeHint: typeHint)
+            guard case .typeInfo(let underlyingType) = operandType.kind else {
+                panic() // TODO(vdka): Error out.
+            }
+            return Type.nullablePointer(to: underlyingType).info
+
         default:
             reportError("Undefined unary operation '\(op)'", at: location)
             return Type.invalid
@@ -1549,17 +1598,25 @@ extension Checker {
         }
     }
 
-    mutating func checkExprCast(_ expr: AstNode, to type: Type) -> Type {
+    mutating func checkExprCast(_ expr: AstNode, to targetType: Type) -> Type {
 
         // NOTE(vdka): provide the target type as the hint, just incase we can _hint_ our way there
-        let exprType = checkExpr(expr, typeHint: type)
+        let exprType = checkExpr(expr, typeHint: targetType)
 
         //
         // If we can already implicitly convert then we don't need to check
         // attempt to constrain the exprType to be `type`
-        if canImplicitlyConvert(exprType, to: type) {
-            attemptLiteralConstraint(expr, to: type)
-            return type
+        //
+        if canImplicitlyConvert(exprType, to: targetType) {
+            attemptLiteralConstraint(expr, to: targetType)
+            return targetType
+        }
+
+        if case .pointer(let exprUnderlyingType) = exprType.kind,
+            case .nullablePointer(let targetUnderlyingType) = targetType.kind,
+            canImplicitlyConvert(exprUnderlyingType, to: targetUnderlyingType) {
+
+            return targetType
         }
 
         //
@@ -1567,11 +1624,11 @@ extension Checker {
         //
 
         // IMPORTANT FIXME(vdka): Truncate or Ext
-        guard type.width == exprType.width else {
+        guard targetType.width == exprType.width else {
             unimplemented("Casting to types of different size")
         }
 
-        return type
+        return targetType
     }
 
     mutating func checkProcBody(_ pi: ProcInfo) {
@@ -1817,6 +1874,9 @@ extension Checker {
             if type.isString && target.isString {
                 return true
             }
+            if type == Type.unconstrNil && target.isNullablePointer {
+                return true
+            }
 
         } else if type.isBooleanesque && target.isBoolean {
             // Numeric types can be converted to booleans through truncation
@@ -1883,6 +1943,13 @@ extension Checker {
 
         case .litString:
             guard type.isString else {
+                return
+            }
+
+            info.types[node] = type
+
+        case .ident("nil", _):
+            guard type.isNullablePointer else {
                 return
             }
 

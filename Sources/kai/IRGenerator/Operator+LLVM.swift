@@ -44,22 +44,27 @@ extension IRGenerator {
                 }
 
             case "*":
-                guard case .pointer(let underlyingType) = type.kind else {
-                    preconditionFailure()
-                }
-                
-                switch underlyingType.kind {
-                case .alias(_, _):
-                    unimplemented()
-                    
-                case .named:
-                    let val = emitStmt(for: expr)
-                    return builder.buildLoad(val)
-                
+
+                switch type.kind {
+                case .pointer(let underlyingType),
+                     .nullablePointer(let underlyingType):
+
+                    switch underlyingType.kind {
+                    case .alias(_, _):
+                        unimplemented()
+
+                    case .named:
+                        let val = emitStmt(for: expr)
+                        return builder.buildLoad(val)
+
+                    default:
+                        preconditionFailure()
+                    }
+
                 default:
                     preconditionFailure()
                 }
-                
+
             default:
                 unimplemented("Unary Operator '\(op)'")
             }

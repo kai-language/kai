@@ -111,6 +111,10 @@ extension IRGenerator {
         case .ident("false", _):
             return IntType.int1.constant(0)
 
+        case .ident("nil", _):
+            let type = checker.info.types[node]!
+            return type.canonicalized().constPointerNull()
+
         case .ident(let identifier, _):
             let entity = context.scope.lookup(identifier)!
             return builder.buildLoad(llvmPointers[entity]!)

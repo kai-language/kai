@@ -2,8 +2,30 @@
 
 print :: (string, ..any) -> void #foreign libc "printf"
 
+// Makes ☠️ pointers
+makePointer :: () -> *i64 {
+    a : i64 = 1234
+    return &a
+}
+
 // Program entry point
 main :: () -> void {
+
+    x := 8
+    y := &x
+
+    *y = 9
+
+    z := (u64)(x)
+    j := (^i64)(y)
+
+    print("y: %d\n", *y)
+    print("j: %d\n", *j)
+
+    // will segfault
+    j = nil
+    // print("j: %d\n", *j)
+
     // Nested procedure
     foo :: (n: int) -> void {
         n += 5

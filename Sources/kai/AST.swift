@@ -203,6 +203,13 @@ extension AstNode {
         }
     }
 
+    var isNil: Bool {
+        if case .ident("nil", _) = self {
+            return true
+        }
+        return false
+    }
+
     var isProcLit: Bool {
         switch self {
         case .litProc:
