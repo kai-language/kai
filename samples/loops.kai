@@ -1,0 +1,16 @@
+#library "c" libc
+
+print :: (string, ..any) -> void #foreign libc "printf"
+length :: (string) -> u64 #foreign libc "strlen"
+
+main :: () -> void {
+    name := "Brett"
+    len := length(name)
+
+    strPtr : *i8 = name
+
+    print("The string is `%s`\n", name)
+    print("The string is `%d` bytes long.\n", len)
+    print("The first byte is `%c`\n", *strPtr)
+}
+

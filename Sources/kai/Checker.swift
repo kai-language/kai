@@ -163,6 +163,18 @@ class Type: Equatable, CustomStringConvertible {
         }
         return false
     }
+    
+    var isI8Pointer: Bool {
+        if
+            case .pointer(let underlyingType) = kind,
+            underlyingType.flags.contains(.integer),
+            underlyingType.width == 8
+        {
+            return true
+        }
+        
+        return false
+    }
 
 
     static let builtin: [Type] = {
@@ -1872,6 +1884,9 @@ extension Checker {
                 return true
             }
             if type.isString && target.isString {
+                return true
+            }
+            if type.isString && target.isI8Pointer {
                 return true
             }
             if type == Type.unconstrNil && target.isNullablePointer {

@@ -201,6 +201,7 @@ struct Compiler {
         }
 
         startTiming("Code Generation")
+        var objects: [String] = []
         for file in files {
 
             let module = try IRGenerator.build(for: file, checker: checker)
@@ -223,11 +224,27 @@ struct Compiler {
 
             let objFilename = String(file.fullpath.split(separator: "/").last!.characters.dropLast(4))
                 .appending(".o")
-
+            let objAbsoluteFilename = [ buildPath, objFilename ].joined(separator: "/")
+            objects.append(objAbsoluteFilename)
+            
             try TargetMachine().emitToFile(module: module, type: .object, path: buildPath + "/" + objFilename)
         }
         endTiming()
 
+        startTiming("Linking")
+        let clang = getClangPath()
+        var args = [
+            "-l", "c",
+            "-o", "main"
+        ]
+        
+        for object in objects {
+            args.append(object)
+        }
+        
+        shell(path: clang, args: args)
+        endTiming()
+        
         if options.contains("emit-time") {
             print("\n === Timings === \n")
             var total = 0.0
