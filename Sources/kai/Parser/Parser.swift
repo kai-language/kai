@@ -643,9 +643,27 @@ extension Parser {
         if case .operator("*") = token {
             let (_, location) = try consume()
 
-            let typeName = try expression(10) // Assignment is binding power 10
+            let type = try expression(10) // Assignment is binding power 10
 
-            return AstNode.exprUnary("*", expr: typeName, location ..< typeName.endLocation)
+            return AstNode.typePointer(type: type, location ..< type.endLocation)
+        }
+
+        if case .operator("^") = token {
+            let (_, location) = try consume()
+
+            let type = try expression(10) // Assignment is binding power 10
+
+            return AstNode.typeNullablePointer(type: type, location ..< type.endLocation)
+        }
+
+        if case .lbrack = token {
+            let (_, lbrack) = try consume()
+            let count = try expression()
+            try consume(.rbrack)
+
+            let type = try expression(10)
+
+            return AstNode.typeArray(count: count, type: type, lbrack ..< type.endLocation)
         }
 
         let prevState = state

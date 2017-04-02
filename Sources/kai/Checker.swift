@@ -43,10 +43,16 @@ class Type: Equatable, CustomStringConvertible {
     }
 
     static func pointer(to underlyingType: Type) -> Type {
+        if underlyingType == Type.invalid {
+            return Type.invalid
+        }
         return Type(kind: .pointer(underlyingType: underlyingType), flags: .pointer, width: MemoryLayout<Int>.size * 8, location: nil)
     }
 
     static func nullablePointer(to underlyingType: Type) -> Type {
+        if underlyingType == Type.invalid {
+            return Type.invalid
+        }
         return Type(kind: .nullablePointer(underlyingType: underlyingType), flags: .pointer, width: MemoryLayout<Int>.size * 8, location: nil)
     }
 
@@ -1012,12 +1018,12 @@ extension Checker {
             _ = receiverEntity
             unimplemented("Child types")
 
-        case .exprUnary("*", let expr, _):
-            let underlyingType = lookupType(expr)
+        case .typePointer(let type, _):
+            let underlyingType = lookupType(type)
             return Type.pointer(to: underlyingType)
 
-        case .exprUnary("^", let expr, _):
-            let underlyingType = lookupType(expr)
+        case .typeNullablePointer(let type, _):
+            let underlyingType = lookupType(type)
             return Type.nullablePointer(to: underlyingType)
 
         default:

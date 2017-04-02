@@ -12,6 +12,8 @@
 - [ ] Switch statements
 - [ ] Support multiple returns
 - [ ] Support multiple assignment and multiple expressions
+- [ ] Require initializer for decls of type pointer
+- [ ] Check for usage of pointers after `free` and error
 
 ## Big Features
 - [ ] Structs
