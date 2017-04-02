@@ -54,6 +54,7 @@ indirect enum AstNode {
     case declImport(path: AstNode, fullpath: String?, importName: AstNode?, SourceRange)
     case declLibrary(path: AstNode, fullpath: String?, libName: AstNode?, SourceRange)
 
+    case exprSubscript(receiver: AstNode, value: AstNode, SourceRange)
     case exprCall(receiver: AstNode, args: [AstNode], SourceRange)
     case exprParen(AstNode, SourceRange)
     case exprUnary(String, expr: AstNode, SourceRange)
@@ -135,6 +136,7 @@ extension AstNode {
              .exprParen(_, let location),
              .exprSelector(_, _, let location),
              .exprCall(_, _, let location),
+             .exprSubscript(_, _, let location),
              .exprTernary(_, _, _, let location),
              .stmtEmpty(let location),
              .stmtAssign(_, _, _, let location),
@@ -452,6 +454,9 @@ extension AstNode: CustomStringConvertible {
         case .exprCall(let receiver, let args, _):
             return "\(receiver)(\(args.commaSeparated))"
 
+        case .exprSubscript(let receiver, let value, _):
+            return "\(receiver)[\(value)]"
+
         case .exprParen(let expr, _):
             return "(\(expr))"
 
@@ -545,6 +550,7 @@ extension AstNode {
         case .exprParen: return "exprParen"
         case .exprSelector: return "exprSelector"
         case .exprCall: return "exprCall"
+        case .exprSubscript: return "exprSubscript"
         case .exprTernary: return "exprTernary"
         case .stmtEmpty: return "stmtEmpty"
         case .stmtAssign: return "stmtAssign"
@@ -651,6 +657,10 @@ extension AstNode {
         case .exprCall(let receiver, let args, _):
             unlabeled.append(receiver.description)
             children.append(contentsOf: args)
+
+        case .exprSubscript(let receiver, let value, _):
+            unlabeled.append(receiver.description)
+            children.append(value)
 
         case .exprTernary(let cond, let trueBranch, let falseBranch, _):
             children.append(cond)
@@ -889,6 +899,10 @@ extension AstNode {
         case .exprCall(let receiver, let args, _):
             unlabeled.append(receiver.description)
             children.append(contentsOf: args)
+
+        case .exprSubscript(let receiver, let value, _):
+            unlabeled.append(receiver.description)
+            children.append(value)
 
         case .exprTernary(let cond, let trueBranch, let falseBranch, _):
             children.append(cond)

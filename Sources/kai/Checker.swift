@@ -1395,6 +1395,28 @@ extension Checker {
                 reportError("Cannot call expr of type \(type)", at: node)
             }
 
+        case .exprSubscript(let receiver, let value, _):
+            let receiverType = checkExpr(receiver, typeHint: nil)
+
+            if receiverType == Type.invalid {
+                return Type.invalid
+            }
+
+            guard case .array(let underlyingType, _) = receiverType.kind else {
+                reportError("Cannot subscript non array type", at: receiver)
+                return Type.invalid
+            }
+
+            // TODO(vdka): Use some sort of `offset` type?
+            let valueType = checkExpr(value, typeHint: Type.int)
+
+            guard canImplicitlyConvert(valueType, to: Type.int) else {
+                reportError("Cannot subscript array with type \(valueType)", at: value)
+                return Type.invalid
+            }
+
+            return underlyingType
+
         case .exprSelector(let receiver, let member, _):
 
             //

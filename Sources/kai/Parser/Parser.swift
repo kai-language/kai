@@ -509,6 +509,19 @@ extension Parser {
             let (_, rparen) = try consume(.rparen)
             return AstNode.exprCall(receiver: lvalue, args: args, lparen ..< rparen)
 
+        case .lbrack:
+            let (_, lbrack) = try consume(.lbrack)
+            if case (.rbrack, let rbrack)? = try lexer.peek() {
+                try consume(.rbrack)
+                reportError("Expected subscript value", at: lbrack)
+                return AstNode.invalid(lbrack ..< rbrack)
+            }
+
+            let value = try expression()
+
+            let (_, rbrack) = try consume(.rbrack)
+            return AstNode.exprSubscript(receiver: lvalue, value: value, lbrack ..< rbrack)
+
         case .colon:
             try consume(.colon)
             switch try lexer.peek()?.kind {
