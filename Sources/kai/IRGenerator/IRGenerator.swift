@@ -15,7 +15,7 @@ class IRGenerator {
 
     class Context {
 
-        var currentProcedure: ProcedurePointer?
+        var currentProcedure: Procedure?
 
         var scope: Scope = .universal
 
@@ -290,7 +290,8 @@ extension IRGenerator {
         guard case let .declValue(_, names, _, values, _) = node else {
             preconditionFailure()
         }
-        
+
+        assert(names.count == 1)
         // TODO(Brett): multiple declarations
         let name = names[0]
         let value = values.first
@@ -307,7 +308,7 @@ extension IRGenerator {
             break
         }
         
-        let canonicalizedType = type.canonicalized()
+        let irType = type.canonicalized()
         
         let defaultValue: IRValue?
         if let value = value {
@@ -317,15 +318,10 @@ extension IRGenerator {
         }
         
         let pointer: IRValue
-        if let currentProcedure = context.currentProcedure?.pointer {
-            pointer = emitEntryBlockAlloca(
-                in: currentProcedure,
-                type: canonicalizedType,
-                named: name.identifier,
-                default: defaultValue
-            )
+        if let function = context.currentProcedure?.llvm {
+            pointer = emitEntryBlockAlloca(in: function, type: irType, named: name.identifier, default: defaultValue)
         } else {
-            pointer = emitGlobal(name: name.identifier, type: canonicalizedType, value: defaultValue)
+            pointer = emitGlobal(name: name.identifier, type: irType, value: defaultValue)
         }
         
         llvmPointers[entity] = pointer

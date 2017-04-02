@@ -1,0 +1,22 @@
+
+#library "c" libc
+
+print :: (string, ..any) -> void #foreign libc "printf"
+
+main :: () -> void {
+
+    foo :: () -> u8 {
+        return 1
+    }
+
+    bar :: () -> u8, u8 {
+        return 2, 3
+    }
+
+    a := foo()
+    print("a: %d\n", a)
+
+    b1, b2 := bar()
+    print("b1: %d, b2: %d\n", b1, b2)
+}
+

@@ -69,7 +69,15 @@ main :: () -> void {
 
         x : [5]int = { 5, 6, 3, 0, 0 }
 
-        y := x[3]
+        //y := x[3]
+
+        print("Done")
+    }
+
+    {
+        addFive :: (x: int, y: int) -> int, int {
+            return x + 5, y + 5
+        }
     }
 }
 

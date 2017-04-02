@@ -1,22 +1,19 @@
 import LLVM
 
-struct ProcedurePointer {
+class Procedure {
     let scope: Scope
-    let pointer: Function
-    var args: [IRValue]
-    let returnType: IRType
+    let llvm: Function
+    var type: FunctionType
+    var returnValue: IRValue?
     var deferBlock: BasicBlock?
     var returnBlock: BasicBlock
-    var returnValuePointer: IRValue?
 
-    init(scope: Scope, pointer: Function, args: [IRValue], returnType: IRType, returnBlock: BasicBlock, returnValuePointer: IRValue?) {
+    init(scope: Scope, llvm: Function, type: FunctionType, returnBlock: BasicBlock, returnValue: IRValue?) {
         self.scope = scope
-        self.pointer = pointer
-        self.args = args
-        self.returnType = returnType
-        self.deferBlock = nil
+        self.llvm = llvm
+        self.type = type
         self.returnBlock = returnBlock
-        self.returnValuePointer = returnValuePointer
+        self.returnValue = returnValue
     }
 }
 
@@ -114,27 +111,18 @@ extension IRGenerator {
         let returnBlock = proc.appendBasicBlock(named: "return")
 
         let type = checker.info.types[node]!
+        let irType = type.canonicalized() as! FunctionType
 
         guard case .proc(let params, let results, _) = type.kind else {
             panic()
-        }
-
-        let resultType: IRType
-
-        if results.count == 1, let firstResult = results.first {
-            resultType = firstResult.canonicalized()
-        } else {
-            let resultIrTypes = results.map({ $0.canonicalized() })
-
-            resultType = StructType(elementTypes: resultIrTypes)
         }
 
         var resultPtr: IRValue? = nil
         
         builder.positionAtEnd(of: entryBlock)
         
-        if !(resultType is VoidType) {
-            resultPtr = emitEntryBlockAlloca(in: proc, type: resultType, named: "result")
+        if !(irType.returnType is VoidType) {
+            resultPtr = emitEntryBlockAlloca(in: proc, type: irType.returnType, named: "result")
         }
         
         var args: [IRValue] = []
@@ -143,28 +131,16 @@ extension IRGenerator {
             // TODO(Brett): values
             
             let arg = proc.parameter(at: i)!
-            let argPointer = emitEntryBlockAlloca(
-                in: proc,
-                type: arg.type,
-                named: entity.mangledName!,
-                default: arg
-            )
+            let argPointer = emitEntryBlockAlloca(in: proc, type: arg.type, named: entity.name)
             
             llvmPointers[param] = argPointer
             args.append(argPointer)
         }
-        
-        let procPointer = ProcedurePointer(
-            scope: scope,
-            pointer: proc,
-            args: args,
-            returnType: resultType,
-            returnBlock: returnBlock,
-            returnValuePointer: resultPtr
-        )
+
+        let procedure = Procedure(scope: scope, llvm: proc, type: irType, returnBlock: returnBlock, returnValue: resultPtr)
         
         let previousProcPointer = context.currentProcedure
-        context.currentProcedure = procPointer
+        context.currentProcedure = procedure
         defer {
             context.currentProcedure = previousProcPointer
         }
@@ -184,7 +160,7 @@ extension IRGenerator {
         returnBlock.moveAfter(proc.lastBlock!)
         builder.positionAtEnd(of: returnBlock)
         
-        if resultType is VoidType {
+        if irType.returnType is VoidType {
             builder.buildRetVoid()
         } else {
             let result = builder.buildLoad(resultPtr!, name: "result")
@@ -196,25 +172,31 @@ extension IRGenerator {
 
     func emitReturnStmt(for node: AstNode) -> IRValue {
         guard let currentProcedure = context.currentProcedure else {
-            // TODO(vdka): This will be fine for instances such as scopes.
             fatalError("Return statement outside of procedure")
         }
 
         guard case .stmtReturn(let values, _) = node else {
-            preconditionFailure()
+            panic()
         }
 
-        unimplemented("Multiple returns", if: values.count > 1)
+        if values.count == 1, let value = values.first {
+            let irValue = emitStmt(for: value)
 
-        if values.count > 0 {
-            let value = emitStmt(for: values[0])
-            
-            if !(value is VoidType) {
-                builder.buildStore(value, to: currentProcedure.returnValuePointer!)
+            if !(irValue is VoidType) {
+                builder.buildStore(irValue, to: currentProcedure.returnValue!)
             }
         }
-        
-        
+        if values.count > 1 {
+            var retVal = builder.buildLoad(currentProcedure.returnValue!)
+            for (index, value) in values.enumerated() {
+                let irValue = emitStmt(for: value)
+                retVal = builder
+                    .buildInsertValue(aggregate: retVal, element: irValue, index: index)
+            }
+
+            builder.buildStore(retVal, to: currentProcedure.returnValue!)
+        }
+
         builder.buildBr(currentProcedure.returnBlock)
         return VoidType().null()
     }

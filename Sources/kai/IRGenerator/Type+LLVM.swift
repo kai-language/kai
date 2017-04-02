@@ -54,12 +54,25 @@ extension Type {
             } else {
                 paramTypes = params.map({ $0.type!.canonicalized() })
             }
-            unimplemented("Multiple returns", if: results.count != 1)
-            let resultType = results.first!.canonicalized()
+
+            let resultType: IRType
+
+            if results.count == 1, let firstResult = results.first {
+
+                resultType = firstResult.canonicalized()
+            } else {
+
+                let resultIrTypes = results.map({ $0.canonicalized() })
+                resultType = StructType(elementTypes: resultIrTypes)
+            }
+
             return FunctionType(argTypes: paramTypes, returnType: resultType, isVarArg: isVariadic)
             
         case .struct:
             unimplemented("Structures")
+
+        case .tuple(let types):
+            return StructType(elementTypes: types.map({ $0.canonicalized() }))
 
         case .typeInfo:
             unimplemented("Type info")

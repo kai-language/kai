@@ -25,6 +25,9 @@ class Type: Equatable, CustomStringConvertible {
         case proc(params: [Entity], returns: [Type], isVariadic: Bool)
         case typeInfo(underlyingType: Type) // for now, in the future we will collapse this into the `struct` kind.
         case `struct`(String)
+
+        /// Only used for multiple returns.
+        case tuple([Type])
     }
 
     var info: Type {
@@ -64,6 +67,11 @@ class Type: Equatable, CustomStringConvertible {
         }
         // NOTE(vdka): Size may not be correct with alignments and paddings?
         return Type(kind: .array(underlyingType: underlyingType, count: count), flags: .none, width: underlyingType.width * count, location: nil)
+    }
+
+    static func tuple(of types: [Type]) -> Type {
+        // NOTE(vdka): Size may not be correct with alignments and paddings?
+        return Type(kind: .tuple(types), flags: .none, width: types.reduce(0, { $0.0 + $0.1.width }), location: nil)
     }
 
     struct Flag: OptionSet {
@@ -131,6 +139,9 @@ class Type: Equatable, CustomStringConvertible {
         case .struct(let name):
             return name
 
+        case .tuple(let types):
+            return "(" + types.map({ $0.description }).joined(separator: ", ") + ")"
+
         case .typeInfo(let underlyingType):
             return "TypeInfo(\(underlyingType))"
         }
@@ -185,6 +196,20 @@ class Type: Equatable, CustomStringConvertible {
 
     var isArray: Bool {
         if case .array = kind {
+            return true
+        }
+        return false
+    }
+
+    var isTuple: Bool {
+        if case .tuple = kind {
+            return true
+        }
+        return false
+    }
+
+    var isProc: Bool {
+        if case .proc = kind {
             return true
         }
         return false
@@ -693,7 +718,6 @@ extension Checker {
                     entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime, owningScope: context.scope)
                     declInfo.initExprs.append(value)
                 } else {
-                    assert(values.isEmpty)
                     entity = Entity(identifier: name, kind: isRuntime ? .runtime : .compiletime, owningScope: context.scope)
                 }
 
@@ -840,33 +864,56 @@ extension Checker {
             return
         }
 
-        for (i, e) in d.entities.enumerated() {
-            let initExpr = d.initExprs[safe: i]
-            let rvalueType = initExpr.map {
-                checkExpr($0, typeHint: explicitType, for: d)
-            }
+        if d.initExprs.count == 1, d.entities.count > 1, let initExpr = d.initExprs.first, case .exprCall = initExpr {
 
-            if let rvalueType = rvalueType, let explicitType = explicitType {
+            let resultType = checkExpr(initExpr)
 
-                // if there is an explicit type ensure we do not conflict with it
-                if !canImplicitlyConvert(rvalueType, to: explicitType) {
-                    reportError("Cannot implicitly convert type '\(rvalueType)' to type '\(explicitType)'", at: d.typeExpr!)
-                    e.type = Type.invalid
-                    continue
+            if case .tuple(let types) = resultType.kind {
+                guard d.entities.count == types.count else {
+                    reportError("Arity mismatch", at: initExpr) // FIXME(vdka): @errors qualtiy
+                    for e in d.entities {
+                        e.type = Type.invalid
+                    }
+                    return
                 }
 
-                e.type = explicitType
-
-                attemptLiteralConstraint(initExpr!, to: explicitType)
-
-            } else if let explicitType = explicitType {
-
-                e.type = explicitType
-            } else if let rvalueType = rvalueType {
-
-                e.type = rvalueType
+                for (e, t) in zip(d.entities, types) {
+                    e.type = t
+                }
             } else {
-                panic() // NOTE(vdka): No explicit type or rvalue
+                reportError("Arity mismatch too many identifiers on lhs", at: initExpr)
+            }
+
+        } else {
+
+            for (i, e) in d.entities.enumerated() {
+                let initExpr = d.initExprs[safe: i]
+                let rvalueType = initExpr.map {
+                    checkExpr($0, typeHint: explicitType, for: d)
+                }
+
+                if let rvalueType = rvalueType, let explicitType = explicitType {
+
+                    // if there is an explicit type ensure we do not conflict with it
+                    if !canImplicitlyConvert(rvalueType, to: explicitType) {
+                        reportError("Cannot implicitly convert type '\(rvalueType)' to type '\(explicitType)'", at: d.typeExpr!)
+                        e.type = Type.invalid
+                        continue
+                    }
+
+                    e.type = explicitType
+
+                    attemptLiteralConstraint(initExpr!, to: explicitType)
+
+                } else if let explicitType = explicitType {
+
+                    e.type = explicitType
+                } else if let rvalueType = rvalueType {
+
+                    e.type = rvalueType
+                } else {
+                    panic() // NOTE(vdka): No explicit type or rvalue
+                }
             }
         }
     }
@@ -989,6 +1036,26 @@ extension Checker {
         let type = Type(kind: .proc(params: paramEntities, returns: returnTypes, isVariadic: isVariadic), flags: .none, width: 0, location: nil)
 
         return type
+    }
+
+    mutating func lookupEntity(_ node: AstNode) -> Entity? {
+
+        switch node {
+        case .ident(let ident, _):
+            return context.scope.lookup(ident)
+
+        case .exprSelector(let receiver, member: let member, _):
+            guard let receiverScope = lookupEntity(receiver)?.childScope else {
+                return nil
+            }
+            let prevScope = context.scope
+            defer { context.scope = prevScope }
+            context.scope = receiverScope
+            return lookupEntity(member)
+
+        default:
+            return nil
+        }
     }
 
     /// Use this when you expect the node you pass in to be a type
@@ -1310,7 +1377,7 @@ extension Checker {
             func callKind(for type: Type) -> CallKind {
 
                 switch type.kind {
-                case .named, .struct, .array:
+                case .named, .struct, .array, .tuple:
                     return CallKind.invalid
 
                 case .alias(_, let underlyingType),
@@ -1370,11 +1437,11 @@ extension Checker {
                     }
                 }
 
-                guard resultTypes.count == 1, let firstResultType = resultTypes.first else {
-                    unimplemented("Type checking for calling procedures with multiple returns")
+                if resultTypes.count == 1, let resultType = resultTypes.first {
+                    type = resultType
+                } else {
+                    type = Type.tuple(of: resultTypes)
                 }
-
-                type = firstResultType
 
             case .cast(let targetType):
 
@@ -1419,30 +1486,14 @@ extension Checker {
 
         case .exprSelector(let receiver, let member, _):
 
-            //
-            // TODO(vdka): This is temp code just to make importName entity have their members accessible. 
-            //   Should be fine since we don't currently have structures of any sort.
-            //
-
-            guard let fileEntity = context.scope.lookup(receiver.identifier) else {
-                panic() // NOTE: The 'tempness' of this code. Only works for importName entities
-            }
-
-            guard case .importName = fileEntity.kind else {
-                panic()
-            }
-
-            guard case .ident(let memberName, _) = member else {
-                panic()
-            }
-
-            guard let scopeEntity = fileEntity.childScope!.lookup(memberName) else {
-                reportError("Member '\(memberName)' not found in file scope", at: member)
+            guard let entity = lookupEntity(node) else {
+                // TODO(vdka): @errors quality
+                reportError("Cannot find entity \(member) in scope of \(receiver)", at: node)
                 return Type.invalid
             }
 
-            checkDecl(of: scopeEntity)
-            type = scopeEntity.type!
+            checkDecl(of: entity)
+            type = entity.type!
 
         default:
             panic(node)
@@ -1909,6 +1960,21 @@ extension Checker {
             } else if names.count > values.count && values.count != 1 {
                 reportError("Arity mismatch, missing expressions for ident", at: names[values.count])
                 return false
+            } else if values.count == 1, let value = values.first {
+                switch value {
+                case .exprCall(let receiver, _, _):
+                    guard let procEntity = lookupEntity(receiver) else {
+                        return true // handle error later
+                    }
+                    guard case .proc(_, let results, _) = procEntity.type!.kind else {
+                        return true // handle error later
+                    }
+
+                    return results.count == names.count
+
+                default:
+                    return true // handle error later
+                }
             }
         }
         

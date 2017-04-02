@@ -15,6 +15,9 @@
 - [ ] Require initializer for decls of type pointer
 - [ ] Check for usage of pointers after `free` and error
 - [ ] Errors for when more than 1 compound literal appears as a rhs
+- [ ] Fix comment parsing error by adding a comment AstNode
+    - `{ /* */ }` fails to parse
+- [ ] Better arity mismatch Errors (especially in checkDecl)
 
 ## Big Features
 - [ ] Structs
