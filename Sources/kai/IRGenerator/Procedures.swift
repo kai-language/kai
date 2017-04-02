@@ -76,7 +76,7 @@ extension IRGenerator {
 
     @discardableResult
     func emitProcedureDefinition(_ identifier: AstNode, _ node: AstNode) -> Function {
-        guard case let .litProc(type, body, _) = node, case let .typeProc(params, results, _) = type else {
+        guard case let .litProc(_, body, _) = node else {
             preconditionFailure()
         }
 
@@ -112,38 +112,34 @@ extension IRGenerator {
         
         let entryBlock = proc.appendBasicBlock(named: "entry")
         let returnBlock = proc.appendBasicBlock(named: "return")
-        
-        // TODO(Brett): multiple returns
-        let result = results[0]
-        let returnType: IRType
-        
-        switch result {
-        // TODO(Brett, vdka): is this hacky?
-        case .exprUnary("*", expr: let underlyingTypeIden, _):
-            // NOTE(Brett): this _may_ break on nested pointers
-            let underlyingType = context.scope.lookup(underlyingTypeIden.identifier)!
-            returnType = PointerType(pointee: underlyingType.canonicalized())
-            
-        default:
-            returnType = context.scope.lookup(results[0].identifier)!.canonicalized()
+
+        let type = checker.info.types[node]!
+
+        guard case .proc(let params, let results, _) = type.kind else {
+            panic()
+        }
+
+        let resultType: IRType
+
+        if results.count == 1, let firstResult = results.first {
+            resultType = firstResult.canonicalized()
+        } else {
+            let resultIrTypes = results.map({ $0.canonicalized() })
+
+            resultType = StructType(elementTypes: resultIrTypes)
         }
 
         var resultPtr: IRValue? = nil
         
         builder.positionAtEnd(of: entryBlock)
         
-        if !(returnType is VoidType) {
-            resultPtr = emitEntryBlockAlloca(in: proc, type: returnType, named: "result")
+        if !(resultType is VoidType) {
+            resultPtr = emitEntryBlockAlloca(in: proc, type: resultType, named: "result")
         }
         
         var args: [IRValue] = []
         for (i, param) in params.enumerated() {
-            guard case let .declValue(_, names, _, _, _) = param else {
-                preconditionFailure()
-            }
-            
-            let entity = checker.info.definitions[names[0]]!
-            
+
             // TODO(Brett): values
             
             let arg = proc.parameter(at: i)!
@@ -154,7 +150,7 @@ extension IRGenerator {
                 default: arg
             )
             
-            llvmPointers[entity] = argPointer
+            llvmPointers[param] = argPointer
             args.append(argPointer)
         }
         
@@ -162,7 +158,7 @@ extension IRGenerator {
             scope: scope,
             pointer: proc,
             args: args,
-            returnType: returnType,
+            returnType: resultType,
             returnBlock: returnBlock,
             returnValuePointer: resultPtr
         )
@@ -172,8 +168,13 @@ extension IRGenerator {
         defer {
             context.currentProcedure = previousProcPointer
         }
-        
-        emitStmt(for: body)
+
+        guard case .stmtBlock(let stmts, _) = body else {
+            panic()
+        }
+        for stmt in stmts {
+            emitStmt(for: stmt)
+        }
         
         let insert = builder.insertBlock!
         if !insert.hasTerminatingInstruction {
@@ -183,7 +184,7 @@ extension IRGenerator {
         returnBlock.moveAfter(proc.lastBlock!)
         builder.positionAtEnd(of: returnBlock)
         
-        if returnType is VoidType {
+        if resultType is VoidType {
             builder.buildRetVoid()
         } else {
             let result = builder.buildLoad(resultPtr!, name: "result")
