@@ -4,13 +4,11 @@ print :: (string, ..any) -> void #foreign libc "printf"
 length :: (string) -> u64 #foreign libc "strlen"
 
 main :: () -> void {
-    name := "Brett"
-    len := length(name)
+    array : [5]int = { 1, 2, 3, 4, 5 }
 
-    strPtr : *u8 = name
+    for i := 0; i < 5; i += 1 {
+        print("array[%d] = %d\n", i, array[i])
+    }
 
-    print("The string is `%s`\n", name)
-    print("The string is `%d` bytes long.\n", len)
-    print("The first byte is `%c`\n", *strPtr)
 }
 

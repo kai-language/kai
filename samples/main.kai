@@ -24,7 +24,7 @@ main :: () -> void {
         print(*p)
 
         *p = "I got changed\n"
-
+        
         print(*p)
     }
 
@@ -67,9 +67,11 @@ main :: () -> void {
 
     { // Arrays
 
-        x : [5]int = { 5, 6, 3, 0, 0 }
-
-        y := x[3]
+        x : [3]int = { 5, 6, 4 }
+        
+        for i := 0; i < 3; i += 1 {
+            print("x[%d] = %d\n", i, x[i])
+        }
     }
 }
 

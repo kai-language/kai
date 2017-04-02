@@ -219,4 +219,36 @@ extension IRGenerator {
             fatalError()
         }
     }
+    
+    func emitSubscript(for node: AstNode, isLValue: Bool) -> IRValue {
+        guard case .exprSubscript(let receiver, let value, _) = node else {
+            preconditionFailure()
+        }
+        
+        let lvalue: IRValue
+        
+        switch receiver {
+        case .ident(let identifier, _):
+            let entity = context.scope.lookup(identifier)!
+            lvalue = llvmPointers[entity]!
+            
+        default:
+            unimplemented()
+        }
+
+        let index = emitStmt(for: value)
+        
+        let ptr = builder.buildGEP(lvalue, indices: [
+            IntType.int64.constant(0),
+            index
+        ])
+        
+        // set
+        if isLValue {
+            return ptr
+        }
+        
+        //get
+        return builder.buildLoad(ptr)
+    }
 }
