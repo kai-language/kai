@@ -1,44 +1,73 @@
 #library "c" libc
 
 print :: (string, ..any) -> void #foreign libc "printf"
+length :: (string) -> u64 #foreign libc "strlen"
 
 // Program entry point
 main :: () -> void {
-    x := 8
-    y := &x
 
-    *y = 123
+    { // Pointers and numbers
 
-    z := (u64)(x)
-    j := (^i64)(y)
+        val := 8
+        p := &val
 
-    test := "Hey, dude!\n"
-    testPtr := &test
+        *p = 123
 
-    print(*testPtr)
-
-    *testPtr = "I got changed 👮\n"
-
-    print(*testPtr)
-
-    print("y: %d\n", *y)
-    print("j: %d\n", *j)
-
-    // will segfault
-    j = nil
-    //print("j: %d\n", *j)
-
-    // Nested procedure
-    foo :: (n: int) -> void {
-        n += 5
-        print("foo printing %d\n", n)
-        n = 4
-        print("foo printing %d\n", n)
+        print("val: %d, p: %d\n", val, p)
     }
 
-    n := 5
-    foo(n)
+    { // Pointers and strings
 
-    print("main printing %d\n", n)
+        str := "Hey\n"
+        p := &str
+
+        print(*p)
+
+        *p = "I got changed\n"
+
+        print(*p)
+    }
+
+    { // NullablePointers
+
+        name := "Brett"
+        len := length(name)
+
+        strPtr : *u8 = name
+
+        print("The string is `%s`\n", name)
+        print("The string is `%d` bytes long.\n", len)
+        print("The first byte is `%c`\n", *strPtr)
+
+        // Won't compile, you cannot assign `nil` to a pointer.
+
+        // strPtr = nil
+
+        nullableStrPtr := (^u8)(strPtr)
+        print("The nullable pointer is `0x%08x`\n", nullableStrPtr)
+
+        nullableStrPtr = nil
+        print("The nullable pointer is `0x%08x`\n", nullableStrPtr)
+    }
+
+    { // Nested procedure
+
+        foo :: (n: int) -> void {
+            n += 5
+            print("foo printing %d\n", n)
+            n = 4
+            print("foo printing %d\n", n)
+        }
+
+        n := 5
+        foo(n)
+
+        print("main printing %d\n", n)
+    }
+
+    { // Arrays
+
+        x : [5]int = { 5, 6, 3, 0, 0 }
+    }
 }
 

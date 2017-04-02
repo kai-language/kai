@@ -658,6 +658,13 @@ extension Parser {
 
         if case .lbrack = token {
             let (_, lbrack) = try consume()
+            if case (.rbrack, let rbrack)? = try lexer.peek() {
+                try consume()
+                _ = try expression(10)
+
+                reportError("Expected capacity", at: rbrack)
+                return AstNode.invalid(lbrack ..< rbrack)
+            }
             let count = try expression()
             try consume(.rbrack)
 

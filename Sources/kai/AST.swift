@@ -47,7 +47,8 @@ indirect enum AstNode {
     /// - Note: `type` holds reference to the args
     case litProc(type: AstNode, body: AstNode, SourceRange)
 
-
+    /// - Note: Used to represent array literals (struct lits in the future)
+    case litCompound(elements: [AstNode], SourceRange)
 
     case declValue(isRuntime: Bool, names: [AstNode], type: AstNode?, values: [AstNode], SourceRange)
     case declImport(path: AstNode, fullpath: String?, importName: AstNode?, SourceRange)
@@ -125,6 +126,7 @@ extension AstNode {
              .litFloat(_, let location),
              .litString(_, let location),
              .litProc(_, _, let location),
+             .litCompound(_, let location),
              .declValue(_, _, _, _, let location),
              .declImport(_, _, _, let location),
              .declLibrary(_, _, _, let location),
@@ -338,6 +340,12 @@ func explode(_ n: AstNode) -> [AstNode] {
     case .stmtEmpty:
         return []
 
+    case .stmtBlock(let elements, let location):
+        guard elements.count == 1, case .list(let elements, _)? = elements.first else {
+            return [n]
+        }
+        return [AstNode.litCompound(elements: elements, location)]
+
     case .exprParen(let expr, _):
         return explode(expr)
 
@@ -414,6 +422,9 @@ extension AstNode: CustomStringConvertible {
 
         case .litProc(let type, let body, _):
             return "\(type) \(body)"
+
+        case .litCompound(let elements, _):
+            return elements.map({ $0.description }).joined(separator: ", ")
 
         case .declValue(let isRuntime, let names, let type, let values, _):
             let declChar = isRuntime ? "=" : ":"
@@ -525,6 +536,7 @@ extension AstNode {
         case .litFloat: return "litFloat"
         case .litString: return "litString"
         case .litProc: return "litProc"
+        case .litCompound: return "litCompound"
         case .declValue(let decl): return decl.isRuntime ? "declRt" : "declCt"
         case .declImport: return "declImport"
         case .declLibrary: return "declLibrary"
@@ -616,6 +628,9 @@ extension AstNode {
             renamedChildren.append(("results", resultList))
 
             children.append(body)
+
+        case .litCompound(let elements, _):
+            children.append(contentsOf: elements)
 
         case .exprUnary(let op, let expr, _):
             unlabeled.append("'" + op + "'")
@@ -851,6 +866,9 @@ extension AstNode {
             renamedChildren.append(("results", resultList))
 
             children.append(body)
+
+        case .litCompound(let elements, _):
+            children.append(contentsOf: elements)
 
         case .exprUnary(let op, let expr, _):
             unlabeled.append(op)

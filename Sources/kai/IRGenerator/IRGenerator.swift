@@ -93,6 +93,19 @@ extension IRGenerator {
         case .litString(let val, _):
             return builder.buildGlobalStringPtr(val.escaped)
 
+        case .litCompound(let elements, _):
+            let type = checker.info.types[node]!
+
+            if case .array(let underlyingType, _) = type.kind {
+                let values = elements.map {
+                    emitStmt(for: $0)
+                }
+                // FIXME(vdka): For literals that do not exactly match the count of the array they are assigned to this emits bad IR.
+                return ArrayType.constant(values, type: underlyingType.canonicalized())
+            }
+
+            unimplemented("Emitting constants for \(type)")
+
         default:
             fatalError()
         }
@@ -101,7 +114,7 @@ extension IRGenerator {
     @discardableResult
     func emitStmt(for node: AstNode) -> IRValue {
         switch node {
-        case .litString, .litFloat, .litInteger, .litProc:
+        case .litString, .litFloat, .litInteger, .litProc, .litCompound:
             return emitLiteral(for: node)
 
         // FIXME(vdka): Feels a bit hacky.

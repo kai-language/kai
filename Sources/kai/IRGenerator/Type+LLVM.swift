@@ -39,8 +39,12 @@ extension Type {
         case .alias(_, let type):
             return type.canonicalized()
 
-        case .pointer(let underlyingType), .nullablePointer(let underlyingType):
+        case .pointer(let underlyingType),
+             .nullablePointer(let underlyingType):
             return PointerType(pointee: underlyingType.canonicalized())
+
+        case .array(let underlyingType, let count):
+            return ArrayType(elementType: underlyingType.canonicalized(), count: Int(count))
             
         case .proc(let params, let results, let isVariadic):
 

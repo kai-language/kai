@@ -6,10 +6,10 @@ class Type: Equatable, CustomStringConvertible {
     var flags: Flag
 
     /// Size of the type (in bits)
-    var width: Int
+    var width: UInt
     var location: SourceLocation?
 
-    init(kind: Kind, flags: Flag, width: Int, location: SourceLocation?) {
+    init(kind: Kind, flags: Flag, width: UInt, location: SourceLocation?) {
         self.kind = kind
         self.flags = flags
         self.width = width
@@ -21,20 +21,22 @@ class Type: Equatable, CustomStringConvertible {
         case alias(String, Type)
         case pointer(underlyingType: Type)
         case nullablePointer(underlyingType: Type)
+        case array(underlyingType: Type, count: UInt)
         case proc(params: [Entity], returns: [Type], isVariadic: Bool)
         case typeInfo(underlyingType: Type) // for now, in the future we will collapse this into the `struct` kind.
         case `struct`(String)
     }
 
     var info: Type {
-        return Type(kind: .typeInfo(underlyingType: self), flags: .none, width: MemoryLayout<Int>.size * 8, location: nil)
+        return Type(kind: .typeInfo(underlyingType: self), flags: .none, width: UInt(MemoryLayout<Int>.size * 8), location: nil)
     }
 
     var underlyingType: Type? {
         switch self.kind {
         case .pointer(let underlyingType),
              .nullablePointer(let underlyingType),
-             .typeInfo(let underlyingType):
+             .typeInfo(let underlyingType),
+             .array(let underlyingType, _):
             return underlyingType
 
         default:
@@ -46,14 +48,22 @@ class Type: Equatable, CustomStringConvertible {
         if underlyingType == Type.invalid {
             return Type.invalid
         }
-        return Type(kind: .pointer(underlyingType: underlyingType), flags: .pointer, width: MemoryLayout<Int>.size * 8, location: nil)
+        return Type(kind: .pointer(underlyingType: underlyingType), flags: .pointer, width: UInt(MemoryLayout<Int>.size * 8), location: nil)
     }
 
     static func nullablePointer(to underlyingType: Type) -> Type {
         if underlyingType == Type.invalid {
             return Type.invalid
         }
-        return Type(kind: .nullablePointer(underlyingType: underlyingType), flags: .pointer, width: MemoryLayout<Int>.size * 8, location: nil)
+        return Type(kind: .nullablePointer(underlyingType: underlyingType), flags: .pointer, width: UInt(MemoryLayout<Int>.size * 8), location: nil)
+    }
+
+    static func array(of underlyingType: Type, with count: UInt) -> Type {
+        if underlyingType == Type.invalid {
+            return Type.invalid
+        }
+        // NOTE(vdka): Size may not be correct with alignments and paddings?
+        return Type(kind: .array(underlyingType: underlyingType, count: count), flags: .none, width: underlyingType.width * count, location: nil)
     }
 
     struct Flag: OptionSet {
@@ -87,6 +97,9 @@ class Type: Equatable, CustomStringConvertible {
 
         case .nullablePointer(let underlyingType):
             return "^\(underlyingType)"
+
+        case .array(let count, let underlyingType):
+            return "[\(count)]\(underlyingType)"
 
         case .proc(let params, let results, let isVariadic):
             var str = "("
@@ -170,11 +183,18 @@ class Type: Equatable, CustomStringConvertible {
         return false
     }
 
+    var isArray: Bool {
+        if case .array = kind {
+            return true
+        }
+        return false
+    }
+
     static let builtin: [Type] = {
 
         // NOTE(vdka): Order is important later.
                   /* Name,   size, line, flags */
-        let short: [(String, Int, UInt, Flag)] = [
+        let short: [(String, UInt, UInt, Flag)] = [
             ("void", 0, 0, .none),
             ("bool", 1, 0, .boolean),
 
@@ -190,8 +210,8 @@ class Type: Equatable, CustomStringConvertible {
             ("f32", 4, 0, .float),
             ("f64", 8, 0, .float),
 
-            ("int", MemoryLayout<Int>.size, 0, [.integer]),
-            ("uint", MemoryLayout<Int>.size, 0, [.integer, .unsigned]),
+            ("int", UInt(MemoryLayout<Int>.size), 0, [.integer]),
+            ("uint", UInt(MemoryLayout<Int>.size), 0, [.integer, .unsigned]),
 
             // FIXME(vdka): Currently strings are just pointers hence length 8 (will remain?)
             ("string", 8, 0, .string),
@@ -202,9 +222,9 @@ class Type: Equatable, CustomStringConvertible {
             ("unconstrString",  0, 0, [.unconstrained, .string]),
             ("unconstrNil",     0, 0, [.unconstrained]),
 
-            ("any", -1, 0, .none),
+            ("any", 0, 0, .none),
 
-            ("<invalid>", -1, 0, .none),
+            ("<invalid>", 0, 0, .none),
         ]
 
         return short.map { (name, size, lineNumber, flags) in
@@ -1026,6 +1046,15 @@ extension Checker {
             let underlyingType = lookupType(type)
             return Type.nullablePointer(to: underlyingType)
 
+        case .typeArray(let count, let type, _):
+            let underlyingType = lookupType(type)
+
+            guard case .litInteger(let count, _) = count else {
+                unimplemented("Non literal array sizes")
+            }
+
+            return Type.array(of: underlyingType, with: UInt(count))
+
         default:
             reportError("'\(n)' cannot be used as a type", at: n)
             return Type.invalid
@@ -1205,6 +1234,37 @@ extension Checker {
                 performImplicitConversion(on: &type, to: typeHint)
             }
 
+        case .litCompound(let elements, _):
+            // Infer the type of every element
+            if elements.isEmpty, let typeHint = typeHint, typeHint.isArray {
+                return typeHint
+            } else if elements.isEmpty {
+                reportError("Unable to infer type for empty compound literal", at: node)
+            }
+
+            let elTypes = elements.map({ checkExpr($0) })
+
+            if let typeHint = typeHint, typeHint.isArray, let targetType = typeHint.underlyingType {
+                for (index, elType) in elTypes.enumerated() {
+                    guard canImplicitlyConvert(elType, to: targetType) else {
+                        reportError("Cannot convert '\(elType)' to expected type '\(targetType)'", at: elements[index])
+                        return Type.invalid
+                    }
+                }
+
+                return Type.array(of: targetType, with: UInt(elements.count))
+            }
+
+
+            // FIXME(vdka): For now we require every array element type to be the same.
+            let firstType = elTypes.first!
+
+            if elTypes.reduce(true, { $0.0 && ($0.1 == firstType) }) {
+                return Type.array(of: firstType, with: UInt(elements.count))
+            }
+
+            return Type.invalid
+
         case .ident:
             type = checkExprIdent(node)
             if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
@@ -1250,7 +1310,7 @@ extension Checker {
             func callKind(for type: Type) -> CallKind {
 
                 switch type.kind {
-                case .named, .struct:
+                case .named, .struct, .array:
                     return CallKind.invalid
 
                 case .alias(_, let underlyingType),
@@ -1263,7 +1323,6 @@ extension Checker {
 
                 case .typeInfo(let underlyingType):
                     return CallKind.cast(to: underlyingType)
-
                 }
             }
 
@@ -1891,6 +1950,11 @@ extension Checker {
             return true
         } else if case .pointer(let underlyingType) = type.kind, case .pointer(let underlyingTargetType) = target.kind {
             return canImplicitlyConvert(underlyingType, to: underlyingTargetType)
+        } else if case .array(let underlyingType, let count) = type.kind,
+            case .array(let underlyingTargetType, let targetCount) = target.kind {
+            // NOTE(vdka): I am unsure if we should support implicit conversion between 2 arrays with different underlying types
+            //  provided their underlying types are implicitely convertable. So I left that out.
+            return underlyingType == underlyingTargetType && count <= targetCount
         }
         return false
     }
@@ -1951,6 +2015,13 @@ extension Checker {
 
         case .litString:
             guard type.isString else {
+                return
+            }
+
+            info.types[node] = type
+
+        case .litCompound:
+            guard type.isArray else {
                 return
             }
 

@@ -14,6 +14,7 @@
 - [ ] Support multiple assignment and multiple expressions
 - [ ] Require initializer for decls of type pointer
 - [ ] Check for usage of pointers after `free` and error
+- [ ] Errors for when more than 1 compound literal appears as a rhs
 
 ## Big Features
 - [ ] Structs
