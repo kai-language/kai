@@ -21,6 +21,30 @@ extension PointerHashable {
     }
 }
 
+func resolveLibraryPath(_ name: String, for currentFilePath: String) -> String? {
+    let fm = FileManager.default
+
+    if name.hasSuffix(".framework") {
+        // FIXME(vdka): We need to support non system frameworks
+        return name
+    }
+
+    if let fullpath = fm.absolutePath(for: name) {
+        return fullpath
+    }
+
+    if let fullpath = fm.absolutePath(for: name, relativeTo: currentFilePath) {
+        return fullpath
+    }
+
+    // If the library does not exist at a relative path, check system library locations
+    if let fullpath = fm.absolutePath(for: name, relativeTo: "/usr/local/lib") {
+        return fullpath
+    }
+
+    return nil
+}
+
 extension FileManager {
 
     func absolutePath(for filePath: String) -> String? {
@@ -35,9 +59,9 @@ extension FileManager {
         return absoluteURL.components(separatedBy: "file://").last
     }
 
-    func absolutePath(for filepath: String, relativeTo file: ASTFile) -> String? {
+    func absolutePath(for filepath: String, relativeTo file: String) -> String? {
 
-        let fileUrl = URL(fileURLWithPath: file.fullpath)
+        let fileUrl = URL(fileURLWithPath: file)
             .deletingLastPathComponent()
             .appendingPathComponent(filepath)
 

@@ -2,6 +2,8 @@ import LLVM
 import Console
 import Foundation
 
+var linkedLibraries: Set<String> = []
+
 struct Compiler {
     enum Error: Swift.Error {
         case fileNameNotProvided
@@ -234,14 +236,25 @@ struct Compiler {
         startTiming("Linking")
         let clang = getClangPath()
         var args = [
-            "-l", "c",
-            "-o", "main"
+            "-o", "main" // TODO(vdka): Accept an output binary name in commandline options
         ]
         
         for object in objects {
             args.append(object)
         }
-        
+        for library in linkedLibraries {
+            if library.hasSuffix(".framework") {
+
+                var library = library
+                library = library.components(separatedBy: ".").first!
+
+                args.append("-framework")
+                args.append(library)
+            } else {
+                args.append(library)
+            }
+        }
+
         shell(path: clang, args: args)
         endTiming()
         

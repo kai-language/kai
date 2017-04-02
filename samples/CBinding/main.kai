@@ -1,0 +1,43 @@
+
+#library "c" libc
+#library "/usr/local/lib/libglfw3.dylib" glfw
+#library "OpenGL.framework" gl
+#library "libraylib.a" raylib
+
+print :: (string, ..any) -> void #foreign libc "printf"
+sleep :: (s: u32) -> void #foreign libc "sleep"
+
+initWindow :: (i32, i32, title: string) -> void #foreign raylib "InitWindow"
+closeWindow :: () -> void #foreign raylib "CloseWindow"
+setTargetFPS :: (i32) -> void #foreign raylib "SetTargetFPS"
+windowShouldClose :: () -> bool #foreign raylib "WindowShouldClose"
+beginDrawing :: () -> void #foreign raylib "BeginDrawing"
+endDrawing :: () -> void #foreign raylib "EndDrawing"
+clearBackground :: (color: u32) -> void #foreign raylib "ClearBackground"
+drawText :: (string, x: i32, y: i32, size: i32, color: u32) -> void #foreign raylib "DrawText"
+
+main :: () -> void {
+
+  lightGray : u32 = 3368601855
+  raywhite  : u32 = 4126537215
+
+  screenWidth: i32 = 800
+  screenHeight: i32 = 450
+
+  initWindow(screenWidth, screenHeight, "Presented using Raylib in Kai")
+
+  setTargetFPS(60)
+
+  for !windowShouldClose() {
+    beginDrawing();
+
+      clearBackground(raywhite)
+
+      drawText("Congrats! You created your first language!", 190, 200, 20, lightGray)
+
+    endDrawing()
+  }
+
+  closeWindow()
+}
+

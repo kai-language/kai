@@ -375,8 +375,7 @@ extension Parser {
 
             let pathNode = AstNode.litString(path, lexer.lastConsumedRange)
 
-
-            let fullpath = FileManager.default.absolutePath(for: path, relativeTo: currentFile)
+            let fullpath = FileManager.default.absolutePath(for: path, relativeTo: currentFile.fullpath)
 
             var node: AstNode
             switch try lexer.peek()?.kind {
@@ -415,8 +414,11 @@ extension Parser {
             try consume() // .string("file.dylib")
 
             let pathNode = AstNode.litString(path, lexer.lastConsumedRange)
+            let fullpath = resolveLibraryPath(path, for: currentFile.fullpath)
 
-            let fullpath = FileManager.default.absolutePath(for: path, relativeTo: currentFile)
+            if let fullpath = fullpath {
+                linkedLibraries.insert(fullpath)
+            }
 
             if case .ident(let alias)? = try lexer.peek()?.kind {
 
