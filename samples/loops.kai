@@ -7,7 +7,7 @@ main :: () -> void {
     name := "Brett"
     len := length(name)
 
-    strPtr : *i8 = name
+    strPtr : *u8 = name
 
     print("The string is `%s`\n", name)
     print("The string is `%d` bytes long.\n", len)
