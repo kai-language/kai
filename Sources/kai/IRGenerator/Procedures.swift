@@ -45,28 +45,25 @@ extension IRGenerator {
         return allocation
     }
 
-    func emitProcedurePrototype(for node: AstNode, named name: String) -> Function {
-        if let function = module.function(named: name) {
+    func emitProcedurePrototype(for entity: Entity) -> Function {
+        if let function = module.function(named: entity.mangledName!) {
             return function
         }
-
-        let procType = checker.info.types[node]!
         
-        let procIrType = procType.canonicalized() as! FunctionType
+        let procIrType = entity.type!.canonicalized() as! FunctionType
         
-        let procedure = builder.addFunction(name, type: procIrType)
+        let procedure = builder.addFunction(entity.mangledName!, type: procIrType)
 
-        // FIXME(vdka): This needs to return to have nicely named params.
-//        for (var paramIr, paramNode) in zip(procedure.parameters, params) {
-//
-//            switch paramNode {
-//            case .declValue(_, let names, _, _, _):
-//                paramIr.name = names[0].identifier
-//
-//            default:
-//                continue
-//            }
-//        }
+        guard case .proc(let params, _, _) = entity.type!.kind else {
+            panic()
+        }
+
+        for (var paramIr, param) in zip(procedure.parameters, params) {
+
+            if param.name != "_" {
+                paramIr.name = param.name
+            }
+        }
 
         return procedure
     }
@@ -95,7 +92,7 @@ extension IRGenerator {
             name = symbolName
         }
 
-        let proc = emitProcedurePrototype(for: node, named: name)
+        let proc = emitProcedurePrototype(for: entity)
 
         llvmPointers[entity] = proc
 

@@ -392,6 +392,9 @@ extension IRGenerator {
                     rhsIrValue = builder.buildLoad(rhsIrValuePtr)
                 }
 
+                let lhsIrValuePtr = llvmPointers[entity]!
+                builder.buildStore(rhsIrValue, to: lhsIrValuePtr)
+                /*
                 let lhsIrValue: IRValue
                 if let function = context.currentProcedure?.llvm {
                     lhsIrValue = emitEntryBlockAlloca(in: function, type: irType, named: entity.name, default: rhsIrValue)
@@ -400,6 +403,7 @@ extension IRGenerator {
                 }
 
                 llvmPointers[entity] = lhsIrValue
+                 */
             }
 
             return VoidType().null()

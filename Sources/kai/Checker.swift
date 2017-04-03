@@ -1892,10 +1892,12 @@ extension Checker {
                 return
             }
 
-            guard case .litString(let path, let pathLocation)? = args[safe: 1] else {
+            guard case .litString(let symbol, let symbolLocation)? = args[safe: 1] else {
                 reportError("Expected a string literal as the symbol to bind from the library", at: args.first?.startLocation ?? body.endLocation)
                 return
             }
+
+            pi.decl?.entities[0].mangledName = symbol
 
             return
         }
