@@ -382,7 +382,12 @@ extension IRGenerator {
 
                 let rhsIrValuePtr = builder.buildStructGEP(retValue, index: index)
 
-                let rhsIrValue = builder.buildLoad(rhsIrValuePtr)
+                let rhsIrValue: IRValue
+                if case .exprUnary("*", _, _) = lhs[index] {
+                    rhsIrValue = rhsIrValuePtr
+                } else {
+                    rhsIrValue = builder.buildLoad(rhsIrValuePtr)
+                }
 
                 let lhsIrValue: IRValue
                 if let function = context.currentProcedure?.llvm {
