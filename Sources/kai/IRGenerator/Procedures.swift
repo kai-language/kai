@@ -133,6 +133,8 @@ extension IRGenerator {
             
             let arg = proc.parameter(at: i)!
             let argPointer = emitEntryBlockAlloca(in: proc, type: arg.type, named: entity.name)
+
+            builder.buildStore(arg, to: argPointer)
             
             llvmPointers[param] = argPointer
             args.append(argPointer)

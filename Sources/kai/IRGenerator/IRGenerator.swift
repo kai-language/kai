@@ -381,12 +381,12 @@ extension IRGenerator {
 
             for (index, entity) in entities.enumerated() {
                 if entity.name == "_" { continue }
-                let irType = entity.type!.canonicalized()
 
                 let rhsIrValuePtr = builder.buildStructGEP(retValue, index: index)
 
                 let rhsIrValue: IRValue
                 if case .exprUnary("*", _, _) = lhs[index] {
+                    // TODO(vdka): We need an actual solution for dealing with indirection. This will fail for multiple derefs
                     rhsIrValue = rhsIrValuePtr
                 } else {
                     rhsIrValue = builder.buildLoad(rhsIrValuePtr)
@@ -394,16 +394,6 @@ extension IRGenerator {
 
                 let lhsIrValuePtr = llvmPointers[entity]!
                 builder.buildStore(rhsIrValue, to: lhsIrValuePtr)
-                /*
-                let lhsIrValue: IRValue
-                if let function = context.currentProcedure?.llvm {
-                    lhsIrValue = emitEntryBlockAlloca(in: function, type: irType, named: entity.name, default: rhsIrValue)
-                } else {
-                    lhsIrValue = emitGlobal(name: entity.name, type: irType, value: rhsIrValue)
-                }
-
-                llvmPointers[entity] = lhsIrValue
-                 */
             }
 
             return VoidType().null()
