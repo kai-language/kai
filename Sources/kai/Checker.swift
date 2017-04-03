@@ -1928,6 +1928,10 @@ extension Checker {
     @discardableResult
     mutating func addEntity(to scope: Scope, _ entity: Entity) -> Bool {
 
+        if entity.name == "_" {
+            return true
+        }
+
         if let conflict = scope.insert(entity) {
 
             let msg = "Redeclaration of \(entity.name) in this scope\n" +
