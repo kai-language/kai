@@ -382,6 +382,14 @@ class Entity: PointerHashable {
         static let used = Flag(rawValue: 0b00000001)
     }
 
+    static var dispose: Entity = {
+        return Scope.universal.lookup("_")!
+    }()
+
+    var isDispose: Bool {
+        return name == "_"
+    }
+
     static func declareBuiltinConstant(name: String, value: ExactValue, scope: Scope) {
         var type: Type
         switch value {
@@ -472,8 +480,13 @@ class Scope: PointerHashable {
         Entity.declareBuiltinConstant(name: "true", value: .bool(true), scope: s)
         Entity.declareBuiltinConstant(name: "false", value: .bool(false), scope: s)
 
-        let e = Entity(name: "nil", location: .unknown, kind: .compiletime, owningScope: s)
+        var e: Entity
+        e = Entity(name: "nil", location: .unknown, kind: .compiletime, owningScope: s)
         e.type = Type.unconstrNil
+        s.insert(e)
+
+        e = Entity(name: "_", location: .unknown, kind: .compiletime, owningScope: s)
+        e.type = Type.any
         s.insert(e)
 
         return s
@@ -495,6 +508,20 @@ extension Scope {
             return entity
         } else {
             return parent?.lookup(name)
+        }
+    }
+
+    func lookup(_ node: AstNode) -> Entity? {
+
+        switch node {
+        case .ident(let ident, _):
+            return lookup(ident)
+
+        case .exprSelector(let receiver, let member, _):
+            return lookup(receiver)?.childScope?.lookup(member)
+
+        default:
+            return nil
         }
     }
 }
@@ -858,7 +885,9 @@ extension Checker {
 
     mutating func checkDecl(_ d: DeclInfo) {
 
-        let explicitType = d.typeExpr.map(lookupType)
+        let explicitType = d.typeExpr.map {
+            return lookupType($0)
+        }
 
         if let explicitType = explicitType, explicitType == Type.invalid {
             return
@@ -1038,37 +1067,32 @@ extension Checker {
         return type
     }
 
-    mutating func lookupEntity(_ node: AstNode) -> Entity? {
+    /// - Note: Warns when not resolved
+    mutating func lookupEntity(_ node: AstNode, reportMissing: Bool = true) -> Entity? {
 
-        switch node {
-        case .ident(let ident, _):
-            return context.scope.lookup(ident)
-
-        case .exprSelector(let receiver, member: let member, _):
-            guard let receiverScope = lookupEntity(receiver)?.childScope else {
-                return nil
+        if case .ident("_", _) = node {
+            return Entity.dispose
+        }
+        guard let entity = context.scope.lookup(node) else {
+            if reportMissing {
+                reportError("Undeclared entity '\(node)'", at: node)
             }
-            let prevScope = context.scope
-            defer { context.scope = prevScope }
-            context.scope = receiverScope
-            return lookupEntity(member)
-
-        default:
             return nil
         }
+
+        return entity
     }
 
     /// Use this when you expect the node you pass in to be a type
-    func lookupType(_ n: AstNode) -> Type {
-        if let type = info.types[n] {
+    mutating func lookupType(_ node: AstNode) -> Type {
+        if let type = info.types[node] {
             return type
         }
 
-        switch n {
-        case .ident(let ident, _):
+        switch node {
+        case .ident:
 
-            guard let entity = context.scope.lookup(ident) else {
-                reportError("Undeclared entity '\(ident)'", at: n)
+            guard let entity = lookupEntity(node) else {
                 return Type.invalid
             }
 
@@ -1077,33 +1101,24 @@ extension Checker {
                 return type
 
             default:
-                reportError("Entity '\(ident)' cannot be used as type", at: n)
+                reportError("Entity '\(node)' cannot be used as type", at: node)
                 return Type.invalid
             }
 
-        case .exprSelector(let receiver, let member, _):
+        case .exprSelector:
 
-            // TODO(vdka): Determine (define) the realm of possibility in terms of what can be a node representing a type
-            guard case .ident(let receiverIdent, _) = receiver else {
-                reportError("'\(n)' cannot be used as a type", at: n)
+            guard let entity = lookupEntity(node) else {
                 return Type.invalid
             }
-            guard case .ident(let memberIdent, _) = member else {
-                reportError("'\(n)' cannot be used as a type", at: n)
+
+            switch entity.kind {
+            case .type(let type):
+                return type
+
+            default:
+                reportError("Entity '\(node)' cannot be used as type", at: node)
                 return Type.invalid
             }
-            guard let receiverEntity = context.scope.lookup(receiverIdent) else {
-                reportError("Undeclared entity '\(receiverIdent)'", at: receiver)
-                return Type.invalid
-            }
-            _ = memberIdent
-            /* TODO(vdka):
-             In the receiverEntities scope lookup the child entity.
-             Determine how to access the scope the receiver would have to create.
-             In this scenario the recvr should have a child scope.
-            */
-            _ = receiverEntity
-            unimplemented("Child types")
 
         case .typePointer(let type, _):
             let underlyingType = lookupType(type)
@@ -1123,7 +1138,7 @@ extension Checker {
             return Type.array(of: underlyingType, with: UInt(count))
 
         default:
-            reportError("'\(n)' cannot be used as a type", at: n)
+            reportError("'\(node)' cannot be used as a type", at: node)
             return Type.invalid
         }
     }
@@ -1237,9 +1252,79 @@ extension Checker {
             return
         }
 
-        if op != "=" && (lhs.count != 1 || rhs.count != 1) {
-            reportError("Complex assignment is limitted to singlular l and r values", at: node)
+        guard op == "=" else {
+            guard lhs.count == 1 && rhs.count == 1, let lval = lhs.first, let rval = rhs.first else {
+                reportError("Complex assignment is limitted to singlular l and r values", at: node)
+                return
+            }
+
+            let lhsType = checkExpr(lval)
+            let rhsType = checkExpr(rval, typeHint: lhsType)
+
+            guard canImplicitlyConvert(rhsType, to: lhsType) else {
+                reportError("Cannot use \(rval) (type \(rhsType)) as rvalue in assignment to \(lval) (type \(lhsType))", at: node)
+                return
+            }
+
             return
+        }
+
+        if lhs.count > 1, rhs.count == 1, let rval = rhs.first {
+
+            let rType = checkExpr(rval)
+
+            // NOTE(vdka): Only procedures use tuple types.
+            if case .tuple(let results) = rType.kind {
+
+                guard lhs.count == results.count else {
+                    reportError("Assignment count mismatch: '\(lhs.count) = \(rhs.count)'", at: node)
+                    return
+                }
+
+                for (lval, result) in zip(lhs, results) {
+
+                    switch lval {
+                    case .exprUnary("*", let expr, _):
+                        // FIXME(vdka): This probably won't handle multiple layers of indirection.
+                        guard let entity = lookupEntity(expr) else {
+                            return
+                        }
+
+                        guard entity.type!.isPointer || entity.type!.isNullablePointer else {
+                            reportError("FIXME(vdka): Some error", at: expr)
+                            return
+                        }
+                        let underlyingType = entity.type!.underlyingType!
+
+                        // FIXME
+                        // FIXME
+                        // FIXME
+
+                        guard canImplicitlyConvert(result, to: underlyingType) else {
+                            reportError("Cannot use \(rval) (type \(result)) as rvalue in assignment to \(lval) (type \(entity.type!))", at: rval)
+                            return
+                        }
+
+                    case .exprUnary("&", _, _):
+                        unimplemented()
+
+                    default:
+
+                        guard let entity = lookupEntity(lval) else {
+                            return
+                        }
+
+                        guard canImplicitlyConvert(result, to: entity.type!) else {
+                            reportError("Cannot use \(rval) (type \(result)) as rvalue in assignment to \(lval) (type \(entity.type!))", at: rval)
+                            return
+                        }
+                    }
+
+                    // TODO(vdka): There is certainly some more we need to do in here. Figure it out.
+
+                }
+                return
+            }
         }
 
         guard lhs.count == rhs.count else {
@@ -1967,7 +2052,7 @@ extension Checker {
             } else if values.count == 1, let value = values.first {
                 switch value {
                 case .exprCall(let receiver, _, _):
-                    guard let procEntity = lookupEntity(receiver) else {
+                    guard let procEntity = lookupEntity(receiver, reportMissing: false) else {
                         return true // handle error later
                     }
                     guard case .proc(_, let results, _) = procEntity.type!.kind else {

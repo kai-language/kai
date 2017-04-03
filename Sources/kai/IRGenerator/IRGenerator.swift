@@ -362,7 +362,9 @@ extension IRGenerator {
             panic(node)
         }
 
-        let entities = lhs.map({ lookupEntity($0)! })
+        let entities = lhs.map {
+            lookupEntity($0)!
+        }
 
         if lhs.count > 1, rhs.count == 1, let value = rhs.first {
 
@@ -401,28 +403,24 @@ extension IRGenerator {
             //
 
             return emitProcedureDefinition(entity, value)
-        } else if entities.count == rhs.count {
+        } else if entities.count == 1 && rhs.count == 1,
+            let entity = entities.first,
+            let lval = lhs.first, let rval = rhs.first {
 
             let lvalueLocation: IRValue
-            let lvalueIsSigned: Bool
 
-            switch lhs[0] {
-            case .ident(let ident, _):
-                let entity = context.scope.lookup(ident)!
+            switch lval {
+            case .ident, .exprSelector:
                 lvalueLocation = llvmPointers[entity]!
-                let lhsType = entity.type!
-                lvalueIsSigned = !lhsType.isUnsigned
 
             case .exprUnary("*", let expr, _):
                 lvalueLocation = emitStmt(for: expr)
-                // FIXME(Brett): Can pointers be signed?
-                lvalueIsSigned = false
 
             default:
-                unimplemented("Non ident lvalue in assignment")
+                unimplemented()
             }
 
-            let rvalue = emitStmt(for: rhs[0])
+            let rvalue = emitStmt(for: rval)
 
             if op == "=" {
                 return builder.buildStore(rvalue, to: lvalueLocation)
@@ -444,12 +442,12 @@ extension IRGenerator {
                 return builder.buildStore(r, to: lvalueLocation)
 
             case "/=":
-                let r = builder.buildDiv(lvalue, rvalue, signed: lvalueIsSigned)
+                let r = builder.buildDiv(lvalue, rvalue, signed: !entity.type!.isUnsigned)
 
                 return builder.buildStore(r, to: lvalueLocation)
 
             case "%=":
-                let r = builder.buildRem(lvalue, rvalue, signed: lvalueIsSigned)
+                let r = builder.buildRem(lvalue, rvalue, signed: !entity.type!.isUnsigned)
 
                 return builder.buildStore(r, to: lvalueLocation)
 
@@ -479,19 +477,30 @@ extension IRGenerator {
         } else {
             assert(entities.count == rhs.count)
 
-            for (entity, value) in zip(entities, rhs) {
+            for (index, entity) in entities.enumerated() {
 
                 if entity.name == "_" {
                     continue // do nothing.
                 }
 
-                let irValue = emitStmt(for: value)
+                let lval = lhs[index]
+                let rval = rhs[index]
 
-                let irValuePtr = llvmPointers[entity]!
+                let lvalueLocation: IRValue
+                switch lval {
+                case .ident, .exprSelector:
+                    lvalueLocation = llvmPointers[entity]!
 
-                builder.buildStore(irValue, to: irValuePtr)
-                
-                llvmPointers[entity] = irValuePtr
+                case .exprUnary("*", let expr, _):
+                    lvalueLocation = emitStmt(for: expr)
+
+                default:
+                    unimplemented()
+                }
+
+                let irValue = emitStmt(for: rval)
+
+                builder.buildStore(irValue, to: lvalueLocation)
             }
         }
 
@@ -645,6 +654,12 @@ extension IRGenerator {
             defer { context.scope = prevScope }
             context.scope = receiverScope
             return lookupEntity(member)
+
+        case .exprUnary("*", let expr, _):
+            return lookupEntity(expr)
+
+        case .exprUnary("&", let expr, _):
+            return lookupEntity(expr)
 
         default:
             return nil
