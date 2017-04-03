@@ -656,6 +656,10 @@ extension Parser {
         if case .operator("*") = token {
             let (_, location) = try consume()
 
+            let prevState = state
+            defer { state = prevState }
+            state.insert(.disallowComma)
+
             let type = try expression(10) // Assignment is binding power 10
 
             return AstNode.typePointer(type: type, location ..< type.endLocation)

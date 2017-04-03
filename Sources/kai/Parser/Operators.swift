@@ -72,6 +72,11 @@ extension Operator {
 
         let nud = nud ?? { parser in
             let (_, location) = try parser.consume()
+
+            let prevState = parser.state
+            defer { parser.state = prevState }
+            parser.state.insert(.disallowComma)
+
             let expr = try parser.expression(70)
             return AstNode.exprUnary(symbol, expr: expr, location ..< location)
         }
