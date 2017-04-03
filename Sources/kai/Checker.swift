@@ -1567,7 +1567,7 @@ extension Checker {
                 return Type.invalid
             }
 
-            return underlyingType
+            type = underlyingType
 
         case .exprSelector(let receiver, let member, _):
 

@@ -67,17 +67,35 @@ main :: () -> void {
 
     { // Arrays
 
-        x : [5]int = { 5, 6, 3, 0, 0 }
+        x : [3]int = { 5, 6, 4 }
 
-        //y := x[3]
 
-        print("Done")
+        for i := 0; i < 3; i += 1 {
+            print("x[%d] = %d\n", i, x[i])
+        }
     }
 
-    {
+    { // Multiple returns
+
         addFive :: (x: int, y: int) -> int, int {
             return x + 5, y + 5
         }
+
+        origin :: () -> int, int {
+            return 0, 0
+        }
+
+        x1, x2 := origin()
+        print("x1: %d, x2: %d\n", x1, x2)
+
+        x1, x2 = addFive(x1, x2)
+        print("x1: %d, x2: %d\n", x1, x2)
+
+        p1, p2 := &x1, &x2
+        print("p1: %d, p2: %d\n", *p1, *p2)
+
+        *p1, *p2 = addFive(*p1, *p2)
+        print("p1: %d, p2: %d\n", *p1, *p2)
     }
 }
 

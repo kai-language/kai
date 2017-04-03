@@ -112,7 +112,7 @@ extension IRGenerator {
     }
 
     @discardableResult
-    func emitStmt(for node: AstNode) -> IRValue {
+    func emitStmt(for node: AstNode, isLValue: Bool = false) -> IRValue {
         switch node {
         case .litString, .litFloat, .litInteger, .litProc, .litCompound:
             return emitLiteral(for: node)
@@ -172,6 +172,9 @@ extension IRGenerator {
         case .exprBinary:
             return emitOperator(for: node)
 
+        case .exprSubscript:
+            return emitSubscript(for: node, isLValue: isLValue)
+            
         case .exprCall(_, let args, _):
             if checker.info.casts.contains(node) {
                 return emitStmt(for: args.first!)
@@ -533,7 +536,7 @@ extension IRGenerator {
         let function = llvmPointers[receiverEntity] as! Function
         //let function = module.function(named: ident)!
 
-        let llvmArgs = args.map(emitStmt)
+        let llvmArgs = args.map { emitStmt(for: $0) }
         
         return builder.buildCall(function, args: llvmArgs)
     }
