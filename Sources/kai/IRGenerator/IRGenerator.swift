@@ -287,130 +287,215 @@ extension IRGenerator {
 
     @discardableResult
     func emitDeclaration(for node: AstNode) -> IRValue {
-        guard case let .declValue(_, names, _, values, _) = node else {
-            preconditionFailure()
+
+        // TODO(vdka): isRuntime? Is that in emission or just checking?
+        guard case .declValue(_, let names, _, let values, _) = node else {
+            panic(node)
         }
 
-        assert(names.count == 1)
-        // TODO(Brett): multiple declarations
-        let name = names[0]
-        let value = values.first
-        
-        // FIXME(Brett): use scope lookup when scope traversal setup
-        let entity = checker.info.definitions[name]!
-        let type = entity.type!
+        let decl = checker.info.decls[node]!
 
-        switch type.kind {
-        case .proc:
-            return emitProcedureDefinition(name, value!)
-            
-        default:
-            break
-        }
-        
-        let irType = type.canonicalized()
-        
-        let defaultValue: IRValue?
-        if let value = value {
-            defaultValue = emitStmt(for: value)
+        /// This should be a proc call.
+        if names.count > 1, values.count == 1, let value = values.first {
+
+            let procRetType = checker.info.types[value]!
+
+            assert(procRetType.isTuple)
+
+            let procRetValue = emitStmt(for: value)
+            let retValue = builder.buildAlloca(type: procRetValue.type)
+            builder.buildStore(procRetValue, to: retValue)
+
+            for (index, entity) in decl.entities.enumerated() {
+                if entity.name == "_" { continue }
+                let irType = entity.type!.canonicalized()
+
+                let rhsIrValuePtr = builder.buildStructGEP(retValue, index: index)
+
+                let rhsIrValue = builder.buildLoad(rhsIrValuePtr)
+
+                let lhsIrValue: IRValue
+                if let function = context.currentProcedure?.llvm {
+                    lhsIrValue = emitEntryBlockAlloca(in: function, type: irType, named: entity.name, default: rhsIrValue)
+                } else {
+                    lhsIrValue = emitGlobal(name: entity.name, type: irType, value: rhsIrValue)
+                }
+
+                llvmPointers[entity] = lhsIrValue
+            }
+
+            return VoidType().null()
+        } else if decl.entities.count == 1, let entity = decl.entities.first,
+            case .proc = entity.type!.kind, let value = decl.initExprs.first {
+
+            return emitProcedureDefinition(entity, value)
         } else {
-            defaultValue = nil
+            assert(decl.entities.count == decl.initExprs.count)
+
+            for (entity, value) in zip(decl.entities, decl.initExprs) {
+
+                if entity.name == "_" {
+                    continue // do nothing.
+                }
+
+                let entityType = entity.type!
+                let irType = entityType.canonicalized()
+
+                let irValue = emitStmt(for: value)
+
+                let irValuePtr: IRValue
+                if let function = context.currentProcedure?.llvm {
+                    irValuePtr = emitEntryBlockAlloca(in: function, type: irType, named: entity.name, default: irValue)
+                } else {
+                    irValuePtr = emitGlobal(name: entity.mangledName!, type: irType, value: irValue)
+                }
+
+                llvmPointers[entity] = irValuePtr
+            }
         }
-        
-        let pointer: IRValue
-        if let function = context.currentProcedure?.llvm {
-            pointer = emitEntryBlockAlloca(in: function, type: irType, named: name.identifier, default: defaultValue)
-        } else {
-            pointer = emitGlobal(name: name.identifier, type: irType, value: defaultValue)
-        }
-        
-        llvmPointers[entity] = pointer
-        
-        return pointer
+        return VoidType().null()
     }
 
     @discardableResult
     func emitAssignment(for node: AstNode) -> IRValue {
         guard case .stmtAssign(let op, let lhs, let rhs, _) = node else {
-            preconditionFailure()
-        }
-        unimplemented("Multiple Assignment", if: lhs.count != 1 || rhs.count != 1)
-
-        let lvalueLocation: IRValue
-        let lvalueIsSigned: Bool
-        
-        switch lhs[0] {
-        case .ident(let ident, _):
-            let entity = context.scope.lookup(ident)!
-            lvalueLocation = llvmPointers[entity]!
-            let lhsType = entity.type!
-            lvalueIsSigned = !lhsType.isUnsigned
-            
-        case .exprUnary("*", let expr, _):
-            lvalueLocation = emitStmt(for: expr)
-            // FIXME(Brett): Can pointers be signed? 🤔
-            lvalueIsSigned = false
-            
-        default:
-            unimplemented("Non ident lvalue in assignment")
+            panic(node)
         }
 
-        let rvalue = emitStmt(for: rhs[0])
+        let entities = lhs.map({ lookupEntity($0)! })
 
-        if op == "=" {
-            return builder.buildStore(rvalue, to: lvalueLocation)
+        if lhs.count > 1, rhs.count == 1, let value = rhs.first {
+
+            let procRetType = checker.info.types[value]!
+
+            assert(procRetType.isTuple)
+
+            let procRetValue = emitStmt(for: value)
+            let retValue = builder.buildAlloca(type: procRetValue.type)
+            builder.buildStore(procRetValue, to: retValue)
+
+            for (index, entity) in entities.enumerated() {
+                if entity.name == "_" { continue }
+                let irType = entity.type!.canonicalized()
+
+                let rhsIrValuePtr = builder.buildStructGEP(retValue, index: index)
+
+                let rhsIrValue = builder.buildLoad(rhsIrValuePtr)
+
+                let lhsIrValue: IRValue
+                if let function = context.currentProcedure?.llvm {
+                    lhsIrValue = emitEntryBlockAlloca(in: function, type: irType, named: entity.name, default: rhsIrValue)
+                } else {
+                    lhsIrValue = emitGlobal(name: entity.name, type: irType, value: rhsIrValue)
+                }
+
+                llvmPointers[entity] = lhsIrValue
+            }
+
+            return VoidType().null()
+        } else if entities.count == 1, let entity = entities.first,
+            case .proc = entity.type!.kind, let value = rhs.first {
+
+            //
+            // Assign a value to a procedure. First class procedures, yay.
+            //
+
+            return emitProcedureDefinition(entity, value)
+        } else if entities.count == rhs.count {
+
+            let lvalueLocation: IRValue
+            let lvalueIsSigned: Bool
+
+            switch lhs[0] {
+            case .ident(let ident, _):
+                let entity = context.scope.lookup(ident)!
+                lvalueLocation = llvmPointers[entity]!
+                let lhsType = entity.type!
+                lvalueIsSigned = !lhsType.isUnsigned
+
+            case .exprUnary("*", let expr, _):
+                lvalueLocation = emitStmt(for: expr)
+                // FIXME(Brett): Can pointers be signed?
+                lvalueIsSigned = false
+
+            default:
+                unimplemented("Non ident lvalue in assignment")
+            }
+
+            let rvalue = emitStmt(for: rhs[0])
+
+            if op == "=" {
+                return builder.buildStore(rvalue, to: lvalueLocation)
+            }
+
+            let lvalue = builder.buildLoad(lvalueLocation)
+
+            switch op {
+            case "+=":
+                let r = builder.buildAdd(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalueLocation)
+
+            case "-=":
+                let r = builder.buildSub(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalueLocation)
+
+            case "*=":
+                let r = builder.buildMul(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalueLocation)
+
+            case "/=":
+                let r = builder.buildDiv(lvalue, rvalue, signed: lvalueIsSigned)
+
+                return builder.buildStore(r, to: lvalueLocation)
+
+            case "%=":
+                let r = builder.buildRem(lvalue, rvalue, signed: lvalueIsSigned)
+
+                return builder.buildStore(r, to: lvalueLocation)
+
+            case ">>=": // FIXME(vdka): Arithmatic shift?
+                let r = builder.buildShr(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalueLocation)
+
+            case "<<=":
+                let r = builder.buildShl(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalueLocation)
+
+            case "&=":
+                let r = builder.buildAnd(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalueLocation)
+                
+            case "|=":
+                let r = builder.buildOr(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalueLocation)
+                
+            case "^=":
+                let r = builder.buildXor(lvalue, rvalue)
+                return builder.buildStore(r, to: lvalueLocation)
+                
+            default:
+                panic()
+            }
+        } else {
+            assert(entities.count == rhs.count)
+
+            for (entity, value) in zip(entities, rhs) {
+
+                if entity.name == "_" {
+                    continue // do nothing.
+                }
+
+                let irValue = emitStmt(for: value)
+
+                let irValuePtr = llvmPointers[entity]!
+
+                builder.buildStore(irValue, to: irValuePtr)
+                
+                llvmPointers[entity] = irValuePtr
+            }
         }
 
-        let lvalue = builder.buildLoad(lvalueLocation)
-
-//        let rhsType = checker.info.types[rhs[0]]
-
-        switch op {
-        case "+=":
-            let r = builder.buildAdd(lvalue, rvalue)
-            return builder.buildStore(r, to: lvalueLocation)
-
-        case "-=":
-            let r = builder.buildSub(lvalue, rvalue)
-            return builder.buildStore(r, to: lvalueLocation)
-
-        case "*=":
-            let r = builder.buildMul(lvalue, rvalue)
-            return builder.buildStore(r, to: lvalueLocation)
-
-        case "/=":
-            let r = builder.buildDiv(lvalue, rvalue, signed: lvalueIsSigned)
-            
-            return builder.buildStore(r, to: lvalueLocation)
-
-        case "%=":
-            let r = builder.buildRem(lvalue, rvalue, signed: lvalueIsSigned)
-
-            return builder.buildStore(r, to: lvalueLocation)
-
-        case ">>=": // FIXME(vdka): Arithmatic shift?
-            let r = builder.buildShr(lvalue, rvalue)
-            return builder.buildStore(r, to: lvalueLocation)
-
-        case "<<=":
-            let r = builder.buildShl(lvalue, rvalue)
-            return builder.buildStore(r, to: lvalueLocation)
-
-        case "&=":
-            let r = builder.buildAnd(lvalue, rvalue)
-            return builder.buildStore(r, to: lvalueLocation)
-
-        case "|=":
-            let r = builder.buildOr(lvalue, rvalue)
-            return builder.buildStore(r, to: lvalueLocation)
-
-        case "^=":
-            let r = builder.buildXor(lvalue, rvalue)
-            return builder.buildStore(r, to: lvalueLocation)
-
-        default:
-            panic()
-        }
+        return VoidType().null()
     }
 
     @discardableResult
@@ -541,7 +626,30 @@ extension IRGenerator {
     }
 }
 
+
+// MARK: Helpers
+
 extension IRGenerator {
+
+    func lookupEntity(_ node: AstNode) -> Entity? {
+
+        switch node {
+        case .ident(let ident, _):
+            return context.scope.lookup(ident)
+
+        case .exprSelector(let receiver, member: let member, _):
+            guard let receiverScope = lookupEntity(receiver)?.childScope else {
+                return nil
+            }
+            let prevScope = context.scope
+            defer { context.scope = prevScope }
+            context.scope = receiverScope
+            return lookupEntity(member)
+
+        default:
+            return nil
+        }
+    }
 
     @discardableResult
     func pushScope(for node: AstNode) -> Scope {

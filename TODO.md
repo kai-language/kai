@@ -10,8 +10,9 @@
 - [ ] Emit error for unused variables (suggesting to use the `_` throw away instead)
 - [ ] Syntax for uninitialized variables
 - [ ] Switch statements
-- [ ] Support multiple returns
-- [ ] Support multiple assignment and multiple expressions
+- [x] Support multiple returns
+- [ ] Support multiple declarations
+- [ ] Support multiple assignment
 - [ ] Require initializer for decls of type pointer
 - [ ] Check for usage of pointers after `free` and error
 - [ ] Errors for when more than 1 compound literal appears as a rhs
@@ -35,4 +36,5 @@
 - [ ] Add unicode characters support. [ref](https://developer.apple.com/library/ios/documentation/Swift/Conceptual/Swift_Programming_Language/LexicalStructure.html)
 
 ## Syntax
-- [ ] Allow `(x: int) -> int, error`, Forbid `(x: int) -> (int, error)`
+- [x] Allow `(x: int) -> int, error`
+- [ ] Forbid `(x: int) -> (int, error)`

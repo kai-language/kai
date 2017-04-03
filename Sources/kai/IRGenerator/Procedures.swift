@@ -72,7 +72,12 @@ extension IRGenerator {
     }
 
     @discardableResult
-    func emitProcedureDefinition(_ identifier: AstNode, _ node: AstNode) -> Function {
+    func emitProcedureDefinition(_ entity: Entity, _ node: AstNode) -> Function {
+
+        if let llvmPointer = llvmPointers[entity] {
+            return llvmPointer as! Function
+        }
+
         guard case let .litProc(_, body, _) = node else {
             preconditionFailure()
         }
@@ -83,8 +88,6 @@ extension IRGenerator {
                 builder.positionAtEnd(of: prevBlock)
             }
         }
-        
-        let entity = checker.info.definitions[identifier]!
 
         // TODO(Brett): use mangled name when available
         var name = entity.mangledName!
@@ -117,12 +120,13 @@ extension IRGenerator {
             panic()
         }
 
-        var resultPtr: IRValue? = nil
+        var resultValue: IRValue? = nil
         
         builder.positionAtEnd(of: entryBlock)
         
         if !(irType.returnType is VoidType) {
-            resultPtr = emitEntryBlockAlloca(in: proc, type: irType.returnType, named: "result")
+
+            resultValue = emitEntryBlockAlloca(in: proc, type: irType.returnType, named: "result")
         }
         
         var args: [IRValue] = []
@@ -137,7 +141,7 @@ extension IRGenerator {
             args.append(argPointer)
         }
 
-        let procedure = Procedure(scope: scope, llvm: proc, type: irType, returnBlock: returnBlock, returnValue: resultPtr)
+        let procedure = Procedure(scope: scope, llvm: proc, type: irType, returnBlock: returnBlock, returnValue: resultValue)
         
         let previousProcPointer = context.currentProcedure
         context.currentProcedure = procedure
@@ -163,7 +167,7 @@ extension IRGenerator {
         if irType.returnType is VoidType {
             builder.buildRetVoid()
         } else {
-            let result = builder.buildLoad(resultPtr!, name: "result")
+            let result = builder.buildLoad(resultValue!, name: "result")
             builder.buildRet(result)
         }
         
