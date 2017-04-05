@@ -103,7 +103,7 @@ extension Parser {
 
         switch token {
         case .operator(let symbol):
-            return Operator.table.first(where: { $0.symbol == symbol })?.lbp
+            return InfixOperator.lookup(symbol)?.lbp
 
         case .colon, .assign:
             return 10
@@ -129,7 +129,7 @@ extension Parser {
 
         switch token {
         case .operator(let symbol):
-            guard let nud = Operator.table.first(where: { $0.symbol == symbol })?.nud else {
+            guard let nud = PrefixOperator.lookup(symbol)?.nud else {
                 let (_, location) = try consume()
                 reportError("Non prefix operator '\(symbol)'", at: location)
                 let expr = try expression(70) // less than '(' '.' '['
@@ -446,7 +446,7 @@ extension Parser {
 
         switch token {
         case .operator(let symbol):
-            guard let led = Operator.table.first(where: { $0.symbol == symbol })?.led else {
+            guard let led = InfixOperator.lookup(symbol)?.led else {
                 reportError("Non infix operator \(symbol)", at: lexer.lastLocation)
                 let rhs = try expression() // NOTE(vdka): Maybe we need some default precedence?
                 return AstNode.invalid(lvalue.startLocation ..< rhs.endLocation)

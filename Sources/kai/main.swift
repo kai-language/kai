@@ -216,7 +216,7 @@ struct Compiler {
                 try module.verify()
             } catch {
                 module.dump()
-                
+
                 print("Error did occur while verifying generated IR:")
                 print(error)
                 exit(1)
@@ -228,7 +228,7 @@ struct Compiler {
                 .appending(".o")
             let objAbsoluteFilename = [ buildPath, objFilename ].joined(separator: "/")
             objects.append(objAbsoluteFilename)
-            
+
             try TargetMachine().emitToFile(module: module, type: .object, path: buildPath + "/" + objFilename)
         }
         endTiming()
@@ -238,7 +238,7 @@ struct Compiler {
         var args = [
             "-o", "main" // TODO(vdka): Accept an output binary name in commandline options
         ]
-        
+
         for object in objects {
             args.append(object)
         }
@@ -257,7 +257,7 @@ struct Compiler {
 
         shell(path: clang, args: args)
         endTiming()
-        
+
         if options.contains("emit-time") {
             print("\n === Timings === \n")
             var total = 0.0
@@ -293,8 +293,8 @@ struct Compiler {
     }
 }
 
-try Operator.infix("?", bindingPower: 20) { parser, cond in
-    let (_, location) = try parser.consume(.operator("?"))
+InfixOperator.register("?", bindingPower: 20) { parser, cond in
+    let (_, location) = try parser.consume()
 
     let thenExpr = try parser.expression()
     try parser.consume(.colon)
@@ -302,37 +302,37 @@ try Operator.infix("?", bindingPower: 20) { parser, cond in
     return AstNode.exprTernary(cond: cond, thenExpr, elseExpr, cond.startLocation ..< elseExpr.endLocation)
 }
 
-try Operator.prefix("-")
-try Operator.prefix("+")
-try Operator.prefix("!")
-try Operator.prefix("~")
+PrefixOperator.register("-")
+PrefixOperator.register("+")
+PrefixOperator.register("!")
+PrefixOperator.register("~")
 
-try Operator.prefix("^")
-try Operator.prefix("*")
-try Operator.prefix("&")
+PrefixOperator.register("^")
+PrefixOperator.register("*")
+PrefixOperator.register("&")
 
-try Operator.infix("||",  bindingPower: 20)
-try Operator.infix("&&",  bindingPower: 30)
+InfixOperator.register("||", bindingPower: 20)
+InfixOperator.register("&&", bindingPower: 30)
 
-try Operator.infix("&",   bindingPower: 40)
-try Operator.infix("^",   bindingPower: 40)
-try Operator.infix("|",   bindingPower: 40)
+InfixOperator.register("&",  bindingPower: 40)
+InfixOperator.register("^",  bindingPower: 40)
+InfixOperator.register("|",  bindingPower: 40)
 
-try Operator.infix("<",   bindingPower: 50)
-try Operator.infix(">",   bindingPower: 50)
-try Operator.infix("<=",  bindingPower: 50)
-try Operator.infix(">=",  bindingPower: 50)
-try Operator.infix("==",  bindingPower: 50)
-try Operator.infix("!=",  bindingPower: 50)
+InfixOperator.register("<",  bindingPower: 50)
+InfixOperator.register(">",  bindingPower: 50)
+InfixOperator.register("<=", bindingPower: 50)
+InfixOperator.register(">=", bindingPower: 50)
+InfixOperator.register("==", bindingPower: 50)
+InfixOperator.register("!=", bindingPower: 50)
 
-try Operator.infix("<<", bindingPower: 60)
-try Operator.infix(">>", bindingPower: 60)
+InfixOperator.register("<<", bindingPower: 60)
+InfixOperator.register(">>", bindingPower: 60)
 
-try Operator.infix("+",  bindingPower: 70)
-try Operator.infix("-",  bindingPower: 70)
-try Operator.infix("*",  bindingPower: 80)
-try Operator.infix("/",  bindingPower: 80)
-try Operator.infix("%",  bindingPower: 80)
+InfixOperator.register("+",  bindingPower: 70)
+InfixOperator.register("-",  bindingPower: 70)
+InfixOperator.register("*",  bindingPower: 80)
+InfixOperator.register("/",  bindingPower: 80)
+InfixOperator.register("%",  bindingPower: 80)
 
 let compiler = Compiler(args: CommandLine.arguments)
 try compiler.run()

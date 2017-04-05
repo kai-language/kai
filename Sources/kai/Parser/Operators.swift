@@ -1,74 +1,29 @@
 
-struct Operator {
-
-    enum Associativity { case none, left, right }
+struct PrefixOperator {
 
     let symbol: String
-    let lbp: UInt8
-    let associativity: Associativity
 
-    var nud: ((inout Parser) throws -> AstNode)?
-    var led: ((inout Parser, _ lvalue: AstNode) throws -> AstNode)?
+    let nud: ((inout Parser) throws -> AstNode)
 
 
-    init(_ symbol: String, lbp: UInt8, associativity: Associativity = .left,
-             nud: ((inout Parser) throws -> AstNode)?,
-             led: ((inout Parser, _ lvalue: AstNode) throws -> AstNode)?) {
+    init(_ symbol: String,
+         nud: @escaping ((inout Parser) throws -> AstNode)) {
 
         self.symbol = symbol
-        self.lbp = lbp
-        self.associativity = associativity
 
         self.nud = nud
-        self.led = led
     }
 }
 
-extension Operator {
+extension PrefixOperator {
 
-    static var table: [Operator] = []
+    static var table: [PrefixOperator] = []
 
-    static func lookup(_ symbol: String) -> Operator? {
+    static func lookup(_ symbol: String) -> PrefixOperator? {
         return table.first(where: { $0.symbol == symbol })
     }
 
-    static func infix(_ symbol: String, bindingPower lbp: UInt8, associativity: Associativity = .left,
-                                        led: ((inout Parser, _ lvalue: AstNode) throws -> AstNode)? = nil) throws
-    {
-
-        guard symbol != "=" else { throw Error.invalidSymbol }
-
-
-        let led = led ?? { parser, lhs in
-            let (_, symbolLocation) = try parser.consume()
-            let bp = (associativity == .left) ? lbp : lbp - 1
-
-            let rhs = try parser.expression(bp)
-            if  case .none = associativity,
-                case .exprBinary(let sym, lhs: _, rhs: _, _) = rhs,
-                case .none? = Operator.lookup(sym)?.associativity {
-
-                reportError("Ambigious use of operator \(symbol)", at: symbolLocation)
-                return AstNode.invalid(lhs.startLocation ..< rhs.endLocation)
-            }
-
-            return AstNode.exprBinary(symbol, lhs: lhs, rhs: rhs, lhs.startLocation ..< rhs.endLocation)
-        }
-
-        if let index = table.index(where: { $0.symbol == symbol }) {
-            guard table[index].led == nil else { throw Error.redefinition(symbol) }
-
-            table[index].led = led
-        } else {
-
-            let op = Operator(symbol, lbp: lbp, associativity: associativity, nud: nil, led: led)
-            table.append(op)
-        }
-    }
-
-    static func prefix(_ symbol: String, nud: ((inout Parser) throws -> AstNode)? = nil) throws {
-
-        guard symbol != "=" else { throw Error.invalidSymbol }
+    static func register(_ symbol: String, nud: ((inout Parser) throws -> AstNode)? = nil) {
 
         let nud = nud ?? { parser in
             let (_, location) = try parser.consume()
@@ -78,39 +33,75 @@ extension Operator {
             parser.state.insert(.disallowComma)
 
             let expr = try parser.expression(70)
-            return AstNode.exprUnary(symbol, expr: expr, location ..< location)
+            return AstNode.exprUnary(symbol, expr: expr, location ..< expr.endLocation)
         }
 
-        if let index = table.index(where: { $0.symbol == symbol }) {
-            guard table[index].nud == nil else { throw Error.redefinition(symbol) }
-
-            table[index].nud = nud
-        } else {
-
-            let op = Operator(symbol, lbp: 70, associativity: .right, nud: nud, led: nil)
-            table.append(op)
-        }
+        let op = PrefixOperator(symbol, nud: nud)
+        table.append(op)
     }
 
-    static func assignment(_ symbol: String) throws {
+}
 
-        guard symbol != "=" else { throw Error.invalidSymbol }
 
-        try infix(symbol, bindingPower: 10, associativity: .right) { parser, lvalue in
+struct InfixOperator {
+
+    let symbol: String
+    let lbp: UInt8
+    let associativity: Associativity
+
+    let led: ((inout Parser, AstNode) throws -> AstNode)
+
+    enum Associativity { case left, right }
+
+
+    init(_ symbol: String, lbp: UInt8, associativity: Associativity = .left,
+         led: @escaping ((inout Parser, _ left: AstNode) throws -> AstNode)) {
+
+        self.symbol = symbol
+        self.lbp = lbp
+        self.associativity = associativity
+
+        self.led = led
+    }
+}
+
+extension InfixOperator {
+
+    static var table: [InfixOperator] = []
+
+    static func lookup(_ symbol: String) -> InfixOperator? {
+        return table.first(where: { $0.symbol == symbol })
+    }
+
+    static func register(_ symbol: String,
+                         bindingPower lbp: UInt8, associativity: Associativity = .left,
+                         led: ((inout Parser, _ left: AstNode) throws -> AstNode)? = nil)
+    {
+
+        let led = led ?? { parser, lhs in
+            try parser.consume()
+            let bp = (associativity == .left) ? lbp : lbp - 1
+
+            let rhs = try parser.expression(bp)
+
+            return AstNode.exprBinary(symbol, lhs: lhs, rhs: rhs, lhs.startLocation ..< rhs.endLocation)
+        }
+
+        let op = InfixOperator(symbol, lbp: lbp, associativity: associativity, led: led)
+        table.append(op)
+    }
+
+    static func assignmentAssignment(_ symbol: String) throws {
+
+        register(symbol, bindingPower: 10, associativity: .right) { parser, lvalue in
             try parser.consume()
 
             let rvalue = try parser.expression(9)
 
-            // TODO(vdka): allow parsing multiple assignment.
+            // TODO(vdka): Potentially disallow multiple special assignment expressions.
+
             return AstNode.stmtAssign(symbol, lhs: [lvalue], rhs: [rvalue], lvalue.startLocation ..< rvalue.endLocation)
         }
     }
 }
 
-extension Operator {
-
-    enum Error: Swift.Error {
-        case invalidSymbol
-        case redefinition(String)
-    }
-}
