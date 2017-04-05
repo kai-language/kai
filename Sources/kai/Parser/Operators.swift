@@ -1,12 +1,12 @@
 
 struct PrefixOperator {
 
-    let symbol: String
+    let symbol: Operator
 
     let nud: ((inout Parser) throws -> AstNode)
 
 
-    init(_ symbol: String,
+    init(_ symbol: Lexer.Token.Operator,
          nud: @escaping ((inout Parser) throws -> AstNode)) {
 
         self.symbol = symbol
@@ -19,11 +19,11 @@ extension PrefixOperator {
 
     static var table: [PrefixOperator] = []
 
-    static func lookup(_ symbol: String) -> PrefixOperator? {
+    static func lookup(_ symbol: Operator) -> PrefixOperator? {
         return table.first(where: { $0.symbol == symbol })
     }
 
-    static func register(_ symbol: String, nud: ((inout Parser) throws -> AstNode)? = nil) {
+    static func register(_ symbol: Operator, nud: ((inout Parser) throws -> AstNode)? = nil) {
 
         let nud = nud ?? { parser in
             let (_, location) = try parser.consume()
@@ -45,7 +45,7 @@ extension PrefixOperator {
 
 struct InfixOperator {
 
-    let symbol: String
+    let symbol: Operator
     let lbp: UInt8
     let associativity: Associativity
 
@@ -54,7 +54,7 @@ struct InfixOperator {
     enum Associativity { case left, right }
 
 
-    init(_ symbol: String, lbp: UInt8, associativity: Associativity = .left,
+    init(_ symbol: Operator, lbp: UInt8, associativity: Associativity = .left,
          led: @escaping ((inout Parser, _ left: AstNode) throws -> AstNode)) {
 
         self.symbol = symbol

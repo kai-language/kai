@@ -57,8 +57,8 @@ indirect enum AstNode {
     case exprSubscript(receiver: AstNode, value: AstNode, SourceRange)
     case exprCall(receiver: AstNode, args: [AstNode], SourceRange)
     case exprParen(AstNode, SourceRange)
-    case exprUnary(String, expr: AstNode, SourceRange)
-    case exprBinary(String, lhs: AstNode, rhs: AstNode, SourceRange)
+    case exprUnary(Operator, expr: AstNode, SourceRange)
+    case exprBinary(Operator, lhs: AstNode, rhs: AstNode, SourceRange)
     case exprTernary(cond: AstNode, AstNode, AstNode, SourceRange)
     case exprSelector(receiver: AstNode, member: AstNode, SourceRange)
 
@@ -639,11 +639,11 @@ extension AstNode {
             children.append(contentsOf: elements)
 
         case .exprUnary(let op, let expr, _):
-            unlabeled.append("'" + op + "'")
+            unlabeled.append("'" + op.rawValue + "'")
             children.append(expr)
 
         case .exprBinary(let op, let lhs, let rhs, _):
-            unlabeled.append("'" + op + "'")
+            unlabeled.append("'" + op.rawValue + "'")
             children.append(lhs)
             children.append(rhs)
 
@@ -881,11 +881,11 @@ extension AstNode {
             children.append(contentsOf: elements)
 
         case .exprUnary(let op, let expr, _):
-            unlabeled.append(op)
+            unlabeled.append(op.rawValue)
             children.append(expr)
 
         case .exprBinary(let op, let lhs, let rhs, _):
-            unlabeled.append(op)
+            unlabeled.append(op.rawValue)
             children.append(lhs)
             children.append(rhs)
 

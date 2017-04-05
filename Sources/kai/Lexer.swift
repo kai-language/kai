@@ -382,16 +382,53 @@ extension Lexer {
 	}
 }
 
+enum Operator: String {
+    case plus    = "+"
+    case asterix = "*"
+    case minus   = "-"
+    case slash   = "/"
+    case percent = "%"
+
+    case bang  = "!"
+    case tilde = "~"
+
+    case pipe       = "|"
+    case carot      = "^"
+    case ampersand  = "&"
+
+    case doublePipe      = "||"
+    case doubleAmpersand = "&&"
+
+    case leftChevron  = "<"
+    case rightChevron = ">"
+    case leftChevronEquals  = "<="
+    case rightChevronEquals = ">="
+    case equalsEquals       = "=="
+    case bangEquals         = "!="
+
+    case doubleLeftChevron  = "<<"
+    case doubleRightChevron = ">>"
+}
+
+enum Directive: String {
+    case file
+    case line
+    case `import`
+    case library
+    case foreign = "foreign"
+    case foreignLLVM = "foreign(LLVM)"
+}
+
 extension Lexer {
 
     enum Token {
         case directive(Directive)
         case keyword(Keyword)
+        case `operator`(Operator)
 
         case comment(String)
 
         case ident(String)
-        case `operator`(String)
         case assign(String)
 
         case string(String)
@@ -435,15 +472,6 @@ extension Lexer {
             case alias
 
             case returnArrow = "->"
-        }
-
-        enum Directive: String {
-            case file
-            case line
-            case `import`
-            case library
-            case foreign = "foreign"
-            case foreignLLVM = "foreign(LLVM)"
         }
     }
 }
