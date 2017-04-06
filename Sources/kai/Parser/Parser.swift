@@ -453,7 +453,6 @@ extension Parser {
             }
             return try led(&self, lvalue)
 
-
         case .assign(let symbol):
             let (_, location) = try consume()
 
@@ -534,7 +533,7 @@ extension Parser {
 
                 return AstNode.declValue(isRuntime: false, names: explode(lvalue), type: nil, values: explode(rvalue), lvalue.startLocation ..< rvalue.endLocation)
 
-            case .assign("=")?: // type infered runtime decl
+            case .assign(.equals)?: // type infered runtime decl
                 try consume()
                 let rvalue = try expression()
                 return AstNode.declValue(isRuntime: true, names: explode(lvalue), type: nil, values: explode(rvalue), lvalue.startLocation ..< lexer.location)
@@ -548,7 +547,7 @@ extension Parser {
                     // NOTE(vdka): We should report prohibitted type specification at least in some cases. ie: `Foo : typeName : struct { ... }` doesn't make sense
                     unimplemented("Explicit type for compile time declarations")
 
-                case .assign("=")?: // `x : int = y` | `x, y : int = 1, 2`
+                case .assign(.equals)?: // `x : int = y` | `x, y : int = 1, 2`
                     try consume()
                     let rvalue = try expression()
                     return AstNode.declValue(isRuntime: true, names: explode(lvalue), type: type, values: explode(rvalue), lvalue.startLocation ..< lexer.location)
@@ -643,7 +642,7 @@ extension Parser {
             let (_, rparen) = try consume(.rparen)
 
             if case .keyword(.returnArrow)? = try lexer.peek()?.kind {
-                try consume(.keyword(.returnArrow))
+                try consume()
 
                 let retType = try parseType()
 
@@ -653,7 +652,7 @@ extension Parser {
             return AstNode.list(exprs, lparen ..< rparen)
         }
 
-        if case .operator("*") = token {
+        if case .operator(.asterix) = token {
             let (_, location) = try consume()
 
             let prevState = state
@@ -665,7 +664,7 @@ extension Parser {
             return AstNode.typePointer(type: type, location ..< type.endLocation)
         }
 
-        if case .operator("^") = token {
+        if case .operator(.carot) = token {
             let (_, location) = try consume()
 
             let type = try expression(10) // Assignment is binding power 10

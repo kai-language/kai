@@ -385,7 +385,7 @@ extension IRGenerator {
                 let rhsIrValuePtr = builder.buildStructGEP(retValue, index: index)
 
                 let rhsIrValue: IRValue
-                if case .exprUnary("*", _, _) = lhs[index] {
+                if case .exprUnary(.asterix, _, _) = lhs[index] {
                     // TODO(vdka): We need an actual solution for dealing with indirection. This will fail for multiple derefs
                     rhsIrValue = rhsIrValuePtr
                 } else {
@@ -415,7 +415,7 @@ extension IRGenerator {
             case .ident, .exprSelector:
                 lvalueLocation = llvmPointers[entity]!
 
-            case .exprUnary("*", let expr, _):
+            case .exprUnary(.asterix, let expr, _):
                 lvalueLocation = emitStmt(for: expr)
 
             default:
@@ -424,57 +424,57 @@ extension IRGenerator {
 
             let rvalue = emitStmt(for: rval)
 
-            if op == "=" {
+            if case .equals = op {
                 return builder.buildStore(rvalue, to: lvalueLocation)
             }
 
             let lvalue = builder.buildLoad(lvalueLocation)
 
             switch op {
-            case "+=":
+            case .equals:
+                fatalError()
+
+            case .addEquals:
                 let r = builder.buildAdd(lvalue, rvalue)
                 return builder.buildStore(r, to: lvalueLocation)
 
-            case "-=":
+            case .subEquals:
                 let r = builder.buildSub(lvalue, rvalue)
                 return builder.buildStore(r, to: lvalueLocation)
 
-            case "*=":
+            case .mulEquals:
                 let r = builder.buildMul(lvalue, rvalue)
                 return builder.buildStore(r, to: lvalueLocation)
 
-            case "/=":
+            case .divEquals:
                 let r = builder.buildDiv(lvalue, rvalue, signed: !entity.type!.isUnsigned)
 
                 return builder.buildStore(r, to: lvalueLocation)
 
-            case "%=":
+            case .modEquals:
                 let r = builder.buildRem(lvalue, rvalue, signed: !entity.type!.isUnsigned)
 
                 return builder.buildStore(r, to: lvalueLocation)
 
-            case ">>=": // FIXME(vdka): Arithmatic shift?
+            case .rshiftEquals: // FIXME(vdka): Arithmatic shift?
                 let r = builder.buildShr(lvalue, rvalue)
                 return builder.buildStore(r, to: lvalueLocation)
 
-            case "<<=":
+            case .lshiftEquals:
                 let r = builder.buildShl(lvalue, rvalue)
                 return builder.buildStore(r, to: lvalueLocation)
 
-            case "&=":
+            case .andEquals:
                 let r = builder.buildAnd(lvalue, rvalue)
                 return builder.buildStore(r, to: lvalueLocation)
                 
-            case "|=":
+            case .orEquals:
                 let r = builder.buildOr(lvalue, rvalue)
                 return builder.buildStore(r, to: lvalueLocation)
                 
-            case "^=":
+            case .xorEquals:
                 let r = builder.buildXor(lvalue, rvalue)
                 return builder.buildStore(r, to: lvalueLocation)
-                
-            default:
-                panic()
             }
         } else {
             assert(entities.count == rhs.count)
@@ -493,7 +493,7 @@ extension IRGenerator {
                 case .ident, .exprSelector:
                     lvalueLocation = llvmPointers[entity]!
 
-                case .exprUnary("*", let expr, _):
+                case .exprUnary(.asterix, let expr, _):
                     lvalueLocation = emitStmt(for: expr)
 
                 default:
@@ -657,10 +657,10 @@ extension IRGenerator {
             context.scope = receiverScope
             return lookupEntity(member)
 
-        case .exprUnary("*", let expr, _):
+        case .exprUnary(.asterix, let expr, _):
             return lookupEntity(expr)
 
-        case .exprUnary("&", let expr, _):
+        case .exprUnary(.ampersand, let expr, _):
             return lookupEntity(expr)
 
         default:

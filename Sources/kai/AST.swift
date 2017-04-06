@@ -67,7 +67,7 @@ indirect enum AstNode {
     /// Essentially an expr which has it's rvalue thrown away
     case stmtExpr(AstNode)
     case stmtEmpty(SourceRange)
-    case stmtAssign(String, lhs: [AstNode], rhs: [AstNode], SourceRange)
+    case stmtAssign(AssignOperator, lhs: [AstNode], rhs: [AstNode], SourceRange)
     case stmtBlock([AstNode], SourceRange)
     case stmtIf(cond: AstNode, body: AstNode, AstNode?, SourceRange)
     case stmtReturn([AstNode], SourceRange)
@@ -674,7 +674,7 @@ extension AstNode {
             children.append(ast)
 
         case .stmtAssign(let op, let lhs, let rhs, _):
-            unlabeled.append(op)
+            unlabeled.append(op.rawValue)
             children.append(contentsOf: lhs)
             children.append(contentsOf: rhs)
 
@@ -916,7 +916,7 @@ extension AstNode {
             children.append(ast)
 
         case .stmtAssign(let op, let lhs, let rhs, _):
-            unlabeled.append(op)
+            unlabeled.append(op.rawValue)
             children.append(contentsOf: lhs)
             children.append(contentsOf: rhs)
 

@@ -13,14 +13,14 @@ extension IRGenerator {
 
             // TODO(vdka): There is much more to build.
             switch op {
-            case "+": // This is oddly a do nothing kind of operator. Lazy guy.
+            case .plus: // This is oddly a do nothing kind of operator. Lazy guy.
                 return emitStmt(for: expr)
 
-            case "-":
+            case .minus:
                 let val = emitStmt(for: expr)
                 return builder.buildNeg(val)
 
-            case "!":
+            case .bang:
                 let val = emitStmt(for: expr)
                 if type === Type.bool {
                     return builder.buildNot(val)
@@ -29,11 +29,11 @@ extension IRGenerator {
                     return builder.buildNot(truncdVal)
                 }
 
-            case "~":
+            case .tilde:
                 let val = emitStmt(for: expr)
                 return builder.buildNot(val)
 
-            case "&":
+            case .ampersand:
                 switch expr {
                 case .ident(let name, _):
                     let entity = context.scope.lookup(name)!
@@ -43,7 +43,7 @@ extension IRGenerator {
                     return emitStmt(for: expr)
                 }
 
-            case "*":
+            case .asterix:
 
                 switch type.kind {
                 case .pointer(let underlyingType),
@@ -104,16 +104,16 @@ extension IRGenerator {
             }
 
             switch op {
-            case "+":
+            case .plus:
                 return builder.buildAdd(lvalue, rvalue)
 
-            case "-":
+            case .minus:
                 return builder.buildSub(lvalue, rvalue)
 
-            case "*":
+            case .asterix:
                 return builder.buildMul(lvalue, rvalue)
 
-            case "/":
+            case .slash:
                 if lhsType.isUnsigned {
 
                     return builder.buildDiv(lvalue, rvalue, signed: false)
@@ -122,7 +122,7 @@ extension IRGenerator {
                     return builder.buildDiv(lvalue, rvalue, signed: true)
                 }
 
-            case "%":
+            case .percent:
                 if lhsType.isUnsigned {
 
                     return builder.buildRem(lvalue, rvalue, signed: false)
@@ -132,13 +132,13 @@ extension IRGenerator {
                 }
 
             // TODO(vdka): Are these arithmatic or logical? Which should they be?
-            case "<<":
+            case .doubleLeftChevron:
                 return builder.buildShl(lvalue, rvalue)
 
-            case ">>":
+            case .doubleRightChevron:
                 return builder.buildShr(lvalue, rvalue)
 
-            case "<":
+            case .leftChevron:
                 if lhsType.isUnsigned {
                     return builder.buildICmp(lvalue, rvalue, .unsignedLessThan)
                 } else if lhsType.isInteger {
@@ -148,7 +148,7 @@ extension IRGenerator {
                 }
                 panic()
 
-            case "<=":
+            case .leftChevronEquals:
                 if lhsType.isUnsigned {
                     return builder.buildICmp(lvalue, rvalue, .unsignedLessThanOrEqual)
                 } else if lhsType.isInteger {
@@ -158,7 +158,7 @@ extension IRGenerator {
                 }
                 panic()
 
-            case ">":
+            case .rightChevron:
                 if lhsType.isUnsigned {
                     return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThan)
                 } else if lhsType.isInteger {
@@ -168,7 +168,7 @@ extension IRGenerator {
                 }
                 panic()
 
-            case ">=":
+            case .rightChevronEquals:
                 if lhsType.isUnsigned {
                     return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThanOrEqual)
                 } else if lhsType.isInteger {
@@ -178,7 +178,7 @@ extension IRGenerator {
                 }
                 panic()
 
-            case "==":
+            case .equalsEquals:
                 if lhsType.isInteger {
                     return builder.buildICmp(lvalue, rvalue, .equal)
                 } else if lhsType.isFloat {
@@ -186,7 +186,7 @@ extension IRGenerator {
                 }
                 panic()
 
-            case "!=":
+            case .bangEquals:
                 if lhsType.isInteger {
                     return builder.buildICmp(lvalue, rvalue, .notEqual)
                 } else if lhsType.isFloat {
@@ -194,20 +194,20 @@ extension IRGenerator {
                 }
                 return builder.buildICmp(lvalue, rvalue, .notEqual)
 
-            case "&":
+            case .ampersand:
                 return builder.buildAnd(lvalue, rvalue)
 
-            case "|":
+            case .pipe:
                 return builder.buildOr(lvalue, rvalue)
 
-            case "^":
+            case .carot:
                 return builder.buildXor(lvalue, rvalue)
 
-            case "&&":
+            case .doubleAmpersand:
                 let r = builder.buildAnd(lvalue, rvalue)
                 return builder.buildTrunc(r, type: IntType.int1)
 
-            case "||":
+            case .doublePipe:
                 let r = builder.buildOr(lvalue, rvalue)
                 return builder.buildTrunc(r, type: IntType.int1)
 

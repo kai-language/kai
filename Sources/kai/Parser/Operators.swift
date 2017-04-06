@@ -6,7 +6,7 @@ struct PrefixOperator {
     let nud: ((inout Parser) throws -> AstNode)
 
 
-    init(_ symbol: Lexer.Token.Operator,
+    init(_ symbol: Operator,
          nud: @escaping ((inout Parser) throws -> AstNode)) {
 
         self.symbol = symbol
@@ -23,7 +23,8 @@ extension PrefixOperator {
         return table.first(where: { $0.symbol == symbol })
     }
 
-    static func register(_ symbol: Operator, nud: ((inout Parser) throws -> AstNode)? = nil) {
+    static func register(_ symbol: String, nud: ((inout Parser) throws -> AstNode)? = nil) {
+        let symbol = Operator(rawValue: symbol)!
 
         let nud = nud ?? { parser in
             let (_, location) = try parser.consume()
@@ -69,7 +70,7 @@ extension InfixOperator {
 
     static var table: [InfixOperator] = []
 
-    static func lookup(_ symbol: String) -> InfixOperator? {
+    static func lookup(_ symbol: Operator) -> InfixOperator? {
         return table.first(where: { $0.symbol == symbol })
     }
 
@@ -77,6 +78,7 @@ extension InfixOperator {
                          bindingPower lbp: UInt8, associativity: Associativity = .left,
                          led: ((inout Parser, _ left: AstNode) throws -> AstNode)? = nil)
     {
+        let symbol = Operator(rawValue: symbol)!
 
         let led = led ?? { parser, lhs in
             try parser.consume()
@@ -89,19 +91,6 @@ extension InfixOperator {
 
         let op = InfixOperator(symbol, lbp: lbp, associativity: associativity, led: led)
         table.append(op)
-    }
-
-    static func assignmentAssignment(_ symbol: String) throws {
-
-        register(symbol, bindingPower: 10, associativity: .right) { parser, lvalue in
-            try parser.consume()
-
-            let rvalue = try parser.expression(9)
-
-            // TODO(vdka): Potentially disallow multiple special assignment expressions.
-
-            return AstNode.stmtAssign(symbol, lhs: [lvalue], rhs: [rvalue], lvalue.startLocation ..< rvalue.endLocation)
-        }
     }
 }
 

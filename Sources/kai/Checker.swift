@@ -1240,19 +1240,12 @@ extension Checker {
     }
 
 
-    static let validAssignOps = ["=", "+=", "-=", "*=", "/=", "%=", ">>=", "<<=", "&=", "^=", "|="]
-
     mutating func checkStmtAssign(_ node: AstNode) {
         guard case .stmtAssign(let op, let lhs, let rhs, _) = node else {
             panic()
         }
 
-        guard Checker.validAssignOps.contains(op) else {
-            reportError("Invalid operation binary operation \(op)", at: node)
-            return
-        }
-
-        guard op == "=" else {
+        guard case .equals = op else {
             guard lhs.count == 1 && rhs.count == 1, let lval = lhs.first, let rval = rhs.first else {
                 reportError("Complex assignment is limitted to singlular l and r values", at: node)
                 return
@@ -1284,7 +1277,7 @@ extension Checker {
                 for (lval, result) in zip(lhs, results) {
 
                     switch lval {
-                    case .exprUnary("*", let expr, _):
+                    case .exprUnary(.asterix, let expr, _):
                         // FIXME(vdka): This probably won't handle multiple layers of indirection.
                         guard let entity = lookupEntity(expr) else {
                             return
@@ -1305,7 +1298,7 @@ extension Checker {
                             return
                         }
 
-                    case .exprUnary("&", _, _):
+                    case .exprUnary(.ampersand, _, _):
                         unimplemented()
 
                     default:
@@ -1603,7 +1596,7 @@ extension Checker {
         }
 
         switch op {
-        case "+", "-": // valid on any numeric type.
+        case .plus, .minus: // valid on any numeric type.
             let operandType = checkExpr(expr, typeHint: typeHint)
             guard !Type.Flag.numeric.union(operandType.flags).isEmpty else {
                 reportError("Undefined unary operation '\(op)' for \(operandType)", at: location)
@@ -1612,7 +1605,7 @@ extension Checker {
 
             return operandType
 
-        case "!", "~": // valid on any integer type.
+        case .bang: // valid on any integer type.
             let operandType = checkExpr(expr, typeHint: typeHint)
             guard !Type.Flag.integer.union(operandType.flags).isEmpty else {
                 reportError("Undefined unary operation '\(op)' for \(operandType)", at: location)
@@ -1621,12 +1614,12 @@ extension Checker {
 
             return operandType
 
-        case "&":
+        case .ampersand:
             let operandType = checkExpr(expr, typeHint: typeHint)
 
             return Type.pointer(to: operandType)
 
-        case "*":
+        case .asterix:
             let operandType = checkExpr(expr, typeHint: typeHint)
 
             switch operandType.kind {
@@ -1643,7 +1636,7 @@ extension Checker {
                 return Type.invalid
             }
 
-        case "^":
+        case .carot:
             let operandType = checkExpr(expr, typeHint: typeHint)
             guard case .typeInfo(let underlyingType) = operandType.kind else {
                 panic() // TODO(vdka): Error out.
@@ -1667,14 +1660,14 @@ extension Checker {
         let invalidOpError = "Invalid operation binary operation \(op) between types \(lhsType) and \(rhsType)"
 
         switch op {
-        case "+" where lhsType.isString && rhsType.isString:
+        case .plus where lhsType.isString && rhsType.isString:
             return Type.string
 
-        case "+" where lhsType.isNumeric && rhsType.isNumeric,
-             "-",
-             "*",
-             "/",
-             "%":
+        case .plus,
+             .minus,
+             .asterix,
+             .slash,
+             .percent:
             // NOTE(vdka): The first matching case duplicates this so that `string + string` doesn't enter this case body
             guard lhsType.isNumeric && rhsType.isNumeric else {
                 reportError(invalidOpError, at: node)
@@ -1695,8 +1688,8 @@ extension Checker {
 
             // TODO(vdka): '%' modulo does % work on Float types?
 
-        case "<<",
-             ">>":
+        case .doubleLeftChevron,
+             .doubleRightChevron:
             guard lhsType.isInteger && rhsType.isInteger else {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
@@ -1714,12 +1707,12 @@ extension Checker {
                 return Type.invalid
             }
 
-        case "<",
-             ">",
-             "<=",
-             ">=",
-             "==",
-             "!=":
+        case .leftChevron,
+             .rightChevron,
+             .leftChevronEquals,
+             .rightChevronEquals,
+             .equalsEquals,
+             .bangEquals:
             guard lhsType.isOrdered && rhsType.isOrdered else {
                     reportError(invalidOpError, at: node)
                     return Type.invalid
@@ -1735,9 +1728,9 @@ extension Checker {
 
             return Type.bool
 
-        case "&",
-             "^",
-             "|":
+        case .ampersand,
+             .carot,
+             .pipe:
             guard lhsType.isInteger && rhsType.isInteger else {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
@@ -1767,8 +1760,8 @@ extension Checker {
 
             panic()
 
-        case "&&",
-             "||":
+        case .doubleAmpersand,
+             .doublePipe:
             guard lhsType.isBooleanesque && rhsType.isBooleanesque else {
                 reportError(invalidOpError, at: node)
                 return Type.invalid

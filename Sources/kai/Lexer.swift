@@ -98,7 +98,7 @@ struct Lexer {
 		case _ where identChars.contains(char):
 			let symbol = consume(with: identChars + digits)
 
-            if let keyword = Token.Keyword(rawValue: symbol) {
+            if let keyword = Keyword(rawValue: symbol) {
                 return (.keyword(keyword), location)
             } else {
                 return (.ident(symbol), location)
@@ -108,15 +108,32 @@ struct Lexer {
             let comment = try consumeComment()
             return (.comment(comment), location)
 
+        case _ where scanner.hasPrefix("->"):
+            scanner.pop()
+            scanner.pop()
+            return (.keyword(.returnArrow), location)
+
 		case _ where opChars.contains(char):
-			let symbol = consume(with: opChars)
-			if let keyword = Token.Keyword(rawValue: symbol) {
-                return (.keyword(keyword), location)
-            } else if symbol.contains("=") {
-                return (.assign(symbol), location)
-            } else {
-                return (.operator(symbol), location)
+
+            var collected = ""
+
+            while let char = scanner.peek() {
+                if opChars.contains(char) {
+                    collected.append(char)
+                    scanner.pop()
+                } else {
+                    break
+                }
+
+                if let op = Operator(rawValue: collected) {
+                    return (.operator(op), location)
+                } else if let op = AssignOperator(rawValue: collected) {
+                    return (.assign(op), location)
+                }
             }
+
+            return (.invalid(collected), location)
+
 
 		// TODO(vdka): Correctly consume (and validate) number literals (real and integer)
 		case _ where digits.contains(char):
@@ -189,7 +206,7 @@ struct Lexer {
 		case "#":
 			scanner.pop()
 			let identifier = consume(upTo: { !whitespace.contains($0) })
-			guard let directive = Token.Directive(rawValue: identifier) else {
+			guard let directive = Directive(rawValue: identifier) else {
 				throw error(.unknownDirective)
 			}
 
@@ -382,6 +399,21 @@ extension Lexer {
 	}
 }
 
+enum AssignOperator: String {
+    case equals = "="
+    case addEquals = "+="
+    case subEquals = "-="
+    case mulEquals = "*="
+    case divEquals = "/="
+    case modEquals = "%="
+
+    case lshiftEquals = "<<="
+    case rshiftEquals = ">>="
+    case orEquals = "|="
+    case andEquals = "&="
+    case xorEquals = "^="
+}
+
 enum Operator: String {
     case plus    = "+"
     case asterix = "*"
@@ -391,6 +423,7 @@ enum Operator: String {
 
     case bang  = "!"
     case tilde = "~"
+    case questionMark = "?"
 
     case pipe       = "|"
     case carot      = "^"
@@ -419,17 +452,38 @@ enum Directive: String {
     case foreignLLVM = "foreign(LLVM)"
 }
 
+enum Keyword: String {
+    case `struct`
+    case `enum`
+
+    case `if`
+    case `else`
+    case `return`
+
+    case `defer`
+
+    case `for`
+    case `break`
+    case `continue`
+
+    case type
+    case alias
+
+    case returnArrow = "->"
+}
+
 extension Lexer {
 
     enum Token {
+        case invalid(String)
         case directive(Directive)
         case keyword(Keyword)
         case `operator`(Operator)
+        case assign(AssignOperator)
 
         case comment(String)
 
         case ident(String)
-        case assign(String)
 
         case string(String)
         case integer(Int64)
@@ -453,26 +507,6 @@ extension Lexer {
 
         /// Soft line terminator
         case newline
-
-        enum Keyword: String {
-            case `struct`
-            case `enum`
-
-            case `if`
-            case `else`
-            case `return`
-
-            case `defer`
-
-            case `for`
-            case `break`
-            case `continue`
-
-            case type
-            case alias
-
-            case returnArrow = "->"
-        }
     }
 }
 
@@ -480,6 +514,9 @@ extension Lexer.Token: Equatable {
 
     static func == (lhs: Lexer.Token, rhs: Lexer.Token) -> Bool {
         switch (lhs, rhs) {
+        case (.invalid(let l), .invalid(let r)):
+            return l == r
+
         case (.directive(let l), .directive(let r)):
             return l == r
 
