@@ -2,23 +2,25 @@
 # TODO
 
 ## Current
-- [ ] Cast to different sizes emitting `trunc` or `ext`
+- [x] Cast to different sizes emitting `trunc` or `ext`
 - [x] Support nested procedures
 - [x] Name mangling
 - [ ] Improve name mangling
+  - arbitrary scopes do not have any mangling rules.. they should..
 - [ ] Emit error for _captured_ variables in nested procedures (currently emits bad llvm)
 - [ ] Emit error for unused variables (suggesting to use the `_` throw away instead)
 - [ ] Syntax for uninitialized variables
 - [ ] Switch statements
 - [x] Support multiple returns
-- [ ] Support multiple declarations
-- [ ] Support multiple assignment
+- [x] Support multiple declarations
+- [x] Support multiple assignment
 - [ ] Require initializer for decls of type pointer
 - [ ] Check for usage of pointers after `free` and error
 - [ ] Errors for when more than 1 compound literal appears as a rhs
-- [ ] Fix comment parsing error by adding a comment AstNode
+- [x] Fix comment parsing error by adding a comment AstNode
     - `{ /* */ }` fails to parse
 - [ ] Better arity mismatch Errors (especially in checkDecl)
+- [ ] Fix documentation generation
 
 ## Big Features
 - [ ] Structs
