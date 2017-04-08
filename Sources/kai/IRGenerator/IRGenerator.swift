@@ -63,6 +63,9 @@ extension IRGenerator {
     func emitGlobals() throws {
         for node in file.nodes {
             switch node {
+            case .comment:
+                break
+
             case .declValue:
                 emitDeclaration(for: node)
 
@@ -114,6 +117,9 @@ extension IRGenerator {
     @discardableResult
     func emitStmt(for node: AstNode, isLValue: Bool = false) -> IRValue {
         switch node {
+        case .comment:
+            return VoidType().null()
+
         case .litString, .litFloat, .litInteger, .litProc, .litCompound:
             return emitLiteral(for: node)
 

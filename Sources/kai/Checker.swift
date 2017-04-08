@@ -799,6 +799,9 @@ extension Checker {
 
         for node in nodes {
             guard node.isDecl else {
+                if case .comment = node {
+                    continue
+                }
                 if context.scope.isFile {
                     reportError("Currently only declarations are valid at file scope", at: node)
                 }
@@ -1149,6 +1152,9 @@ extension Checker {
     mutating func checkStmt(_ node: AstNode) {
 
         switch node {
+        case .comment:
+            break
+
         case .declValue, .declImport, .declLibrary:
             let entities = collectDecl(node)
             for e in entities {

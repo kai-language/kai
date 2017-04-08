@@ -32,10 +32,11 @@ indirect enum AstNode {
 
     case invalid(SourceRange)
 
+    case list([AstNode], SourceRange)
+    case comment(String, SourceRange)
+
     case ident(String, SourceRange)
     case directive(String, args: [AstNode], SourceRange)
-
-    case list([AstNode], SourceRange)
 
     case ellipsis(AstNode, SourceRange)
 
@@ -119,9 +120,10 @@ extension AstNode {
 
         switch self {
         case .invalid(let location),
+             .list(_, let location),
+             .comment(_, let location),
              .ident(_, let location),
              .directive(_, _, let location),
-             .list(_, let location),
              .ellipsis(_, let location),
              .litInteger(_, let location),
              .litFloat(_, let location),
@@ -401,14 +403,17 @@ extension AstNode: CustomStringConvertible {
         case .invalid(let location):
             return "<invalid at \(location)>"
 
+        case .list(let nodes, _):
+            return nodes.description
+
+        case .comment(let contents, _):
+            return "/*\(contents)*/"
+
         case .ident(let ident, _):
             return ident
 
         case .directive(let directive, let args, _):
             return "\(directive) \(args.commaSeparated)"
-
-        case .list(let nodes, _):
-            return nodes.description
 
         case .ellipsis(let expr, _):
             return "..\(expr)"
@@ -533,9 +538,10 @@ extension AstNode {
 
         switch self {
         case .invalid: return "invalid"
+        case .list: return "list"
+        case .comment: return "comment"
         case .ident: return "ident"
         case .directive: return "directive"
-        case .list: return "list"
         case .ellipsis: return "ellipsis"
         case .litInteger: return "litInteger"
         case .litFloat: return "litFloat"
@@ -584,12 +590,6 @@ extension AstNode {
         case .invalid(let location):
             labeled.append(("location", location.description))
 
-        case .ident(let ident, _):
-            unlabeled.append(ident)
-
-        case .directive(let directive, _, _):
-            unlabeled.append(directive)
-
         case .list(let nodes, _):
 
             if nodes.reduce(true, { $0.0 && $0.1.isIdent }) {
@@ -597,6 +597,15 @@ extension AstNode {
             } else {
                 children.append(contentsOf: nodes)
             }
+
+        case .comment:
+            break
+
+        case .ident(let ident, _):
+            unlabeled.append(ident)
+
+        case .directive(let directive, _, _):
+            unlabeled.append(directive)
 
         case .ellipsis(let expr, _):
             children.append(expr)
@@ -827,12 +836,6 @@ extension AstNode {
         case .invalid(let location):
             labeled.append(("location", location.description))
 
-        case .ident(let ident, _):
-            unlabeled.append(ident)
-
-        case .directive(let directive, _, _):
-            unlabeled.append(directive)
-
         case .list(let nodes, _):
 
             if nodes.reduce(true, { $0.0 && ($0.1.isIdent || $0.1.isBasicLit) }) {
@@ -840,6 +843,15 @@ extension AstNode {
             } else {
                 children.append(contentsOf: nodes)
             }
+
+        case .comment:
+            break
+
+        case .ident(let ident, _):
+            unlabeled.append(ident)
+
+        case .directive(let directive, _, _):
+            unlabeled.append(directive)
 
         case .ellipsis(let expr, _):
             children.append(expr)
