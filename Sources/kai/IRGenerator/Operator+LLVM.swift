@@ -44,26 +44,8 @@ extension IRGenerator {
                 }
 
             case .asterix:
-
-                switch type.kind {
-                case .pointer(let underlyingType),
-                     .nullablePointer(let underlyingType):
-
-                    switch underlyingType.kind {
-                    case .alias(_, _):
-                        unimplemented()
-
-                    case .named:
-                        let val = emitStmt(for: expr)
-                        return builder.buildLoad(val)
-
-                    default:
-                        preconditionFailure()
-                    }
-
-                default:
-                    preconditionFailure()
-                }
+                let val = emitStmt(for: expr)
+                return builder.buildLoad(val)
 
             default:
                 unimplemented("Unary Operator '\(op)'")
