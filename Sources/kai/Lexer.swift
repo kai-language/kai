@@ -113,6 +113,10 @@ struct Lexer {
             scanner.pop()
             return (.keyword(.returnArrow), location)
 
+        case "*": // Because otherwise '**' becomes a single operator.
+            scanner.pop()
+            return (.operator(.asterix), location)
+
 		case _ where opChars.contains(char):
 
             let symbol = consume(with: opChars)

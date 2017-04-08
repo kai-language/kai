@@ -97,5 +97,14 @@ main :: () -> void {
         *p1, *p2 = addFive(*p1, *p2)
         print("p1: %d, p2: %d\n", *p1, *p2)
     }
+
+    {
+        print("%d\n", 2 + 4 * 10)
+
+        x := 5
+        y := &x
+        z := &y
+        print("%d\n", **z)
+    }
 }
 
