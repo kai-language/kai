@@ -600,41 +600,31 @@ extension IRGenerator {
         }
 
         let curBlock = builder.insertBlock!
-        let lastBlock = builder.currentFunction!.lastBlock!
+        let returnBlock = context.currentProcedure!.returnBlock
 
         let curFunction = builder.currentFunction!
 
         if context.currentProcedure!.deferBlock == nil {
             context.currentProcedure!.deferBlock = curFunction.appendBasicBlock(named: "defer")
+            builder.positionAtEnd(of: context.currentProcedure!.deferBlock!)
+            builder.buildBr(returnBlock)
         }
 
-        let returnBlock = context.currentProcedure!.returnBlock
         let deferBlock  = context.currentProcedure!.deferBlock!
 
-        // FIXME(vdka): This is not quite what we want. We want defer to always execute right before
-        // we return from the current proc. This will instead execute the moment you leave say, an if
-        // or for BasicBlock.
-        // if there is a prexisting defer, then we need not add another jump.
-        var jmp: IRValue
-        if !deferBlock.hasTerminatingInstruction {
-            jmp = builder.buildBr(deferBlock)
-        } else {
-            jmp = curBlock.lastInstruction! as IRValue
-        }
-
-        builder.positionAtEnd(of: deferBlock)
         if let firstInst = deferBlock.firstInstruction {
+            //
+            // By positioning before the first Instruction we ensure the things defered last execute first
+            //
             builder.positionBefore(firstInst)
         }
 
         // At scope exit, reset the builder position
-        defer { builder.position(jmp, block: curBlock) }
+        defer { builder.positionAtEnd(of: curBlock) }
 
-        let val = emitStmt(stmt)
-        if !deferBlock.hasTerminatingInstruction {
-            builder.buildBr(returnBlock)
-        }
-        return val
+        emitStmt(stmt)
+
+        return VoidType().null()
     }
 
     @discardableResult
@@ -672,7 +662,7 @@ extension IRGenerator {
 
             builder.positionAtEnd(of: loopCond!)
 
-            let condVal = emitConditional(for: cond)
+            let condVal = emitExprConditional(for: cond)
 
             builder.buildCondBr(condition: condVal, then: loopBody, else: loopDone)
         } else {
@@ -753,7 +743,11 @@ extension IRGenerator {
             builder.buildStore(retVal, to: currentProcedure.returnValue!)
         }
 
-        builder.buildBr(currentProcedure.returnBlock)
+        if let deferBlock = currentProcedure.deferBlock {
+            builder.buildBr(deferBlock)
+        } else {
+            builder.buildBr(currentProcedure.returnBlock)
+        }
         return VoidType().null()
     }
 
@@ -891,7 +885,11 @@ extension IRGenerator {
 
         let insert = builder.insertBlock!
         if !insert.hasTerminatingInstruction {
-            builder.buildBr(returnBlock)
+            if let deferBlock = procedure.deferBlock {
+                builder.buildBr(deferBlock)
+            } else {
+                builder.buildBr(returnBlock)
+            }
         }
 
         returnBlock.moveAfter(proc.lastBlock!)
