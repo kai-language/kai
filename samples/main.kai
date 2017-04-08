@@ -137,7 +137,7 @@ main :: () -> void {
         k : f64 = f64(1 + 2 + 3)
 
         print("x: %hhd, y: %hu, z: %hhu\n", x, y, z)
-        print("i: %.2f, j: %.2f, k: %.2f\n", i, j, k)
+        print("i: %.2f, j: %.2f, k: %.2f\n", f64(i), j, k)
         // NOTE(vdka): There is a bug here due to some C strangeness
         // C emits an fpext instruction for floating point aguments to get them to double
         // Without float's being passed as doubles to printf, it prints the 0 value.
@@ -146,9 +146,22 @@ main :: () -> void {
     section()
 
     { // defer keyword
-        defer print("I was defered first!\n")
-        defer print("I was defered last!\n")
-        print("I was not defered\n")
+
+        deferDemo :: () -> void {
+            defer print("I was defered first!\n")
+            defer print("I was defered last!\n")
+            print("I was not defered\n")
+        }
+
+        deferDemo()
+    }
+
+    section()
+
+    { // Ternary
+
+        print("0 ? 1 : 0 -> %d\n", 0 ? 1 : 0)
+        print("1 ? 1 : 0 -> %d\n", 1 ? 1 : 0)
     }
 }
 

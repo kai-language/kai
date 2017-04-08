@@ -40,9 +40,6 @@ struct Compiler {
             case "--version", "-v":
                 printVersion()
 
-            case "--emit-docs":
-                options.insert("emit-docs")
-
             case "--emit-ast":
                 options.insert("emit-ast")
 
@@ -56,7 +53,6 @@ struct Compiler {
                 options.insert("emit-time")
 
             case "--emit-all":
-                options.insert("emit-docs")
                 options.insert("emit-ast")
                 options.insert("emit-typed-ast")
                 options.insert("emit-ir")
@@ -114,7 +110,6 @@ struct Compiler {
         print("\(cyan)USAGE\(reset): kai [options] <inputs>\n")
 
         print("\(cyan)OPTIONS\(reset):")
-        print("  --emit-docs            Output source code documentation comments")
         print("  --emit-ast             Output generated abstract syntax tree")
         print("  --emit-typed-ast       Output type annotated syntax tree")
         print("  --emit-ir              Output generated LLVM IR")
@@ -149,15 +144,6 @@ struct Compiler {
             print("There were \(errors.count) errors during parsing\nexiting")
             emitErrors()
             exit(1)
-        }
-
-        if options.contains("emit-docs") {
-            print()
-            for (node, comment) in parser.documentation {
-                print(comment)
-                print(node)
-                print()
-            }
         }
 
         if options.contains("emit-ast") {
@@ -296,9 +282,19 @@ struct Compiler {
 InfixOperator.register("?", bindingPower: 20) { parser, cond in
     let (_, location) = try parser.consume()
 
-    let thenExpr = try parser.expression()
+    let thenExpr: AstNode
+    if case .colon? = try parser.lexer.peek()?.kind {
+
+        try parser.consume()
+
+        // when the thenExpr is omitted then becomes the cond
+        thenExpr = cond
+    } else {
+
+        thenExpr = try parser.expression(19)
+    }
     try parser.consume(.colon)
-    let elseExpr = try parser.expression()
+    let elseExpr = try parser.expression(19)
     return AstNode.exprTernary(cond: cond, thenExpr, elseExpr, cond.startLocation ..< elseExpr.endLocation)
 }
 

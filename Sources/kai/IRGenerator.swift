@@ -159,6 +159,9 @@ extension IRGenerator {
         case .exprBinary:
             return emitExprOperator(node)
 
+        case .exprTernary:
+            return emitExprTernary(node)
+
         case .exprSubscript:
             return emitExprSubscript(node, isLValue: isLValue)
             
@@ -345,8 +348,6 @@ extension IRGenerator {
 
                 // If both the if and the else return then there is no need for a post block
                 postBlock.removeFromParent()
-
-//                postBlock.delete()
             }
 
             //
@@ -369,6 +370,62 @@ extension IRGenerator {
         builder.positionAtEnd(of: postBlock)
 
         return postBlock
+    }
+
+    func emitExprTernary(_ node: AstNode) -> IRValue {
+        guard case .exprTernary(let cond, let thenStmt, let elseStmt, _) = node else {
+            panic()
+        }
+
+        let curFunction = builder.currentFunction!
+
+        let thenBlock = curFunction.appendBasicBlock(named: "tern.then")
+        let elseBlock = curFunction.appendBasicBlock(named: "tern.else")
+        let postBlock = curFunction.appendBasicBlock(named: "tern.post")
+
+        //
+        // Emit the conditional branch
+        //
+
+        let condVal = emitExprConditional(for: cond)
+
+        builder.buildCondBr(condition: condVal, then: thenBlock, else: elseBlock)
+
+        //
+        // Emit the `then` block
+        //
+
+        builder.positionAtEnd(of: thenBlock)
+
+        let thenVal = emitStmt(thenStmt)
+
+        if !thenBlock.hasTerminatingInstruction {
+            builder.buildBr(postBlock)
+        }
+
+        //
+        // Emit the `else` block
+        //
+
+        builder.positionAtEnd(of: elseBlock)
+
+        let elseVal = emitStmt(elseStmt)
+
+        if !elseBlock.hasTerminatingInstruction {
+            builder.buildBr(postBlock)
+        }
+
+        //
+        // Set builder position to the end of the `post` block
+        //
+        
+        builder.positionAtEnd(of: postBlock)
+
+        let type = checker.info.types[node]!.canonicalized()
+        let phi = builder.buildPhi(type)
+        phi.addIncoming([(thenVal, thenBlock), (elseVal, elseBlock)])
+        
+        return phi
     }
 
     @discardableResult

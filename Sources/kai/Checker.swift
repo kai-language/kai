@@ -1369,7 +1369,13 @@ extension Checker {
             return Type.invalid
         }
 
+        //
+        // Remember to set this type whenever the value is not invalid.
+        // Do NOT return your valid type directly, you need info.types set for the node.
+        //
+
         var type = Type.invalid
+
         switch node {
         case .litInteger:
             type = Type.unconstrInteger
@@ -1452,6 +1458,23 @@ extension Checker {
 
         case .exprBinary:
             type = checkExprBinary(node, typeHint: typeHint)
+
+        case .exprTernary(let cond, let thenExpr, let elseExpr, _):
+            let condType = checkExpr(cond, typeHint: Type.bool)
+
+            guard canImplicitlyConvert(condType, to: Type.bool) else {
+                reportError("Cannot use expression as boolean value", at: cond)
+                return Type.invalid
+            }
+
+            let thenType = checkExpr(thenExpr)
+            let elseType = checkExpr(elseExpr)
+
+            guard thenType == elseType else {
+                reportError("result values in '? :' expression have mismatching types '\(thenType)' and '\(elseType)'", at: node)
+                return Type.invalid
+            }
+            type = thenType
 
         case .exprCall(let receiver, let args, _):
 

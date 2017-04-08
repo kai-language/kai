@@ -12,8 +12,6 @@ struct Parser {
     var files: [ASTFile] = []
     var imports: [ImportedFile] = []
 
-    var documentation: [AstNode: String] = [:]
-
     var lexer: Lexer!
     var state: State = .default
 
