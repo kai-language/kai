@@ -115,25 +115,14 @@ struct Lexer {
 
 		case _ where opChars.contains(char):
 
-            var collected = ""
-
-            while let char = scanner.peek() {
-                if opChars.contains(char) {
-                    collected.append(char)
-                    scanner.pop()
-                } else {
-                    break
-                }
-
-                if let op = Operator(rawValue: collected) {
-                    return (.operator(op), location)
-                } else if let op = AssignOperator(rawValue: collected) {
-                    return (.assign(op), location)
-                }
+            let symbol = consume(with: opChars)
+            if let op = Operator(rawValue: symbol) {
+                return (.operator(op), location)
+            } else if let op = AssignOperator(rawValue: symbol) {
+                return (.assign(op), location)
+            } else {
+                return (.invalid(symbol), location)
             }
-
-            return (.invalid(collected), location)
-
 
 		// TODO(vdka): Correctly consume (and validate) number literals (real and integer)
 		case _ where digits.contains(char):
