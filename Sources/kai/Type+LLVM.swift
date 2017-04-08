@@ -1,7 +1,9 @@
 import LLVM
 
 extension Type {
+
     func canonicalized() -> IRType {
+
         switch self.kind {
         case .named(let typeName):
             switch typeName {
@@ -76,18 +78,6 @@ extension Type {
 
         case .typeInfo:
             unimplemented("Type info")
-        }
-    }
-}
-
-extension Entity {
-    func canonicalized() -> IRType {
-        switch kind {
-        case .type(let type):
-            return type.canonicalized()
-            
-        default:
-            return type!.canonicalized()
         }
     }
 }
