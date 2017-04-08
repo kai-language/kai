@@ -175,6 +175,10 @@ class Type: Equatable, CustomStringConvertible {
         return flags.contains(.integer)
     }
 
+    var isSigned: Bool {
+        return isInteger && !isUnsigned
+    }
+
     var isUnsigned: Bool {
         return flags.contains(.unsigned)
     }
@@ -1844,9 +1848,8 @@ extension Checker {
         // Ensure the two types are of the same size
         //
 
-        // IMPORTANT FIXME(vdka): Truncate or Ext
-        guard targetType.width == exprType.width else {
-            unimplemented("Casting to types of different size")
+        if !areTypesRelated(exprType, targetType), targetType.width != exprType.width {
+            reportError("Cannot card between two unrelated types with different sizes", at: expr)
         }
 
         return targetType
@@ -2080,6 +2083,20 @@ extension Checker {
         }
 
         type = target
+    }
+
+    func areTypesRelated(_ a: Type, _ b: Type) -> Bool {
+        if canImplicitlyConvert(a, to: b) || canImplicitlyConvert(b, to: a) {
+            return true
+        } else if a.isNumeric && b.isNumeric {
+            return true
+        } else if a.isString && b.isString {
+            return true
+        } else if a.isPointer && b.isPointer {
+            return true
+        }
+
+        return false
     }
 
     /// Checks if type `a` can be converted to type `b` implicitly.

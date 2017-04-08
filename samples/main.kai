@@ -106,5 +106,21 @@ main :: () -> void {
         z := &y
         print("%d\n", **z)
     }
+
+    {
+        x : i8  = -128
+        y : u16 = u16(x)
+        z : u8  = u8(256)
+
+        i : f32 = f32(x)
+        j : f64 = f64(z)
+        k : f64 = f64(1 + 2 + 3)
+
+        print("x: %hhd, y: %hu, z: %hhu\n", x, y, z)
+        print("i: %.2f, j: %.2f, k: %.2f\n", i, j, k)
+        // NOTE(vdka): There is a bug here due to some C strangeness
+        // C emits an fpext instruction for floating point aguments to get them to double
+        // Without float's being passed as doubles to printf, it prints the 0 value.
+    }
 }
 

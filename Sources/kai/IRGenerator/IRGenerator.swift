@@ -87,7 +87,22 @@ extension IRGenerator {
         switch node {
         case .litInteger(let val, _):
             let type = checker.info.types[node]!
-            return (type.canonicalized() as! IntType).constant(val)
+
+
+            //
+            // A literal integer can also be a floating point type if constrained to be.
+            //
+
+            switch type.canonicalized() {
+            case let type as IntType:
+                return type.constant(val)
+
+            case let type as FloatType:
+                return type.constant(Double(val))
+
+            default:
+                fatalError()
+            }
 
         case .litFloat(let val, _):
             let type = checker.info.types[node]!
@@ -181,9 +196,9 @@ extension IRGenerator {
         case .exprSubscript:
             return emitSubscript(for: node, isLValue: isLValue)
             
-        case .exprCall(_, let args, _):
+        case .exprCall:
             if checker.info.casts.contains(node) {
-                return emitStmt(for: args.first!)
+                return emitStmtCast(for: node)
             }
             return emitProcedureCall(for: node)
 
@@ -222,6 +237,54 @@ extension IRGenerator {
             
         default:
             fatalError()
+        }
+    }
+
+    func emitStmtCast(for node: AstNode) -> IRValue {
+        guard case .exprCall(let r, let args, _) = node else {
+            panic()
+        }
+
+        assert(checker.info.casts.contains(node))
+
+        let arg = args.first!
+
+        let argType = checker.info.types[arg]!
+        let outType = checker.info.types[r]!.underlyingType!
+
+        let outIrType = outType.canonicalized()
+
+        let argIrVal  = emitStmt(for: arg)
+        if outType.width == argType.width {
+
+            if argType.isFloat && outType.isInteger {
+                return builder.buildFPToInt(argIrVal, type: outIrType as! IntType, signed: outType.isSigned)
+            } else if argType.isInteger && outType.isFloat {
+                return builder.buildIntToFP(argIrVal, type: outIrType as! FloatType, signed: argType.isSigned)
+            }
+
+            return builder.buildBitCast(argIrVal, type: outIrType)
+        } else if outType.width < argType.width {
+
+            return builder.buildTrunc(argIrVal, type: outIrType)
+        } else if outType.width > argType.width, outType.isInteger && argType.isInteger {
+
+            if argType.isSigned {
+
+                return builder.buildSExt(argIrVal, type: outIrType)
+            } else {
+
+                return builder.buildZExt(argIrVal, type: outIrType)
+            }
+        } else if argType.isFloat && outType.isFloat {
+
+            return builder.buildFPCast(argIrVal, type: outIrType)
+        } else if argType.isInteger && outType.isFloat {
+
+            return builder.buildIntToFP(argIrVal, type: outIrType as! FloatType, signed: argType.isSigned)
+        } else {
+
+            fatalError("I probably missed things")
         }
     }
 
