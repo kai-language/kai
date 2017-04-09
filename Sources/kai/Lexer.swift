@@ -131,7 +131,7 @@ struct Lexer {
 
 		// TODO(vdka): Correctly consume (and validate) number literals (real and integer)
 		case _ where digits.contains(char):
-			let number = consume(with: hexDigits + [".", "x", "b", "_"]).stripSeparators()
+			let number = consume(with: hexDigits + [".", "x", "b", "_", "e", "E", "+", "-"]).stripSeparators()
 
             switch number {
             case _ where number.contains("."):

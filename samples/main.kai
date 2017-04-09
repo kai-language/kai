@@ -11,6 +11,13 @@ main :: () -> void {
         }
     }
 
+    { // Exponents
+      val := 2837.5e-2
+      print("val: %f\n", val)
+    }
+
+    section()
+
     { // Pointers and numbers
 
         val := 8
@@ -163,4 +170,3 @@ main :: () -> void {
         print("1 ? 1 : 0 -> %d\n", 1 ? 1 : 0)
     }
 }
-
