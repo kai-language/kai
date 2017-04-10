@@ -1,0 +1,20 @@
+#library "c" libc
+printf :: (string, ..any) -> void #foreign libc "printf"
+
+main :: () -> void {
+	f0 := .5
+	f1 := .5e1
+	f2 := 0E1
+	f3 := 0e2
+	f4 := -1.2e3
+	f5 := -1.2e+3
+	f6 := -1.2e-3
+
+	printf("0 - %f\n", f0)
+	printf("1 - %f\n", f1)
+	printf("2 - %f\n", f2)
+	printf("3 - %f\n", f3)
+	printf("4 - %f\n", f4)
+	printf("5 - %f\n", f5)
+	printf("6 - %f\n", f6)
+}

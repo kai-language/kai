@@ -1,0 +1,49 @@
+From b354340ad290946587e6f675e4df8dd3feefd331 Mon Sep 17 00:00:00 2001
+From: Joannis Orlandos <joannis@orlandos.nl>
+Date: Sun, 9 Apr 2017 19:47:20 +0200
+Subject: [PATCH] Support exponents
+
+---
+ Sources/kai/Lexer.swift | 2 +-
+ samples/main.kai        | 8 +++++++-
+ 2 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/Sources/kai/Lexer.swift b/Sources/kai/Lexer.swift
+index 05af13f..bf220f0 100644
+--- a/Sources/kai/Lexer.swift
++++ b/Sources/kai/Lexer.swift
+@@ -131,7 +131,7 @@ struct Lexer {
+ 
+ 		// TODO(vdka): Correctly consume (and validate) number literals (real and integer)
+ 		case _ where digits.contains(char):
+-			let number = consume(with: hexDigits + [".", "x", "b", "_"]).stripSeparators()
++			let number = consume(with: hexDigits + [".", "x", "b", "_", "e", "E", "+", "-"]).stripSeparators()
+ 
+             switch number {
+             case _ where number.contains("."):
+diff --git a/samples/main.kai b/samples/main.kai
+index b11a5b4..fc127e6 100644
+--- a/samples/main.kai
++++ b/samples/main.kai
+@@ -11,6 +11,13 @@ main :: () -> void {
+         }
+     }
+ 
++    { // Exponents
++      val := 2837.5e-2
++      print("val: %f\n", val)
++    }
++
++    section()
++
+     { // Pointers and numbers
+ 
+         val := 8
+@@ -163,4 +170,3 @@ main :: () -> void {
+         print("1 ? 1 : 0 -> %d\n", 1 ? 1 : 0)
+     }
+ }
+-
+-- 
+2.8.1
+

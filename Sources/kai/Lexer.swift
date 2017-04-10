@@ -1,3 +1,4 @@
+import Foundation
 
 let digits		= Array("1234567890".unicodeScalars)
 let hexDigits   = digits + Array("abcdefABCDEF".unicodeScalars)
@@ -94,6 +95,17 @@ struct Lexer {
 		guard let char = scanner.peek() else { return nil }
 
 		let location = scanner.position
+        
+        func parseEnotation(_ notationParts: [String], original: String) -> (kind: Token, location: SourceLocation)? {
+            guard notationParts.count == 2, let base = Int64(notationParts[0]), let exponent = Int64(notationParts[1]) else {
+                return (.invalid(original), location)
+            }
+            
+            let realExponent = pow(10, Double(exponent))
+            let result = Int64(Double(base) * realExponent)
+            
+            return (.integer(result), location)
+        }
 
 		switch char {
 		case _ where identChars.contains(char):
@@ -130,16 +142,29 @@ struct Lexer {
             }
 
 		// TODO(vdka): Correctly consume (and validate) number literals (real and integer)
-		case _ where digits.contains(char):
-			let number = consume(with: hexDigits + [".", "x", "b", "_", "e", "E", "+", "-"]).stripSeparators()
+		case _ where (digits + ["."]).contains(char):
+            scanner.pop()
+            if char == "." && scanner.peek() == "." {
+                scanner.pop()
+                return (.ellipsis, location)
+            }
+            
+			let number = String(char) + consume(with: hexDigits + [".", "x", "b", "_", "e", "E", "+", "-"]).stripSeparators()
 
             switch number {
+            case _ where number == ".":
+                return (.dot, location)
             case _ where number.contains("."):
                 guard let double = Double(number) else {
                     return (.invalid(number), location)
                 }
                 
                 return (.float(double), location)
+                
+            case _ where number.contains("e"):
+                return parseEnotation(Array(number.split(separator: "e")), original: number)
+            case _ where number.contains("E"):
+                return parseEnotation(number.split(separator: "E"), original: number)
                 
             default:
                 guard let int = extractInteger(number) else {
