@@ -126,6 +126,24 @@ extension Parser {
     mutating func nud(for token: Lexer.Token) throws -> AstNode {
 
         switch token {
+        case .operator(.asterix):
+            let (_, location) = try consume()
+
+            let prevState = state
+            defer { state = prevState }
+            state.insert(.disallowComma)
+
+            let type = try expression(10) // Assignment is binding power 10
+
+            return AstNode.typePointer(type: type, location ..< type.endLocation)
+
+        case .operator(.carot):
+            let (_, location) = try consume()
+
+            let underlyingType = try expression(10)
+
+            return AstNode.typeNullablePointer(type: underlyingType, location ..< underlyingType.endLocation)
+
         case .operator(let symbol):
             guard let nud = PrefixOperator.lookup(symbol)?.nud else {
                 let (_, location) = try consume()
@@ -159,6 +177,22 @@ extension Parser {
         case .float(let dbl):
             let (_, location) = try consume()
             return AstNode.litFloat(dbl, location ..< lexer.location)
+
+        case .lbrack:
+            let (_, lbrack) = try consume()
+            if case (.rbrack, let rbrack)? = try lexer.peek() {
+                try consume()
+                _ = try expression(10)
+
+                reportError("Expected capacity", at: rbrack)
+                return AstNode.invalid(lbrack ..< rbrack)
+            }
+            let count = try expression()
+            try consume(.rbrack)
+
+            let type = try expression(10)
+
+            return AstNode.typeArray(count: count, type: type, lbrack ..< type.endLocation)
 
         case .lparen:
             let prevState = state
@@ -516,7 +550,7 @@ extension Parser {
 
             default: // type is provided `x : int`
 
-                let type = try parseType()
+                let type = try expression(10)
 
                 switch try lexer.peek()?.kind {
                 case .colon?:
@@ -592,6 +626,7 @@ extension Parser {
         }
     }
 
+    @available(*, deprecated)
     mutating func parseType() throws -> AstNode {
         guard let (token, startLocation) = try lexer.peek() else {
             reportError("Expected a type", at: lexer.lastLocation)
@@ -626,43 +661,6 @@ extension Parser {
             }
             
             return AstNode.list(exprs, lparen ..< rparen)
-        }
-
-        if case .operator(.asterix) = token {
-            let (_, location) = try consume()
-
-            let prevState = state
-            defer { state = prevState }
-            state.insert(.disallowComma)
-
-            let type = try expression(10) // Assignment is binding power 10
-
-            return AstNode.typePointer(type: type, location ..< type.endLocation)
-        }
-
-        if case .operator(.carot) = token {
-            let (_, location) = try consume()
-
-            let type = try expression(10) // Assignment is binding power 10
-
-            return AstNode.typeNullablePointer(type: type, location ..< type.endLocation)
-        }
-
-        if case .lbrack = token {
-            let (_, lbrack) = try consume()
-            if case (.rbrack, let rbrack)? = try lexer.peek() {
-                try consume()
-                _ = try expression(10)
-
-                reportError("Expected capacity", at: rbrack)
-                return AstNode.invalid(lbrack ..< rbrack)
-            }
-            let count = try expression()
-            try consume(.rbrack)
-
-            let type = try expression(10)
-
-            return AstNode.typeArray(count: count, type: type, lbrack ..< type.endLocation)
         }
 
         let prevState = state

@@ -1287,7 +1287,7 @@ extension Checker {
                 for (lval, result) in zip(lhs, results) {
 
                     switch lval {
-                    case .exprUnary(.asterix, let expr, _):
+                    case .exprDeref(let expr, _):
                         // FIXME(vdka): This probably won't handle multiple layers of indirection.
                         guard let entity = lookupEntity(expr) else {
                             return
@@ -1453,6 +1453,15 @@ extension Checker {
         case .exprParen(let node, _):
             type = checkExpr(node, typeHint: typeHint)
 
+        case .exprDeref(let expr, let location):
+            let operandType = checkExpr(expr, typeHint: typeHint)
+
+            guard case .pointer(let underlyingType) = operandType.kind else {
+                reportError("Cannot dereference non pointer type `\(operandType)`", at: location)
+                return Type.invalid
+            }
+            type = underlyingType
+
         case .exprUnary:
             type = checkExprUnary(node, typeHint: typeHint)
 
@@ -1606,6 +1615,26 @@ extension Checker {
             checkDecl(of: entity)
             type = entity.type!
 
+        case .typePointer(let expr, let location):
+            // TODO(vdka): Typehint should be unwrapped...
+            let operandType = checkExpr(expr, typeHint: typeHint)
+            guard case .typeInfo(let underlyingType) = operandType.kind else {
+                // TODO(vdka): This isn't really a prefix operator anymore
+                reportError("Undefined unary operator `*` for `\(operandType)`", at: location)
+                return Type.invalid
+            }
+            type = Type.pointer(to: underlyingType).info
+
+        case .typeNullablePointer(let expr, let location):
+            // TODO(vdka): Typehint should be unwrapped...
+            let operandType = checkExpr(expr, typeHint: typeHint)
+            guard case .typeInfo(let underlyingType) = operandType.kind else {
+                // TODO(vdka): This isn't really a prefix operator anymore
+                reportError("Undefined unary operator `^` for `\(operandType)`", at: location)
+                return Type.invalid
+            }
+            type = Type.nullablePointer(to: underlyingType).info
+
         default:
             panic(node)
         }
@@ -1651,23 +1680,6 @@ extension Checker {
             let operandType = checkExpr(expr, typeHint: typeHint)
 
             return Type.pointer(to: operandType)
-
-        case .asterix:
-            let operandType = checkExpr(expr, typeHint: typeHint)
-
-            switch operandType.kind {
-            case .pointer(let underlyingType),
-                 .nullablePointer(let underlyingType):
-
-                return underlyingType
-
-            case .typeInfo(let underlyingType):
-                return Type.pointer(to: underlyingType).info
-
-            default:
-                reportError("Undefined unary operator `\(op)` for `\(operandType)`", at: location)
-                return Type.invalid
-            }
 
         case .carot:
             let operandType = checkExpr(expr, typeHint: typeHint)

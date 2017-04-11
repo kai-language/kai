@@ -153,6 +153,10 @@ extension IRGenerator {
         case .stmtDefer:
             return emitStmtDefer(node)
 
+        case .exprDeref(let expr, _):
+            let val = emitStmt(expr)
+            return builder.buildLoad(val)
+
         case .exprUnary:
             return emitExprOperator(node)
 
@@ -481,7 +485,7 @@ extension IRGenerator {
                 let rhsIrValuePtr = builder.buildStructGEP(retValue, index: index)
 
                 let rhsIrValue: IRValue
-                if case .exprUnary(.asterix, _, _) = lhs[index] {
+                if case .exprDeref = lhs[index] {
                     // TODO(vdka): We need an actual solution for dealing with indirection. This will fail for multiple derefs
                     rhsIrValue = rhsIrValuePtr
                 } else {
@@ -511,7 +515,7 @@ extension IRGenerator {
             case .ident, .exprSelector:
                 lvalueLocation = llvmPointers[entity]!
 
-            case .exprUnary(.asterix, let expr, _):
+            case .exprDeref(let expr, _):
                 lvalueLocation = emitStmt(expr)
 
             default:
@@ -589,7 +593,7 @@ extension IRGenerator {
                 case .ident, .exprSelector:
                     lvalueLocation = llvmPointers[entity]!
 
-                case .exprUnary(.asterix, let expr, _):
+                case .exprDeref(let expr, _):
                     lvalueLocation = emitStmt(expr)
 
                 default:
@@ -983,10 +987,6 @@ extension IRGenerator {
                     return emitStmt(expr)
                 }
 
-            case .asterix:
-                let val = emitStmt(expr)
-                return builder.buildLoad(val)
-
             default:
                 unimplemented("Unary Operator '\(op)'")
             }
@@ -1232,7 +1232,7 @@ extension IRGenerator {
             context.scope = receiverScope
             return lookupEntity(member)
 
-        case .exprUnary(.asterix, let expr, _):
+        case .exprDeref(let expr, _):
             return lookupEntity(expr)
 
         case .exprUnary(.ampersand, let expr, _):

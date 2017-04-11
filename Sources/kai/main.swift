@@ -306,6 +306,32 @@ PrefixOperator.register("~")
 PrefixOperator.register("^")
 PrefixOperator.register("*")
 PrefixOperator.register("&")
+PrefixOperator.register("<") { parser in
+    let (_, location) = try parser.consume()
+
+    let prevState = parser.state
+    defer { parser.state = prevState }
+    parser.state.insert(.disallowComma)
+
+    let expr = try parser.expression(70)
+    return AstNode.exprDeref(expr, location ..< expr.endLocation)
+}
+
+PrefixOperator.register("<<") { parser in
+    let (_, location) = try parser.consume()
+
+    let prevState = parser.state
+    defer { parser.state = prevState }
+    parser.state.insert(.disallowComma)
+
+    let expr = try parser.expression(70)
+
+    var secondChevronLocation = location
+    secondChevronLocation.column += 1
+
+    let firstDeref = AstNode.exprDeref(expr, secondChevronLocation ..< expr.endLocation)
+    return AstNode.exprDeref(firstDeref, location ..< expr.endLocation)
+}
 
 InfixOperator.register("||", bindingPower: 20)
 InfixOperator.register("&&", bindingPower: 30)

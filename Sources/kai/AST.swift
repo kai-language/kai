@@ -58,6 +58,7 @@ indirect enum AstNode {
     case exprSubscript(receiver: AstNode, value: AstNode, SourceRange)
     case exprCall(receiver: AstNode, args: [AstNode], SourceRange)
     case exprParen(AstNode, SourceRange)
+    case exprDeref(AstNode, SourceRange)
     case exprUnary(Operator, expr: AstNode, SourceRange)
     case exprBinary(Operator, lhs: AstNode, rhs: AstNode, SourceRange)
     case exprTernary(cond: AstNode, AstNode, AstNode, SourceRange)
@@ -133,9 +134,10 @@ extension AstNode {
              .declValue(_, _, _, _, let location),
              .declImport(_, _, _, let location),
              .declLibrary(_, _, _, let location),
+             .exprParen(_, let location),
+             .exprDeref(_, let location),
              .exprUnary(_, _, let location),
              .exprBinary(_, _, _, let location),
-             .exprParen(_, let location),
              .exprSelector(_, _, let location),
              .exprCall(_, _, let location),
              .exprSubscript(_, _, let location),
@@ -465,6 +467,9 @@ extension AstNode: CustomStringConvertible {
         case .exprParen(let expr, _):
             return "(\(expr))"
 
+        case .exprDeref(let expr, _):
+            return "<\(expr)"
+
         case .exprUnary(let op, let expr, _):
             return "\(op)\(expr)"
 
@@ -551,9 +556,10 @@ extension AstNode {
         case .declValue(let decl): return decl.isRuntime ? "declRt" : "declCt"
         case .declImport: return "declImport"
         case .declLibrary: return "declLibrary"
+        case .exprDeref: return "exprDeref"
+        case .exprParen: return "exprParen"
         case .exprUnary: return "exprUnary"
         case .exprBinary: return "exprBinary"
-        case .exprParen: return "exprParen"
         case .exprSelector: return "exprSelector"
         case .exprCall: return "exprCall"
         case .exprSubscript: return "exprSubscript"
@@ -647,6 +653,12 @@ extension AstNode {
         case .litCompound(let elements, _):
             children.append(contentsOf: elements)
 
+        case .exprParen(let expr, _):
+            children.append(expr)
+
+        case .exprDeref(let expr, _):
+            children.append(expr)
+
         case .exprUnary(let op, let expr, _):
             unlabeled.append("'" + op.rawValue + "'")
             children.append(expr)
@@ -655,9 +667,6 @@ extension AstNode {
             unlabeled.append("'" + op.rawValue + "'")
             children.append(lhs)
             children.append(rhs)
-
-        case .exprParen(let expr, _):
-            children.append(expr)
 
         case .exprSelector(let receiver, let selector, _):
             children.append(receiver)
@@ -892,17 +901,20 @@ extension AstNode {
         case .litCompound(let elements, _):
             children.append(contentsOf: elements)
 
+        case .exprDeref(let expr, _):
+            children.append(expr)
+
         case .exprUnary(let op, let expr, _):
             unlabeled.append(op.rawValue)
+            children.append(expr)
+
+        case .exprParen(let expr, _):
             children.append(expr)
 
         case .exprBinary(let op, let lhs, let rhs, _):
             unlabeled.append(op.rawValue)
             children.append(lhs)
             children.append(rhs)
-
-        case .exprParen(let expr, _):
-            children.append(expr)
 
         case .exprSelector(let receiver, let selector, _):
             children.append(receiver)

@@ -6,6 +6,9 @@ length :: (string) -> u64 #foreign libc "strlen"
 // Program entry point
 main :: () -> void {
 
+    //arr: [1][1]int = {{1}}
+
+
     section :: () -> void {
         for i := 0; i < 3; i += 1 {
             print("\n")
@@ -17,7 +20,7 @@ main :: () -> void {
         val := 8
         p := &val
 
-        *p = 123
+        <p = 123
 
         print("val: %d, p: %d\n", val, p)
     }
@@ -29,11 +32,11 @@ main :: () -> void {
         str := "Hey\n"
         p := &str
 
-        print(*p)
+        print(<p)
 
-        *p = "I got changed\n"
+        <p = "I got changed\n"
 
-        print(*p)
+        print(<p)
     }
 
     section()
@@ -47,7 +50,7 @@ main :: () -> void {
 
         print("The string is `%s`\n", name)
         print("The string is `%d` bytes long.\n", len)
-        print("The first byte is `%c`\n", *strPtr)
+        print("The first byte is `%c`\n", <strPtr)
 
         // Won't compile, you cannot assign `nil` to a pointer.
 
@@ -108,10 +111,10 @@ main :: () -> void {
         print("x1: %d, x2: %d\n", x1, x2)
 
         p1, p2 := &x1, &x2
-        print("p1: %d, p2: %d\n", *p1, *p2)
+        print("p1: %d, p2: %d\n", <p1, <p2)
 
-        *p1, *p2 = addFive(*p1, *p2)
-        print("p1: %d, p2: %d\n", *p1, *p2)
+        <p1, <p2 = addFive(<p1, <p2)
+        print("p1: %d, p2: %d\n", <p1, <p2)
     }
 
     section()
@@ -121,8 +124,14 @@ main :: () -> void {
 
         x := 5
         y := &x
+
+        print("y: %d\n", <y)
+
         z := &y
-        print("%d\n", **z)
+        print("z: %d\n", <<z)
+
+        <<z = 19
+        print("z: %d\n", <<z)
     }
 
     section()
