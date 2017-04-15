@@ -48,8 +48,10 @@ indirect enum AstNode {
     /// - Note: `type` holds reference to the args
     case litProc(type: AstNode, body: AstNode, SourceRange)
 
-    /// - Note: Used to represent array literals (struct lits in the future)
+    /// - Note: Used to represent array literals
     case litCompound(elements: [AstNode], SourceRange)
+
+    case litStruct(members: [AstNode], SourceRange)
 
     case declValue(isRuntime: Bool, names: [AstNode], type: AstNode?, values: [AstNode], SourceRange)
     case declImport(path: AstNode, fullpath: String?, importName: AstNode?, SourceRange)
@@ -131,6 +133,7 @@ extension AstNode {
              .litString(_, let location),
              .litProc(_, _, let location),
              .litCompound(_, let location),
+             .litStruct(_, let location),
              .declValue(_, _, _, _, let location),
              .declImport(_, _, _, let location),
              .declLibrary(_, _, _, let location),
@@ -244,12 +247,22 @@ extension AstNode {
         }
     }
 
+    var isDispose: Bool {
+        if case .ident("_", _) = self {
+            return true
+        }
+        return false
+    }
+
     var isExpr: Bool {
         switch self {
-        case .exprParen,
+        case .litInteger, .litFloat, .litString, .litProc, .litStruct, .litCompound:
+            return true
+
+        case .exprParen, .exprDeref,
              .exprUnary, .exprBinary, .exprTernary,
              .exprCall,
-             .exprSelector:
+             .exprSelector, .exprSubscript:
 
             return true
 
@@ -433,7 +446,10 @@ extension AstNode: CustomStringConvertible {
             return "\(type) \(body)"
 
         case .litCompound(let elements, _):
-            return elements.map({ $0.description }).joined(separator: ", ")
+            return "{ " + elements.map({ $0.description }).joined(separator: ", ") + " }"
+
+        case .litStruct(let members, _):
+            return "struct { " + members.map({ $0.description }).joined(separator: "; ") + " }"
 
         case .declValue(let isRuntime, let names, let type, let values, _):
             let declChar = isRuntime ? "=" : ":"
@@ -553,6 +569,7 @@ extension AstNode {
         case .litString: return "litString"
         case .litProc: return "litProc"
         case .litCompound: return "litCompound"
+        case .litStruct: return "litStruct"
         case .declValue(let decl): return decl.isRuntime ? "declRt" : "declCt"
         case .declImport: return "declImport"
         case .declLibrary: return "declLibrary"
@@ -652,6 +669,9 @@ extension AstNode {
 
         case .litCompound(let elements, _):
             children.append(contentsOf: elements)
+
+        case .litStruct(let members, _):
+            children.append(contentsOf: members)
 
         case .exprParen(let expr, _):
             children.append(expr)
@@ -900,6 +920,9 @@ extension AstNode {
 
         case .litCompound(let elements, _):
             children.append(contentsOf: elements)
+
+        case .litStruct(let members, _):
+            children.append(contentsOf: members)
 
         case .exprDeref(let expr, _):
             children.append(expr)

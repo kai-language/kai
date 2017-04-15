@@ -364,6 +364,10 @@ extension Parser {
 
             let (_, endLocation) = try consume(.rbrace)
 
+            if stmts.isEmpty {
+                return AstNode.litCompound(elements: [], startLocation ..< endLocation)
+            }
+
             return AstNode.stmtBlock(stmts, startLocation ..< endLocation)
 
         case .directive(.file):
@@ -440,10 +444,29 @@ extension Parser {
 
             return AstNode.declLibrary(path: pathNode, fullpath: fullpath, libName: nil, location ..< pathNode.endLocation)
 
-        case .keyword(.struct),
-             .keyword(.enum):
+        case .keyword(.struct):
+            let (_, start) = try consume()
+            try consume(.lbrace)
 
-            unimplemented("parsing struct and enum type declarations")
+            var decls: [AstNode] = []
+            while let next = try lexer.peek()?.kind, next != .rbrace {
+                let node = try expression()
+                try consumeTerminators()
+
+                guard node.isDecl else {
+                    reportError("Expected declaration", at: node)
+                    continue
+                }
+
+                decls.append(node)
+            }
+
+            let (_, rbrace) = try consume(.rbrace)
+
+            return AstNode.litStruct(members: decls, start ..< rbrace)
+
+        case .keyword(.enum):
+            unimplemented("parsing enum type declarations")
 
         default:
             try consume()

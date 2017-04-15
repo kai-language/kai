@@ -26,6 +26,12 @@
       "version": "0.1.10"
     },
     {
+      "package": "OrderedDictionary",
+      "reason": null,
+      "repositoryURL": "https://github.com/vdka/OrderedDictionary.git",
+      "version": "1.0.0"
+    },
+    {
       "package": "Polymorphic",
       "reason": null,
       "repositoryURL": "https://github.com/vapor/polymorphic.git",

@@ -68,7 +68,7 @@ extension IRGenerator {
 
     func emitImported() throws {
         for entity in file.importedEntities {
-            let global = builder.addGlobal(entity.mangledName!, type: entity.type!.canonicalized())
+            let global = builder.addGlobal(entity.mangledName!, type: canonicalize(entity.type!))
             llvmPointers[entity] = global
         }
     }
@@ -95,94 +95,27 @@ extension IRGenerator {
 
 extension IRGenerator {
 
-    @discardableResult
-    func emitStmt(_ node: AstNode, isLValue: Bool = false) -> IRValue {
+    func emitStmt(_ node: AstNode) {
+
+        guard !node.isExpr else {
+            _ = emitExpr(node)
+            return
+        }
+
         switch node {
         case .comment:
-            return VoidType().null()
+            break
 
-        case .litString, .litFloat, .litInteger, .litProc, .litCompound:
-            return emitExprLiteral(node)
-
-        // FIXME(vdka): Feels a bit hacky.
-        case .ident("true", _):
-            return IntType.int1.constant(1)
-
-        case .ident("false", _):
-            return IntType.int1.constant(0)
-
-        case .ident("nil", _):
-            let type = checker.info.types[node]!
-            return type.canonicalized().constPointerNull()
-
-        case .ident(let identifier, _):
-            let entity = context.scope.lookup(identifier)!
-            return builder.buildLoad(llvmPointers[entity]!)
-
-        case .exprSelector(let receiver, let member, _):
-
-            switch receiver {
-            case .ident(let ident, _):
-                let recvEntity = context.scope.lookup(ident)!
-
-                switch recvEntity.kind {
-                case .importName:
-                    let entity = recvEntity.childScope!.lookup(member.identifier)!
-                    if let val = llvmPointers[entity] {
-
-                        return builder.buildLoad(val)
-                    } else {
-
-                        let val = builder.addGlobal(entity.mangledName!, type: entity.type!.canonicalized())
-                        llvmPointers[entity] = val
-
-                        return builder.buildLoad(val)
-                    }
-
-                default:
-                    unimplemented("Selectors for entities of kind \(recvEntity.kind)")
-                }
-
-            default:
-                unimplemented("Emitting selector on AstNodes of kind \(receiver.shortName)")
-            }
-        
         case .declValue:
-            return emitStmtDeclaration(node)
+            emitStmtDeclaration(node)
             
         case .stmtDefer:
-            return emitStmtDefer(node)
-
-        case .exprDeref(let expr, _):
-            let val = emitStmt(expr)
-            return builder.buildLoad(val)
-
-        case .exprUnary:
-            return emitExprOperator(node)
-
-        case .exprBinary:
-            return emitExprOperator(node)
-
-        case .exprTernary:
-            return emitExprTernary(node)
-
-        case .exprSubscript:
-            return emitExprSubscript(node, isLValue: isLValue)
-            
-        case .exprCall:
-            if checker.info.casts.contains(node) {
-                return emitExprCast(node)
-            }
-            return emitExprCall(node)
-
-        case .exprParen(let expr, _):
-            return emitStmt(expr)
-
-        case .stmtExpr(let expr):
-            return emitStmt(expr)
+            emitStmtDefer(node)        case .stmtExpr(let expr):
+            // these are just expressions which do not have their values used
+            emitStmt(expr)
 
         case .stmtAssign:
-            return emitStmtAssignment(node)
+            emitStmtAssignment(node)
 
         case .stmtBlock(let stmts, _):
             pushScope(for: node)
@@ -191,125 +124,29 @@ extension IRGenerator {
             for stmt in stmts {
                 emitStmt(stmt)
             }
-            return VoidType().null()
             
         case .stmtReturn:
-            return emitStmtReturn(node)
+            emitStmtReturn(node)
 
         case .stmtIf:
-            return emitStmtIf(node)
+            emitStmtIf(node)
 
         case .stmtFor:
-            return emitStmtFor(node)
+            emitStmtFor(node)
 
         case .stmtBreak:
-            return builder.buildBr(context.escapePoints!.break as! BasicBlock)
+            builder.buildBr(context.escapePoints!.break as! BasicBlock)
 
         case .stmtContinue:
-            return builder.buildBr(context.escapePoints!.continue as! BasicBlock)
+            builder.buildBr(context.escapePoints!.continue as! BasicBlock)
             
         default:
             fatalError()
         }
     }
 
+    func emitStmtIf(_ node: AstNode) {
 
-    @discardableResult
-    func emitExprLiteral(_ node: AstNode) -> IRValue {
-        switch node {
-        case .litInteger(let val, _):
-            let type = checker.info.types[node]!
-
-
-            //
-            // A literal integer can also be a floating point type if constrained to be.
-            //
-
-            switch type.canonicalized() {
-            case let type as IntType:
-                return type.constant(val)
-
-            case let type as FloatType:
-                return type.constant(Double(val))
-
-            default:
-                fatalError()
-            }
-
-        case .litFloat(let val, _):
-            let type = checker.info.types[node]!
-            return (type.canonicalized() as! FloatType).constant(val)
-
-        case .litString(let val, _):
-            return builder.buildGlobalStringPtr(val.escaped)
-
-        case .litCompound(let elements, _):
-            let type = checker.info.types[node]!
-
-            if case .array(let underlyingType, _) = type.kind {
-                let values = elements.map {
-                    emitStmt($0)
-                }
-                // FIXME(vdka): For literals that do not exactly match the count of the array they are assigned to this emits bad IR.
-                return ArrayType.constant(values, type: underlyingType.canonicalized())
-            }
-
-            unimplemented("Emitting constants for \(type)")
-            
-        default:
-            fatalError()
-        }
-    }
-
-    func emitExprCast(_ node: AstNode) -> IRValue {
-        guard case .exprCall(let r, let args, _) = node else {
-            panic()
-        }
-
-        assert(checker.info.casts.contains(node))
-
-        let arg = args.first!
-
-        let argType = checker.info.types[arg]!
-        let outType = checker.info.types[r]!.underlyingType!
-
-        let outIrType = outType.canonicalized()
-
-        let argIrVal  = emitStmt(arg)
-        if outType.width == argType.width {
-
-            if argType.isFloat && outType.isInteger {
-                return builder.buildFPToInt(argIrVal, type: outIrType as! IntType, signed: outType.isSigned)
-            } else if argType.isInteger && outType.isFloat {
-                return builder.buildIntToFP(argIrVal, type: outIrType as! FloatType, signed: argType.isSigned)
-            }
-
-            return builder.buildBitCast(argIrVal, type: outIrType)
-        } else if outType.width < argType.width {
-
-            return builder.buildTrunc(argIrVal, type: outIrType)
-        } else if outType.width > argType.width, outType.isInteger && argType.isInteger {
-
-            if argType.isSigned {
-
-                return builder.buildSExt(argIrVal, type: outIrType)
-            } else {
-
-                return builder.buildZExt(argIrVal, type: outIrType)
-            }
-        } else if argType.isFloat && outType.isFloat {
-
-            return builder.buildFPCast(argIrVal, type: outIrType)
-        } else if argType.isInteger && outType.isFloat {
-
-            return builder.buildIntToFP(argIrVal, type: outIrType as! FloatType, signed: argType.isSigned)
-        } else {
-
-            fatalError("I probably missed things")
-        }
-    }
-
-    func emitStmtIf(_ node: AstNode) -> IRValue {
         guard case .stmtIf(let cond, let thenStmt, let elseStmt, _) = node else {
             panic()
         }
@@ -329,7 +166,7 @@ extension IRGenerator {
         // Emit the conditional branch
         //
 
-        let condVal = emitExprConditional(for: cond)
+        let condVal = emitExprConditional(cond)
 
         builder.buildCondBr(condition: condVal, then: thenBlock, else: elseBlock ?? postBlock)
 
@@ -372,29 +209,13 @@ extension IRGenerator {
         //
 
         builder.positionAtEnd(of: postBlock)
-
-        return postBlock
     }
 
-    func emitExprTernary(_ node: AstNode) -> IRValue {
-        guard case .exprTernary(let condExpr, let thenExpr, let elseExpr, _) = node else {
-            panic()
-        }
-
-        let condVal = emitStmt(condExpr)
-        let thenVal = emitStmt(thenExpr)
-        let elseVal = emitStmt(elseExpr)
-
-        return builder.buildSelect(condVal, then: thenVal, else: elseVal)
-    }
-
-    @discardableResult
-    func emitStmtDeclaration(_ node: AstNode) -> IRValue {
-
-        // TODO(vdka): isRuntime? Is that in emission or just checking?
+    func emitStmtDeclaration(_ node: AstNode) {
         guard case .declValue(_, let names, _, let values, _) = node else {
             panic(node)
         }
+        // TODO(vdka): isRuntime? Is that in emission or just checking?
 
         let decl = checker.info.decls[node]!
 
@@ -405,13 +226,13 @@ extension IRGenerator {
 
             assert(procRetType.isTuple)
 
-            let procRetValue = emitStmt(value)
+            let procRetValue = emitExpr(value)
             let retValue = builder.buildAlloca(type: procRetValue.type)
             builder.buildStore(procRetValue, to: retValue)
 
             for (index, entity) in decl.entities.enumerated() {
                 if entity.name == "_" { continue }
-                let irType = entity.type!.canonicalized()
+                let irType = canonicalize(entity.type!)
 
                 let rhsIrValuePtr = builder.buildStructGEP(retValue, index: index)
 
@@ -427,11 +248,21 @@ extension IRGenerator {
                 llvmPointers[entity] = lhsIrValue
             }
 
-            return VoidType().null()
         } else if decl.entities.count == 1, let entity = decl.entities.first,
             case .proc = entity.type!.kind, let value = decl.initExprs.first {
 
-            return emitProcedureDefinition(entity, value)
+            emitProcedureDefinition(entity, value)
+        } else if decl.entities.count == 1, let entity = decl.entities.first,
+            entity.type!.isType, let value = decl.initExprs.first,
+            case .litStruct = value {
+            // struct definitions
+
+            let irTypes = entity.type!.underlyingType!.memberScope!.elements.orderedValues.map({ self.canonicalize($0.type!) })
+
+            // NOTE(vdka): We might be able to make things faster by keeping track of this and doing lookups ourselves
+            //   for now just rely on LLVMSwift's `module.type(named:)`
+            _ = builder.createStruct(name: entity.mangledName!, types: Array(irTypes), isPacked: false)
+
         } else {
             assert(decl.entities.count == decl.initExprs.count)
 
@@ -440,11 +271,14 @@ extension IRGenerator {
                 if entity.name == "_" {
                     continue // do nothing.
                 }
+                if case .alias? = entity.type?.kind {
+                    continue
+                }
 
                 let entityType = entity.type!
-                let irType = entityType.canonicalized()
+                let irType = canonicalize(entityType)
 
-                let irValue = emitStmt(value)
+                let irValue = emitExpr(value)
 
                 let irValuePtr: IRValue
                 if let function = context.currentProcedure?.llvm {
@@ -456,162 +290,136 @@ extension IRGenerator {
                 llvmPointers[entity] = irValuePtr
             }
         }
-        return VoidType().null()
     }
 
-    @discardableResult
-    func emitStmtAssignment(_ node: AstNode) -> IRValue {
+    
+    func emitStmtAssignment(_ node: AstNode) {
         guard case .stmtAssign(let op, let lhs, let rhs, _) = node else {
             panic(node)
         }
 
-        let entities = lhs.map {
-            lookupEntity($0)!
+        var lhsIrPtrs: [IRValue?] = []
+        for lhs in lhs {
+            if lhs.isDispose {
+                lhsIrPtrs.append(nil)
+            }
+
+            let lhsIrPtr = emitExpr(lhs, returnAddress: true)
+
+            lhsIrPtrs.append(lhsIrPtr)
         }
 
         if lhs.count > 1, rhs.count == 1, let value = rhs.first {
+            //
+            // When lhs.count > 1 and the rhs.count is 1 then this *must* be a proc
+            //
 
             let procRetType = checker.info.types[value]!
 
             assert(procRetType.isTuple)
 
-            let procRetValue = emitStmt(value)
+            let procRetValue = emitExpr(value)
             let retValue = builder.buildAlloca(type: procRetValue.type)
             builder.buildStore(procRetValue, to: retValue)
 
-            for (index, entity) in entities.enumerated() {
-                if entity.name == "_" { continue }
+            // FIXME(vdka): Revisit this emitter for proc return tuples and clean it up.
+            for (index, lhsIrPtr) in lhsIrPtrs.enumerated() {
+                guard let lhsIrPtr = lhsIrPtr else { continue }
 
                 let rhsIrValuePtr = builder.buildStructGEP(retValue, index: index)
+                let rhsIrValue = builder.buildLoad(rhsIrValuePtr)
 
-                let rhsIrValue: IRValue
-                if case .exprDeref = lhs[index] {
-                    // TODO(vdka): We need an actual solution for dealing with indirection. This will fail for multiple derefs
-                    rhsIrValue = rhsIrValuePtr
-                } else {
-                    rhsIrValue = builder.buildLoad(rhsIrValuePtr)
-                }
-
-                let lhsIrValuePtr = llvmPointers[entity]!
-                builder.buildStore(rhsIrValue, to: lhsIrValuePtr)
+                builder.buildStore(rhsIrValue, to: lhsIrPtr)
             }
-
-            return VoidType().null()
-        } else if entities.count == 1, let entity = entities.first,
-            case .proc = entity.type!.kind, let value = rhs.first {
+        } else if lhsIrPtrs.count == 1 && rhs.count == 1,
+            let lhsIrPtr = lhsIrPtrs.first,
+            let lhs = lhs.first, let rhs = rhs.first {
 
             //
-            // Assign a value to a procedure. First class procedures, yay.
+            // There is one expression on each side of the assignment
             //
 
-            return emitProcedureDefinition(entity, value)
-        } else if entities.count == 1 && rhs.count == 1,
-            let entity = entities.first,
-            let lval = lhs.first, let rval = rhs.first {
-
-            let lvalueLocation: IRValue
-
-            switch lval {
-            case .ident, .exprSelector:
-                lvalueLocation = llvmPointers[entity]!
-
-            case .exprDeref(let expr, _):
-                lvalueLocation = emitStmt(expr)
-
-            default:
-                unimplemented()
-            }
-
-            let rvalue = emitStmt(rval)
+            let rhsIrVal = emitExpr(rhs)
 
             if case .equals = op {
-                return builder.buildStore(rvalue, to: lvalueLocation)
+
+                guard let lhsIrPtr = lhsIrPtr else {
+                    return // Do nothing `_ = 5`
+                }
+
+                builder.buildStore(rhsIrVal, to: lhsIrPtr)
+                return
             }
 
-            let lvalue = builder.buildLoad(lvalueLocation)
+            guard let lhsIrPtr = lhsIrPtr else {
+                fatalError("_ += 5")
+            }
+
+            let lhsIrVal = builder.buildLoad(lhsIrPtr)
 
             switch op {
             case .equals:
                 fatalError()
 
             case .addEquals:
-                let r = builder.buildAdd(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalueLocation)
+                let r = builder.buildAdd(lhsIrVal, rhsIrVal)
+                builder.buildStore(r, to: lhsIrPtr)
 
             case .subEquals:
-                let r = builder.buildSub(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalueLocation)
+                let r = builder.buildSub(lhsIrVal, rhsIrVal)
+                builder.buildStore(r, to: lhsIrPtr)
 
             case .mulEquals:
-                let r = builder.buildMul(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalueLocation)
+                let r = builder.buildMul(lhsIrVal, rhsIrVal)
+                builder.buildStore(r, to: lhsIrPtr)
 
             case .divEquals:
-                let r = builder.buildDiv(lvalue, rvalue, signed: !entity.type!.isUnsigned)
-
-                return builder.buildStore(r, to: lvalueLocation)
+                let type = checker.info.types[lhs]!
+                let r = builder.buildDiv(lhsIrVal, rhsIrVal, signed: type.isSigned)
+                builder.buildStore(r, to: lhsIrPtr)
 
             case .modEquals:
-                let r = builder.buildRem(lvalue, rvalue, signed: !entity.type!.isUnsigned)
-
-                return builder.buildStore(r, to: lvalueLocation)
+                let type = checker.info.types[lhs]!
+                let r = builder.buildRem(lhsIrVal, rhsIrVal, signed: type.isSigned)
+                builder.buildStore(r, to: lhsIrPtr)
 
             case .rshiftEquals: // FIXME(vdka): Arithmatic shift?
-                let r = builder.buildShr(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalueLocation)
+                let r = builder.buildShr(lhsIrVal, rhsIrVal)
+                builder.buildStore(r, to: lhsIrPtr)
 
             case .lshiftEquals:
-                let r = builder.buildShl(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalueLocation)
+                let r = builder.buildShl(lhsIrVal, rhsIrVal)
+                builder.buildStore(r, to: lhsIrPtr)
 
             case .andEquals:
-                let r = builder.buildAnd(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalueLocation)
+                let r = builder.buildAnd(lhsIrVal, rhsIrVal)
+                builder.buildStore(r, to: lhsIrPtr)
                 
             case .orEquals:
-                let r = builder.buildOr(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalueLocation)
+                let r = builder.buildOr(lhsIrVal, rhsIrVal)
+                builder.buildStore(r, to: lhsIrPtr)
                 
             case .xorEquals:
-                let r = builder.buildXor(lvalue, rvalue)
-                return builder.buildStore(r, to: lvalueLocation)
+                let r = builder.buildXor(lhsIrVal, rhsIrVal)
+                builder.buildStore(r, to: lhsIrPtr)
             }
         } else {
-            assert(entities.count == rhs.count)
+            assert(lhsIrPtrs.count == rhs.count)
+            for (index, lhsIrPtr) in lhsIrPtrs.enumerated() {
 
-            for (index, entity) in entities.enumerated() {
-
-                if entity.name == "_" {
-                    continue // do nothing.
+                guard let lhsIrPtr = lhsIrPtr else {
+                    continue
                 }
 
-                let lval = lhs[index]
-                let rval = rhs[index]
-
-                let lvalueLocation: IRValue
-                switch lval {
-                case .ident, .exprSelector:
-                    lvalueLocation = llvmPointers[entity]!
-
-                case .exprDeref(let expr, _):
-                    lvalueLocation = emitStmt(expr)
-
-                default:
-                    unimplemented()
-                }
-
-                let irValue = emitStmt(rval)
-
-                builder.buildStore(irValue, to: lvalueLocation)
+                let rhs = rhs[index]
+                let rhsIrVal = emitExpr(rhs)
+                builder.buildStore(rhsIrVal, to: lhsIrPtr)
             }
         }
-
-        return VoidType().null()
     }
 
-    @discardableResult
-    func emitStmtDefer(_ node: AstNode) -> IRValue {
-
+    
+    func emitStmtDefer(_ node: AstNode) {
         guard case .stmtDefer(let stmt, _) = node else {
             fatalError()
         }
@@ -640,12 +448,9 @@ extension IRGenerator {
         defer { builder.positionAtEnd(of: curBlock) }
 
         emitStmt(stmt)
-
-        return VoidType().null()
     }
 
-    @discardableResult
-    func emitStmtFor(_ node: AstNode) -> IRValue {
+    func emitStmtFor(_ node: AstNode) {
         guard case .stmtFor(let initializer, let cond, let post, let body, _) = node else {
             panic()
         }
@@ -679,7 +484,7 @@ extension IRGenerator {
 
             builder.positionAtEnd(of: loopCond!)
 
-            let condVal = emitExprConditional(for: cond)
+            let condVal = emitExprConditional(cond)
 
             builder.buildCondBr(condition: condVal, then: loopBody, else: loopDone)
         } else {
@@ -729,11 +534,9 @@ extension IRGenerator {
         }
 
         builder.positionAtEnd(of: loopDone)
-
-        return loopDone
     }
 
-    func emitStmtReturn(_ node: AstNode) -> IRValue {
+    func emitStmtReturn(_ node: AstNode) {
         guard let currentProcedure = context.currentProcedure else {
             fatalError("Return statement outside of procedure")
         }
@@ -743,7 +546,7 @@ extension IRGenerator {
         }
 
         if values.count == 1, let value = values.first {
-            let irValue = emitStmt(value)
+            let irValue = emitExpr(value)
 
             if !(irValue is VoidType) {
                 builder.buildStore(irValue, to: currentProcedure.returnValue!)
@@ -752,7 +555,7 @@ extension IRGenerator {
         if values.count > 1 {
             var retVal = builder.buildLoad(currentProcedure.returnValue!)
             for (index, value) in values.enumerated() {
-                let irValue = emitStmt(value)
+                let irValue = emitExpr(value)
                 retVal = builder
                     .buildInsertValue(aggregate: retVal, element: irValue, index: index)
             }
@@ -765,7 +568,6 @@ extension IRGenerator {
         } else {
             builder.buildBr(currentProcedure.returnBlock)
         }
-        return VoidType().null()
     }
 
     func emitEntryBlockAlloca(in function: Function, type: IRType, named name: String, default defaultValue: IRValue? = nil) -> IRValue {
@@ -795,7 +597,7 @@ extension IRGenerator {
             return function
         }
 
-        let procIrType = entity.type!.canonicalized() as! FunctionType
+        let procIrType = canonicalize(entity.type!) as! FunctionType
 
         let procedure = builder.addFunction(entity.mangledName!, type: procIrType)
 
@@ -856,7 +658,7 @@ extension IRGenerator {
         let returnBlock = proc.appendBasicBlock(named: "return")
 
         let type = checker.info.types[node]!
-        let irType = type.canonicalized() as! FunctionType
+        let irType = canonicalize(type) as! FunctionType
 
         guard case .proc(let params, let results, _) = type.kind else {
             panic()
@@ -922,6 +724,198 @@ extension IRGenerator {
         return proc
     }
 
+    func emitExpr(_ node: AstNode, returnAddress: Bool = false) -> IRValue {
+        assert(node.isExpr || node.isIdent)
+
+        switch node {
+        case .litString, .litFloat, .litInteger, .litProc, .litCompound:
+            assert(!returnAddress)
+            return emitExprLiteral(node)
+
+        // FIXME(vdka): Feels a bit hacky.
+        case .ident("true", _):
+            assert(!returnAddress)
+            return IntType.int1.constant(1)
+
+        case .ident("false", _):
+            assert(!returnAddress)
+            return IntType.int1.constant(0)
+
+        case .ident("nil", _):
+            assert(!returnAddress)
+            let type = checker.info.types[node]!
+            return canonicalize(type).constPointerNull()
+
+        case .ident(let identifier, _):
+
+            let entity = context.scope.lookup(identifier)!
+            let ptr = llvmPointers[entity]!
+
+            if returnAddress {
+                return ptr
+            }
+
+            return builder.buildLoad(ptr)
+
+        case .exprParen(let expr, _):
+            assert(!returnAddress) // TODO(vdka): we should ban paren'd lvalues
+            return emitExpr(expr)
+
+        case .exprDeref(let expr, _):
+            let ptr = emitExpr(expr)
+
+            if returnAddress {
+                return ptr
+            }
+            return builder.buildLoad(ptr)
+
+        case .exprUnary:
+            return emitExprUnary(node)
+
+        case .exprBinary:
+            return emitExprBinary(node)
+
+        case .exprTernary:
+            return emitExprTernary(node)
+
+        case .exprSubscript:
+            return emitExprSubscript(node, returnAddress: returnAddress)
+
+        case .exprCall:
+            if checker.info.casts.contains(node) {
+                return emitExprCast(node)
+            }
+            return emitExprCall(node)
+
+        case .exprSelector:
+            return emitExprSelector(node, returnAddress: returnAddress)
+
+        default:
+            if node.isExpr {
+                fatalError("Failed to handle all expressions in \(#function)")
+            }
+
+            panic()
+        }
+    }
+
+    @discardableResult
+    func emitExprLiteral(_ node: AstNode) -> IRValue {
+        switch node {
+        case .litInteger(let val, _):
+            let type = checker.info.types[node]!
+
+
+            //
+            // A literal integer can also be a floating point type if constrained to be.
+            //
+
+            switch canonicalize(type) {
+            case let type as IntType:
+                return type.constant(val)
+
+            case let type as FloatType:
+                return type.constant(Double(val))
+
+            default:
+                fatalError()
+            }
+
+        case .litFloat(let val, _):
+            let type = checker.info.types[node]!
+            return (canonicalize(type) as! FloatType).constant(val)
+
+        case .litString(let val, _):
+            return builder.buildGlobalStringPtr(val.escaped)
+
+        case .litCompound(let elements, _):
+            let type = checker.info.types[node]!
+
+            switch type.kind {
+            case .named:
+                if type.isStruct {
+                    fallthrough
+                }
+
+                unimplemented() // Named arrays? `People :: [5]Person`
+
+            case .struct:
+                let values = elements.map {
+                    emitExpr($0)
+                }
+
+                var val = canonicalize(type).undef()
+
+                for (index, value) in values.enumerated() {
+                    val = builder.buildInsertValue(aggregate: val, element: value, index: index)
+                }
+
+                return val
+
+            case .array(let underlyingType, _):
+                let values = elements.map {
+                    emitExpr($0)
+                }
+                // FIXME(vdka): For literals that do not exactly match the count of the array they are assigned to this emits bad IR.
+                return ArrayType.constant(values, type: canonicalize(underlyingType))
+
+            default:
+                unimplemented("Emitting constants for \(type)")
+            }
+
+        default:
+            fatalError()
+        }
+    }
+
+    func emitExprCast(_ node: AstNode) -> IRValue {
+        guard case .exprCall(let r, let args, _) = node else {
+            panic()
+        }
+
+        assert(checker.info.casts.contains(node))
+
+        let arg = args.first!
+
+        let argType = checker.info.types[arg]!
+        let outType = checker.info.types[r]!.underlyingType!
+
+        let outIrType = canonicalize(outType)
+
+        let argIrVal  = emitExpr(arg)
+        if outType.width == argType.width {
+
+            if argType.isFloat && outType.isInteger {
+                return builder.buildFPToInt(argIrVal, type: outIrType as! IntType, signed: outType.isSigned)
+            } else if argType.isInteger && outType.isFloat {
+                return builder.buildIntToFP(argIrVal, type: outIrType as! FloatType, signed: argType.isSigned)
+            }
+
+            return builder.buildBitCast(argIrVal, type: outIrType)
+        } else if outType.width < argType.width {
+
+            return builder.buildTrunc(argIrVal, type: outIrType)
+        } else if outType.width > argType.width, outType.isInteger && argType.isInteger {
+
+            if argType.isSigned {
+
+                return builder.buildSExt(argIrVal, type: outIrType)
+            } else {
+
+                return builder.buildZExt(argIrVal, type: outIrType)
+            }
+        } else if argType.isFloat && outType.isFloat {
+            
+            return builder.buildFPCast(argIrVal, type: outIrType)
+        } else if argType.isInteger && outType.isFloat {
+            
+            return builder.buildIntToFP(argIrVal, type: outIrType as! FloatType, signed: argType.isSigned)
+        } else {
+            
+            fatalError("I probably missed things")
+        }
+    }
+
     @discardableResult
     func emitExprCall(_ node: AstNode) -> IRValue {
 
@@ -940,209 +934,231 @@ extension IRGenerator {
 
         let receiverEntity = context.scope.lookup(ident)!
 
+        // TODO(vdka): Just `emitExpr(rec)`
         let function = llvmPointers[receiverEntity] as! Function
         //let function = module.function(named: ident)!
 
-        let llvmArgs = args.map { emitStmt($0) }
+        var irArgs: [IRValue] = []
+        for arg in args {
+            let val = emitExpr(arg)
+            irArgs.append(val)
+        }
 
-        return builder.buildCall(function, args: llvmArgs)
+        return builder.buildCall(function, args: irArgs)
     }
 
-    // TODO(vdka): Check the types to determine llvm calls
-    func emitExprOperator(_ node: AstNode) -> IRValue {
+    func emitExprUnary(_ node: AstNode, returnAddress: Bool = false) -> IRValue {
+        guard case .exprUnary(let op, let expr, _) = node else {
+            panic()
+        }
 
-        switch node {
-        case .exprUnary(let op, let expr, _):
-            let type = checker.info.types[expr]!
+        let type = checker.info.types[expr]!
 
-            // TODO(vdka): There is much more to build.
-            switch op {
-            case .plus: // This is oddly a do nothing kind of operator. Lazy guy.
-                return emitStmt(expr)
+        switch op {
+        case .plus: // This is oddly a do nothing kind of operator. Lazy guy.
+            return emitExpr(expr)
 
-            case .minus:
-                let val = emitStmt(expr)
-                return builder.buildNeg(val)
+        case .minus:
+            let val = emitExpr(expr)
+            return builder.buildNeg(val)
 
-            case .bang:
-                let val = emitStmt(expr)
-                if type === Type.bool {
-                    return builder.buildNot(val)
-                } else {
-                    let truncdVal = builder.buildTrunc(val, type: IntType.int1)
-                    return builder.buildNot(truncdVal)
-                }
-
-            case .tilde:
-                let val = emitStmt(expr)
+        case .bang:
+            let val = emitExpr(expr)
+            if type === Type.bool {
                 return builder.buildNot(val)
+            } else {
+                let truncdVal = builder.buildTrunc(val, type: IntType.int1)
+                return builder.buildNot(truncdVal)
+            }
 
-            case .ampersand:
-                switch expr {
-                case .ident(let name, _):
-                    let entity = context.scope.lookup(name)!
-                    return llvmPointers[entity]!
+        case .tilde:
+            let val = emitExpr(expr)
+            return builder.buildNot(val)
 
-                default:
-                    return emitStmt(expr)
-                }
+        case .ampersand:
+            switch expr {
+            case .ident(let name, _):
+                let entity = context.scope.lookup(name)!
+                return llvmPointers[entity]!
 
             default:
-                unimplemented("Unary Operator '\(op)'")
+                return emitExpr(expr)
             }
 
-        case .exprBinary(let op, let lhs, let rhs, _):
-
-            var lvalue = emitStmt(lhs)
-            var rvalue = emitStmt(rhs)
-
-            let lhsType = checker.info.types[lhs]!
-            let rhsType = checker.info.types[rhs]!
-
-            // TODO(vdka): Trunc or Ext if needed / possible
-
-            if lhsType !== rhsType {
-                if lhsType.width == rhsType.width {
-                    //
-                    // `x: uint = 1; y: int = 1; z := x + y`
-                    // We don't know what the return type should be so it's an error caught in the checker
-                    //
-                    panic()
-                }
-                if lhsType.isUnconstrained && !lhs.isBasicLit {
-                    if lhsType.isUnsigned {
-                        lvalue = builder.buildZExt(lvalue, type: rvalue.type)
-                    } else {
-                        lvalue = builder.buildSExt(lvalue, type: rvalue.type)
-                    }
-                }
-                if rhsType.isUnconstrained && !rhs.isBasicLit {
-                    if rhsType.isUnsigned {
-                        rvalue = builder.buildZExt(rvalue, type: lvalue.type)
-                    } else {
-                        rvalue = builder.buildSExt(rvalue, type: lvalue.type)
-                    }
-                }
-            }
-
-            switch op {
-            case .plus:
-                return builder.buildAdd(lvalue, rvalue)
-
-            case .minus:
-                return builder.buildSub(lvalue, rvalue)
-
-            case .asterix:
-                return builder.buildMul(lvalue, rvalue)
-
-            case .slash:
-                if lhsType.isUnsigned {
-
-                    return builder.buildDiv(lvalue, rvalue, signed: false)
-                } else {
-
-                    return builder.buildDiv(lvalue, rvalue, signed: true)
-                }
-
-            case .percent:
-                if lhsType.isUnsigned {
-
-                    return builder.buildRem(lvalue, rvalue, signed: false)
-                } else {
-
-                    return builder.buildRem(lvalue, rvalue, signed: true)
-                }
-
-            // TODO(vdka): Are these arithmatic or logical? Which should they be?
-            case .doubleLeftChevron:
-                return builder.buildShl(lvalue, rvalue)
-
-            case .doubleRightChevron:
-                return builder.buildShr(lvalue, rvalue)
-
-            case .leftChevron:
-                if lhsType.isUnsigned {
-                    return builder.buildICmp(lvalue, rvalue, .unsignedLessThan)
-                } else if lhsType.isInteger {
-                    return builder.buildICmp(lvalue, rvalue, .signedLessThan)
-                } else if lhsType.isFloat {
-                    return builder.buildFCmp(lvalue, rvalue, .orderedLessThan)
-                }
-                panic()
-
-            case .leftChevronEquals:
-                if lhsType.isUnsigned {
-                    return builder.buildICmp(lvalue, rvalue, .unsignedLessThanOrEqual)
-                } else if lhsType.isInteger {
-                    return builder.buildICmp(lvalue, rvalue, .signedLessThanOrEqual)
-                } else if lhsType.isFloat {
-                    return builder.buildFCmp(lvalue, rvalue, .orderedLessThanOrEqual)
-                }
-                panic()
-
-            case .rightChevron:
-                if lhsType.isUnsigned {
-                    return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThan)
-                } else if lhsType.isInteger {
-                    return builder.buildICmp(lvalue, rvalue, .signedGreaterThan)
-                } else if lhsType.isFloat {
-                    return builder.buildFCmp(lvalue, rvalue, .orderedGreaterThan)
-                }
-                panic()
-
-            case .rightChevronEquals:
-                if lhsType.isUnsigned {
-                    return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThanOrEqual)
-                } else if lhsType.isInteger {
-                    return builder.buildICmp(lvalue, rvalue, .signedGreaterThanOrEqual)
-                } else if lhsType.isFloat {
-                    return builder.buildFCmp(lvalue, rvalue, .orderedGreaterThanOrEqual)
-                }
-                panic()
-
-            case .equalsEquals:
-                if lhsType.isInteger {
-                    return builder.buildICmp(lvalue, rvalue, .equal)
-                } else if lhsType.isFloat {
-                    return builder.buildFCmp(lvalue, rvalue, .orderedEqual)
-                }
-                panic()
-
-            case .bangEquals:
-                if lhsType.isInteger {
-                    return builder.buildICmp(lvalue, rvalue, .notEqual)
-                } else if lhsType.isFloat {
-                    return builder.buildFCmp(lvalue, rvalue, .orderedNotEqual)
-                }
-                return builder.buildICmp(lvalue, rvalue, .notEqual)
-
-            case .ampersand:
-                return builder.buildAnd(lvalue, rvalue)
-
-            case .pipe:
-                return builder.buildOr(lvalue, rvalue)
-
-            case .carot:
-                return builder.buildXor(lvalue, rvalue)
-
-            case .doubleAmpersand:
-                let r = builder.buildAnd(lvalue, rvalue)
-                return builder.buildTrunc(r, type: IntType.int1)
-
-            case .doublePipe:
-                let r = builder.buildOr(lvalue, rvalue)
-                return builder.buildTrunc(r, type: IntType.int1)
-
-            default:
-                unimplemented("Binary Operator '\(op)'")
-            }
+        case .asterix:
+            let val = emitExpr(expr)
+            return builder.buildLoad(val)
 
         default:
-            fatalError()
+            unimplemented("Unary Operator '\(op)'")
         }
     }
 
-    func emitExprSubscript(_ node: AstNode, isLValue: Bool) -> IRValue {
+    // TODO(vdka): Check the types to determine llvm calls
+    func emitExprBinary(_ node: AstNode) -> IRValue {
+
+        guard case .exprBinary(let op, let lhs, let rhs, _) = node else {
+            panic()
+        }
+
+        var lvalue = emitExpr(lhs)
+        var rvalue = emitExpr(rhs)
+
+        let lhsType = checker.info.types[lhs]!
+        let rhsType = checker.info.types[rhs]!
+
+        // TODO(vdka): Trunc or Ext if needed / possible
+
+        if lhsType !== rhsType {
+            if lhsType.width == rhsType.width {
+                //
+                // `x: uint = 1; y: int = 1; z := x + y`
+                // We don't know what the return type should be so it's an error caught in the checker
+                //
+                panic()
+            }
+            if lhsType.isUnconstrained && !lhs.isBasicLit {
+                if lhsType.isUnsigned {
+                    lvalue = builder.buildZExt(lvalue, type: rvalue.type)
+                } else {
+                    lvalue = builder.buildSExt(lvalue, type: rvalue.type)
+                }
+            }
+            if rhsType.isUnconstrained && !rhs.isBasicLit {
+                if rhsType.isUnsigned {
+                    rvalue = builder.buildZExt(rvalue, type: lvalue.type)
+                } else {
+                    rvalue = builder.buildSExt(rvalue, type: lvalue.type)
+                }
+            }
+        }
+
+        switch op {
+        case .plus:
+            return builder.buildAdd(lvalue, rvalue)
+
+        case .minus:
+            return builder.buildSub(lvalue, rvalue)
+
+        case .asterix:
+            return builder.buildMul(lvalue, rvalue)
+
+        case .slash:
+            if lhsType.isUnsigned {
+
+                return builder.buildDiv(lvalue, rvalue, signed: false)
+            } else {
+
+                return builder.buildDiv(lvalue, rvalue, signed: true)
+            }
+
+        case .percent:
+            if lhsType.isUnsigned {
+
+                return builder.buildRem(lvalue, rvalue, signed: false)
+            } else {
+
+                return builder.buildRem(lvalue, rvalue, signed: true)
+            }
+
+        // TODO(vdka): Are these arithmatic or logical? Which should they be?
+        case .doubleLeftChevron:
+            return builder.buildShl(lvalue, rvalue)
+
+        case .doubleRightChevron:
+            return builder.buildShr(lvalue, rvalue)
+
+        case .leftChevron:
+            if lhsType.isUnsigned {
+                return builder.buildICmp(lvalue, rvalue, .unsignedLessThan)
+            } else if lhsType.isInteger {
+                return builder.buildICmp(lvalue, rvalue, .signedLessThan)
+            } else if lhsType.isFloat {
+                return builder.buildFCmp(lvalue, rvalue, .orderedLessThan)
+            }
+            panic()
+
+        case .leftChevronEquals:
+            if lhsType.isUnsigned {
+                return builder.buildICmp(lvalue, rvalue, .unsignedLessThanOrEqual)
+            } else if lhsType.isInteger {
+                return builder.buildICmp(lvalue, rvalue, .signedLessThanOrEqual)
+            } else if lhsType.isFloat {
+                return builder.buildFCmp(lvalue, rvalue, .orderedLessThanOrEqual)
+            }
+            panic()
+
+        case .rightChevron:
+            if lhsType.isUnsigned {
+                return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThan)
+            } else if lhsType.isInteger {
+                return builder.buildICmp(lvalue, rvalue, .signedGreaterThan)
+            } else if lhsType.isFloat {
+                return builder.buildFCmp(lvalue, rvalue, .orderedGreaterThan)
+            }
+            panic()
+
+        case .rightChevronEquals:
+            if lhsType.isUnsigned {
+                return builder.buildICmp(lvalue, rvalue, .unsignedGreaterThanOrEqual)
+            } else if lhsType.isInteger {
+                return builder.buildICmp(lvalue, rvalue, .signedGreaterThanOrEqual)
+            } else if lhsType.isFloat {
+                return builder.buildFCmp(lvalue, rvalue, .orderedGreaterThanOrEqual)
+            }
+            panic()
+
+        case .equalsEquals:
+            if lhsType.isInteger {
+                return builder.buildICmp(lvalue, rvalue, .equal)
+            } else if lhsType.isFloat {
+                return builder.buildFCmp(lvalue, rvalue, .orderedEqual)
+            }
+            panic()
+
+        case .bangEquals:
+            if lhsType.isInteger {
+                return builder.buildICmp(lvalue, rvalue, .notEqual)
+            } else if lhsType.isFloat {
+                return builder.buildFCmp(lvalue, rvalue, .orderedNotEqual)
+            }
+            return builder.buildICmp(lvalue, rvalue, .notEqual)
+
+        case .ampersand:
+            return builder.buildAnd(lvalue, rvalue)
+
+        case .pipe:
+            return builder.buildOr(lvalue, rvalue)
+
+        case .carot:
+            return builder.buildXor(lvalue, rvalue)
+
+        case .doubleAmpersand:
+            let r = builder.buildAnd(lvalue, rvalue)
+            return builder.buildTrunc(r, type: IntType.int1)
+
+        case .doublePipe:
+            let r = builder.buildOr(lvalue, rvalue)
+            return builder.buildTrunc(r, type: IntType.int1)
+
+        default:
+            unimplemented("Binary Operator '\(op)'")
+        }
+    }
+
+    func emitExprTernary(_ node: AstNode) -> IRValue {
+        guard case .exprTernary(let condExpr, let thenExpr, let elseExpr, _) = node else {
+            panic()
+        }
+
+        let condVal = emitExprConditional(condExpr)
+        let thenVal = emitExpr(thenExpr)
+        let elseVal = emitExpr(elseExpr)
+
+        return builder.buildSelect(condVal, then: thenVal, else: elseVal)
+    }
+
+    func emitExprSubscript(_ node: AstNode, returnAddress: Bool = false) -> IRValue {
         guard case .exprSubscript(let receiver, let value, _) = node else {
             preconditionFailure()
         }
@@ -1158,26 +1174,65 @@ extension IRGenerator {
             unimplemented()
         }
         
-        let index = emitStmt(value)
-        
-        let ptr = builder.buildGEP(lvalue, indices: [
-            IntType.int64.constant(0),
-            index
-            ])
-        
-        // set
-        if isLValue {
+        let index = emitExpr(value)
+
+        let ptr = builder.buildGEP(lvalue, indices: [IntType.int64.zero(), index])
+
+        if returnAddress {
             return ptr
         }
-        
-        //get
+
         return builder.buildLoad(ptr)
+    }
+
+    func emitExprSelector(_ node: AstNode, returnAddress: Bool = false) -> IRValue {
+        guard case .exprSelector(let receiver, let member, _) = node else {
+            panic()
+        }
+
+        if case .ident(let ident, _) = receiver,
+            let recvEntity = context.scope.lookup(ident),
+            case .importName = recvEntity.kind {
+
+            //
+            // Import entities are phantoms which don't actually exist at an IR level.
+            // As such this code effectively bypasses the first node.
+            //
+            let entity = recvEntity.childScope!.lookup(member.identifier)!
+            if let val = llvmPointers[entity] {
+
+                return builder.buildLoad(val)
+            } else {
+
+                let val = builder.addGlobal(entity.mangledName!, type: canonicalize(entity.type!))
+                llvmPointers[entity] = val
+
+                return builder.buildLoad(val)
+            }
+        }
+
+
+        let recvType = checker.info.types[receiver]!
+        let entity = recvType.memberScope!.lookup(member)!
+//        let entity = recvType.child(member)!
+
+//        let recvEntity = context.scope.lookup(receiver)!
+//        let entity = recvEntity.child(member)
+
+        let recIrVal = emitExpr(receiver, returnAddress: true)
+        let memberPtr = builder.buildStructGEP(recIrVal, index: Int(entity.offsetInParent!))
+
+        if returnAddress {
+            return memberPtr
+        }
+
+        return builder.buildLoad(memberPtr)
     }
 
     /// If a value is meant to be used as a condition use this.
     /// It will truncate to an `i1` for you
-    func emitExprConditional(for node: AstNode) -> IRValue {
-        let val = emitStmt(node)
+    func emitExprConditional(_ node: AstNode) -> IRValue {
+        let val = emitExpr(node)
 
         guard (val.type as! IntType).width == 1 else {
             return builder.buildTrunc(val, type: IntType.int1)
@@ -1272,5 +1327,104 @@ extension BasicBlock {
         }
         
         return instruction.isATerminatorInst
+    }
+}
+
+extension IRGenerator {
+
+    func canonicalize(_ type: Type) -> IRType {
+
+        switch type.kind {
+        case .builtin(let typeName):
+            switch typeName {
+            case "void", "unconstrNil":
+                return VoidType()
+
+            case "bool", "unconstrBool":
+                return IntType.int1
+
+            case "i8", "u8":
+                return IntType.int8
+
+            case "i16", "u16":
+                return IntType.int16
+
+            case "i32", "u32":
+                return IntType.int32
+
+            case "i64", "u64", "int", "uint", "unconstrInteger":
+                return IntType.int64
+
+            case "f32":
+                return FloatType.float
+
+            case "f64", "unconstrFloat":
+                return FloatType.double
+
+            case "string", "unconstrString":
+                return PointerType(pointee: IntType.int8)
+
+            default:
+                unimplemented("Type emission for type \(self)")
+            }
+
+        case .named(let entity, _):
+
+            if let type = module.type(named: entity.mangledName!) {
+                return type
+            }
+
+            fatalError()
+
+        case .alias(let entity, _):
+            if let irType = module.type(named: entity.mangledName!) {
+                return irType
+            }
+             // should have already been declared?
+            // Maybe not the case if the referenced type is in another module, in which case what do we do?
+            fatalError()
+
+        case .struct(let members):
+
+            // FIXME(vdka): If types can be nested (they can) this won't be correct. Fix that.
+            let memberIrTypes = Array(members.elements.orderedValues.map({ self.canonicalize($0.type!) }))
+
+            return StructType(elementTypes: memberIrTypes)
+
+        case .pointer(let underlyingType),
+             .nullablePointer(let underlyingType):
+            return PointerType(pointee: canonicalize(underlyingType))
+
+        case .array(let underlyingType, let count):
+            return ArrayType(elementType: canonicalize(underlyingType), count: Int(count))
+
+        case .proc(let params, let results, let isVariadic):
+
+            let paramTypes: [IRType]
+            if isVariadic {
+                paramTypes = params.dropLast().map({ canonicalize($0.type!) })
+            } else {
+                paramTypes = params.map({ canonicalize($0.type!) })
+            }
+
+            let resultType: IRType
+
+            if results.count == 1, let firstResult = results.first {
+
+                resultType = canonicalize(firstResult)
+            } else {
+
+                let resultIrTypes = results.map({ canonicalize($0) })
+                resultType = StructType(elementTypes: resultIrTypes)
+            }
+
+            return FunctionType(argTypes: paramTypes, returnType: resultType, isVarArg: isVariadic)
+            
+        case .tuple(let types):
+            return StructType(elementTypes: types.map({ canonicalize($0) }))
+            
+        case .typeInfo:
+            unimplemented("Type info")
+        }
     }
 }

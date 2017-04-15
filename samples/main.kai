@@ -3,18 +3,26 @@
 print :: (string, ..any) -> void #foreign libc "printf"
 length :: (string) -> u64 #foreign libc "strlen"
 
+Color :: struct {
+    name: string
+    r, g, b: u8
+}
+
+Person :: struct {
+    name: string
+    age: int
+
+    favoriteColor: Color
+}
+
 // Program entry point
 main :: () -> void {
-
-    //arr: [1][1]int = {{1}}
-
 
     section :: () -> void {
         for i := 0; i < 3; i += 1 {
             print("\n")
         }
     }
-
     { // Pointers and numbers
 
         val := 8
@@ -136,44 +144,35 @@ main :: () -> void {
 
     section()
 
-    { // casting between sizes and types
-        x : i8  = -128
-        y : u16 = u16(x)
-        z : u8  = u8(256)
-
-        i : f32 = f32(x)
-        j : f64 = f64(z)
-        k : f64 = f64(1 + 2 + 3)
-
-        print("x: %hhd, y: %hu, z: %hhu\n", x, y, z)
-        print("i: %.2f, j: %.2f, k: %.2f\n", f64(i), j, k)
-        // NOTE(vdka): There is a bug here due to some C strangeness
-        // C emits an fpext instruction for floating point aguments to get them to double
-        // Without float's being passed as doubles to printf, it prints the 0 value.
-    }
-
-    section()
-
-    { // defer keyword
-
-        deferDemo :: () -> void {
-            defer print("I was defered first!\n")
-            defer print("I was defered last!\n")
-            print("I was not defered\n")
-        }
-
-        deferDemo()
-    }
-
-    section()
-
-    { // Ternary
-
+    {
         print("0 ? 1 : 0 -> %d\n", 0 ? 1 : 0)
         print("1 ? 1 : 0 -> %d\n", 1 ? 1 : 0)
 
         print("0 ? 1 ? 2 : 3 : 0 -> %d\n", 0 ? 1 ? 2 : 3 : 0)
         print("1 ? 1 ? 2 : 3 : 0 -> %d\n", 1 ? 1 ? 2 : 3 : 0)
+    }
+
+    section()
+
+    {
+        red: Color = {"Red", 255, 0, 0}
+
+        bob: Person = {"Bob", 21, red}
+        bob.age = 42
+
+        print("%s is %d years old.\nHis favorite color is %s (#%02hx%02hx%02hx)\n", bob.name, bob.age, bob.favoriteColor.name, bob.favoriteColor.r, bob.favoriteColor.g, bob.favoriteColor.b)
+
+        blue: Color = {"Blue", 0, 255, 0}
+
+        /*
+        colors: [2]Color = {red, blue}
+
+        for i := 0; i < 2; i += 1 {
+            color := colors[i]
+            name := colors[i].name
+            print("%s has the hex code %2.x%2.x%2.x\n", name, color.r, color.g, color.b)
+        }
+        */
     }
 }
 

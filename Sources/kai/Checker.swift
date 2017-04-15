@@ -1,4 +1,6 @@
 
+import OrderedDictionary
+
 /// Defines a type in which something can take
 class Type: Equatable, CustomStringConvertible {
 
@@ -17,14 +19,17 @@ class Type: Equatable, CustomStringConvertible {
     }
 
     enum Kind {
-        case named(String)
-        case alias(String, Type)
+        // These are all special cases of the named Type.
+        case builtin(String)
+        case named(Entity, Type)
+        case alias(Entity, Type)
+        case `struct`(Scope)
+
         case pointer(underlyingType: Type)
         case nullablePointer(underlyingType: Type)
         case array(underlyingType: Type, count: UInt)
         case proc(params: [Entity], returns: [Type], isVariadic: Bool)
-        case typeInfo(underlyingType: Type) // for now, in the future we will collapse this into the `struct` kind.
-        case `struct`(String)
+        case typeInfo(underlyingType: Type)
 
         /// Only used for multiple returns.
         case tuple([Type])
@@ -36,15 +41,43 @@ class Type: Equatable, CustomStringConvertible {
 
     var underlyingType: Type? {
         switch self.kind {
+        case .named(_, let type),
+             .alias(_, let type):
+            return type.underlyingType
+
         case .pointer(let underlyingType),
              .nullablePointer(let underlyingType),
              .typeInfo(let underlyingType),
              .array(let underlyingType, _):
             return underlyingType
 
-        default:
+        case .builtin, .struct, .proc, .tuple:
             return nil
         }
+    }
+
+    var memberScope: Scope? {
+        switch self.kind {
+        case .named(_, let type),
+             .alias(_, let type):
+            return type.memberScope
+
+        case .struct(let memberScope):
+            return memberScope
+
+        case .builtin,
+             .pointer, .nullablePointer,
+             .typeInfo, .proc, .tuple, .array:
+            return nil
+        }
+    }
+
+    static func named(_ entity: Entity, underlyingType: Type) -> Type {
+        if underlyingType == Type.invalid {
+            return Type.invalid
+        }
+
+        return Type(kind: .named(entity, underlyingType), flags: .none, width: underlyingType.width, location: entity.location)
     }
 
     static func pointer(to underlyingType: Type) -> Type {
@@ -94,11 +127,14 @@ class Type: Equatable, CustomStringConvertible {
 
     var description: String {
         switch kind {
-        case .named(let name):
+        case .builtin(let name):
             return name
 
-        case .alias(let name, let type):
-            return name + " aka " + type.description
+        case .named(let entity, let type):
+            return entity.name + " :: " + type.description
+
+        case .alias(let entity, let type):
+            return entity.name + " aka " + type.description
 
         case .pointer(let underlyingType):
             return "*\(underlyingType)"
@@ -136,8 +172,8 @@ class Type: Equatable, CustomStringConvertible {
 
             return str
 
-        case .struct(let name):
-            return name
+        case .struct(let members):
+            return "struct { " + members.elements.orderedValues.map({ $0.name + ": " + $0.type!.description }).joined(separator: ", ") + " }"
 
         case .tuple(let types):
             return "(" + types.map({ $0.description }).joined(separator: ", ") + ")"
@@ -192,28 +228,92 @@ class Type: Equatable, CustomStringConvertible {
     }
 
     var isNullablePointer: Bool {
-        if case .nullablePointer = kind {
+        switch kind {
+        case .named(_, let underlyingType),
+             .alias(_, let underlyingType):
+
+            return underlyingType.isNullablePointer
+
+        case .nullablePointer:
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    var isArray: Bool {
+        switch kind {
+        case .named(_, let underlyingType),
+             .alias(_, let underlyingType):
+
+            return underlyingType.isArray
+
+        case .array:
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    var isAlias: Bool {
+        if case .alias = kind {
             return true
         }
         return false
     }
 
-    var isArray: Bool {
-        if case .array = kind {
+    var isStruct: Bool {
+
+        switch kind {
+        case .named(_, let underlyingType),
+             .alias(_, let underlyingType):
+
+            return underlyingType.isStruct
+
+        case .struct:
             return true
+
+        default:
+            return false
         }
-        return false
+    }
+
+    var isType: Bool {
+
+        switch kind {
+            case .named(_, let underlyingType),
+                 .alias(_, let underlyingType):
+
+            return underlyingType.isType
+
+        case .typeInfo:
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    var isProc: Bool {
+
+        switch kind {
+        case .named(_, let underlyingType),
+             .alias(_, let underlyingType):
+
+            return underlyingType.isProc
+
+        case .proc:
+            return true
+
+        default:
+            return false
+        }
     }
 
     var isTuple: Bool {
         if case .tuple = kind {
-            return true
-        }
-        return false
-    }
-
-    var isProc: Bool {
-        if case .proc = kind {
             return true
         }
         return false
@@ -261,7 +361,7 @@ class Type: Equatable, CustomStringConvertible {
 
             let width = size < 0 ? size : size * 8
 
-            return Type(kind: .named(name), flags: flags, width: width, location: location)
+            return Type(kind: .builtin(name), flags: flags, width: width, location: location)
         }
     }()
 
@@ -301,9 +401,13 @@ class Type: Equatable, CustomStringConvertible {
 
     static func ==(lhs: Type, rhs: Type) -> Bool {
         switch (lhs.kind, rhs.kind) {
-        case (.struct, .struct),
+        case (.builtin, .builtin),
+             (.struct, .struct),
              (.alias, .alias),
              (.named, .named):
+
+            // TODO(vdka): Make alias equate possibly?
+
             return lhs === rhs
 
         case (.pointer(let lhsUT), .pointer(let rhsUT)),
@@ -322,6 +426,27 @@ class Type: Equatable, CustomStringConvertible {
 
         default:
             return false
+        }
+    }
+
+    @available(*, deprecated)
+    func child(_ node: AstNode) -> Entity? {
+
+        guard case .struct(let scope) = kind else {
+            return nil
+        }
+
+        let members = scope.elements.orderedValues
+
+        switch node {
+        case .ident(let name, _):
+            return members.first(where: { $0.name == name })
+
+        case .exprSelector(let receiver, _, _):
+            return self.child(receiver)
+
+        default:
+            return nil
         }
     }
 }
@@ -350,6 +475,8 @@ class Entity: PointerHashable {
 
     var childScope: Scope?
     var value: ExactValue?
+
+    var offsetInParent: UInt?
     
     init(name: String, location: SourceLocation, kind: Kind, owningScope: Scope) {
         self.name = name
@@ -419,6 +546,33 @@ class Entity: PointerHashable {
 
         scope.insert(e)
     }
+
+    @available(*, deprecated)
+    func child(_ node: AstNode) -> Entity? {
+
+        var members: [Entity]
+        switch type?.kind {
+        case .struct(let scope)?:
+            members = Array(scope.elements.orderedValues)
+
+        case nil:
+            return childScope?.lookup(node)
+
+        default:
+            return nil
+        }
+
+        switch node {
+        case .ident(let name, _):
+            return members.first(where: { $0.name == name })
+
+        case .exprSelector(let receiver, _, _):
+            return self.child(receiver)
+
+        default:
+            return nil
+        }
+    }
 }
 
 struct Library {
@@ -431,7 +585,7 @@ class Scope: PointerHashable {
     var imported: [Scope] = []
     var shared: [Scope] = []
 
-    var elements: [String: Entity] = [:]
+    var elements: OrderedDictionary<String, Entity> = [:]
     var isMainFile: Bool = false
 
     var owningNode: AstNode?
@@ -446,6 +600,8 @@ class Scope: PointerHashable {
 
         return parent?.containingProc
     }
+
+    var isStruct: Bool = false
 
     var isLoop: Bool = false
     var inLoop: Bool {
@@ -517,6 +673,9 @@ extension Scope {
 
     func lookup(_ node: AstNode) -> Entity? {
 
+        // FIXME(vdka): This helper probably makes things more confusing.
+        //   We should ditch it and do what we are trying to do inline I guess?
+        //   Alternatively we could split this into seperate lookup calls?
         switch node {
         case .ident(let ident, _):
             return lookup(ident)
@@ -847,7 +1006,7 @@ extension Checker {
             if case .ident(".", _)? = importName {
 
                 // FIXME(vdka): THIS IS A BUG. IT LOOKS LIKE YOU ARE ADDING ENTITIES TO THE FILE FROM WHICH THEY RESIDE.
-                for entity in scope.elements.values {
+                for entity in scope.elements.orderedValues {
                     addEntity(to: parentScope, entity)
                     parentScope.file!.importedEntities.append(entity)
                 }
@@ -883,7 +1042,7 @@ extension Checker {
         let prevContext = context
         context.scope = scope
 
-        for e in scope.elements.values {
+        for e in scope.elements.orderedValues {
             checkDecl(of: e)
         }
 
@@ -924,8 +1083,9 @@ extension Checker {
 
             for (i, e) in d.entities.enumerated() {
                 let initExpr = d.initExprs[safe: i]
-                let rvalueType = initExpr.map {
-                    checkExpr($0, typeHint: explicitType, for: d)
+                var rvalueType: Type?
+                if let initExpr = initExpr {
+                    rvalueType = checkExpr(initExpr, typeHint: explicitType, for: d)
                 }
 
                 if let rvalueType = rvalueType, let explicitType = explicitType {
@@ -941,9 +1101,18 @@ extension Checker {
 
                     attemptLiteralConstraint(initExpr!, to: explicitType)
 
+                    e.childScope = e.type!.memberScope
+
                 } else if let explicitType = explicitType {
 
                     e.type = explicitType
+                } else if let rvalueType = rvalueType, rvalueType.isType {
+
+                    let underlyingType = rvalueType.underlyingType!
+                    e.type = Type.named(e, underlyingType: underlyingType)
+                } else if let rvalueType = rvalueType, rvalueType.isStruct, case .litStruct = initExpr! {
+
+                    e.type = Type.named(e, underlyingType: rvalueType).info
                 } else if let rvalueType = rvalueType {
 
                     e.type = rvalueType
@@ -1074,7 +1243,6 @@ extension Checker {
         return type
     }
 
-    /// - Note: Warns when not resolved
     mutating func lookupEntity(_ node: AstNode, reportMissing: Bool = true) -> Entity? {
 
         if case .ident("_", _) = node {
@@ -1105,7 +1273,30 @@ extension Checker {
 
             switch entity.kind {
             case .type(let type):
+                // FIXME(vdka): Builtins shouldn't be too special and should be handled the same way
+                //   as regular types. Is this a bug?
+
+                // These are the builtin types
                 return type
+
+            case .compiletime:
+                switch entity.type!.kind {
+                case .typeInfo(let underlyingType):
+                    return underlyingType
+
+                case .named(_, let underlyingType):
+                    return underlyingType
+
+                case .alias(_, let underlyingType):
+                    return underlyingType
+
+                case .struct(_):
+                    return entity.type!
+
+                default:
+                    reportError("Entity '\(node)' cannot be used as type", at: node)
+                    return Type.invalid
+                }
 
             default:
                 reportError("Entity '\(node)' cannot be used as type", at: node)
@@ -1265,7 +1456,7 @@ extension Checker {
             let rhsType = checkExpr(rval, typeHint: lhsType)
 
             guard canImplicitlyConvert(rhsType, to: lhsType) else {
-                reportError("Cannot use \(rval) (type \(rhsType)) as rvalue in assignment to \(lval) (type \(lhsType))", at: node)
+                reportError("Cannot use `\(rval)` (type \(rhsType)) as rvalue in assignment to `\(lval)` (type \(lhsType))", at: node)
                 return
             }
 
@@ -1396,11 +1587,37 @@ extension Checker {
             }
 
         case .litCompound(let elements, _):
-            // Infer the type of every element
-            if elements.isEmpty, let typeHint = typeHint, typeHint.isArray {
+
+            if let typeHint = typeHint, typeHint.isStruct, elements.isEmpty {
+
+                type = typeHint
+                break
+            } else if let typeHint = typeHint, typeHint.isStruct {
+
+                var assigned = Array(repeatElement(false, count: elements.count))
+                for (element, member) in zip(elements, typeHint.memberScope!.elements.orderedValues.enumerated()) {
+
+                    assigned[member.offset] = true
+
+                    let targetType = member.element.type!
+
+                    let elType = checkExpr(element, typeHint: targetType)
+                    guard canImplicitlyConvert(elType, to: targetType) else {
+                        reportError("Cannot convert '\(elType)' to expected type '\(targetType)'", at: element)
+                        continue
+                    }
+                }
+
+                type = typeHint
+                break
+            } else if elements.isEmpty, let typeHint = typeHint, typeHint.isArray {
+                //
+                // if there are no elements we can set the type if we know from the lhs.
+                //
                 return typeHint
             } else if elements.isEmpty {
                 reportError("Unable to infer type for empty compound literal", at: node)
+                return Type.invalid
             }
 
             let elTypes = elements.map({ checkExpr($0) })
@@ -1421,10 +1638,36 @@ extension Checker {
             let firstType = elTypes.first!
 
             if elTypes.reduce(true, { $0.0 && ($0.1 == firstType) }) {
-                return Type.array(of: firstType, with: UInt(elements.count))
+
+                type = Type.array(of: firstType, with: UInt(elements.count))
+            } else {
+
+                return Type.invalid
             }
 
-            return Type.invalid
+        case .litStruct(let members, _):
+
+            let scope = pushScope(for: node, isStruct: true)
+            defer { popScope() }
+
+            collectDecls(members)
+            checkDecls(in: scope)
+
+            // FIXME(vdka): If types can be nested (they can) this won't be correct. Fix that.
+            // You need to filter out non runtime entities.
+            let entities = members.flatMap({ info.decls[$0]!.entities })
+
+            // FIXME(vdka): Be smarter about this
+            // Also allow #packed and whatnot
+
+            var totalWidth: UInt = 0
+
+            for (index, entity) in entities.enumerated() {
+                entity.offsetInParent = UInt(index)
+                totalWidth += entity.type!.width
+            }
+
+            type = Type(kind: .struct(scope), flags: .none, width: totalWidth, location: node.startLocation)
 
         case .ident:
             type = checkExprIdent(node)
@@ -1497,10 +1740,11 @@ extension Checker {
             func callKind(for type: Type) -> CallKind {
 
                 switch type.kind {
-                case .named, .struct, .array, .tuple:
+                case .builtin, .struct, .array, .tuple:
                     return CallKind.invalid
 
-                case .alias(_, let underlyingType),
+                case .named(_, let underlyingType),
+                     .alias(_, let underlyingType),
                      .pointer(let underlyingType),
                      .nullablePointer(let underlyingType):
                     return callKind(for: underlyingType)
@@ -1606,14 +1850,31 @@ extension Checker {
 
         case .exprSelector(let receiver, let member, _):
 
-            guard let entity = lookupEntity(node) else {
-                // TODO(vdka): @errors quality
-                reportError("Cannot find entity \(member) in scope of \(receiver)", at: node)
+            if let entity = context.scope.lookup(receiver), case .importName = entity.kind {
+
+                guard let memberEntity = entity.childScope?.lookup(member) else {
+                    reportError("Cannot find entity `\(member)` in scope of `\(receiver)`", at: node)
+                    return Type.invalid
+                }
+
+                type = memberEntity.type!
+
+                break
+            }
+
+            let receiverType = checkExpr(receiver)
+
+            guard let memberScope = receiverType.memberScope else {
+                reportError("Cannot find entity `\(member)` in scope of `\(receiver)`", at: node)
                 return Type.invalid
             }
 
-            checkDecl(of: entity)
-            type = entity.type!
+            guard let memberEntity = memberScope.lookup(member) else {
+                reportError("Cannot find entity `\(member)` in scope of `\(receiver)`", at: node)
+                return Type.invalid
+            }
+
+            type = memberEntity.type!
 
         case .typePointer(let expr, let location):
             // TODO(vdka): Typehint should be unwrapped...
@@ -2086,6 +2347,11 @@ extension Checker {
                 reportError("Arity mismatch, excess expressions on rhs", at: values[names.count])
                 return false
             } else if names.count > values.count && values.count != 1 {
+
+                if context.scope.isStruct {
+                    return true
+                }
+
                 reportError("Arity mismatch, missing expressions for ident", at: names[values.count])
                 return false
             } else if values.count == 1, let value = values.first {
@@ -2276,10 +2542,11 @@ extension Checker {
 extension Checker {
 
     @discardableResult
-    mutating func pushScope(for node: AstNode, procInfo: ProcInfo? = nil, isLoop: Bool = false) -> Scope {
+    mutating func pushScope(for node: AstNode, procInfo: ProcInfo? = nil, isLoop: Bool = false, isStruct: Bool = false) -> Scope {
         let scope = Scope(parent: context.scope)
         scope.owningNode = node
         scope.proc = procInfo
+        scope.isStruct = isStruct
         scope.isLoop = isLoop
 
         info.scopes[node] = scope
