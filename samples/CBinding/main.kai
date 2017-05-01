@@ -1,6 +1,6 @@
 
 #library "c" libc
-#library "/usr/local/lib/libglfw3.dylib" glfw
+#library "/usr/local/lib/libglfw.dylib" glfw
 #library "OpenGL.framework" gl
 #library "libraylib.a" raylib
 
@@ -18,8 +18,8 @@ drawText :: (string, x: i32, y: i32, size: i32, color: u32) -> void #foreign ray
 
 main :: () -> void {
 
-  lightGray : u32 = 3368601855
-  raywhite  : u32 = 4126537215
+  lightGray : u32 = 0xFF_00_00_FF
+  raywhite  : u32 = 0x00_00_FF_FF
 
   screenWidth: i32 = 800
   screenHeight: i32 = 450
