@@ -1896,6 +1896,12 @@ extension Checker {
             }
             type = Type.nullablePointer(to: underlyingType).info
 
+        case .directive(let string, _, _) where string == "foreign":
+            // pass through foreign declarations
+            if let typeHint = typeHint {
+                type = typeHint
+            }
+            
         default:
             panic(node)
         }
@@ -2348,7 +2354,7 @@ extension Checker {
                 return false
             } else if names.count > values.count && values.count != 1 {
 
-                if context.scope.isStruct {
+                if context.scope.isStruct || (type?.isTypeArray ?? false) {
                     return true
                 }
 

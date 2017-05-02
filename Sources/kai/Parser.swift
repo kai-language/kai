@@ -570,12 +570,13 @@ extension Parser {
                 try consume()
                 let rvalue = try expression()
                 return AstNode.declValue(isRuntime: true, names: explode(lvalue), type: nil, values: explode(rvalue), lvalue.startLocation ..< lexer.location)
-
+                
             default: // type is provided `x : int`
 
                 let type = try expression(10)
-
-                switch try lexer.peek()?.kind {
+                let kind = try lexer.peek()?.kind
+                
+                switch kind {
                 case .colon?:
                     // NOTE(vdka): We should report prohibitted type specification at least in some cases. ie: `Foo : typeName : struct { ... }` doesn't make sense
                     unimplemented("Explicit type for compile time declarations")
@@ -585,8 +586,17 @@ extension Parser {
                     let rvalue = try expression()
                     return AstNode.declValue(isRuntime: true, names: explode(lvalue), type: type, values: explode(rvalue), lvalue.startLocation ..< lexer.location)
 
-                default: // `x : int` | `x, y, z: f32`
-                    return AstNode.declValue(isRuntime: true, names: explode(lvalue), type: type, values: [], lvalue.startLocation ..< lexer.location)
+                default: // `x : int` | `x : int #foreign ...` | `x, y, z: f32`
+                    let values: [AstNode]
+                    if case .directive? = kind {
+                        values = [try extractForeignDirective(start: lvalue.startLocation)]
+                    } else {
+                        values = []
+                    }
+                    
+                    let node = AstNode.declValue(isRuntime: true, names: explode(lvalue), type: type, values: values, lvalue.startLocation ..< lexer.location)
+                    
+                    return node
                 }
             }
 
@@ -615,26 +625,7 @@ extension Parser {
                 return AstNode.litProc(type: type, body: body, type.startLocation ..< body.endLocation)
 
             case .directive(.foreign)?: // #foreign libc "open"
-                let (_, location) = try consume()
-
-                guard case .ident(let libIdent)? = try lexer.peek()?.kind else {
-                    reportError("Expected an identifier for library", at: lexer.location)
-                    return AstNode.invalid(lvalue.startLocation ..< location)
-                }
-                try consume()
-
-                let libNameNode = AstNode.ident(libIdent, lexer.lastConsumedRange)
-
-                guard case .string(let path)? = try lexer.peek()?.kind else {
-                    reportError("Expected path or special name for library", at: lexer.location)
-                    return AstNode.invalid(lvalue.startLocation ..< location)
-                }
-                try consume()
-
-                let libPathNode = AstNode.litString(path, lexer.lastConsumedRange)
-
-                let directiveNode = AstNode.directive("foreign", args: [libNameNode, libPathNode], location ..< libNameNode.endLocation)
-
+                let directiveNode = try extractForeignDirective(start: lvalue.startLocation)
                 return AstNode.litProc(type: type, body: directiveNode, lvalue.startLocation ..< directiveNode.endLocation)
 
             default:
@@ -755,5 +746,31 @@ extension Parser {
 
     func range(across nodes: [AstNode]) -> SourceRange {
         return range(from: nodes.first, toEndOf: nodes.last)
+    }
+    
+    mutating func extractForeignDirective(start startLocation: SourceLocation = SourceLocation.zero) throws -> AstNode {
+        let (_, location) = try consume()
+        
+        guard case .ident(let libIdent)? = try lexer.peek()?.kind else {
+            reportError("Expected an identifier for library", at: lexer.location)
+            return AstNode.invalid(startLocation ..< location)
+        }
+        try consume()
+        
+        let libNameNode = AstNode.ident(libIdent, lexer.lastConsumedRange)
+        
+        guard case .string(let path)? = try lexer.peek()?.kind else {
+            reportError("Expected path or special name for library", at: lexer.location)
+            return AstNode.invalid(startLocation ..< location)
+        }
+        try consume()
+        
+        let libPathNode = AstNode.litString(path, lexer.lastConsumedRange)
+        
+        return AstNode.directive(
+            "foreign",
+            args: [libNameNode, libPathNode],
+            location ..< libNameNode.endLocation
+        )
     }
 }

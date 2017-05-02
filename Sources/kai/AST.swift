@@ -180,6 +180,16 @@ extension AstNode {
         }
     }
 
+    var isTypeArray: Bool {
+        switch self {
+        case .typeArray:
+            return true
+            
+        default:
+            return false
+        }
+    }
+    
     var isImport: Bool {
         switch self {
         case .declImport:
