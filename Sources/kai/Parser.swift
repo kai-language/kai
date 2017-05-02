@@ -253,7 +253,11 @@ extension Parser {
             let (_, startLocation) = try consume(.keyword(.if))
 
             let condExpr = try expression()
-            let bodyExpr = try expression()
+            var bodyExpr = try expression()
+
+            if bodyExpr.isCompoundLit {
+                bodyExpr = .stmtBlock([], bodyExpr.location)
+            }
 
             guard case .keyword(.else)? = try lexer.peek()?.kind else {
                 return AstNode.stmtIf(cond: condExpr, body: bodyExpr, nil, startLocation ..< bodyExpr.endLocation)
@@ -354,6 +358,7 @@ extension Parser {
 
         case .lbrace:
             let (_, startLocation) = try consume(.lbrace)
+            try consumeTerminators(justNewlines: true)
 
             var stmts: [AstNode] = []
             while let next = try lexer.peek()?.kind, next != .rbrace {

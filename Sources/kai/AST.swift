@@ -220,6 +220,16 @@ extension AstNode {
         }
     }
 
+    var isCompoundLit: Bool {
+        switch self {
+        case .litCompound:
+            return true
+
+        default:
+            return false
+        }
+    }
+
     var isNil: Bool {
         if case .ident("nil", _) = self {
             return true
