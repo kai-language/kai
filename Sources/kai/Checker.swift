@@ -1329,7 +1329,7 @@ extension Checker {
         case .typeArray(let count, let type, _):
             let underlyingType = lookupType(type)
 
-            guard case .litInteger(let count, _) = count else {
+            guard case .litInteger(let count, _)? = count else {
                 unimplemented("Non literal array sizes")
             }
 

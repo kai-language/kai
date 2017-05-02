@@ -84,7 +84,7 @@ indirect enum AstNode {
     case typeProc(params: [AstNode], results: [AstNode], SourceRange)
     case typePointer(type: AstNode, SourceRange)
     case typeNullablePointer(type: AstNode, SourceRange)
-    case typeArray(count: AstNode, type: AstNode, SourceRange)
+    case typeArray(count: AstNode?, type: AstNode, SourceRange)
 }
 
 extension AstNode: Equatable {
@@ -548,7 +548,7 @@ extension AstNode: CustomStringConvertible {
             return "^\(type)"
 
         case .typeArray(let count, let type, _):
-            return "[\(count)]\(type)"
+            return "[\(count?.description ?? "0")]\(type)"
         }
     }
 }
@@ -829,7 +829,7 @@ extension AstNode {
             labeled.append(("type", type.description))
 
         case .typeArray(let count, let type, _):
-            labeled.append(("count", count.description))
+            labeled.append(("count", count?.description ?? "0"))
             labeled.append(("type", type.description))
         }
 
@@ -1077,7 +1077,7 @@ extension AstNode {
             labeled.append(("type", type.description))
 
         case .typeArray(let count, let type, _):
-            labeled.append(("count", count.description))
+            labeled.append(("count", count?.description ?? "0"))
             labeled.append(("type", type.description))
         }
 
