@@ -1,0 +1,83 @@
+#library "c" libc
+
+print :: (string, ..any) -> void #foreign libc "printf"
+
+// C socket datatypes and constants
+in_addr :: struct {
+    s_addr : u32
+}
+
+sockaddr_in :: struct {
+    sin_len : u8
+    sa_family_t : u8
+    sin_port_t : u16
+    sin_addr: u32
+    sin_zero: [8]i8
+}
+
+AF_INET : u8 = 2
+SOCK_STREAM : u32 = 1
+
+// C sockets
+socket :: (u32, u32, u32) -> u32 #foreign libc "socket"
+bind :: (u32, *sockaddr_in, u64) -> i32 #foreign libc "bind"
+listen :: (u32, i32) -> i32 #foreign libc "listen"
+accept :: (u32, *sockaddr_in, *u64) -> u32 #foreign libc "accept" 
+write :: (u32, string, i32) -> i64 #foreign libc "write"
+read :: (u32, [255]i8, i64) -> i64 #foreign libc "read"
+htons :: (u16) -> u16 #foreign libc "htons"
+close :: (u32) -> u32 #foreign libc "close"
+
+PORT : u16 = 8080
+
+errno : i32 #foreign libc "errno"
+
+error :: (message: string) -> void {
+    print("error (%d): %s", message, errno)
+}
+
+main :: () -> void {
+    sockfd := socket(u32(AF_INET), SOCK_STREAM, 0)    
+    if sockfd < 0 print("Damn, I fucked up!\n")
+
+    defer close(sockfd)
+
+    port := htons(PORT)
+    //bindAddress: in_addr = {0}
+
+    zero: [8]i8
+
+    self : sockaddr_in = {
+        0, AF_INET, port, 0, zero
+    }   
+
+    result := bind(sockfd, &self, 16) 
+    if result != 0 error("Binding socket")
+
+    result = listen(sockfd, 5)
+    if result != 0 error("Listening")
+
+    client : sockaddr_in = {
+        0, AF_INET, port, 0, zero
+    }
+    
+    clientSize: u64 = 16
+
+    newsockfd := accept(sockfd, &client, &clientSize)
+    
+    if newsockfd < 0 error("Accepting client connection")
+
+    buffer : [255]i8
+    n := read(newsockfd, buffer, 255)
+    if n == 0 {
+        print("Connection closed %d\n", errno)
+    } 
+
+    if n < 0 {
+        error("Attempting read")
+    }
+
+    print("read %d bytes\n", n)
+
+    write(newsockfd, "Hey!\n", 5)
+}
