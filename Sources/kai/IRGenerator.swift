@@ -263,6 +263,19 @@ extension IRGenerator {
             //   for now just rely on LLVMSwift's `module.type(named:)`
             _ = builder.createStruct(name: entity.mangledName!, types: Array(irTypes), isPacked: false)
 
+        } else if decl.entities.count == 1, let entity = decl.entities.first,
+            case .array(let underlyingType, let count) = entity.type!.kind, values.count == 0 {
+            
+            let irType = ArrayType(elementType: canonicalize(underlyingType), count: Int(count))
+            
+            let irValuePtr: IRValue
+            if let function = context.currentProcedure?.llvm {
+                irValuePtr = emitEntryBlockAlloca(in: function, type: irType, named: entity.name)
+            } else {
+                irValuePtr = emitGlobal(name: entity.mangledName!, type: irType, value: nil)
+            }
+            
+            llvmPointers[entity] = irValuePtr
         } else {
             assert(decl.entities.count == decl.initExprs.count)
 
@@ -278,7 +291,12 @@ extension IRGenerator {
                 let entityType = entity.type!
                 let irType = canonicalize(entityType)
 
-                let irValue = emitExpr(value)
+                let irValue: IRValue?
+                if case .directive = value {
+                    irValue = nil
+                } else {
+                    irValue = emitExpr(value)
+                }
 
                 let irValuePtr: IRValue
                 if let function = context.currentProcedure?.llvm {
