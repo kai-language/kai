@@ -34,8 +34,9 @@ class IRGenerator {
     
     static func build(for file: ASTFile, checker: Checker) throws -> Module {
         let generator = try IRGenerator(file, checker: checker)
-        try generator.emitImported()
-        try generator.emitGlobals()
+        generator.emitIntrinsics()
+        generator.emitImported()
+        generator.emitGlobals()
 
         return generator.module
     }
@@ -66,14 +67,45 @@ class Procedure {
 
 extension IRGenerator {
 
-    func emitImported() throws {
+    func emitIntrinsics() {
+
+        for entity in Scope.universal.elements.orderedValues {
+            guard case .proc? = entity.type?.kind else {
+                continue
+            }
+
+            let proc = builder.addFunction(entity.mangledName!, type: canonicalize(entity.type!) as! FunctionType)
+
+            switch entity.name {
+            case "malloc":
+
+                let entry = proc.appendBasicBlock(named: "entry")
+
+                builder.positionAtEnd(of: entry)
+                defer {
+                    builder.clearInsertionPosition()
+                }
+
+                let arg = proc.parameter(at: 0)!
+                let memory = builder.buildMalloc(canonicalize(Type.u8), count: arg)
+                builder.buildRet(memory)
+
+            default:
+                print("WARNING: unrecognized proc in universal scope. Skipping IR definition")
+            }
+
+            llvmPointers[entity] = proc
+        }
+    }
+
+    func emitImported() {
         for entity in file.importedEntities {
             let global = builder.addGlobal(entity.mangledName!, type: canonicalize(entity.type!))
             llvmPointers[entity] = global
         }
     }
     
-    func emitGlobals() throws {
+    func emitGlobals() {
         for node in file.nodes {
             switch node {
             case .comment:
