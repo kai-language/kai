@@ -617,7 +617,11 @@ extension Parser {
 
             switch try lexer.peek()?.kind {
             case .lbrace?:
-                let body = try expression()
+                var body = try expression()
+
+                if case .litCompound(let elements, _) = body, elements.isEmpty {
+                    body = .stmtBlock([], body.location)
+                }
 
                 return AstNode.litProc(type: type, body: body, type.startLocation ..< body.endLocation)
 
