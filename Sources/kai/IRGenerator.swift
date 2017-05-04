@@ -696,7 +696,7 @@ extension IRGenerator {
             // TODO(Brett): values
 
             let arg = proc.parameter(at: i)!
-            let argPointer = emitEntryBlockAlloca(in: proc, type: arg.type, named: entity.name)
+            let argPointer = emitEntryBlockAlloca(in: proc, type: arg.type, named: arg.name)
 
             builder.buildStore(arg, to: argPointer)
 
