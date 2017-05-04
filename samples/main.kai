@@ -161,6 +161,7 @@ main :: () -> void {
 
     section()
 
+/*
     {
         red: Color = {"Red", 255, 0, 0}
 
@@ -181,4 +182,5 @@ main :: () -> void {
         }
         */
     }
+*/
 }
