@@ -11,7 +11,7 @@ class Type: Equatable, CustomStringConvertible {
     var width: UInt
     var location: SourceLocation?
 
-    init(kind: Kind, flags: Flag, width: UInt, location: SourceLocation?) {
+    init(kind: Kind, flags: Flag = .none, width: UInt, location: SourceLocation? = nil) {
         self.kind = kind
         self.flags = flags
         self.width = width
@@ -478,10 +478,11 @@ class Entity: PointerHashable {
 
     var offsetInParent: UInt?
     
-    init(name: String, location: SourceLocation, kind: Kind, owningScope: Scope) {
+    init(name: String, location: SourceLocation = .unknown, kind: Kind, type: Type? = nil, owningScope: Scope) {
         self.name = name
         self.location = location
         self.kind = kind
+        self.type = type
         self.owningScope = owningScope
     }
 
@@ -649,21 +650,6 @@ class Scope: PointerHashable {
         e.type = Type.any
         s.insert(e)
 
-        func declMalloc() {
-            let e = Entity(name: "malloc", location: .unknown, kind: .compiletime, owningScope: s)
-            e.mangledName = "kai_malloc"
-            
-            let procScope = Scope(parent: e.owningScope)
-            let param = Entity(name: "bytes", location: .unknown, kind: .runtime, owningScope: procScope)
-            param.type = Type.i32
-
-            e.type = Type(kind: .proc(params: [param], returns: [Type.pointer(to: Type.u8)], isVariadic: false), flags: .none, width: 0, location: .unknown)
-
-            s.insert(e)
-        }
-
-        declMalloc()
-
         return s
     }()
 }
@@ -829,6 +815,8 @@ struct Checker {
 extension Checker {
 
     mutating func checkParsedFiles() {
+
+        declareBuiltinProcedures()
 
         var fileScopes: [String: Scope] = [:]
 

@@ -74,27 +74,9 @@ extension IRGenerator {
                 continue
             }
 
-            let proc = builder.addFunction(entity.mangledName!, type: canonicalize(entity.type!) as! FunctionType)
-
-            switch entity.name {
-            case "malloc":
-
-                let entry = proc.appendBasicBlock(named: "entry")
-
-                builder.positionAtEnd(of: entry)
-                defer {
-                    builder.clearInsertionPosition()
-                }
-
-                let arg = proc.parameter(at: 0)!
-                let memory = builder.buildMalloc(canonicalize(Type.u8), count: arg)
-                builder.buildRet(memory)
-
-            default:
-                print("WARNING: unrecognized proc in universal scope. Skipping IR definition")
-            }
-
-            llvmPointers[entity] = proc
+            llvmPointers[entity] = builtinProcedures
+                .first(where: { $0.0 === entity  })!
+                .irGen(self)(entity)
         }
     }
 
@@ -1414,7 +1396,7 @@ extension IRGenerator {
                 return PointerType(pointee: IntType.int8)
 
             default:
-                unimplemented("Type emission for type \(self)")
+                unimplemented("Type emission for type \(type)")
             }
 
         case .named(let entity, _):
