@@ -1833,20 +1833,21 @@ extension Checker {
                 return Type.invalid
             }
 
-            guard case .array(let underlyingType, _) = receiverType.kind else {
+            switch receiverType.kind {
+            case .array(let underlyingType, _), .pointer(let underlyingType):
+                let valueType = checkExpr(value, typeHint: Type.int)
+                
+                guard canImplicitlyConvert(valueType, to: Type.int) else {
+                    reportError("Cannot subscript array with type \(valueType)", at: value)
+                    return Type.invalid
+                }
+             
+                type = underlyingType
+                
+            default:
                 reportError("Cannot subscript non array type", at: receiver)
                 return Type.invalid
             }
-
-            // TODO(vdka): Use some sort of `offset` type?
-            let valueType = checkExpr(value, typeHint: Type.int)
-
-            guard canImplicitlyConvert(valueType, to: Type.int) else {
-                reportError("Cannot subscript array with type \(valueType)", at: value)
-                return Type.invalid
-            }
-
-            type = underlyingType
 
         case .exprSelector(let receiver, let member, _):
 
@@ -2151,7 +2152,7 @@ extension Checker {
         //
 
         if !areTypesRelated(exprType, targetType), targetType.width != exprType.width {
-            reportError("Cannot card between two unrelated types with different sizes", at: expr)
+            reportError("Cannot cast between two unrelated types with different sizes", at: expr)
         }
 
         return targetType
@@ -2384,7 +2385,7 @@ extension Checker {
     func performImplicitConversion(on type: inout Type, to target: Type) {
 
         guard target != Type.any else {
-            // TODO(vdka): Once we get struct's box this with a pointer to the underlying type and it's 
+            // TODO(vdka): Once we get struct's box this with a pointer to the underlying type and its
             // value if type.width < 8 otherwise put it on the heap and store a pointer
             return
         }
@@ -2458,6 +2459,7 @@ extension Checker {
             //  provided their underlying types are implicitely convertable. So I left that out.
             return underlyingType == underlyingTargetType && count <= targetCount
         }
+        
         return false
     }
 

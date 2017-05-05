@@ -14,7 +14,7 @@ struct Compiler {
 
     let args: [String]
     let fileName: String?
-
+    
     let version = "0.0.0"
 
     var currentDirectory: String {

@@ -714,7 +714,7 @@ extension IRGenerator {
             // TODO(Brett): values
 
             let arg = proc.parameter(at: i)!
-            let argPointer = emitEntryBlockAlloca(in: proc, type: arg.type, named: entity.name)
+            let argPointer = emitEntryBlockAlloca(in: proc, type: arg.type, named: arg.name)
 
             builder.buildStore(arg, to: argPointer)
 
@@ -916,10 +916,14 @@ extension IRGenerator {
         let outType = checker.info.types[r]!.underlyingType!
 
         let outIrType = canonicalize(outType)
-
-        let argIrVal  = emitExpr(arg)
-        if outType.width == argType.width {
-
+        
+        if case .array = argType.kind, case .pointer = outType.kind {
+            let argIrVal  = emitExpr(arg, returnAddress: true)
+            
+            return builder.buildBitCast(argIrVal, type: outIrType)
+        } else if outType.width == argType.width {
+            let argIrVal  = emitExpr(arg)
+            
             if argType.isFloat && outType.isInteger {
                 return builder.buildFPToInt(argIrVal, type: outIrType as! IntType, signed: outType.isSigned)
             } else if argType.isInteger && outType.isFloat {
@@ -928,10 +932,12 @@ extension IRGenerator {
 
             return builder.buildBitCast(argIrVal, type: outIrType)
         } else if outType.width < argType.width {
-
+            let argIrVal  = emitExpr(arg)
+            
             return builder.buildTrunc(argIrVal, type: outIrType)
         } else if outType.width > argType.width, outType.isInteger && argType.isInteger {
-
+            let argIrVal  = emitExpr(arg)
+            
             if argType.isSigned {
 
                 return builder.buildSExt(argIrVal, type: outIrType)
@@ -940,9 +946,11 @@ extension IRGenerator {
                 return builder.buildZExt(argIrVal, type: outIrType)
             }
         } else if argType.isFloat && outType.isFloat {
+            let argIrVal  = emitExpr(arg)
             
             return builder.buildFPCast(argIrVal, type: outIrType)
         } else if argType.isInteger && outType.isFloat {
+            let argIrVal  = emitExpr(arg)
             
             return builder.buildIntToFP(argIrVal, type: outIrType as! FloatType, signed: argType.isSigned)
         } else {
@@ -1211,7 +1219,14 @@ extension IRGenerator {
         
         let index = emitExpr(value)
 
-        let ptr = builder.buildGEP(lvalue, indices: [IntType.int64.zero(), index])
+        let ptr: IRValue
+        let type = checker.info.types[receiver]!
+        if type.isArray {
+            ptr = builder.buildGEP(lvalue, indices: [IntType.int64.zero(), index])
+        } else {
+            let lvalue = builder.buildLoad(lvalue)
+            ptr = builder.buildGEP(lvalue, indices: [index])
+        }
 
         if returnAddress {
             return ptr
