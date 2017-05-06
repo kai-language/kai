@@ -1024,6 +1024,9 @@ extension IRGenerator {
                 let entity = context.scope.lookup(name)!
                 return llvmPointers[entity]!
 
+            case .exprSubscript:
+                return emitExprSubscript(expr, returnAddress: true)
+                
             default:
                 return emitExpr(expr)
             }

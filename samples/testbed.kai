@@ -3,7 +3,8 @@
 print :: (string, ..any) -> void #foreign libc "printf"
 
 main :: () -> void {
-    array : []i64 = {10, 20, 30, 40, 50}
+    array : []u16 = {10, 20, 30, 40, 50}
 
-    array2 : [4]i64 = array
+    ptr : *u16 = &array[2]
+    print("%d\n", ptr[1])
 }

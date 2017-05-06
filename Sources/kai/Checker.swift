@@ -1097,18 +1097,19 @@ extension Checker {
                         continue
                     }
 
+                    let finalType: Type
                     // check if the array is implicitly sized, if so, take the
                     // size of the initialiser
                     if case .array(_, 0) = explicitType.kind {
-                        e.type = rvalueType
+                        finalType = rvalueType
                     } else {
-                        e.type = explicitType
+                        finalType = explicitType
                     }
                     
-                    attemptLiteralConstraint(initExpr!, to: explicitType)
+                    e.type = finalType
+                    attemptLiteralConstraint(initExpr!, to: finalType)
 
                     e.childScope = e.type!.memberScope
-
                 } else if let explicitType = explicitType {
 
                     e.type = explicitType
@@ -2538,9 +2539,13 @@ extension Checker {
 
             info.types[node] = type
 
-        case .litCompound:
-            guard type.isArray else {
+        case .litCompound(let elements, _):
+            guard case .array(let underlyingType, _) = type.kind else {
                 return
+            }
+            
+            elements.forEach {
+                attemptLiteralConstraint($0, to: underlyingType)
             }
 
             info.types[node] = type
