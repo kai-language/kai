@@ -1,0 +1,16 @@
+#library "c" libc
+
+print :: (string, ..any) -> void #foreign libc "printf"
+
+Trie :: struct {
+    key: u8
+    value: string
+    children: [..]Trie
+}
+
+
+main :: () -> void {
+
+    print("Hello, world!\n")
+
+}

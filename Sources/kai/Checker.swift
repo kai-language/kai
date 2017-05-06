@@ -142,7 +142,7 @@ class Type: Equatable, CustomStringConvertible {
         case .nullablePointer(let underlyingType):
             return "^\(underlyingType)"
 
-        case .array(let count, let underlyingType):
+        case .array(let underlyingType, let count):
             return "[\(count)]\(underlyingType)"
 
         case .proc(let params, let results, let isVariadic):
@@ -1065,7 +1065,7 @@ extension Checker {
 
             if case .tuple(let types) = resultType.kind {
                 guard d.entities.count == types.count else {
-                    reportError("Arity mismatch", at: initExpr) // FIXME(vdka): @errors qualtiy
+                    reportError("Arity mismatch", at: initExpr) // FIXME(vdka): @errors quality
                     for e in d.entities {
                         e.type = Type.invalid
                     }
@@ -1097,8 +1097,14 @@ extension Checker {
                         continue
                     }
 
-                    e.type = explicitType
-
+                    // check if the array is implicitly sized, if so, take the
+                    // size of the initialiser
+                    if case .array(_, 0) = explicitType.kind {
+                        e.type = rvalueType
+                    } else {
+                        e.type = explicitType
+                    }
+                    
                     attemptLiteralConstraint(initExpr!, to: explicitType)
 
                     e.childScope = e.type!.memberScope
@@ -1329,11 +1335,19 @@ extension Checker {
         case .typeArray(let count, let type, _):
             let underlyingType = lookupType(type)
 
-            guard case .litInteger(let count, _)? = count else {
+            let countValue: UInt
+            switch count {
+            case .litInteger(let count, _)?:
+                countValue = UInt(count)
+                
+            case .none:
+                countValue = 0
+                
+            default:
                 unimplemented("Non literal array sizes")
             }
 
-            return Type.array(of: underlyingType, with: UInt(count))
+            return Type.array(of: underlyingType, with: countValue)
 
         default:
             reportError("'\(node)' cannot be used as a type", at: node)
@@ -2447,7 +2461,6 @@ extension Checker {
             if type == Type.unconstrNil && target.isNullablePointer {
                 return true
             }
-
         } else if type.isBooleanesque && target.isBoolean {
             // Numeric types can be converted to booleans through truncation
             return true
@@ -2457,7 +2470,8 @@ extension Checker {
             case .array(let underlyingTargetType, let targetCount) = target.kind {
             // NOTE(vdka): I am unsure if we should support implicit conversion between 2 arrays with different underlying types
             //  provided their underlying types are implicitely convertable. So I left that out.
-            return underlyingType == underlyingTargetType && count <= targetCount
+
+            return underlyingType == underlyingTargetType && (count <= targetCount || targetCount == 0)
         }
         
         return false
