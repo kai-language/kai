@@ -319,86 +319,6 @@ class Type: Equatable, CustomStringConvertible {
         return false
     }
 
-    static let builtin: [Type] = {
-
-        // NOTE(vdka): Order is important later.
-                  /* Name,   size, line, flags */
-        let short: [(String, UInt, UInt, Flag)] = [
-            ("void", 0, 0, .none),
-            ("bool", 1, 0, .boolean),
-
-            ("i8",  1, 0, [.integer]),
-            ("u8",  1, 0, [.integer, .unsigned]),
-            ("i16", 2, 0, [.integer]),
-            ("u16", 2, 0, [.integer, .unsigned]),
-            ("i32", 4, 0, [.integer]),
-            ("u32", 4, 0, [.integer, .unsigned]),
-            ("i64", 8, 0, [.integer]),
-            ("u64", 8, 0, [.integer, .unsigned]),
-
-            ("f32", 4, 0, .float),
-            ("f64", 8, 0, .float),
-
-            ("int", UInt(MemoryLayout<Int>.size), 0, [.integer]),
-            ("uint", UInt(MemoryLayout<Int>.size), 0, [.integer, .unsigned]),
-
-            // FIXME(vdka): Currently strings are just pointers hence length 8 (will remain?)
-            ("string", 8, 0, .string),
-
-            ("unconstrBool",    0, 0, [.unconstrained, .boolean]),
-            ("unconstrInteger", 0, 0, [.unconstrained, .integer]),
-            ("unconstrFloat",   0, 0, [.unconstrained, .float]),
-            ("unconstrString",  0, 0, [.unconstrained, .string]),
-            ("unconstrNil",     0, 0, [.unconstrained]),
-
-            ("any", 0, 0, .none),
-
-            ("<invalid>", 0, 0, .none),
-        ]
-
-        return short.map { (name, size, lineNumber, flags) in
-            let location = SourceLocation(line: lineNumber, column: 0, file: std.types)
-
-            let width = size < 0 ? size : size * 8
-
-            return Type(kind: .builtin(name), flags: flags, width: width, location: location)
-        }
-    }()
-
-    // TODO(vdka): Once we support structs define what these look like.
-    // static let typeInfo = Type(kind: .struct("TypeInfo"), flags: .none, width: 0, location: nil)
-
-    static let void = builtin[0]
-
-    static let bool = builtin[1]
-
-    static let i8   = builtin[2]
-    static let u8   = builtin[3]
-    static let i16  = builtin[4]
-    static let u16  = builtin[5]
-    static let i32  = builtin[6]
-    static let u32  = builtin[7]
-    static let i64  = builtin[8]
-    static let u64  = builtin[9]
-
-    static let f32  = builtin[10]
-    static let f64  = builtin[11]
-
-    static let int  = builtin[12]
-    static let uint = builtin[13]
-
-    static let string = builtin[14]
-
-    static let unconstrBool     = builtin[15]
-    static let unconstrInteger  = builtin[16]
-    static let unconstrFloat    = builtin[17]
-    static let unconstrString   = builtin[18]
-    static let unconstrNil      = builtin[19]
-
-    static let any = builtin[20]
-
-    static let invalid = builtin[21]
-
     static func ==(lhs: Type, rhs: Type) -> Bool {
         switch (lhs.kind, rhs.kind) {
         case (.builtin, .builtin),
@@ -426,27 +346,6 @@ class Type: Equatable, CustomStringConvertible {
 
         default:
             return false
-        }
-    }
-
-    @available(*, deprecated)
-    func child(_ node: AstNode) -> Entity? {
-
-        guard case .struct(let scope) = kind else {
-            return nil
-        }
-
-        let members = scope.elements.orderedValues
-
-        switch node {
-        case .ident(let name, _):
-            return members.first(where: { $0.name == name })
-
-        case .exprSelector(let receiver, _, _):
-            return self.child(receiver)
-
-        default:
-            return nil
         }
     }
 }
