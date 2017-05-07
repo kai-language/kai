@@ -2,7 +2,7 @@
 An expressive low level programming language.
 
 ## 📚 Docs
-Read the docs at https://kai-language.github.io/docs/
+Read the docs at [docs.kai-lang.org](http://docs.kai-lang.org)
 
 ## 🚀 Getting Started 
 Before you can begin building Kai, you must install the following tools: 
