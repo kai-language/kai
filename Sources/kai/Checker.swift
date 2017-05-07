@@ -142,7 +142,7 @@ class Type: Equatable, CustomStringConvertible {
         case .nullablePointer(let underlyingType):
             return "^\(underlyingType)"
 
-        case .array(let count, let underlyingType):
+        case .array(let underlyingType, let count):
             return "[\(count)]\(underlyingType)"
 
         case .proc(let params, let results, let isVariadic):
@@ -1065,7 +1065,7 @@ extension Checker {
 
             if case .tuple(let types) = resultType.kind {
                 guard d.entities.count == types.count else {
-                    reportError("Arity mismatch", at: initExpr) // FIXME(vdka): @errors qualtiy
+                    reportError("Arity mismatch", at: initExpr) // FIXME(vdka): @errors quality
                     for e in d.entities {
                         e.type = Type.invalid
                     }
@@ -1097,12 +1097,19 @@ extension Checker {
                         continue
                     }
 
-                    e.type = explicitType
-
-                    attemptLiteralConstraint(initExpr!, to: explicitType)
+                    let finalType: Type
+                    // check if the array is implicitly sized, if so, take the
+                    // size of the initialiser
+                    if case .array(_, 0) = explicitType.kind {
+                        finalType = rvalueType
+                    } else {
+                        finalType = explicitType
+                    }
+                    
+                    e.type = finalType
+                    attemptLiteralConstraint(initExpr!, to: finalType)
 
                     e.childScope = e.type!.memberScope
-
                 } else if let explicitType = explicitType {
 
                     e.type = explicitType
@@ -1329,11 +1336,19 @@ extension Checker {
         case .typeArray(let count, let type, _):
             let underlyingType = lookupType(type)
 
-            guard case .litInteger(let count, _)? = count else {
+            let countValue: UInt
+            switch count {
+            case .litInteger(let count, _)?:
+                countValue = UInt(count)
+                
+            case .none:
+                countValue = 0
+                
+            default:
                 unimplemented("Non literal array sizes")
             }
 
-            return Type.array(of: underlyingType, with: UInt(count))
+            return Type.array(of: underlyingType, with: countValue)
 
         default:
             reportError("'\(node)' cannot be used as a type", at: node)
@@ -1833,20 +1848,21 @@ extension Checker {
                 return Type.invalid
             }
 
-            guard case .array(let underlyingType, _) = receiverType.kind else {
+            switch receiverType.kind {
+            case .array(let underlyingType, _), .pointer(let underlyingType):
+                let valueType = checkExpr(value, typeHint: Type.int)
+                
+                guard canImplicitlyConvert(valueType, to: Type.int) else {
+                    reportError("Cannot subscript array with type \(valueType)", at: value)
+                    return Type.invalid
+                }
+             
+                type = underlyingType
+                
+            default:
                 reportError("Cannot subscript non array type", at: receiver)
                 return Type.invalid
             }
-
-            // TODO(vdka): Use some sort of `offset` type?
-            let valueType = checkExpr(value, typeHint: Type.int)
-
-            guard canImplicitlyConvert(valueType, to: Type.int) else {
-                reportError("Cannot subscript array with type \(valueType)", at: value)
-                return Type.invalid
-            }
-
-            type = underlyingType
 
         case .exprSelector(let receiver, let member, _):
 
@@ -2151,7 +2167,7 @@ extension Checker {
         //
 
         if !areTypesRelated(exprType, targetType), targetType.width != exprType.width {
-            reportError("Cannot card between two unrelated types with different sizes", at: expr)
+            reportError("Cannot cast between two unrelated types with different sizes", at: expr)
         }
 
         return targetType
@@ -2384,7 +2400,7 @@ extension Checker {
     func performImplicitConversion(on type: inout Type, to target: Type) {
 
         guard target != Type.any else {
-            // TODO(vdka): Once we get struct's box this with a pointer to the underlying type and it's 
+            // TODO(vdka): Once we get struct's box this with a pointer to the underlying type and its
             // value if type.width < 8 otherwise put it on the heap and store a pointer
             return
         }
@@ -2446,7 +2462,6 @@ extension Checker {
             if type == Type.unconstrNil && target.isNullablePointer {
                 return true
             }
-
         } else if type.isBooleanesque && target.isBoolean {
             // Numeric types can be converted to booleans through truncation
             return true
@@ -2456,8 +2471,10 @@ extension Checker {
             case .array(let underlyingTargetType, let targetCount) = target.kind {
             // NOTE(vdka): I am unsure if we should support implicit conversion between 2 arrays with different underlying types
             //  provided their underlying types are implicitely convertable. So I left that out.
-            return underlyingType == underlyingTargetType && count <= targetCount
+
+            return underlyingType == underlyingTargetType && (count <= targetCount || targetCount == 0)
         }
+        
         return false
     }
 
@@ -2522,9 +2539,13 @@ extension Checker {
 
             info.types[node] = type
 
-        case .litCompound:
-            guard type.isArray else {
+        case .litCompound(let elements, _):
+            guard case .array(let underlyingType, _) = type.kind else {
                 return
+            }
+            
+            elements.forEach {
+                attemptLiteralConstraint($0, to: underlyingType)
             }
 
             info.types[node] = type

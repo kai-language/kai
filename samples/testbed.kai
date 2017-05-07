@@ -1,0 +1,10 @@
+#library "c" libc
+
+print :: (string, ..any) -> void #foreign libc "printf"
+
+main :: () -> void {
+    array : []u16 = {10, 20, 30, 40, 50}
+
+    ptr : *u16 = &array[2]
+    print("%d\n", ptr[1])
+}
