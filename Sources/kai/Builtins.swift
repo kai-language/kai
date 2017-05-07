@@ -98,7 +98,8 @@ var builtinProcedures: [(Entity, irGen: (IRGenerator) -> (Entity) -> IRValue)] =
             returns: [Type.pointer(to: Type.u8)],
             isVariadic: false
         ),
-        (
+        ( // NOTE(vdka): This will need to be different dependent on the type of the value.
+            // if it is a dynamic Array then we need to free at a predefined offset from the pointer we are given.
             "free", mangled: "free", irGen: IRGenerator.genForeign,
             params: [("ptr", Type.pointer(to: Type.u8))],
             returns: [Type.void],
