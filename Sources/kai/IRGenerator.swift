@@ -34,8 +34,9 @@ class IRGenerator {
     
     static func build(for file: ASTFile, checker: Checker) throws -> Module {
         let generator = try IRGenerator(file, checker: checker)
-        try generator.emitImported()
-        try generator.emitGlobals()
+        generator.emitIntrinsics()
+        generator.emitImported()
+        generator.emitGlobals()
 
         return generator.module
     }
@@ -66,14 +67,27 @@ class Procedure {
 
 extension IRGenerator {
 
-    func emitImported() throws {
+    func emitIntrinsics() {
+
+        for entity in Scope.universal.elements.orderedValues {
+            guard case .proc? = entity.type?.kind else {
+                continue
+            }
+
+            llvmPointers[entity] = builtinProcedures
+                .first(where: { $0.0 === entity  })!
+                .irGen(self)(entity)
+        }
+    }
+
+    func emitImported() {
         for entity in file.importedEntities {
             let global = builder.addGlobal(entity.mangledName!, type: canonicalize(entity.type!))
             llvmPointers[entity] = global
         }
     }
     
-    func emitGlobals() throws {
+    func emitGlobals() {
         for node in file.nodes {
             switch node {
             case .comment:
@@ -1418,7 +1432,7 @@ extension IRGenerator {
                 return PointerType(pointee: IntType.int8)
 
             default:
-                unimplemented("Type emission for type \(self)")
+                unimplemented("Type emission for type \(type)")
             }
 
         case .named(let entity, _):
