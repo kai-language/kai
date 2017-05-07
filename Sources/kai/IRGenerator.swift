@@ -182,6 +182,15 @@ extension IRGenerator {
             builder.buildBr(postBlock)
         }
 
+        //
+        // Fixes the following code: `if a { if b { } } else { }`
+        // Without the following `br` instruction inserted the post block for `if b` has no terminator and is therefore invalid.
+        //
+
+        if let insertBlock = builder.insertBlock, !insertBlock.hasTerminatingInstruction {
+            builder.buildBr(postBlock)
+        }
+
         if let elseBlock = elseBlock, let elseStmt = elseStmt {
 
             if (elseStmt.children.last?.isReturn ?? false || elseStmt.isReturn) &&
@@ -199,6 +208,7 @@ extension IRGenerator {
 
             emitStmt(elseStmt)
 
+            // TODO(vdka): Does this always work correctly?
             if !elseBlock.hasTerminatingInstruction {
                 builder.buildBr(postBlock)
             }
@@ -207,6 +217,13 @@ extension IRGenerator {
         //
         // Set builder position to the end of the `if.post` block
         //
+
+        if let insertBlock = builder.insertBlock, !insertBlock.hasTerminatingInstruction {
+            builder.buildBr(postBlock)
+
+            // NOTE(vkda): This is done for cosmetic beauty in the IR generated. Not actually meaningful.
+            postBlock.moveAfter(insertBlock)
+        }
 
         builder.positionAtEnd(of: postBlock)
     }
@@ -697,7 +714,7 @@ extension IRGenerator {
             // TODO(Brett): values
 
             let arg = proc.parameter(at: i)!
-            let argPointer = emitEntryBlockAlloca(in: proc, type: arg.type, named: entity.name)
+            let argPointer = emitEntryBlockAlloca(in: proc, type: arg.type, named: arg.name)
 
             builder.buildStore(arg, to: argPointer)
 

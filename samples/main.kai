@@ -17,12 +17,19 @@ Person :: struct {
 
 // Program entry point
 main :: () -> void {
-
     section :: () -> void {
         for i := 0; i < 3; i += 1 {
             print("\n")
         }
     }
+
+    { // Exponents
+      val := 2837.5e-2
+      print("val: %f\n", val)
+    }
+
+    section()
+
     { // Pointers and numbers
 
         val := 8
@@ -154,6 +161,7 @@ main :: () -> void {
 
     section()
 
+/*
     {
         red: Color = {"Red", 255, 0, 0}
 
@@ -174,5 +182,5 @@ main :: () -> void {
         }
         */
     }
+*/
 }
-

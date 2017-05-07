@@ -180,14 +180,16 @@ extension Parser {
 
         case .lbrack:
             let (_, lbrack) = try consume()
-            if case (.rbrack, let rbrack)? = try lexer.peek() {
-                try consume()
-                _ = try expression(10)
 
-                reportError("Expected capacity", at: rbrack)
-                return AstNode.invalid(lbrack ..< rbrack)
+            var count: AstNode?
+            if case (.rbrack, let rbrack)? = try lexer.peek() {
+
+                count = nil
+            } else {
+                
+                count = try expression()
             }
-            let count = try expression()
+            
             try consume(.rbrack)
 
             let type = try expression(10)
@@ -253,7 +255,11 @@ extension Parser {
             let (_, startLocation) = try consume(.keyword(.if))
 
             let condExpr = try expression()
-            let bodyExpr = try expression()
+            var bodyExpr = try expression()
+
+            if bodyExpr.isCompoundLit {
+                bodyExpr = .stmtBlock([], bodyExpr.location)
+            }
 
             guard case .keyword(.else)? = try lexer.peek()?.kind else {
                 return AstNode.stmtIf(cond: condExpr, body: bodyExpr, nil, startLocation ..< bodyExpr.endLocation)
@@ -354,6 +360,7 @@ extension Parser {
 
         case .lbrace:
             let (_, startLocation) = try consume(.lbrace)
+            try consumeTerminators(justNewlines: true)
 
             var stmts: [AstNode] = []
             while let next = try lexer.peek()?.kind, next != .rbrace {
@@ -620,7 +627,11 @@ extension Parser {
 
             switch try lexer.peek()?.kind {
             case .lbrace?:
-                let body = try expression()
+                var body = try expression()
+
+                if case .litCompound(let elements, _) = body, elements.isEmpty {
+                    body = .stmtBlock([], body.location)
+                }
 
                 return AstNode.litProc(type: type, body: body, type.startLocation ..< body.endLocation)
 

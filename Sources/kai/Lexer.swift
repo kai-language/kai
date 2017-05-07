@@ -1,5 +1,7 @@
+import Foundation
 
 let digits		= Array("1234567890".unicodeScalars)
+let hexDigits   = digits + Array("abcdefABCDEF".unicodeScalars)
 let opChars     = Array("~!%^&+-*/=<>|?".unicodeScalars)
 let identChars  = Array("_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".unicodeScalars)
 let whitespace  = Array(" \t".unicodeScalars)
@@ -93,6 +95,17 @@ struct Lexer {
 		guard let char = scanner.peek() else { return nil }
 
 		let location = scanner.position
+        
+        func parseEnotation(_ notationParts: [String], original: String) -> (kind: Token, location: SourceLocation)? {
+            guard notationParts.count == 2, let base = Int64(notationParts[0]), let exponent = Int64(notationParts[1]) else {
+                return (.invalid(original), location)
+            }
+            
+            let realExponent = pow(10, Double(exponent))
+            let result = Int64(Double(base) * realExponent)
+            
+            return (.integer(result), location)
+        }
 
 		switch char {
 		case _ where identChars.contains(char):
@@ -129,14 +142,35 @@ struct Lexer {
             }
 
 		// TODO(vdka): Correctly consume (and validate) number literals (real and integer)
-		case _ where digits.contains(char):
-			let number = consume(with: digits + ["."])
+		case _ where (digits + ["."]).contains(char):
+            scanner.pop()
+            if char == "." && scanner.peek() == "." {
+                scanner.pop()
+                return (.ellipsis, location)
+            }
+            
+			let number = String(char) + consume(with: hexDigits + [".", "x", "b", "_", "e", "E", "+", "-"]).stripSeparators()
 
-            if number.contains(".") {
-                let dbl = Double(number)!
-                return (.float(dbl), location)
-            } else {
-                let int = Int64(number)!
+            switch number {
+            case _ where number == ".":
+                return (.dot, location)
+            case _ where number.contains("."):
+                guard let double = Double(number) else {
+                    return (.invalid(number), location)
+                }
+                
+                return (.float(double), location)
+                
+            case _ where number.contains("e"):
+                return parseEnotation(Array(number.split(separator: "e")), original: number)
+            case _ where number.contains("E"):
+                return parseEnotation(number.split(separator: "E"), original: number)
+                
+            default:
+                guard let int = extractInteger(number) else {
+                    return (.invalid(number), location)
+                }
+                
                 return (.integer(int), location)
             }
 
@@ -554,5 +588,35 @@ extension Lexer.Token: Equatable {
         default:
             return false
         }
+    }
+}
+
+// MARK: - Helpers
+extension Lexer {
+    func extractInteger(_ string: String) -> Int64? {
+        let radix: Int
+        let number: String
+        
+        switch string {
+        case _ where string.hasPrefix("0x"):
+            radix = 16
+            number = string.replacingOccurrences(of: "0x", with: "")
+        case _ where string.hasPrefix("0b"):
+            radix = 2
+            number = string.replacingOccurrences(of: "0b", with: "")
+            
+        default:
+            radix = 10
+            number = string
+        }
+        
+        return Int64(number, radix: radix)
+    }
+}
+
+extension String {
+    /// Replaces occurences of `'_'` with `''`
+    func stripSeparators() -> String {
+        return replacingOccurrences(of: "_", with: "")
     }
 }
