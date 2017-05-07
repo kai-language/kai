@@ -242,6 +242,10 @@ class Type: Equatable, CustomStringConvertible {
         }
     }
 
+    var isPointeresque: Bool {
+        return isPointer || isNullablePointer
+    }
+    
     var isArray: Bool {
         switch kind {
         case .named(_, let underlyingType),
@@ -1849,15 +1853,30 @@ extension Checker {
             }
 
             switch receiverType.kind {
-            case .array(let underlyingType, _), .pointer(let underlyingType):
+            case .array(let underlyingType, _),
+                 .pointer(let underlyingType),
+                 .nullablePointer(let underlyingType):
+                
                 let valueType = checkExpr(value, typeHint: Type.int)
                 
                 guard canImplicitlyConvert(valueType, to: Type.int) else {
-                    reportError("Cannot subscript array with type \(valueType)", at: value)
+                    reportError("Cannot subscript with type \(valueType)", at: value)
                     return Type.invalid
                 }
              
-                type = underlyingType
+                switch receiverType.kind {
+                case .array:
+                    type = underlyingType
+                    
+                case .pointer:
+                    type = .pointer(to: underlyingType)
+                    
+                case .nullablePointer:
+                    type = .nullablePointer(to: underlyingType)
+                    
+                default:
+                    break
+                }
                 
             default:
                 reportError("Cannot subscript non array type", at: receiver)

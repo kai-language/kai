@@ -1231,7 +1231,7 @@ extension IRGenerator {
             ptr = builder.buildGEP(lvalue, indices: [index])
         }
 
-        if returnAddress {
+        if returnAddress || type.isPointeresque {
             return ptr
         }
 
