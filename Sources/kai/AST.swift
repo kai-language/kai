@@ -321,6 +321,14 @@ extension AstNode {
             return false
         }
     }
+    
+    var isComment: Bool {
+
+        if case .comment = self {
+            return true
+        }
+        return false
+    }
 
     var isReturn: Bool {
 

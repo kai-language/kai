@@ -577,9 +577,6 @@ extension Scope {
 
     func lookup(_ node: AstNode) -> Entity? {
 
-        // FIXME(vdka): This helper probably makes things more confusing.
-        //   We should ditch it and do what we are trying to do inline I guess?
-        //   Alternatively we could split this into seperate lookup calls?
         switch node {
         case .ident(let ident, _):
             return lookup(ident)
@@ -911,7 +908,6 @@ extension Checker {
             // import entities into current scope
             if case .ident(".", _)? = importName {
 
-                // FIXME(vdka): THIS IS A BUG. IT LOOKS LIKE YOU ARE ADDING ENTITIES TO THE FILE FROM WHICH THEY RESIDE.
                 for entity in scope.elements.orderedValues {
                     addEntity(to: parentScope, entity)
                     parentScope.file!.importedEntities.append(entity)
@@ -957,8 +953,9 @@ extension Checker {
 
     mutating func checkDecl(_ d: DeclInfo) {
 
-        let explicitType = d.typeExpr.map {
-            return lookupType($0)
+        var explicitType: Type?
+        if let typeExpr = d.typeExpr {
+            explicitType = lookupType(typeExpr)
         }
 
         if let explicitType = explicitType, explicitType == Type.invalid {
@@ -971,7 +968,8 @@ extension Checker {
 
             if case .tuple(let types) = resultType.kind {
                 guard d.entities.count == types.count else {
-                    reportError("Arity mismatch", at: initExpr) // FIXME(vdka): @errors quality
+                    reportError("Arity mismatch got \(d.entities.count) expected \(types.count)", at: initExpr)
+
                     for e in d.entities {
                         e.type = Type.invalid
                     }
@@ -982,7 +980,7 @@ extension Checker {
                     e.type = t
                 }
             } else {
-                reportError("Arity mismatch too many identifiers on lhs", at: initExpr)
+                reportError("Arity mismatch got \(d.entities.count) expected 1", at: initExpr)
             }
 
         } else {
@@ -1416,7 +1414,7 @@ extension Checker {
                         // FIXME
 
                         guard canImplicitlyConvert(result, to: underlyingType) else {
-                            reportError("Cannot use \(rval) (type \(result)) as rvalue in assignment to \(lval) (type \(entity.type!))", at: rval)
+                            reportError("Cannot use `\(rval)` (type \(result)) as rvalue in assignment to `\(lval)` (type \(entity.type!))", at: rval)
                             return
                         }
 
@@ -1430,7 +1428,8 @@ extension Checker {
                         }
 
                         guard canImplicitlyConvert(result, to: entity.type!) else {
-                            reportError("Cannot use \(rval) (type \(result)) as rvalue in assignment to \(lval) (type \(entity.type!))", at: rval)
+
+                            reportError("Cannot use `\(rval)` (type \(result)) as rvalue in assignment to `\(lval)` (type \(entity.type!))", at: rval)
                             return
                         }
                     }
@@ -1449,16 +1448,17 @@ extension Checker {
 
         // TODO(vdka): Not all of these ops are valid on all types `>>=` `%=`
 
-        for (lvalue, rvalue) in zip(lhs, rhs) {
-            let rhsType = checkExpr(rvalue)
-            let lhsType = checkExpr(lvalue, typeHint: rhsType)
+        for (lval, rval) in zip(lhs, rhs) {
+            let rhsType = checkExpr(rval)
+            let lhsType = checkExpr(lval, typeHint: rhsType)
 
             guard canImplicitlyConvert(rhsType, to: lhsType) else {
-                reportError("Cannot use \(rvalue) (type \(rhsType)) as type \(lhsType) in assignment", at: rvalue)
+
+                reportError("Cannot use `\(rval)` (type \(rhsType)) as rvalue in assignment to `\(lval)` (type \(lhsType))", at: rval)
                 return
             }
-            if rvalue.isLit || rvalue.isNil {
-                attemptLiteralConstraint(rvalue, to: lhsType)
+            if rval.isLit || rval.isNil {
+                attemptLiteralConstraint(rval, to: lhsType)
             }
         }
     }
@@ -1574,9 +1574,14 @@ extension Checker {
             collectDecls(members)
             checkDecls(in: scope)
 
-            // FIXME(vdka): If types can be nested (they can) this won't be correct. Fix that.
-            // You need to filter out non runtime entities.
-            let entities = members.flatMap({ info.decls[$0]!.entities })
+            // FIXME(vdka): @hack The ir emitting code should handle the knowledge of values being runtime or not
+            //   We may need to mangle non runtime members here though.
+            let entities = members.flatMap({ info.decls[$0] }).flatMap({ $0.entities }).filter {
+                if case .runtime = $0.kind {
+                    return true
+                }
+                return false
+            }
 
             // FIXME(vdka): Be smarter about this
             // Also allow #packed and whatnot

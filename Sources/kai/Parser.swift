@@ -463,7 +463,7 @@ extension Parser {
                 let node = try expression()
                 try consumeTerminators()
 
-                guard node.isDecl else {
+                guard node.isDecl || node.isComment else {
                     reportError("Expected declaration", at: node)
                     continue
                 }
