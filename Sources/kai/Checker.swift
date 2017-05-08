@@ -1507,7 +1507,7 @@ extension Checker {
                 performImplicitConversion(on: &type, to: typeHint)
             }
 
-        case .litCompound(let elements, _):
+        case .litCompound(_, let elements, _):
 
             if let typeHint = typeHint, typeHint.isStruct, elements.isEmpty {
 
@@ -2460,7 +2460,7 @@ extension Checker {
 
             info.types[node] = type
 
-        case .litCompound(let elements, _):
+        case .litCompound(_, let elements, _):
             guard case .array(let underlyingType, _) = type.kind else {
                 return
             }

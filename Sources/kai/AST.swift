@@ -49,7 +49,7 @@ indirect enum AstNode {
     case litProc(type: AstNode, body: AstNode, SourceRange)
 
     /// - Note: Used to represent array literals
-    case litCompound(elements: [AstNode], SourceRange)
+    case litCompound(type: AstNode, elements: [AstNode], SourceRange)
 
     case litStruct(members: [AstNode], SourceRange)
 
@@ -132,7 +132,7 @@ extension AstNode {
              .litFloat(_, let location),
              .litString(_, let location),
              .litProc(_, _, let location),
-             .litCompound(_, let location),
+             .litCompound(_, _, let location),
              .litStruct(_, let location),
              .declValue(_, _, _, _, let location),
              .declImport(_, _, _, let location),
@@ -380,10 +380,7 @@ func explode(_ n: AstNode) -> [AstNode] {
         return []
 
     case .stmtBlock(let elements, let location):
-        guard elements.count == 1, case .list(let elements, _)? = elements.first else {
-            return [n]
-        }
-        return [AstNode.litCompound(elements: elements, location)]
+        return elements
 
     case .exprParen(let expr, _):
         return explode(expr)
@@ -465,8 +462,8 @@ extension AstNode: CustomStringConvertible {
         case .litProc(let type, let body, _):
             return "\(type) \(body)"
 
-        case .litCompound(let elements, _):
-            return "{ " + elements.map({ $0.description }).joined(separator: ", ") + " }"
+        case .litCompound(let type, let elements, _):
+            return type.description + "{ " + elements.map({ $0.description }).joined(separator: ", ") + " }"
 
         case .litStruct(let members, _):
             return "struct { " + members.map({ $0.description }).joined(separator: "; ") + " }"
@@ -687,7 +684,8 @@ extension AstNode {
 
             children.append(body)
 
-        case .litCompound(let elements, _):
+        case .litCompound(let type, let elements, _):
+            labeled.append(("type", type.description))
             children.append(contentsOf: elements)
 
         case .litStruct(let members, _):
@@ -938,7 +936,8 @@ extension AstNode {
 
             children.append(body)
 
-        case .litCompound(let elements, _):
+        case .litCompound(let type, let elements, _):
+            labeled.append(("type", type.description))
             children.append(contentsOf: elements)
 
         case .litStruct(let members, _):

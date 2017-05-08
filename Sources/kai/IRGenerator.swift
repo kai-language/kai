@@ -288,12 +288,7 @@ extension IRGenerator {
             case .litStruct = value {
             // struct definitions
 
-            let irTypes = entity.type!.underlyingType!.memberScope!.elements.orderedValues.map({ self.canonicalize($0.type!) })
-
-            // NOTE(vdka): We might be able to make things faster by keeping track of this and doing lookups ourselves
-            //   for now just rely on LLVMSwift's `module.type(named:)`
-            _ = builder.createStruct(name: entity.mangledName!, types: Array(irTypes), isPacked: false)
-
+            emitGlobalType(entity)
         } else if decl.entities.count == 1, let entity = decl.entities.first,
             case .array(let underlyingType, let count) = entity.type!.kind, values.count == 0 {
             
@@ -877,7 +872,7 @@ extension IRGenerator {
         case .litString(let val, _):
             return builder.buildGlobalStringPtr(val.escaped)
 
-        case .litCompound(let elements, _):
+        case .litCompound(_, let elements, _):
             let type = checker.info.types[node]!
 
             switch type.kind {
@@ -1332,6 +1327,35 @@ extension IRGenerator {
             preconditionFailure()
         }
     }
+
+    @discardableResult
+    func emitGlobalType(_ entity: Entity) -> IRType {
+
+        if let existing = module.type(named: entity.mangledName!) {
+            return existing
+        }
+
+        let memberScope = entity.type!.underlyingType!.memberScope!
+
+        var irTypes: [IRType] = []
+
+        for member in memberScope.elements.orderedValues {
+            switch member.kind {
+            case .runtime:
+                let irType = canonicalize(member.type!)
+                irTypes.append(irType)
+
+            case .compiletime:
+                // This is likely to be a type nested within
+                break
+
+            default:
+                continue
+            }
+        }
+
+        return builder.createStruct(name: entity.mangledName!, types: Array(irTypes), isPacked: false)
+    }
 }
 
 
@@ -1441,7 +1465,7 @@ extension IRGenerator {
                 return type
             }
 
-            fatalError()
+            return emitGlobalType(entity)
 
         case .alias(let entity, _):
             if let irType = module.type(named: entity.mangledName!) {

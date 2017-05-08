@@ -38,6 +38,7 @@ struct Parser {
 
         static let `default`:     State = 0b0000
         static let disallowComma: State = 0b0001
+        static let disallowCompoundLiteral: State = 0b0010
     }
 }
 
@@ -117,6 +118,12 @@ extension Parser {
 
         case .keyword(.returnArrow):
             return 120 // TODO(vdka): Work out actual value.
+
+        case .lbrace where state.contains(.disallowCompoundLiteral):
+            return 0
+
+        case .lbrace:
+            return UInt8.max
 
         default:
             return 0
@@ -371,10 +378,6 @@ extension Parser {
 
             let (_, endLocation) = try consume(.rbrace)
 
-            if stmts.isEmpty {
-                return AstNode.litCompound(elements: [], startLocation ..< endLocation)
-            }
-
             return AstNode.stmtBlock(stmts, startLocation ..< endLocation)
 
         case .directive(.file):
@@ -524,6 +527,21 @@ extension Parser {
             let bp = lbp(for: .comma)!
             let next = try expression(bp - 1) // allows chaining of `,`
             return append(lvalue, next)
+
+        case .lbrace:
+            let (_, lbrace) = try consume(.lbrace)
+            try consumeTerminators(justNewlines: true)
+
+            var elements: [AstNode] = []
+            while let next = try lexer.peek()?.kind, next != .rbrace {
+                let element = try expression()
+                elements.append(element)
+                try consumeTerminators(justNewlines: true)
+            }
+
+            let (_, rbrace) = try consume(.rbrace)
+
+            return AstNode.litCompound(type: lvalue, elements: elements, lvalue.startLocation ..< rbrace)
  
         case .lparen:
             let (_, lparen) = try consume(.lparen)
@@ -622,16 +640,17 @@ extension Parser {
                 return AstNode.invalid(lvalue.startLocation ..< expr.endLocation)
             }
 
+            let prevState = state
+            state.insert(.disallowCompoundLiteral)
+
             let results = try expression()
             let type = AstNode.typeProc(params: explode(lvalue), results: explode(results), lvalue.startLocation ..< results.endLocation)
+            
+            state = prevState
 
             switch try lexer.peek()?.kind {
             case .lbrace?:
-                var body = try expression()
-
-                if case .litCompound(let elements, _) = body, elements.isEmpty {
-                    body = .stmtBlock([], body.location)
-                }
+                let body = try expression()
 
                 return AstNode.litProc(type: type, body: body, type.startLocation ..< body.endLocation)
 
