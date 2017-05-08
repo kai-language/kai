@@ -48,7 +48,7 @@ func reportWarning(_ message: String, at location: SourceRange, file: StaticStri
 fileprivate func formatMessage(severity: String = "ERROR", _ message: String, _ location: String, _ file: StaticString, _ line: UInt) -> String {
     var formatted = severity + "(" + location.description + ")" + ": " + message
 
-    #if Debug
+    #if DEBUG
         formatted = formatted + "\n\traised by \(file):\(line)"
     #endif
 

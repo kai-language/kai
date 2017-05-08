@@ -32,12 +32,14 @@ main :: () -> void {
 
     { // Pointers and numbers
 
-        val := 8
-        p := &val
+        val1 := 1
+        val2 := 2
+        p1 := &val1
+        p2 := &val2
 
-        <p = 123
+        <p1 *= 2
 
-        print("val: %d, p: %d\n", val, p)
+        print("val1: %d, p1: 0x%08x, p2: 0x%08x\n", val1, p1, p2)
     }
 
     section()
@@ -99,7 +101,7 @@ main :: () -> void {
 
     { // Arrays
 
-        x : [3]int = { 5, 6, 4 }
+        x := [3]int{ 5, 6, 4 }
 
 
         for i := 0; i < 3; i += 1 {
@@ -177,26 +179,32 @@ main :: () -> void {
 
     section()
 
-/*
     {
-        red: Color = {"Red", 255, 0, 0}
+        red := Color{"Red", 0xff, 0, 0}
 
-        bob: Person = {"Bob", 21, red}
+        bob := Person{"Bob", 21, red}
         bob.age = 42
 
-        print("%s is %d years old.\nHis favorite color is %s (#%02hx%02hx%02hx)\n", bob.name, bob.age, bob.favoriteColor.name, bob.favoriteColor.r, bob.favoriteColor.g, bob.favoriteColor.b)
+        bob.favoriteColor = Color{"Blue", 0, 0, 0xff}
 
-        blue: Color = {"Blue", 0, 255, 0}
+        printf("%s is %d years old\n", bob.name, bob.age)
+        printf(
+            "%s's favorite Color is %s (#%02hhx%02hhx%02hhx)\n",
+            bob.name,
+            bob.favoriteColor.name,
+            bob.favoriteColor.r,
+            bob.favoriteColor.g,
+            bob.favoriteColor.b
+        )
 
         /*
-        colors: [2]Color = {red, blue}
+        colors := [2]Color{red, blue}
 
         for i := 0; i < 2; i += 1 {
             color := colors[i]
             name := colors[i].name
-            print("%s has the hex code %2.x%2.x%2.x\n", name, color.r, color.g, color.b)
+            printf("%s has the hex code #%02hhx%02hhx%02hhx\n", name, color.r, color.g, color.b)
         }
         */
     }
-*/
 }

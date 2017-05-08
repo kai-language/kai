@@ -996,7 +996,7 @@ extension Checker {
 
                     // if there is an explicit type ensure we do not conflict with it
                     if !canImplicitlyConvert(rvalueType, to: explicitType) {
-                        reportError("Cannot implicitly convert type '\(rvalueType)' to type '\(explicitType)'", at: d.typeExpr!)
+                        reportError("Cannot implicitly convert type `\(rvalueType)` to type `\(explicitType)`", at: d.typeExpr!)
                         e.type = Type.invalid
                         continue
                     }
@@ -1507,16 +1507,41 @@ extension Checker {
                 performImplicitConversion(on: &type, to: typeHint)
             }
 
-        case .litCompound(_, let elements, _):
+        case .litCompound(let typeNode, let elements, _):
 
-            if let typeHint = typeHint, typeHint.isStruct, elements.isEmpty {
+            // NOTE(vdka): litCompounds mostly ignore the typeHint thanks to having an explicit type (here typeNode)
 
-                type = typeHint
+            let explicitType = lookupType(typeNode)
+
+            if elements.isEmpty {
+                type = explicitType
                 break
-            } else if let typeHint = typeHint, typeHint.isStruct {
+            }
+
+            if case .array(let underlyingType, let count) = explicitType.kind {
+
+                if elements.count > numericCast(count), count != 0 {
+                    reportError("Too many elements in array literal for type `\(explicitType)`", at: elements[numericCast(count)])
+                    break
+                }
+
+                for element in elements {
+                    let elType = checkExpr(element, typeHint: underlyingType)
+                    guard canImplicitlyConvert(elType, to: underlyingType) else {
+                        reportError("Cannot convert `\(elType)` to expected type `\(underlyingType)`", at: element)
+                        continue
+                    }
+                }
+
+                type = explicitType
+
+                break
+            }
+
+            if explicitType.isStruct {
 
                 var assigned = Array(repeatElement(false, count: elements.count))
-                for (element, member) in zip(elements, typeHint.memberScope!.elements.orderedValues.enumerated()) {
+                for (element, member) in zip(elements, explicitType.memberScope!.elements.orderedValues.enumerated()) {
 
                     assigned[member.offset] = true
 
@@ -1524,47 +1549,38 @@ extension Checker {
 
                     let elType = checkExpr(element, typeHint: targetType)
                     guard canImplicitlyConvert(elType, to: targetType) else {
-                        reportError("Cannot convert '\(elType)' to expected type '\(targetType)'", at: element)
+                        reportError("Cannot convert `\(elType)` to expected type `\(targetType)`", at: element)
                         continue
                     }
                 }
 
-                type = typeHint
-                break
-            } else if elements.isEmpty, let typeHint = typeHint, typeHint.isArray {
-                //
-                // if there are no elements we can set the type if we know from the lhs.
-                //
-                return typeHint
-            } else if elements.isEmpty {
-                reportError("Unable to infer type for empty compound literal", at: node)
-                return Type.invalid
-            }
+                type = explicitType
 
-            let elTypes = elements.map({ checkExpr($0) })
+                // TODO(vdka): When we get tagged unions we want to be able to do the following:
+                /*
+                 Entity :: union {
 
-            if let typeHint = typeHint, typeHint.isArray, let targetType = typeHint.underlyingType {
-                for (index, elType) in elTypes.enumerated() {
-                    guard canImplicitlyConvert(elType, to: targetType) else {
-                        reportError("Cannot convert '\(elType)' to expected type '\(targetType)'", at: elements[index])
-                        return Type.invalid
+                    position: V3
+                    velocity: V3
+                    orientation: Quaternion
+
+                    Player: struct {
+                        health: u8
+                        weapon: Weapon
                     }
-                }
-
-                return Type.array(of: targetType, with: UInt(elements.count))
+                    Zombie: struct {
+                        health: u8
+                        limbs: []ZombieLimb
+                    }
+                 }
+                 
+                 zombie : Entity = Zombie{}
+                */
+                break
             }
 
-
-            // FIXME(vdka): For now we require every array element type to be the same.
-            let firstType = elTypes.first!
-
-            if elTypes.reduce(true, { $0.0 && ($0.1 == firstType) }) {
-
-                type = Type.array(of: firstType, with: UInt(elements.count))
-            } else {
-
-                return Type.invalid
-            }
+            // NOTE(vdka): we have handled both Structs and Arrays. There should not be anything else
+            panic(node)
 
         case .litStruct(let members, _):
 
@@ -1843,8 +1859,10 @@ extension Checker {
             if let typeHint = typeHint {
                 type = typeHint
             }
-            
+
         default:
+            // NOTE(vdka): @temp If this is a list node then it's likely that you did:
+            // `arr : []u8 = {1, 2, 3}` instead of `arr := []u8{1, 2, 3}`
             panic(node)
         }
 

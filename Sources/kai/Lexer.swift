@@ -126,7 +126,7 @@ struct Lexer {
             scanner.pop()
             return (.keyword(.returnArrow), location)
 
-        case "*": // Because otherwise '**' becomes a single operator.
+        case "*" where !scanner.hasPrefix("*="): // Because otherwise '**' becomes a single operator.
             scanner.pop()
             return (.operator(.asterix), location)
 
@@ -142,7 +142,7 @@ struct Lexer {
             }
 
 		// TODO(vdka): Correctly consume (and validate) number literals (real and integer)
-		case _ where (digits + ["."]).contains(char):
+		case _ where digits.contains(char):
             scanner.pop()
             if char == "." && scanner.peek() == "." {
                 scanner.pop()

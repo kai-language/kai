@@ -266,7 +266,13 @@ extension Parser {
 
             let (_, startLocation) = try consume(.keyword(.if))
 
+            let prevState = state
+            state.insert(.disallowCompoundLiteral)
+
             let condExpr = try expression()
+
+            state = prevState
+
             var bodyExpr = try expression()
 
             if bodyExpr.isCompoundLit {
@@ -285,7 +291,13 @@ extension Parser {
             let (_, location) = try consume(.keyword(.for))
 
             if case .lbrace? = try lexer.peek()?.kind {
+
+                let prevState = state
+                state.insert(.disallowCompoundLiteral)
+
                 let body = try expression()
+
+                state = prevState
 
                 return AstNode.stmtFor(initializer: nil, cond: nil, post: nil, body: body, location ..< body.endLocation)
             }
@@ -299,7 +311,12 @@ extension Parser {
                     continue
                 }
 
+                let prevState = state
+                state.insert(.disallowCompoundLiteral)
+
                 let expr = try expression()
+
+                state = prevState
 
                 exprs.append(expr)
 
@@ -539,6 +556,8 @@ extension Parser {
 
             var elements = try expression()
 
+            try consumeTerminators(justNewlines: true)
+
             let (_, rbrace) = try consume(.rbrace)
 
             return AstNode.litCompound(type: lvalue, elements: explode(elements), lvalue.startLocation ..< rbrace)
@@ -562,6 +581,8 @@ extension Parser {
                 let arg = try expression()
                 args.append(arg)
             }
+
+            try consumeTerminators(justNewlines: true)
 
             let (_, rparen) = try consume(.rparen)
             return AstNode.exprCall(receiver: lvalue, args: args, lparen ..< rparen)
