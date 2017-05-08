@@ -199,7 +199,12 @@ extension Parser {
             
             try consume(.rbrack)
 
+            let prevState = state
+            state.insert(.disallowCompoundLiteral)
+
             let type = try expression(10)
+
+            state = prevState
 
             return AstNode.typeArray(count: count, type: type, lbrack ..< type.endLocation)
 
@@ -532,16 +537,11 @@ extension Parser {
             let (_, lbrace) = try consume(.lbrace)
             try consumeTerminators(justNewlines: true)
 
-            var elements: [AstNode] = []
-            while let next = try lexer.peek()?.kind, next != .rbrace {
-                let element = try expression()
-                elements.append(element)
-                try consumeTerminators(justNewlines: true)
-            }
+            var elements = try expression()
 
             let (_, rbrace) = try consume(.rbrace)
 
-            return AstNode.litCompound(type: lvalue, elements: elements, lvalue.startLocation ..< rbrace)
+            return AstNode.litCompound(type: lvalue, elements: explode(elements), lvalue.startLocation ..< rbrace)
  
         case .lparen:
             let (_, lparen) = try consume(.lparen)
