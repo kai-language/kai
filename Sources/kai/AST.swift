@@ -76,8 +76,8 @@ indirect enum AstNode {
     case stmtIf(cond: AstNode, body: AstNode, AstNode?, SourceRange)
     case stmtReturn([AstNode], SourceRange)
     case stmtFor(initializer: AstNode?, cond: AstNode?, post: AstNode?, body: AstNode, SourceRange)
-    case stmtSwitch(cond: AstNode?, body: AstNode, defaultBody: AstNode?, SourceRange)
-    case stmtCase(cond: AstNode, body: AstNode, SourceRange)
+    case stmtSwitch(subject: AstNode?, cases: [AstNode], SourceRange)
+    case stmtCase(AstNode?, body: AstNode, isDefault: Bool, SourceRange)
     case stmtDefer(AstNode, SourceRange)
     case stmtBreak(SourceRange)
     case stmtContinue(SourceRange)
@@ -153,8 +153,8 @@ extension AstNode {
              .stmtIf(_, _, _, let location),
              .stmtReturn(_, let location),
              .stmtFor(_, _, _, _, let location),
-             .stmtSwitch(_, _, _, let location),
-             .stmtCase(_, _, let location),
+             .stmtSwitch(_, _, let location),
+             .stmtCase(_, _, _, let location),
              .stmtDefer(_, let location),
              .stmtBreak(let location),
              .stmtContinue(let location),
@@ -391,7 +391,7 @@ func explode(_ n: AstNode) -> [AstNode] {
     case .stmtEmpty:
         return []
 
-    case .stmtBlock(let elements, let location):
+    case .stmtBlock(let elements, _):
         return elements
 
     case .exprParen(let expr, _):
@@ -551,8 +551,8 @@ extension AstNode: CustomStringConvertible {
         case .stmtSwitch:
             return "switch"
             
-        case .stmtCase(let cond, _,  _):
-            return "case \(cond)"
+        case .stmtCase(let cond, _, _, _):
+            return "case \(cond?.description ?? "")"
 
         case .stmtDefer(let expr, _):
             return "defer \(expr)"
@@ -782,20 +782,21 @@ extension AstNode {
             }
             children.append(body)
             
-        case .stmtSwitch(let cond, let body, let defaultBody, _):
-            if let cond = cond {
-                children.append(cond)
+        case .stmtSwitch(let subject, let cases, _):
+            if let subject = subject {
+                renamedChildren.append(("subject", subject))
             }
             
-            children.append(body)
+            children.append(contentsOf: cases)
             
-            if let defaultBody = defaultBody {
-                children.append(defaultBody)
+        case .stmtCase(let header, let stmts, let isDefault, _):
+            if let header = header {
+                renamedChildren.append(("header", header))
             }
             
-        case .stmtCase(let cond, let body, _):
-            children.append(cond)
-            children.append(body)
+            children.append(stmts)
+            
+            labeled.append(("default", isDefault ? "true" : "false"))
 
         case .stmtDefer(let stmt, _):
             children.append(stmt)
@@ -1049,20 +1050,21 @@ extension AstNode {
             }
             children.append(body)
             
-        case .stmtSwitch(let cond, let body, let defaultBody, _):
-            if let cond = cond {
-                children.append(cond)
+        case .stmtSwitch(let subject, let cases, _):
+            if let subject = subject {
+                renamedChildren.append(("subject", subject))
             }
             
-            children.append(body)
+            children.append(contentsOf: cases)
             
-            if let defaultBody = defaultBody {
-                children.append(defaultBody)
+        case .stmtCase(let header, let stmts, let isDefault, _):
+            if let header = header {
+                renamedChildren.append(("header", header))
             }
             
-        case .stmtCase(let cond, let body, _):
-            children.append(cond)
-            children.append(body)
+            children.append(stmts)
+            
+            labeled.append(("default", isDefault ? "true" : "false"))
             
         case .stmtDefer(let stmt, _):
             children.append(stmt)
