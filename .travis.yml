@@ -7,6 +7,8 @@ before_install:
   - brew update
 install:
   - brew install llvm@3.9
+before_script:
+  - export PATH="/usr/local/opt/llvm/bin:$PATH"
 script:
   - set -o pipefail
   - swift package fetch
