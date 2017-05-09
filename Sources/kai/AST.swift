@@ -77,7 +77,7 @@ indirect enum AstNode {
     case stmtReturn([AstNode], SourceRange)
     case stmtFor(initializer: AstNode?, cond: AstNode?, post: AstNode?, body: AstNode, SourceRange)
     case stmtSwitch(subject: AstNode?, cases: [AstNode], SourceRange)
-    case stmtCase(AstNode?, body: AstNode, isDefault: Bool, SourceRange)
+    case stmtCase(AstNode?, body: AstNode, SourceRange)
     case stmtDefer(AstNode, SourceRange)
     case stmtBreak(SourceRange)
     case stmtContinue(SourceRange)
@@ -154,7 +154,7 @@ extension AstNode {
              .stmtReturn(_, let location),
              .stmtFor(_, _, _, _, let location),
              .stmtSwitch(_, _, let location),
-             .stmtCase(_, _, _, let location),
+             .stmtCase(_, _, let location),
              .stmtDefer(_, let location),
              .stmtBreak(let location),
              .stmtContinue(let location),
@@ -551,8 +551,11 @@ extension AstNode: CustomStringConvertible {
         case .stmtSwitch:
             return "switch"
             
-        case .stmtCase(let cond, _, _, _):
-            return "case \(cond?.description ?? "")"
+        case .stmtCase(let match, _, _):
+            if let match = match {
+                return "case \(match.description)"
+            }
+            return "default"
 
         case .stmtDefer(let expr, _):
             return "defer \(expr)"
@@ -623,7 +626,7 @@ extension AstNode {
         case .stmtReturn: return "stmtReturn"
         case .stmtFor: return "stmtFor"
         case .stmtSwitch: return "stmtSwitch"
-        case .stmtCase: return "stmtCase"
+        case .stmtCase(let match, _, _): return match == nil ? "stmtDefaultCase" : "stmtCase"
         case .stmtDefer: return "stmtDefer"
         case .stmtBreak: return "stmtBreak"
         case .stmtContinue: return "stmtContinue"
@@ -789,14 +792,12 @@ extension AstNode {
             
             children.append(contentsOf: cases)
             
-        case .stmtCase(let header, let stmts, let isDefault, _):
-            if let header = header {
-                renamedChildren.append(("header", header))
+        case .stmtCase(let match, let stmts, _):
+            if let match = match {
+                renamedChildren.append(("match", match))
             }
             
             children.append(stmts)
-            
-            labeled.append(("default", isDefault ? "true" : "false"))
 
         case .stmtDefer(let stmt, _):
             children.append(stmt)
@@ -1057,14 +1058,12 @@ extension AstNode {
             
             children.append(contentsOf: cases)
             
-        case .stmtCase(let header, let stmts, let isDefault, _):
-            if let header = header {
-                renamedChildren.append(("header", header))
+        case .stmtCase(let match, let stmts, _):
+            if let match = match {
+                renamedChildren.append(("match", match))
             }
             
             children.append(stmts)
-            
-            labeled.append(("default", isDefault ? "true" : "false"))
             
         case .stmtDefer(let stmt, _):
             children.append(stmt)

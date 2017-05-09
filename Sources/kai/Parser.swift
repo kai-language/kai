@@ -388,24 +388,34 @@ extension Parser {
                 cases: cases,
                 location ..< location
             )
+
+        case .keyword(.default):
+
+            if state.contains(.permitCaseOrDefault) {
+                fallthrough
+            }
+
+            try consume()
+            return AstNode.ident("default", lexer.lastConsumedRange)
           
-        case .keyword(.case), .keyword(.default):
+        case .keyword(.case):
             let (_, location) = try consume()
             let isDefault = token == .keyword(.default)
             
             guard state.contains(.permitCaseOrDefault) else {
                 reportError("Syntax error, unexpected case outside of switch", at: location)
+
+                if case .colon? = try lexer.peek()?.kind {
+                    try consume(.colon)
+                }
                 return .invalid(location ..< location)
             }
-            
-            let header: AstNode?
-            switch try lexer.peek()?.kind {
-            case .colon?:
-                header = nil
-                
-            default:
+
+
+            var match: AstNode?
+            if !isDefault {
                 let colonBp = lbp(for: .colon)!
-                header = try expression(colonBp)
+                match = try expression(colonBp)
             }
             
             let (_, colon) = try consume(.colon)
@@ -418,7 +428,7 @@ extension Parser {
             }
             
             let block = AstNode.stmtBlock(stmts, colon ..< (stmts.last?.endLocation ?? colon))
-            return AstNode.stmtCase(header, body: block, isDefault: isDefault, location ..< (stmts.last?.endLocation ?? colon))
+            return AstNode.stmtCase(match, body: block, location ..< block.endLocation)
             
         case .keyword(.break):
             let (_, startLocation) = try consume(.keyword(.break))
