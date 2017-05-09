@@ -3,9 +3,16 @@
 print :: (string, ..any) -> void #foreign libc "printf"
 
 main :: () -> void {
-    array : []u16 = {10, 20, 30, 40, 50}
+   age : int = 23
 
-    ptr : *u16 = &array[2]
+    switch age {
+    case 23:
+        print("Hey, you're as old as me!")
+        print("I'm doing two things here!")
 
-    print("%d\n", <ptr[1])
+    default:
+        print("I don't care how old you are")
+    }
+
+
 }

@@ -492,7 +492,11 @@ enum Keyword: String {
     case `for`
     case `break`
     case `continue`
-
+    
+    case `switch`
+    case `case`
+    case `default`
+    
     case type
     case alias
 
