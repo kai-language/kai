@@ -554,6 +554,10 @@ extension Parser {
             let (_, lbrace) = try consume(.lbrace)
             try consumeTerminators(justNewlines: true)
 
+            let prevState = state
+            defer { state = prevState }
+            state.remove(.disallowComma)
+            
             var elements = try expression()
 
             try consumeTerminators(justNewlines: true)

@@ -7,10 +7,12 @@ before_install:
   - brew update
 install:
   - brew install llvm@3.9
-before_script:
-  - export PATH="/usr/local/opt/llvm/bin:$PATH"
+  - export PATH="/usr/local/opt/llvm@3.9/bin:$PATH"
+  - echo $PATH
+  - ls /usr/local/opt/llvm@3.9/bin
 script:
   - set -o pipefail
   - swift package fetch
+  - echo $PATH
   - swift .build/checkouts/LLVMSwift.git-*/utils/make-pkgconfig.swift
   - swift build -Xcc -I/usr/local/opt/llvm/include -Xlinker -L/usr/local/opt/llvm/lib

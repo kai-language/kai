@@ -87,51 +87,88 @@ extension Type {
 
 // MARK: Builtin Procedures
 
-var builtinProcedures: [(Entity, irGen: (IRGenerator) -> (Entity) -> IRValue)] = {
+var builtinProcedures: [Entity] = {
+
+    typealias Short = (
+        String, mangled: String,
+        EntityExtra,
+        params: [(String, Type)],
+        returns: [Type],
+        isVariadic: Bool
+    )
 
     // These are later mapped into `[Entity]`
-    let short: [(String, mangled: String, irGen: (IRGenerator) -> (Entity) -> IRValue, params: [(String, Type)], returns: [Type], isVariadic: Bool)] = [
+    let short: [Short] = [
+
 
         (
-            "malloc", mangled: "malloc", irGen: IRGenerator.genForeign,
+            "malloc", mangled: "malloc",
+            EntityExtra(singleIrGen: IRGenerator.genForeign, callIrGen: nil),
             params: [("size", Type.i32)],
             returns: [Type.pointer(to: Type.u8)],
             isVariadic: false
         ),
         ( // NOTE(vdka): This will need to be different dependent on the type of the value.
             // if it is a dynamic Array then we need to free at a predefined offset from the pointer we are given.
-            "free", mangled: "free", irGen: IRGenerator.genForeign,
+            "free", mangled: "free",
+            EntityExtra(singleIrGen: IRGenerator.genForeign, callIrGen: nil),
             params: [("ptr", Type.pointer(to: Type.u8))],
             returns: [Type.void],
             isVariadic: false
         ),
         (
-            "printf", mangled: "printf", irGen: IRGenerator.genForeign,
+            "printf", mangled: "printf",
+            EntityExtra(singleIrGen: IRGenerator.genForeign, callIrGen: nil),
             params: [("format", Type.pointer(to: Type.u8)), ("args", Type.any)],
             returns: [Type.void],
             isVariadic: true
         ),
+        (
+            "len", mangled: "len",
+            EntityExtra(singleIrGen: nil, callIrGen: IRGenerator.genLenCall),
+            params: [("array", Type.array(of: Type.any, with: 0))],
+            returns: [Type.unconstrInteger],
+            isVariadic: true
+        ),
     ]
 
-    return short.map { (name, mangledName, irGen, params, returns, isVariadic) in
-        let entity = Entity(name: name, kind: .compiletime, owningScope: Scope.universal)
+    return short.map { (name, mangledName, extra, params, returns, isVariadic) in
+        let entity = Entity(name: name, kind: .magic(extra), owningScope: Scope.universal)
         entity.mangledName = mangledName
 
         let procScope = Scope(parent: Scope.universal)
         entity.childScope = procScope
         
-        let paramEntities = params.map({ Entity(name: $0.0, kind: .runtime, type: $0.1, owningScope: procScope) })
+        let paramEntities = params.map({ Entity(name: $0.0, kind: .magic(extra), type: $0.1, owningScope: procScope) })
         entity.type = Type(kind: .proc(params: paramEntities, returns: returns, isVariadic: isVariadic), width: 0)
 
-        return (entity, irGen)
+        return entity
     }
 }()
+
+struct EntityExtra {
+    var singleIrGen: ((IRGenerator) -> (Entity) -> IRValue)?
+    var callIrGen: ((IRGenerator) -> ([AstNode]) -> IRValue)?
+}
 
 extension IRGenerator {
 
     /// Will just emit a point to link to.
     func genForeign(_ entity: Entity) -> IRValue {
         return builder.addFunction(entity.mangledName!, type: canonicalize(entity.type!) as! FunctionType)
+    }
+
+    func genLenCall(_ args: [AstNode]) -> IRValue {
+
+        let arg = args.first!
+
+        let type = checker.info.types[arg]!
+
+        guard case .array(_, let count) = type.kind else {
+            panic(type)
+        }
+
+        return IntType.int64.constant(count)
     }
 
     func genMallocIr(_ entity: Entity) -> IRValue {
@@ -173,7 +210,7 @@ extension IRGenerator {
 
 func declareBuiltinProcedures() {
     
-    for (entity, _) in builtinProcedures {
+    for entity in builtinProcedures {
         Scope.universal.insert(entity)
     }
 }

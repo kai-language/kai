@@ -387,7 +387,7 @@ func explode(_ n: AstNode) -> [AstNode] {
     case .stmtEmpty:
         return []
 
-    case .stmtBlock(let elements, let location):
+    case .stmtBlock(let elements, _):
         return elements
 
     case .exprParen(let expr, _):

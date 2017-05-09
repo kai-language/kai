@@ -70,13 +70,11 @@ extension IRGenerator {
     func emitIntrinsics() {
 
         for entity in Scope.universal.elements.orderedValues {
-            guard case .proc? = entity.type?.kind else {
+            guard case .magic(let extra) = entity.kind else {
                 continue
             }
 
-            llvmPointers[entity] = builtinProcedures
-                .first(where: { $0.0 === entity  })!
-                .irGen(self)(entity)
+            llvmPointers[entity] = extra.singleIrGen?(self)(entity)
         }
     }
 
@@ -977,18 +975,23 @@ extension IRGenerator {
          foo[0]()
          */
 
-        guard
-            case .exprCall(let receiver, let args, _) = node,
-            case .ident(let ident, _) = receiver
-            else {
+        guard case .exprCall(let receiver, let args, _) = node else {
                 preconditionFailure()
         }
 
-        let receiverEntity = context.scope.lookup(ident)!
+        let receivingEntity = lookupEntity(receiver)
 
-        // TODO(vdka): Just `emitExpr(rec)`
-        let function = llvmPointers[receiverEntity] as! Function
-        //let function = module.function(named: ident)!
+        if case .magic(let extra)? = receivingEntity?.kind, let irGen = extra.callIrGen {
+            return irGen(self)(args)
+        }
+
+        let receiverIr = emitExpr(receiver, returnAddress: true)
+        guard let function = receiverIr as? Function else {
+            // 
+            // If we do not receive a function back then we assume we got a value from a magic _procedure_
+
+            return receiverIr
+        }
 
         var irArgs: [IRValue] = []
         for arg in args {

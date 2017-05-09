@@ -1,0 +1,10 @@
+
+main :: () -> void {
+
+  arr := [4]u8{1, 2, 3, 4}
+  length := len(arr)
+  printf("%d\n", length)
+
+  printf("%d\n", len([6]u8{1, 2, 3, 4, 5, 6}))
+}
+
