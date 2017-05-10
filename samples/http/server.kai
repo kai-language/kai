@@ -1,4 +1,5 @@
 #library "c" libc
+#library "libCHTTP.dylib" chttp
 
 print :: (string, ..any) -> void #foreign libc "printf"
 
@@ -48,7 +49,7 @@ main :: () -> void {
 
     zero: [8]i8
 
-    self : sockaddr_in = {
+    self := sockaddr_in {
         0, AF_INET, port, 0, zero
     }   
 
@@ -58,7 +59,7 @@ main :: () -> void {
     result = listen(u32(sockfd), 5)
     if result != 0 error("Listening")
 
-    client : sockaddr_in = {
+    client := sockaddr_in {
         0, AF_INET, port, 0, zero
     }
     
