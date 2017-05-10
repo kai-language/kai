@@ -130,6 +130,13 @@ var builtinProcedures: [Entity] = {
             returns: [Type.unconstrInteger],
             isVariadic: true
         ),
+        (
+            "sizeOfValue", mangled: "sizeOfValue",
+            EntityExtra(singleIrGen: nil, callIrGen: IRGenerator.genSizeOfValueCall),
+            params: [("val", Type.any)],
+            returns: [Type.unconstrInteger],
+            isVariadic: true
+        )
     ]
 
     return short.map { (name, mangledName, extra, params, returns, isVariadic) in
@@ -171,45 +178,18 @@ extension IRGenerator {
         return IntType.int64.constant(count)
     }
 
-    func genMallocIr(_ entity: Entity) -> IRValue {
+    func genSizeOfValueCall(_ args: [AstNode]) -> IRValue {
 
-        let proc = builder.addFunction(entity.mangledName!, type: canonicalize(entity.type!) as! FunctionType)
-        let entry = proc.appendBasicBlock(named: "entry")
+        let arg = args.first!
 
-        builder.positionAtEnd(of: entry)
-        defer {
-            builder.clearInsertionPosition()
-        }
+        let type = checker.info.types[arg]!
 
-        
-        let arg = proc.parameter(at: 0)!
-        let memory = builder.buildMalloc(canonicalize(Type.u8), count: arg)
-        builder.buildRet(memory)
-
-        return proc
-    }
-
-    func genFreeIr(_ entity: Entity) -> IRValue {
-
-        let proc = builder.addFunction(entity.mangledName!, type: canonicalize(entity.type!) as! FunctionType)
-        let entry = proc.appendBasicBlock(named: "entry")
-
-        builder.positionAtEnd(of: entry)
-        defer {
-            builder.clearInsertionPosition()
-        }
-        
-
-        let arg = proc.parameter(at: 0)!
-        builder.buildFree(arg)
-        builder.buildRetVoid()
-
-        return proc
+        return (type.width + 7) / 8
     }
 }
 
 func declareBuiltinProcedures() {
-    
+
     for entity in builtinProcedures {
         Scope.universal.insert(entity)
     }
