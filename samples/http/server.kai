@@ -1,5 +1,4 @@
 #library "c" libc
-#library "libCHTTP.dylib" chttp
 
 print :: (string, ..any) -> void #foreign libc "printf"
 

@@ -188,11 +188,14 @@ class Type: Equatable, CustomStringConvertible {
     }
 
     var isBooleanesque: Bool {
-        return !flags.union(.booleanesque).isEmpty
+        //FIXME(vdka): this is the old implementation and it ALWAYS returned true
+        //return !flags.union(.booleanesque).isEmpty
+        return flags.contains(.booleanesque) || isNumeric || isBoolean
     }
 
     var isNumeric: Bool {
-        return !flags.union(.numeric).isEmpty
+        //FIXME(vdka): same with this one
+        return flags.contains(.numeric) || isInteger || isFloat || isBoolean
     }
 
     var isUnconstrained: Bool {
@@ -506,6 +509,8 @@ class Scope: PointerHashable {
     }
 
     var isStruct: Bool = false
+    
+    var isSwitch: Bool = false
 
     var isLoop: Bool = false
     var inLoop: Bool {
@@ -1344,6 +1349,68 @@ extension Checker {
                 checkStmt(stmt)
             }
 
+        case .stmtSwitch(let subject, let cases, _):
+            let isBooleanesque: Bool
+            let subjectType: Type?
+            
+            if let subject = subject {
+                isBooleanesque = false
+                subjectType = checkExpr(subject)
+            } else {
+                isBooleanesque = true
+                subjectType = nil
+            }
+            
+            var hasDefaultCase: Bool = false
+            
+            for caseStmt in cases {
+                guard case .stmtCase(let match, let body, _) = caseStmt else {
+                    reportError("Expected `case` block in `switch`, got `\(caseStmt)`", at: caseStmt)
+                    return
+                }
+                
+                guard !hasDefaultCase else {
+                    reportError("Additional `case` blocks cannot be after a `default` block", at: caseStmt)
+                    return
+                }
+                
+                if let match = match {
+                    let matchType = checkExpr(match)
+                    
+                    if let subjectType = subjectType, !isBooleanesque {
+                        guard canImplicitlyConvert(matchType, to: subjectType) else {
+                            reportError("Cannot implicitly convert type `\(matchType)` to `\(subjectType)`", at: match)
+                            return
+                        }
+                    } else {
+                        guard canImplicitlyConvert(matchType, to: Type.bool) else {
+                            reportError("Non-bool `\(match)` (type `\(matchType)`) used as condition", at: match)
+                            return
+                        }
+                    }
+                    
+                    let bodyScope = pushScope(for: body)
+                    defer { popScope() }
+                    
+                    guard case .stmtBlock(let stmts, _) = body else {
+                        panic()
+                    }
+                    
+                    // TODO(Brett, vdka): check for returns and handle all that
+                    // logic.
+                    for stmt in stmts {
+                        checkStmt(stmt)
+                    }
+                } else {
+                    hasDefaultCase = true
+                }
+            }
+            
+            guard hasDefaultCase else {
+                reportError("A `switch` statement must have a `default` block", at: node)
+                return
+            }
+            
         case .stmtBreak:
             fallthrough
 
@@ -2513,11 +2580,12 @@ extension Checker {
 extension Checker {
 
     @discardableResult
-    mutating func pushScope(for node: AstNode, procInfo: ProcInfo? = nil, isLoop: Bool = false, isStruct: Bool = false) -> Scope {
+    mutating func pushScope(for node: AstNode, procInfo: ProcInfo? = nil, isLoop: Bool = false, isStruct: Bool = false, isSwitch: Bool = false) -> Scope {
         let scope = Scope(parent: context.scope)
         scope.owningNode = node
         scope.proc = procInfo
         scope.isStruct = isStruct
+        scope.isSwitch = isSwitch
         scope.isLoop = isLoop
 
         info.scopes[node] = scope
