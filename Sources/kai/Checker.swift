@@ -1350,14 +1350,11 @@ extension Checker {
             }
 
         case .stmtSwitch(let subject, let cases, _):
-            let isBooleanesque: Bool
             let subjectType: Type?
             
             if let subject = subject {
-                isBooleanesque = false
                 subjectType = checkExpr(subject)
             } else {
-                isBooleanesque = true
                 subjectType = nil
             }
             
@@ -1377,12 +1374,12 @@ extension Checker {
                 if let match = match {
                     let matchType = checkExpr(match)
                     
-                    if let subjectType = subjectType, !isBooleanesque {
+                    if let subjectType = subjectType {
                         guard canImplicitlyConvert(matchType, to: subjectType) else {
                             reportError("Cannot implicitly convert type `\(matchType)` to `\(subjectType)`", at: match)
                             return
                         }
-                    } else {
+                    } else /* booleanesque */ {
                         guard canImplicitlyConvert(matchType, to: Type.bool) else {
                             reportError("Non-bool `\(match)` (type `\(matchType)`) used as condition", at: match)
                             return
