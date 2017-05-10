@@ -556,15 +556,24 @@ extension Parser {
 
             let prevState = state
             defer { state = prevState }
-            state.remove(.disallowComma)
-            
-            var elements = try expression()
+            state.insert(.disallowComma)
 
-            try consumeTerminators(justNewlines: true)
+            var exprs: [AstNode] = []
+            while try lexer.peek()?.kind != .rbrace {
+
+                let expr = try expression()
+                exprs.append(expr)
+
+                if case .comma? = try lexer.peek()?.kind {
+                    try consume(.comma)
+                }
+
+                try consumeTerminators()
+            }
 
             let (_, rbrace) = try consume(.rbrace)
 
-            return AstNode.litCompound(type: lvalue, elements: explode(elements), lvalue.startLocation ..< rbrace)
+            return AstNode.litCompound(type: lvalue, elements: exprs, lvalue.startLocation ..< rbrace)
  
         case .lparen:
             let (_, lparen) = try consume(.lparen)
