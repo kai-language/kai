@@ -6,9 +6,11 @@ main :: () -> void {
    age : int = 23
 
     switch age {
-    case 32:
-        print("Hey, you're as old as me!")
-        print("I'm doing two things here!")
+    case 23:
+        print("Hey, you're as old as me!\n")
+        print("I'm doing two things here!\n")
+    default:
+        print("Defaulted\n")
     }
 
 

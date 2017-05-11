@@ -147,6 +147,9 @@ extension IRGenerator {
 
         case .stmtFor:
             emitStmtFor(node)
+            
+        case .stmtSwitch:
+            emitStmtSwitch(node)
 
         case .stmtBreak:
             builder.buildBr(context.escapePoints!.break as! BasicBlock)
@@ -580,6 +583,94 @@ extension IRGenerator {
         builder.positionAtEnd(of: loopDone)
     }
 
+    func emitStmtSwitch(_ node: AstNode) {
+        guard let currentProcedure = context.currentProcedure?.llvm else {
+            fatalError("Switch statement outside of procedure")
+        }
+        
+        guard case .stmtSwitch(let subject, let cases, _) = node else {
+            panic()
+        }
+        
+        let curBlock = builder.insertBlock!
+        let switchDefault = currentProcedure.appendBasicBlock(named: "switch.default")
+        let switchPost = currentProcedure.appendBasicBlock(named: "switch.post")
+        
+        builder.positionAtEnd(of: curBlock)
+        
+        // `normal` switch
+        if let subject = subject {
+            let value = emitExpr(subject)
+            
+            var caseBlocks: [BasicBlock] = []
+            
+            let constants: [IRValue] = cases.flatMap {
+                guard case .stmtCase(let match, let body, _) = $0 else {
+                    fatalError("Non-case in switch")
+                }
+                
+                if let match = match {
+                    let value = emitExpr(match)
+                    
+                    let block = currentProcedure.appendBasicBlock(named: "switch.case")
+                    builder.positionAtEnd(of: block)
+                    caseBlocks.append(block)
+                   
+                    pushScope(for: body)
+                    defer { popScope() }
+                    
+                    guard case .stmtBlock(let stmts, _) = body else {
+                        panic()
+                    }
+                    
+                    for stmt in stmts {
+                        emitStmt(stmt)
+                    }
+                    
+                    builder.positionAtEnd(of: block)
+                    if !block.hasTerminatingInstruction {
+                        builder.buildBr(switchPost)
+                    }
+                    
+                    builder.positionAtEnd(of: curBlock)
+                    return value
+                } else {
+                    builder.positionAtEnd(of: switchDefault)
+                    
+//                    pushScope(for: body)
+//                    defer { popScope() }
+                    
+                    guard case .stmtBlock(let stmts, _) = body else {
+                        panic()
+                    }
+                    
+                    for stmt in stmts {
+                        emitStmt(stmt)
+                    }
+                    
+                    builder.positionAtEnd(of: switchDefault)
+                    if !switchDefault.hasTerminatingInstruction {
+                        builder.buildBr(switchPost)
+                    }
+                    
+                    builder.positionAtEnd(of: curBlock)
+                    return nil
+                }
+            }
+            
+            let switchPtr = builder.buildSwitch(value, else: switchDefault, caseCount: constants.count)
+            for (constant, block) in zip(constants, caseBlocks) {
+                switchPtr.addCase(constant, block)
+            }
+            
+            builder.positionAtEnd(of: switchPost)
+            
+            
+        } else /* booleanesque */{
+            unimplemented("IRGen for booleanesque switch")
+        }
+    }
+    
     func emitStmtReturn(_ node: AstNode) {
         guard let currentProcedure = context.currentProcedure else {
             fatalError("Return statement outside of procedure")
