@@ -603,36 +603,26 @@ extension IRGenerator {
             let value = emitExpr(subject)
             
             var caseBlocks: [BasicBlock] = []
+            var constants: [IRValue] = []
             
-            let constants: [IRValue] = cases.flatMap {
-                guard case .stmtCase(let match, let body, _) = $0 else {
+            for stmtCase in cases {
+                guard case .stmtCase(let match, let body, _) = stmtCase else {
                     fatalError("Non-case in switch")
                 }
                 
                 let block: BasicBlock
-                let value: IRValue?
                 
                 if let match = match {
-                    value = emitExpr(match)
+                    constants.append(emitExpr(match))
                     block = currentProcedure.appendBasicBlock(named: "switch.case")
                     caseBlocks.append(block)
                 } else {
                     block = switchDefault
-                    value = nil
                 }
                 
                 builder.positionAtEnd(of: block)
-                
-                pushScope(for: body)
-                defer { popScope() }
-                
-                guard case .stmtBlock(let stmts, _) = body else {
-                    panic()
-                }
-                
-                for stmt in stmts {
-                    emitStmt(stmt)
-                }
+
+                emitStmt(body)
                 
                 builder.positionAtEnd(of: block)
                 if !block.hasTerminatingInstruction {
@@ -640,7 +630,6 @@ extension IRGenerator {
                 }
                 
                 builder.positionAtEnd(of: curBlock)
-                return value
             }
             
             let switchPtr = builder.buildSwitch(value, else: switchDefault, caseCount: constants.count)
@@ -649,8 +638,6 @@ extension IRGenerator {
             }
             
             builder.positionAtEnd(of: switchPost)
-            
-            
         } else /* booleanesque */{
             unimplemented("IRGen for booleanesque switch")
         }
