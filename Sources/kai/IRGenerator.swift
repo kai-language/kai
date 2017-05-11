@@ -592,14 +592,14 @@ extension IRGenerator {
             panic()
         }
         
-        let curBlock = builder.insertBlock!
-        let switchDefault = currentProcedure.appendBasicBlock(named: "switch.default")
-        let switchPost = currentProcedure.appendBasicBlock(named: "switch.post")
-        
-        builder.positionAtEnd(of: curBlock)
-        
-        // `normal` switch
+        // "normal" switch
         if let subject = subject {
+            let curBlock = builder.insertBlock!
+            let defaultBlock = currentProcedure.appendBasicBlock(named: "switch.default")
+            let postBlock = currentProcedure.appendBasicBlock(named: "switch.post")
+            
+            builder.positionAtEnd(of: curBlock)
+            
             let value = emitExpr(subject)
             
             var caseBlocks: [BasicBlock] = []
@@ -617,7 +617,7 @@ extension IRGenerator {
                     block = currentProcedure.appendBasicBlock(named: "switch.case")
                     caseBlocks.append(block)
                 } else {
-                    block = switchDefault
+                    block = defaultBlock
                 }
                 
                 builder.positionAtEnd(of: block)
@@ -626,21 +626,25 @@ extension IRGenerator {
                 
                 builder.positionAtEnd(of: block)
                 if !block.hasTerminatingInstruction {
-                    builder.buildBr(switchPost)
+                    builder.buildBr(postBlock)
                 }
                 
                 builder.positionAtEnd(of: curBlock)
             }
             
-            let switchPtr = builder.buildSwitch(value, else: switchDefault, caseCount: constants.count)
+            let switchPtr = builder.buildSwitch(value, else: defaultBlock, caseCount: constants.count)
             for (constant, block) in zip(constants, caseBlocks) {
                 switchPtr.addCase(constant, block)
             }
             
-            builder.positionAtEnd(of: switchPost)
+            builder.positionAtEnd(of: postBlock)
         } else /* booleanesque */{
-            unimplemented("IRGen for booleanesque switch")
+            emitStmtBooleanesqueSwitch(cases)
         }
+    }
+    
+    func emitStmtBooleanesqueSwitch(_ cases: [AstNode]) {
+        
     }
     
     func emitStmtReturn(_ node: AstNode) {
