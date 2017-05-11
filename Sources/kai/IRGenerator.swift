@@ -609,53 +609,38 @@ extension IRGenerator {
                     fatalError("Non-case in switch")
                 }
                 
+                let block: BasicBlock
+                let value: IRValue?
+                
                 if let match = match {
-                    let value = emitExpr(match)
-                    
-                    let block = currentProcedure.appendBasicBlock(named: "switch.case")
-                    builder.positionAtEnd(of: block)
+                    value = emitExpr(match)
+                    block = currentProcedure.appendBasicBlock(named: "switch.case")
                     caseBlocks.append(block)
-                   
-                    pushScope(for: body)
-                    defer { popScope() }
-                    
-                    guard case .stmtBlock(let stmts, _) = body else {
-                        panic()
-                    }
-                    
-                    for stmt in stmts {
-                        emitStmt(stmt)
-                    }
-                    
-                    builder.positionAtEnd(of: block)
-                    if !block.hasTerminatingInstruction {
-                        builder.buildBr(switchPost)
-                    }
-                    
-                    builder.positionAtEnd(of: curBlock)
-                    return value
                 } else {
-                    builder.positionAtEnd(of: switchDefault)
-                    
-//                    pushScope(for: body)
-//                    defer { popScope() }
-                    
-                    guard case .stmtBlock(let stmts, _) = body else {
-                        panic()
-                    }
-                    
-                    for stmt in stmts {
-                        emitStmt(stmt)
-                    }
-                    
-                    builder.positionAtEnd(of: switchDefault)
-                    if !switchDefault.hasTerminatingInstruction {
-                        builder.buildBr(switchPost)
-                    }
-                    
-                    builder.positionAtEnd(of: curBlock)
-                    return nil
+                    block = switchDefault
+                    value = nil
                 }
+                
+                builder.positionAtEnd(of: block)
+                
+                pushScope(for: body)
+                defer { popScope() }
+                
+                guard case .stmtBlock(let stmts, _) = body else {
+                    panic()
+                }
+                
+                for stmt in stmts {
+                    emitStmt(stmt)
+                }
+                
+                builder.positionAtEnd(of: block)
+                if !block.hasTerminatingInstruction {
+                    builder.buildBr(switchPost)
+                }
+                
+                builder.positionAtEnd(of: curBlock)
+                return value
             }
             
             let switchPtr = builder.buildSwitch(value, else: switchDefault, caseCount: constants.count)

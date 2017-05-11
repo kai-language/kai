@@ -1380,21 +1380,21 @@ extension Checker {
                             return
                         }
                     }
-                    
-                    let bodyScope = pushScope(for: body)
-                    defer { popScope() }
-                    
-                    guard case .stmtBlock(let stmts, _) = body else {
-                        panic()
-                    }
-                    
-                    // TODO(Brett, vdka): check for returns and handle all that
-                    // logic.
-                    for stmt in stmts {
-                        checkStmt(stmt)
-                    }
                 } else {
                     seenDefaultCase = true
+                }
+                
+                let bodyScope = pushScope(for: body)
+                defer { popScope() }
+                
+                guard case .stmtBlock(let stmts, _) = body else {
+                    panic()
+                }
+                
+                // TODO(Brett, vdka): check for returns and handle all that
+                // logic.
+                for stmt in stmts {
+                    checkStmt(stmt)
                 }
             }
             
