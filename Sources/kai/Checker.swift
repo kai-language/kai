@@ -188,14 +188,11 @@ class Type: Equatable, CustomStringConvertible {
     }
 
     var isBooleanesque: Bool {
-        //FIXME(vdka): this is the old implementation and it ALWAYS returned true
-        //return !flags.union(.booleanesque).isEmpty
-        return flags.contains(.booleanesque) || isNumeric || isBoolean
+        return isNumeric || isBoolean
     }
 
     var isNumeric: Bool {
-        //FIXME(vdka): same with this one
-        return flags.contains(.numeric) || isInteger || isFloat || isBoolean
+        return isInteger || isFloat || isBoolean
     }
 
     var isUnconstrained: Bool {
@@ -1350,15 +1347,13 @@ extension Checker {
             }
 
         case .stmtSwitch(let subject, let cases, _):
-            let subjectType: Type?
+            var subjectType: Type? = nil
             
             if let subject = subject {
                 subjectType = checkExpr(subject)
-            } else {
-                subjectType = nil
             }
             
-            var hasDefaultCase: Bool = false
+            var seenDefaultCase: Bool = false
             
             for caseStmt in cases {
                 guard case .stmtCase(let match, let body, _) = caseStmt else {
@@ -1366,7 +1361,7 @@ extension Checker {
                     return
                 }
                 
-                guard !hasDefaultCase else {
+                guard !seenDefaultCase else {
                     reportError("Additional `case` blocks cannot be after a `default` block", at: caseStmt)
                     return
                 }
@@ -1399,11 +1394,11 @@ extension Checker {
                         checkStmt(stmt)
                     }
                 } else {
-                    hasDefaultCase = true
+                    seenDefaultCase = true
                 }
             }
             
-            guard hasDefaultCase else {
+            guard seenDefaultCase else {
                 reportError("A `switch` statement must have a `default` block", at: node)
                 return
             }
