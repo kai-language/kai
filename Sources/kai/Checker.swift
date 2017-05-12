@@ -1,4 +1,4 @@
-
+import Foundation
 import OrderedDictionary
 
 /// Defines a type in which something can take
@@ -24,7 +24,8 @@ class Type: Equatable, CustomStringConvertible {
         case named(Entity, Type)
         case alias(Entity, Type)
         case `struct`(Scope)
-
+        case `enum`(Scope)
+        
         case pointer(underlyingType: Type)
         case nullablePointer(underlyingType: Type)
         case array(underlyingType: Type, count: UInt)
@@ -51,7 +52,7 @@ class Type: Equatable, CustomStringConvertible {
              .array(let underlyingType, _):
             return underlyingType
 
-        case .builtin, .struct, .proc, .tuple:
+        case .builtin, .struct, .proc, .tuple, .enum:
             return nil
         }
     }
@@ -62,7 +63,8 @@ class Type: Equatable, CustomStringConvertible {
              .alias(_, let type):
             return type.memberScope
 
-        case .struct(let memberScope):
+        case .struct(let memberScope),
+             .enum(let memberScope):
             return memberScope
 
         case .builtin,
@@ -105,6 +107,26 @@ class Type: Equatable, CustomStringConvertible {
     static func tuple(of types: [Type]) -> Type {
         // NOTE(vdka): Size may not be correct with alignments and paddings?
         return Type(kind: .tuple(types), flags: .none, width: types.reduce(0, { $0.0 + $0.1.width }), location: nil)
+    }
+    
+    static func integer(bits: Int) -> Type {
+        switch bits {
+        case 0...8:
+            return Type.i8
+            
+        case 9...16:
+            return Type.i16
+            
+        case 17...32:
+            return Type.i32
+            
+        case 33...64:
+            return Type.i16
+            
+        default:
+            return Type.invalid
+            
+        }
     }
 
     struct Flag: OptionSet {
@@ -177,6 +199,9 @@ class Type: Equatable, CustomStringConvertible {
         case .struct(let members):
             return "struct { " + members.elements.orderedValues.map({ $0.name + ": " + $0.type!.description }).joined(separator: ", ") + " }"
 
+        case .enum(let cases):
+            return "enum { " + cases.elements.orderedValues.map({ $0.name }).joined(separator: ", ") + " }"
+            
         case .tuple(let types):
             return "(" + types.map({ $0.description }).joined(separator: ", ") + ")"
 
@@ -1674,6 +1699,58 @@ extension Checker {
 
             type = Type(kind: .struct(scope), flags: .none, width: totalWidth, location: node.startLocation)
 
+        case .litEnum(let cases, _):
+            let scope = pushScope(for: node)
+            defer { popScope() }
+            
+            var names: [String] = []
+            var values: [Int] = []
+            
+            var currentValue = 0
+            
+            for enumeration in cases {
+                switch enumeration {
+                case .ident(let name, _):
+                    names.append(name)
+                    
+                case .stmtAssign(.equals, let lhs, let rhs, _):
+                    guard lhs.count == 1 && rhs.count == 1 else {
+                        reportError("Expected enumeration", at: enumeration)
+                        continue
+                    }
+                    
+                    guard case .ident(let name, _) = lhs[0] else {
+                        reportError("Expected an identifier for enumeration case", at: lhs[0])
+                        continue
+                    }
+                    
+                    guard case .litInteger(let value, _) = rhs[0] else {
+                        reportError("Expected integer value for enumeration case", at: rhs[0])
+                        continue
+                    }
+                    
+                    currentValue = Int(value)
+                    names.append(name)
+                    
+                default:
+                    reportError("Excepted enumeration", at: enumeration)
+                }
+                
+                values.append(currentValue)
+                currentValue += 1
+            }
+
+            let width = Int(floor(log2(Double(currentValue - 1))) + 1)
+            let caseType = Type.integer(bits: width)
+            
+            for (name, value) in zip(names, values) {
+                let entity = Entity(name: name, kind: .runtime, type: caseType, owningScope: scope)
+                entity.value = ExactValue.integer(Int64(value))
+                addEntity(to: scope, entity)
+            }
+            
+            type = Type(kind: .enum(scope), flags: .none, width: UInt(width), location: node.startLocation)
+            
         case .ident:
             type = checkExprIdent(node)
             if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
@@ -1745,7 +1822,7 @@ extension Checker {
             func callKind(for type: Type) -> CallKind {
 
                 switch type.kind {
-                case .builtin, .struct, .array, .tuple:
+                case .builtin, .struct, .array, .tuple, .enum:
                     return CallKind.invalid
 
                 case .named(_, let underlyingType),

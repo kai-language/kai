@@ -586,7 +586,24 @@ extension Parser {
             return AstNode.litStruct(members: decls, start ..< rbrace)
 
         case .keyword(.enum):
-            unimplemented("parsing enum type declarations")
+            let (_, start) = try consume()
+            try consume(.lbrace)
+            
+            var cases: [AstNode] = []
+            while let next = try lexer.peek()?.kind, next != .rbrace {
+                let node = try expression()
+                try consumeTerminators()
+                
+                guard node.isIdent || node.isAssign else {
+                    reportError("Expected enumeration case", at: node)
+                    continue
+                }
+                
+                cases.append(node)
+            }
+            
+            let (_, end) = try consume(.rbrace)
+            return AstNode.litEnum(cases: cases, start ..< end)
 
         default:
             try consume()

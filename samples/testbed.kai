@@ -2,13 +2,16 @@
 
 print :: (string, ..any) -> void #foreign libc "printf"
 
-main :: () -> void {
-    age : int = 23
+Error :: enum {
+    bindError = 1
+    connectionClosed
+    anotherErrorCase
+    aBiggie = 300
+    evenBigger
+}
 
-    switch {
-    case age < 10: print("hi\n")
-    case age == 23: print("Me, too!\n")
-    default:
-        print("Defaulted\n")
-    }
+main :: () -> void {
+    a := Error.bindError
+
+
 }

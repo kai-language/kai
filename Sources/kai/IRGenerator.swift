@@ -303,6 +303,27 @@ extension IRGenerator {
             }
             
             llvmPointers[entity] = irValuePtr
+        } else if decl.entities.count == 1, let entity = decl.entities.first,
+            case .enum(let scope) = entity.type!.kind {
+            
+            for element in scope.elements.orderedValues {
+                guard let type = element.type, let value = entity.value else {
+                    continue
+                }
+
+                let irType = canonicalize(type)
+                
+                let irValuePtr: IRValue
+                if let function = context.currentProcedure?.llvm {
+                    irValuePtr = emitEntryBlockAlloca(in: function, type: irType, named: entity.mangledName!)
+                } else {
+                    irValuePtr = emitGlobal(name: entity.mangledName!, type: irType, value: nil)
+                }
+            }
+            
+            
+            
+            
         } else {
             assert(decl.entities.count == decl.initExprs.count)
 
@@ -1606,6 +1627,10 @@ extension IRGenerator {
 
             return StructType(elementTypes: memberIrTypes)
 
+        case .enum:
+            let width = type.width
+            unimplemented()
+            
         case .pointer(let underlyingType),
              .nullablePointer(let underlyingType):
             return PointerType(pointee: canonicalize(underlyingType))
