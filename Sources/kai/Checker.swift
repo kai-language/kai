@@ -146,6 +146,8 @@ class Type: Equatable, CustomStringConvertible {
             return "[\(count)]\(underlyingType)"
 
         case .proc(let params, let results, let isVariadic):
+            // FIXME(vdka): This is wrong.
+            // `(, array..[0]any) -> void` should be `(array: [0]any) -> void`
             var str = "("
 
             if isVariadic {
@@ -403,6 +405,8 @@ class Entity: PointerHashable {
         case runtime
         case compiletime
         case type(Type)
+
+        case magic(EntityExtra)
 
         case importName  //path, name: String, scope: Scope, used: Bool)
         case libraryName // (path, name: String, used: Bool)
@@ -2343,7 +2347,7 @@ extension Checker {
 
     func performImplicitConversion(on type: inout Type, to target: Type) {
 
-        guard target != Type.any else {
+        guard target != Type.any, target.underlyingType != Type.any else {
             // TODO(vdka): Once we get struct's box this with a pointer to the underlying type and its
             // value if type.width < 8 otherwise put it on the heap and store a pointer
             return
@@ -2415,6 +2419,10 @@ extension Checker {
             case .array(let underlyingTargetType, let targetCount) = target.kind {
             // NOTE(vdka): I am unsure if we should support implicit conversion between 2 arrays with different underlying types
             //  provided their underlying types are implicitely convertable. So I left that out.
+
+            if underlyingTargetType == Type.any {
+                return true
+            }
 
             return underlyingType == underlyingTargetType && (count <= targetCount || targetCount == 0)
         }
