@@ -190,11 +190,11 @@ class Type: Equatable, CustomStringConvertible {
     }
 
     var isBooleanesque: Bool {
-        return !flags.union(.booleanesque).isEmpty
+        return isNumeric || isBoolean
     }
 
     var isNumeric: Bool {
-        return !flags.union(.numeric).isEmpty
+        return isInteger || isFloat || isBoolean
     }
 
     var isUnconstrained: Bool {
@@ -510,6 +510,8 @@ class Scope: PointerHashable {
     }
 
     var isStruct: Bool = false
+    
+    var isSwitch: Bool = false
 
     var isLoop: Bool = false
     var inLoop: Bool {
@@ -1348,6 +1350,63 @@ extension Checker {
                 checkStmt(stmt)
             }
 
+        case .stmtSwitch(let subject, let cases, _):
+            var subjectType: Type? = nil
+            
+            if let subject = subject {
+                subjectType = checkExpr(subject)
+            }
+            
+            var seenDefaultCase: Bool = false
+            
+            for caseStmt in cases {
+                guard case .stmtCase(let match, let body, _) = caseStmt else {
+                    reportError("Expected `case` block in `switch`, got `\(caseStmt)`", at: caseStmt)
+                    return
+                }
+                
+                guard !seenDefaultCase else {
+                    reportError("Additional `case` blocks cannot be after a `default` block", at: caseStmt)
+                    return
+                }
+                
+                if let match = match {
+                    let matchType = checkExpr(match)
+                    
+                    if let subjectType = subjectType {
+                        guard canImplicitlyConvert(matchType, to: subjectType) else {
+                            reportError("Cannot implicitly convert type `\(matchType)` to `\(subjectType)`", at: match)
+                            return
+                        }
+                    } else /* booleanesque */ {
+                        guard canImplicitlyConvert(matchType, to: Type.bool) else {
+                            reportError("Non-bool `\(match)` (type `\(matchType)`) used as condition", at: match)
+                            return
+                        }
+                    }
+                } else {
+                    seenDefaultCase = true
+                }
+                
+                let bodyScope = pushScope(for: body)
+                defer { popScope() }
+                
+                guard case .stmtBlock(let stmts, _) = body else {
+                    panic()
+                }
+                
+                // TODO(Brett, vdka): check for returns and handle all that
+                // logic.
+                for stmt in stmts {
+                    checkStmt(stmt)
+                }
+            }
+            
+            guard seenDefaultCase else {
+                reportError("A `switch` statement must have a `default` block", at: node)
+                return
+            }
+            
         case .stmtBreak:
             fallthrough
 
@@ -2521,11 +2580,12 @@ extension Checker {
 extension Checker {
 
     @discardableResult
-    mutating func pushScope(for node: AstNode, procInfo: ProcInfo? = nil, isLoop: Bool = false, isStruct: Bool = false) -> Scope {
+    mutating func pushScope(for node: AstNode, procInfo: ProcInfo? = nil, isLoop: Bool = false, isStruct: Bool = false, isSwitch: Bool = false) -> Scope {
         let scope = Scope(parent: context.scope)
         scope.owningNode = node
         scope.proc = procInfo
         scope.isStruct = isStruct
+        scope.isSwitch = isSwitch
         scope.isLoop = isLoop
 
         info.scopes[node] = scope

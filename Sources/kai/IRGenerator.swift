@@ -145,6 +145,9 @@ extension IRGenerator {
 
         case .stmtFor:
             emitStmtFor(node)
+            
+        case .stmtSwitch:
+            emitStmtSwitch(node)
 
         case .stmtBreak:
             builder.buildBr(context.escapePoints!.break as! BasicBlock)
@@ -578,6 +581,124 @@ extension IRGenerator {
         builder.positionAtEnd(of: loopDone)
     }
 
+    func emitStmtSwitch(_ node: AstNode) {
+        guard let currentProcedure = context.currentProcedure?.llvm else {
+            fatalError("Switch statement outside of procedure")
+        }
+        
+        guard case .stmtSwitch(let subject, let cases, _) = node else {
+            panic()
+        }
+        
+        // "normal" switch
+        if let subject = subject {
+            let curBlock = builder.insertBlock!
+            let defaultBlock = currentProcedure.appendBasicBlock(named: "switch.default")
+            let postBlock = currentProcedure.appendBasicBlock(named: "switch.post")
+            
+            builder.positionAtEnd(of: curBlock)
+            
+            let value = emitExpr(subject)
+            
+            var caseBlocks: [BasicBlock] = []
+            var constants: [IRValue] = []
+            
+            for stmtCase in cases {
+                guard case .stmtCase(let match, let body, _) = stmtCase else {
+                    fatalError("Non-case in switch")
+                }
+                
+                let block: BasicBlock
+                
+                if let match = match {
+                    constants.append(emitExpr(match))
+                    block = currentProcedure.appendBasicBlock(named: "switch.case")
+                    caseBlocks.append(block)
+                } else {
+                    block = defaultBlock
+                }
+                
+                builder.positionAtEnd(of: block)
+
+                emitStmt(body)
+                
+                builder.positionAtEnd(of: block)
+                if !block.hasTerminatingInstruction {
+                    builder.buildBr(postBlock)
+                }
+                
+                builder.positionAtEnd(of: curBlock)
+            }
+            
+            let switchPtr = builder.buildSwitch(value, else: defaultBlock, caseCount: constants.count)
+            for (constant, block) in zip(constants, caseBlocks) {
+                switchPtr.addCase(constant, block)
+            }
+            
+            builder.positionAtEnd(of: postBlock)
+        } else /* booleanesque */{
+            emitStmtBooleanesqueSwitch(cases)
+        }
+    }
+    
+    func emitStmtBooleanesqueSwitch(_ cases: [AstNode]) {
+        guard let currentProcedure = context.currentProcedure?.llvm else {
+            fatalError("Switch statement outside of procedure")
+        }
+        
+        let curBlock = builder.insertBlock!
+        let postBlock = currentProcedure.appendBasicBlock(named: "bswitch.post")
+        
+        var condBlocks: [BasicBlock] = []
+        var thenBlocks: [BasicBlock] = []
+        
+        for _ in 0..<cases.count {
+            condBlocks.append(currentProcedure.appendBasicBlock(named: "bswitch.cond"))
+            thenBlocks.append(currentProcedure.appendBasicBlock(named: "bswitch.then"))
+        }
+        
+        builder.positionAtEnd(of: curBlock)
+        
+        for (i, stmtCase) in cases.enumerated() {
+            guard case .stmtCase(let match, let body, _) = stmtCase else {
+                panic()
+            }
+            
+            let nextCondBlock = condBlocks[safe: i+1] ?? postBlock
+            let condBlock: BasicBlock
+            
+            if i == 0 {
+                // the first conditional needs to be in the starting block
+                condBlock = curBlock
+                condBlocks[i].removeFromParent()
+            } else {
+                condBlock = condBlocks[i]
+            }
+
+            let thenBlock = thenBlocks[i]
+            
+            builder.positionAtEnd(of: condBlock)
+            
+            if let match = match {
+                let condVal = emitExprConditional(match)
+                builder.buildCondBr(condition: condVal, then: thenBlock, else: nextCondBlock)
+            } else {
+                // this is the default case. Will just jump to the `then` block
+                builder.buildBr(thenBlock)
+            }
+            
+            builder.positionAtEnd(of: thenBlock)
+            emitStmt(body)
+            builder.positionAtEnd(of: thenBlock)
+            if !thenBlock.hasTerminatingInstruction {
+                builder.buildBr(postBlock)
+            }
+        }
+        
+        postBlock.moveAfter(thenBlocks.last!)
+        builder.positionAtEnd(of: postBlock)
+    }
+    
     func emitStmtReturn(_ node: AstNode) {
         guard let currentProcedure = context.currentProcedure else {
             fatalError("Return statement outside of procedure")

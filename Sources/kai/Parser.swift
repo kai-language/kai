@@ -36,9 +36,10 @@ struct Parser {
         init(rawValue: UInt8) { self.rawValue = rawValue }
         init(integerLiteral value: UInt8) { self.rawValue = value }
 
-        static let `default`:     State = 0b0000
-        static let disallowComma: State = 0b0001
+        static let `default`:               State = 0b0000
+        static let disallowComma:           State = 0b0001
         static let disallowCompoundLiteral: State = 0b0010
+        static let permitCaseOrDefault:     State = 0b0011
     }
 }
 
@@ -93,19 +94,6 @@ extension Parser {
         }
 
         return left
-    }
-    
-    mutating func expressions(until terminators: [Lexer.Token], _ rbp: UInt = 0) throws -> [AstNode] {
-        var result: [AstNode] = []
-        
-        while let token = try lexer.peek()?.kind, !terminators.contains(token) {
-            try consumeTerminators()
-            let expr = try expression()
-            result.append(expr)
-            try consumeTerminators()
-        }
-        
-        return result
     }
 }
 
@@ -358,10 +346,10 @@ extension Parser {
         case .keyword(.switch):
             let (_, location) = try consume(.keyword(.switch))
             
-            let cond: AstNode?
+            let subject: AstNode?
             switch try lexer.peek()?.kind {
             case .lbrace?:
-                cond = nil
+                subject = nil
                 
             default:
                 // Make sure an identifier doesn't get turned into a
@@ -370,7 +358,7 @@ extension Parser {
                 defer { state = prevState }
                 state.insert(.disallowCompoundLiteral)
                 
-                cond = try expression()
+                subject = try expression()
             }
             
             try consume(.lbrace)
@@ -378,63 +366,69 @@ extension Parser {
             var cases: [AstNode] = []
             var defaultBody: AstNode? = nil
             
+            let prevState = state
+            defer { state = prevState }
+            state.insert(.permitCaseOrDefault)
+            
             while try lexer.peek()?.kind != .rbrace {
-                try consumeTerminators(justNewlines: true)
+                let expr = try expression()
                 
-                switch try lexer.peek()?.kind {
-                case .keyword(.case)?:
-                    let (_, startLocation) = try consume()
-                    // Equal binding power with `:`
-                    let cond = try expression(10)
-                    
-                    try consume(.colon)
-                    
-                    let terminators: [Lexer.Token] = [.rbrace, .keyword(.case), .keyword(.default)]
-                    let body = try expressions(until: terminators)
-                    let loc = startLocation ..< lexer.location
-                    
-                    cases.append(
-                        .stmtCase(
-                            cond: cond,
-                            body: AstNode.list(body, loc),
-                            loc
-                        )
-                    )
-                    
-                case .keyword(.default)?:
-                    let (_, startLocation) = try consume()
-                    try consume(.colon)
-                    
-                    let terminators: [Lexer.Token] = [.rbrace, .keyword(.case), .keyword(.default)]
-                    let body = try expressions(until: terminators)
-                    let loc = startLocation ..< lexer.location
-                    
-                    guard defaultBody == nil else {
-                        reportError("Duplicate default cases in switch statement", at: startLocation ..< lexer.location)
-                        return AstNode.invalid(startLocation ..< lexer.location)
-                    }
-                    
-                    defaultBody = AstNode.list(body, startLocation ..< lexer.location)
-                    
-                case .rbrace?:
+                guard case .stmtCase = expr else {
+                    reportError("Expected case got: \(expr)", at: expr)
                     continue
-                    
-                default:
-                    reportError("Unexpected token \(try lexer.peek()!)", at: lexer.location)
                 }
+                cases.append(expr)
+                try consumeTerminators(justNewlines: true)
             }
             
             try consume(.rbrace)
             
             return AstNode.stmtSwitch(
-                cond: cond,
-                body: .list(cases, location ..< location),
-                defaultBody: defaultBody, location ..< location
+                subject: subject,
+                cases: cases,
+                location ..< location
             )
+
+        case .keyword(.default):
+
+            if state.contains(.permitCaseOrDefault) {
+                fallthrough
+            }
+
+            try consume()
+            return AstNode.ident("default", lexer.lastConsumedRange)
           
         case .keyword(.case):
-            let (_, location) = try consume(.keyword(.case))
-            unimplemented("case")
+            let (_, location) = try consume()
+            let isDefault = token == .keyword(.default)
+            
+            guard state.contains(.permitCaseOrDefault) else {
+                reportError("Syntax error, unexpected case outside of switch", at: location)
+
+                if case .colon? = try lexer.peek()?.kind {
+                    try consume(.colon)
+                }
+                return .invalid(location ..< location)
+            }
+
+
+            var match: AstNode?
+            if !isDefault {
+                let colonBp = lbp(for: .colon)!
+                match = try expression(colonBp)
+            }
+            
+            let (_, colon) = try consume(.colon)
+            
+            var stmts: [AstNode] = []
+            while let nextToken = try lexer.peek()?.kind, nextToken != .keyword(.case), nextToken != .keyword(.default), nextToken != .rbrace {
+                let stmt = try expression()
+                try consumeTerminators()
+                stmts.append(stmt)
+            }
+            
+            let block = AstNode.stmtBlock(stmts, colon ..< (stmts.last?.endLocation ?? colon))
+            return AstNode.stmtCase(match, body: block, location ..< block.endLocation)
             
         case .keyword(.break):
             let (_, startLocation) = try consume(.keyword(.break))
