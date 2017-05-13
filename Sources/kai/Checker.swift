@@ -1864,13 +1864,13 @@ extension Checker {
                 default:
                     break
                 }
+            
+            case .builtin("string"):
+                type = .u8
+                
             default:
-                if receiverType.isString {
-                    type = .u8
-                } else {
-                    reportError("Cannot subscript non array type", at: receiver)
-                    return Type.invalid
-                }
+                reportError("Cannot subscript non array type", at: receiver)
+                return Type.invalid
             }
 
         case .exprSelector(let receiver, let member, _):
@@ -2173,6 +2173,10 @@ extension Checker {
             return targetType
         }
 
+        if case .pointer = exprType.kind, case .pointer(underlyingType: Type.void) = targetType.kind {
+            return targetType
+        }
+        
         //
         // Ensure the two types are of the same size
         //
@@ -2470,6 +2474,9 @@ extension Checker {
                 return true
             }
             if type.isString, case .array(let type, _) = target.kind, type == .u8 {
+                return true
+            }
+            if type.isString && target == Type.pointer(to: Type.void) {
                 return true
             }
             if type == Type.unconstrNil && target.isNullablePointer {

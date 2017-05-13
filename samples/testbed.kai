@@ -3,12 +3,11 @@
 print :: (string, ..any) -> void #foreign libc "printf"
 
 main :: () -> void {
-    age : int = 23
+    a := "Hello, world!"
+    b := malloc(14)
+    defer free(b)
 
-    switch {
-    case age < 10: print("hi\n")
-    case age == 23: print("Me, too!\n")
-    default:
-        print("Defaulted\n")
-    }
+    print("Before memcpy: %s\n", b)
+    memcpy((*void)(b), (*void)(a), 14)
+    print("After: %s\n", b)
 }

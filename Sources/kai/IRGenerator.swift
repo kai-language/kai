@@ -1403,7 +1403,10 @@ extension IRGenerator {
             //
             let entity = recvEntity.childScope!.lookup(member.identifier)!
             if let val = llvmPointers[entity] {
-
+                if returnAddress {
+                    return val
+                }
+                
                 return builder.buildLoad(val)
             } else {
 
