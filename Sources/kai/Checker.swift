@@ -1838,18 +1838,18 @@ extension Checker {
             if receiverType == Type.invalid {
                 return Type.invalid
             }
-
+            
+            let valueType = checkExpr(value, typeHint: Type.int)
+            
+            guard canImplicitlyConvert(valueType, to: Type.int) else {
+                reportError("Cannot subscript with type \(valueType)", at: value)
+                return Type.invalid
+            }
+            
             switch receiverType.kind {
             case .array(let underlyingType, _),
                  .pointer(let underlyingType),
                  .nullablePointer(let underlyingType):
-                
-                let valueType = checkExpr(value, typeHint: Type.int)
-                
-                guard canImplicitlyConvert(valueType, to: Type.int) else {
-                    reportError("Cannot subscript with type \(valueType)", at: value)
-                    return Type.invalid
-                }
              
                 switch receiverType.kind {
                 case .array:
@@ -1864,10 +1864,13 @@ extension Checker {
                 default:
                     break
                 }
-                
             default:
-                reportError("Cannot subscript non array type", at: receiver)
-                return Type.invalid
+                if receiverType.isString {
+                    type = .u8
+                } else {
+                    reportError("Cannot subscript non array type", at: receiver)
+                    return Type.invalid
+                }
             }
 
         case .exprSelector(let receiver, let member, _):
@@ -2441,7 +2444,6 @@ extension Checker {
         }
 
         if type.isUnconstrained {
-
             if type.isFloat && target.isFloat {
                 // `x: f32 = integerValue` | `y: f32 = floatValue`
                 return true
@@ -2467,6 +2469,9 @@ extension Checker {
             if type.isString && target == Type.pointer(to: Type.u8) {
                 return true
             }
+            if type.isString, case .array(let type, _) = target.kind, type == .u8 {
+                return true
+            }
             if type == Type.unconstrNil && target.isNullablePointer {
                 return true
             }
@@ -2475,6 +2480,10 @@ extension Checker {
             return true
         } else if case .pointer(let underlyingType) = type.kind, case .pointer(let underlyingTargetType) = target.kind {
             return canImplicitlyConvert(underlyingType, to: underlyingTargetType)
+        } else if case .pointer(let underlyingType) = type.kind, target.isString {
+            return canImplicitlyConvert(underlyingType, to: .u8)
+        } else if case .array(let underlyingType, _) = type.kind, target.isString {
+            return canImplicitlyConvert(underlyingType, to: .u8)
         } else if case .array(let underlyingType, let count) = type.kind,
             case .array(let underlyingTargetType, let targetCount) = target.kind {
             // NOTE(vdka): I am unsure if we should support implicit conversion between 2 arrays with different underlying types
