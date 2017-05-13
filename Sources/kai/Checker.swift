@@ -512,6 +512,13 @@ class Scope: PointerHashable {
     var isStruct: Bool = false
     
     var isSwitch: Bool = false
+    var inSwitch: Bool {
+        if !isSwitch {
+            return parent?.isSwitch ?? false
+        }
+
+        return true
+    }
 
     var isLoop: Bool = false
     var inLoop: Bool {
@@ -1387,19 +1394,11 @@ extension Checker {
                 } else {
                     seenDefaultCase = true
                 }
-                
-                let bodyScope = pushScope(for: body)
-                defer { popScope() }
-                
-                guard case .stmtBlock(let stmts, _) = body else {
-                    panic()
-                }
-                
-                // TODO(Brett, vdka): check for returns and handle all that
-                // logic.
-                for stmt in stmts {
-                    checkStmt(stmt)
-                }
+
+                // NOTE(vdka): We still need to wrap the case in it's own scope in case a variable is declared in the body stmt
+                pushScope(for: caseStmt, isSwitch: true)
+                checkStmt(body)
+                popScope()
             }
             
             guard seenDefaultCase else {
@@ -1408,12 +1407,14 @@ extension Checker {
             }
             
         case .stmtBreak:
-            fallthrough
+            guard context.scope.inLoop || context.scope.inSwitch else {
+                reportError("`\(node)` is invalid outside of a loop", at: node)
+                return
+            }
 
         case .stmtContinue:
             guard context.scope.inLoop else {
-                // TODO(vdka): Update when we add `switch` statements
-                reportError("\(node) is invalid outside of a loop", at: node)
+                reportError("`\(node)` is invalid outside of a loop", at: node)
                 return
             }
 

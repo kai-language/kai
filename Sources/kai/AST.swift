@@ -309,6 +309,13 @@ extension AstNode {
         }
     }
 
+    var isBlock: Bool {
+        if case .stmtBlock = self {
+            return true
+        }
+        return false
+    }
+
     var isDirective: Bool {
         if case .directive = self {
             return true

@@ -17,11 +17,11 @@ class IRGenerator {
 
         var scope: Scope = .universal
 
-        var escapePoints: EscapePoints?
+        var escapePoints: EscapePoints = EscapePoints(break: nil, continue: nil)
 
         struct EscapePoints {
-            var `break`: IRValue
-            var `continue`: IRValue
+            var `break`: BasicBlock?
+            var `continue`: BasicBlock?
         }
     }
     
@@ -150,10 +150,10 @@ extension IRGenerator {
             emitStmtSwitch(node)
 
         case .stmtBreak:
-            builder.buildBr(context.escapePoints!.break as! BasicBlock)
+            builder.buildBr(context.escapePoints.break!)
 
         case .stmtContinue:
-            builder.buildBr(context.escapePoints!.continue as! BasicBlock)
+            builder.buildBr(context.escapePoints.continue!)
             
         default:
             fatalError()
@@ -542,7 +542,12 @@ extension IRGenerator {
             builder.buildBr(loopBody)
         }
 
-        context.escapePoints = Context.EscapePoints(break: loopDone, continue: loopPost ?? loopCond ?? loopBody)
+        let prevEscapePoints = context.escapePoints
+        defer {
+            context.escapePoints = prevEscapePoints
+        }
+        context.escapePoints.break = loopDone
+        context.escapePoints.continue = loopPost ?? loopCond ?? loopBody
 
         builder.positionAtEnd(of: loopBody)
 
@@ -648,7 +653,13 @@ extension IRGenerator {
         
         let curBlock = builder.insertBlock!
         let postBlock = currentProcedure.appendBasicBlock(named: "bswitch.post")
-        
+
+        let prevEscapePoints = context.escapePoints
+        defer {
+            context.escapePoints = prevEscapePoints
+        }
+        context.escapePoints.break = postBlock
+
         var condBlocks: [BasicBlock] = []
         var thenBlocks: [BasicBlock] = []
         
@@ -659,8 +670,8 @@ extension IRGenerator {
         
         builder.positionAtEnd(of: curBlock)
         
-        for (i, stmtCase) in cases.enumerated() {
-            guard case .stmtCase(let match, let body, _) = stmtCase else {
+        for (i, caseStmt) in cases.enumerated() {
+            guard case .stmtCase(let match, let body, _) = caseStmt else {
                 panic()
             }
             
@@ -688,7 +699,11 @@ extension IRGenerator {
             }
             
             builder.positionAtEnd(of: thenBlock)
+
+            pushScope(for: caseStmt)
             emitStmt(body)
+            popScope()
+            
             builder.positionAtEnd(of: thenBlock)
             if !thenBlock.hasTerminatingInstruction {
                 builder.buildBr(postBlock)

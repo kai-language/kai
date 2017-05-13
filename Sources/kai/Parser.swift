@@ -389,15 +389,7 @@ extension Parser {
                 location ..< location
             )
 
-        case .keyword(.default):
-
-            if state.contains(.permitCaseOrDefault) {
-                fallthrough
-            }
-
-            try consume()
-            return AstNode.ident("default", lexer.lastConsumedRange)
-          
+        case .keyword(.default): fallthrough
         case .keyword(.case):
             let (_, location) = try consume()
             let isDefault = token == .keyword(.default)
@@ -419,16 +411,24 @@ extension Parser {
             }
             
             let (_, colon) = try consume(.colon)
-            
-            var stmts: [AstNode] = []
-            while let nextToken = try lexer.peek()?.kind, nextToken != .keyword(.case), nextToken != .keyword(.default), nextToken != .rbrace {
-                let stmt = try expression()
-                try consumeTerminators()
-                stmts.append(stmt)
+
+            try consumeTerminators(justNewlines: true)
+
+            var stmt: AstNode
+            if try lexer.peek()?.kind != .keyword(.case) {
+                
+                stmt = try expression()
+            } else {
+                
+                stmt = .invalid(lexer.lastConsumedRange)
+                if isDefault {
+                    reportError("`default` label in a `switch` must have exactly one executable statement or `break`", at: stmt)
+                } else {
+                    reportError("`case` label in a `switch` must have exactly one executable statement, `fallthrough` or `break`", at: stmt)
+                }
             }
-            
-            let block = AstNode.stmtBlock(stmts, colon ..< (stmts.last?.endLocation ?? colon))
-            return AstNode.stmtCase(match, body: block, location ..< block.endLocation)
+
+            return AstNode.stmtCase(match, body: stmt, location ..< stmt.endLocation)
             
         case .keyword(.break):
             let (_, startLocation) = try consume(.keyword(.break))
