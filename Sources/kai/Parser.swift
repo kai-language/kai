@@ -300,7 +300,7 @@ extension Parser {
 
                 state = prevState
 
-                return AstNode.stmtFor(initializer: nil, cond: nil, post: nil, body: body, location ..< body.endLocation)
+                return AstNode.stmtFor(initializer: nil, cond: nil, step: nil, body: body, location ..< body.endLocation)
             }
 
             var exprs: [AstNode] = []
@@ -333,10 +333,10 @@ extension Parser {
 
             switch exprs.count {
             case 1:
-                return AstNode.stmtFor(initializer: nil, cond: exprs[0], post: nil, body: body, location ..< body.endLocation)
+                return AstNode.stmtFor(initializer: nil, cond: exprs[0], step: nil, body: body, location ..< body.endLocation)
 
             case 3:
-                return AstNode.stmtFor(initializer: exprs[safe: 0], cond: exprs[safe: 1], post: exprs[safe: 2], body: body, location ..< body.endLocation)
+                return AstNode.stmtFor(initializer: exprs[safe: 0], cond: exprs[safe: 1], step: exprs[safe: 2], body: body, location ..< body.endLocation)
 
             default:
                 reportError("For statements require 0, 1 or 3 statements", at: location ..< body.startLocation)

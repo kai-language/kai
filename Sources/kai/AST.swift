@@ -75,7 +75,7 @@ indirect enum AstNode {
     case stmtBlock([AstNode], SourceRange)
     case stmtIf(cond: AstNode, body: AstNode, AstNode?, SourceRange)
     case stmtReturn([AstNode], SourceRange)
-    case stmtFor(initializer: AstNode?, cond: AstNode?, post: AstNode?, body: AstNode, SourceRange)
+    case stmtFor(initializer: AstNode?, cond: AstNode?, step: AstNode?, body: AstNode, SourceRange)
     case stmtSwitch(subject: AstNode?, cases: [AstNode], SourceRange)
     case stmtCase(AstNode?, body: AstNode, SourceRange)
     case stmtDefer(AstNode, SourceRange)
@@ -350,6 +350,14 @@ extension AstNode {
         default:
             return false
         }
+    }
+
+    var isBreak: Bool {
+        if case .stmtBreak = self {
+            return true
+        }
+
+        return false
     }
 
     var identifier: String {
@@ -777,7 +785,7 @@ extension AstNode {
         case .stmtReturn(let results, _):
             children.append(contentsOf: results)
 
-        case .stmtFor(let initializer, let cond, let post, let body, _):
+        case .stmtFor(let initializer, let cond, let step, let body, _):
             if let initializer = initializer {
                 let wrapped = AstNode.stmtExpr(initializer)
                 renamedChildren.append(("initializer", wrapped))
@@ -786,9 +794,9 @@ extension AstNode {
                 let wrapped = AstNode.stmtExpr(cond)
                 renamedChildren.append(("condition", wrapped))
             }
-            if let post = post {
-                let wrapped = AstNode.stmtExpr(post)
-                renamedChildren.append(("post", wrapped))
+            if let step = step {
+                let wrapped = AstNode.stmtExpr(step)
+                renamedChildren.append(("step", wrapped))
             }
             children.append(body)
             
@@ -1043,7 +1051,7 @@ extension AstNode {
         case .stmtReturn(let results, _):
             children.append(contentsOf: results)
 
-        case .stmtFor(let initializer, let cond, let post, let body, _):
+        case .stmtFor(let initializer, let cond, let step, let body, _):
             if let initializer = initializer {
                 let wrapped = AstNode.stmtExpr(initializer)
                 renamedChildren.append(("initializer", wrapped))
@@ -1052,9 +1060,9 @@ extension AstNode {
                 let wrapped = AstNode.stmtExpr(cond)
                 renamedChildren.append(("condition", wrapped))
             }
-            if let post = post {
-                let wrapped = AstNode.stmtExpr(post)
-                renamedChildren.append(("post", wrapped))
+            if let step = step {
+                let wrapped = AstNode.stmtExpr(step)
+                renamedChildren.append(("step", wrapped))
             }
             children.append(body)
             
