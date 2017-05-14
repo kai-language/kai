@@ -7,17 +7,20 @@ isAlpha :: (u8) -> i32 #foreign libc "isalpha"
 
 make_spongebob :: (text: string) -> void {
  	length := strlen(text)
-    shouldLower := true
+    shouldLower := false
 	for i := 0; i < length; i += 1 {
-        if isAlpha(text[i]) {
-            if shouldLower && isUpper(text[i]) {
-		        text[i] = text[i] + 0x20
-            } else if !shouldLower && !isUpper(text[i]) {
-                text[i] = text[i] - 0x20
-            }
-        }
-
         shouldLower = !shouldLower
+        
+        if !isAlpha(text[i]) continue
+        
+        switch {
+        case shouldLower && isUpper(text[i]):
+            text[i] = text[i] + 0x20
+        case !shouldLower && !isUpper(text[i]):
+            text[i] = text[i] - 0x20
+        default:
+            continue
+        }
 	}
 }
 
