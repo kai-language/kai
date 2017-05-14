@@ -1359,17 +1359,8 @@ extension IRGenerator {
             preconditionFailure()
         }
 
-        let lvalue: IRValue
-        
-        switch receiver {
-        case .ident(let identifier, _):
-            let entity = context.scope.lookup(identifier)!
-            lvalue = llvmPointers[entity]!
-            
-        default:
-            unimplemented()
-        }
-        
+        let lvalue = emitExpr(receiver, returnAddress: true)
+
         let index = emitExpr(value)
 
         let ptr: IRValue
