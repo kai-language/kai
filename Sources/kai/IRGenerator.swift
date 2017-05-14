@@ -341,6 +341,35 @@ extension IRGenerator {
                 let irValue: IRValue?
                 if case .directive = value {
                     irValue = nil
+                } else if case .litString(let string, _) = value {
+                    let litIr = emitExpr(value)
+                    let byteCount = string.escaped.utf8.count + 1 // null term.
+                    
+                    let tempArrayIr: IRValue
+                    let tempArrayIrType = ArrayType(elementType: IntType.int8, count: byteCount)
+                    if let function = context.currentProcedure?.llvm {
+                        tempArrayIr = emitEntryBlockAlloca(
+                            in: function,
+                            type: tempArrayIrType,
+                            named: "tmp"
+                        )
+                    } else {
+                        tempArrayIr = emitGlobal(name: "tmp", type: tempArrayIrType, value: nil)
+                    }
+                    
+                    let voidPtrType = PointerType(pointee: VoidType())
+                    let tempArrayVoidIr = builder.buildBitCast(tempArrayIr, type: voidPtrType)
+                    let litVoidIr = builder.buildBitCast(litIr, type: voidPtrType)
+                    
+                    let memcpy = module.function(named: "memcpy")!
+                    
+                    let resultIr = builder.buildCall(memcpy, args: [
+                        tempArrayVoidIr,
+                        litVoidIr,
+                        IntType.int64.constant(byteCount)
+                    ])
+                    
+                    irValue = builder.buildBitCast(resultIr, type: PointerType(pointee: IntType.int8))
                 } else {
                     irValue = emitExpr(value)
                 }
@@ -1027,7 +1056,7 @@ extension IRGenerator {
 
         case .litString(let val, _):
             return builder.buildGlobalStringPtr(val.escaped)
-
+            
         case .litCompound(_, let elements, _):
             let type = checker.info.types[node]!
 
@@ -1414,7 +1443,10 @@ extension IRGenerator {
             //
             let entity = recvEntity.childScope!.lookup(member.identifier)!
             if let val = llvmPointers[entity] {
-
+                if returnAddress {
+                    return val
+                }
+                
                 return builder.buildLoad(val)
             } else {
 

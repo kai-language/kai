@@ -138,6 +138,13 @@ var builtinProcedures: [Entity] = {
             params: [("val", Type.any)],
             returns: [Type.unconstrInteger],
             isVariadic: true
+        ),
+        (
+            "memcpy", mangled: "memcpy",
+            EntityExtra(singleIrGen: IRGenerator.genForeign, callIrGen: nil),
+            params: [("str1", Type.pointer(to: Type.void)), ("str2", Type.pointer(to: Type.void)), ("n", Type.i64)],
+            returns: [Type.pointer(to: Type.void)],
+            isVariadic: false
         )
     ]
 

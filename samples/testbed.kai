@@ -1,17 +1,31 @@
 #library "c" libc
 
 print :: (string, ..any) -> void #foreign libc "printf"
+strlen :: (string) -> u64 #foreign libc "strlen"
+isUpper :: (u8) -> i32 #foreign libc "isupper"
+isAlpha :: (u8) -> i32 #foreign libc "isalpha"
 
-Error :: enum {
-    bindError = 1
-    connectionClosed
-    anotherErrorCase
-    aBiggie = 300
-    evenBigger
+make_spongebob :: (text: string) -> void {
+ 	length := strlen(text)
+    shouldLower := false
+	for i := 0; i < length; i += 1 {
+        shouldLower = !shouldLower
+        
+        if !isAlpha(text[i]) continue
+        
+        switch {
+        case shouldLower && isUpper(text[i]):
+            text[i] = text[i] + 0x20
+        case !shouldLower && !isUpper(text[i]):
+            text[i] = text[i] - 0x20
+        default:
+            continue
+        }
+	}
 }
 
 main :: () -> void {
-    a := Error.bindError
-
-
+    a := "They probably learned Java, maybe learned C or C++, probably learned Python. They're not capable of understanding a brilliant language"
+    make_spongebob(a)
+    print("After: %s\n", a)
 }
