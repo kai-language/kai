@@ -17,11 +17,11 @@ class IRGenerator {
 
         var scope: Scope = .universal
 
-        var escapePoints: EscapePoints?
+        var escapePoints: EscapePoints = EscapePoints(break: nil, continue: nil)
 
         struct EscapePoints {
-            var `break`: IRValue
-            var `continue`: IRValue
+            var `break`: BasicBlock?
+            var `continue`: BasicBlock?
         }
     }
     
@@ -150,10 +150,10 @@ extension IRGenerator {
             emitStmtSwitch(node)
 
         case .stmtBreak:
-            builder.buildBr(context.escapePoints!.break as! BasicBlock)
+            builder.buildBr(context.escapePoints.break!)
 
         case .stmtContinue:
-            builder.buildBr(context.escapePoints!.continue as! BasicBlock)
+            builder.buildBr(context.escapePoints.continue!)
             
         default:
             fatalError()
@@ -161,7 +161,6 @@ extension IRGenerator {
     }
 
     func emitStmtIf(_ node: AstNode) {
-
         guard case .stmtIf(let cond, let thenStmt, let elseStmt, _) = node else {
             panic()
         }
@@ -208,8 +207,8 @@ extension IRGenerator {
 
         if let elseBlock = elseBlock, let elseStmt = elseStmt {
 
-            if (elseStmt.children.last?.isReturn ?? false || elseStmt.isReturn) &&
-                (thenStmt.children.last?.isReturn ?? false || thenStmt.isReturn) {
+            if (elseStmt.children.last?.isReturn ?? false || elseStmt.isReturn || elseStmt.isBreak) &&
+                (thenStmt.children.last?.isReturn ?? false || thenStmt.isReturn || elseStmt.isBreak) {
 
                 // If both the if and the else return then there is no need for a post block
                 postBlock.removeFromParent()
@@ -517,21 +516,18 @@ extension IRGenerator {
     }
 
     func emitStmtFor(_ node: AstNode) {
-        guard case .stmtFor(let initializer, let cond, let post, let body, _) = node else {
+        guard case .stmtFor(let initializer, let cond, let step, let body, _) = node else {
             panic()
         }
 
+        let curFunction = builder.currentFunction!
+        var loopBody: BasicBlock
+        var loopPost: BasicBlock
+        var loopCond: BasicBlock?
+        var loopStep: BasicBlock?
+
         pushScope(for: body)
         defer { popScope() }
-
-        let curFunction = builder.currentFunction!
-
-        // Set these later to ensure correct order. (as a viewer)
-        var loopBody: BasicBlock
-        var loopDone: BasicBlock
-
-        var loopCond: BasicBlock?
-        var loopPost: BasicBlock?
 
         if let initializer = initializer {
             emitStmt(initializer)
@@ -540,11 +536,11 @@ extension IRGenerator {
         if let cond = cond {
 
             loopCond = curFunction.appendBasicBlock(named: "for.cond")
-            if post != nil {
-                loopPost = curFunction.appendBasicBlock(named: "for.post")
+            if step != nil {
+                loopStep = curFunction.appendBasicBlock(named: "for.step")
             }
             loopBody = curFunction.appendBasicBlock(named: "for.body")
-            loopDone = curFunction.appendBasicBlock(named: "for.done")
+            loopPost = curFunction.appendBasicBlock(named: "for.post")
 
             builder.buildBr(loopCond!)
 
@@ -552,18 +548,23 @@ extension IRGenerator {
 
             let condVal = emitExprConditional(cond)
 
-            builder.buildCondBr(condition: condVal, then: loopBody, else: loopDone)
+            builder.buildCondBr(condition: condVal, then: loopBody, else: loopPost)
         } else {
-            if post != nil {
-                loopPost = curFunction.appendBasicBlock(named: "for.post")
+            if step != nil {
+                loopStep = curFunction.appendBasicBlock(named: "for.step")
             }
             loopBody = curFunction.appendBasicBlock(named: "for.body")
-            loopDone = curFunction.appendBasicBlock(named: "for.done")
+            loopPost = curFunction.appendBasicBlock(named: "for.post")
 
             builder.buildBr(loopBody)
         }
 
-        context.escapePoints = Context.EscapePoints(break: loopDone, continue: loopPost ?? loopCond ?? loopBody)
+        let prevEscapePoints = context.escapePoints
+        defer {
+            context.escapePoints = prevEscapePoints
+        }
+        context.escapePoints.break = loopPost
+        context.escapePoints.continue = loopStep ?? loopCond ?? loopBody
 
         builder.positionAtEnd(of: loopBody)
 
@@ -576,14 +577,14 @@ extension IRGenerator {
 
         let hasJump = builder.insertBlock?.lastInstruction?.isATerminatorInst ?? false
 
-        if let post = post {
+        if let step = step {
 
             if !hasJump {
-                builder.buildBr(loopPost!)
+                builder.buildBr(loopStep!)
             }
-            builder.positionAtEnd(of: loopPost!)
+            builder.positionAtEnd(of: loopStep!)
 
-            emitStmt(post)
+            emitStmt(step)
 
             builder.buildBr(loopCond!)
         } else if let loopCond = loopCond {
@@ -599,7 +600,7 @@ extension IRGenerator {
             }
         }
 
-        builder.positionAtEnd(of: loopDone)
+        builder.positionAtEnd(of: loopPost)
     }
 
     func emitStmtSwitch(_ node: AstNode) {
@@ -616,7 +617,13 @@ extension IRGenerator {
             let curBlock = builder.insertBlock!
             let defaultBlock = currentProcedure.appendBasicBlock(named: "switch.default")
             let postBlock = currentProcedure.appendBasicBlock(named: "switch.post")
-            
+
+            let prevEscapePoints = context.escapePoints
+            defer {
+                context.escapePoints = prevEscapePoints
+            }
+            context.escapePoints.break = postBlock
+
             builder.positionAtEnd(of: curBlock)
             
             let value = emitExpr(subject)
@@ -643,11 +650,11 @@ extension IRGenerator {
 
                 emitStmt(body)
                 
-                builder.positionAtEnd(of: block)
-                if !block.hasTerminatingInstruction {
+                if !builder.insertBlock!.hasTerminatingInstruction {
                     builder.buildBr(postBlock)
                 }
-                
+                assert(block.hasTerminatingInstruction)
+
                 builder.positionAtEnd(of: curBlock)
             }
             
@@ -669,7 +676,13 @@ extension IRGenerator {
         
         let curBlock = builder.insertBlock!
         let postBlock = currentProcedure.appendBasicBlock(named: "bswitch.post")
-        
+
+        let prevEscapePoints = context.escapePoints
+        defer {
+            context.escapePoints = prevEscapePoints
+        }
+        context.escapePoints.break = postBlock
+
         var condBlocks: [BasicBlock] = []
         var thenBlocks: [BasicBlock] = []
         
@@ -680,8 +693,8 @@ extension IRGenerator {
         
         builder.positionAtEnd(of: curBlock)
         
-        for (i, stmtCase) in cases.enumerated() {
-            guard case .stmtCase(let match, let body, _) = stmtCase else {
+        for (i, caseStmt) in cases.enumerated() {
+            guard case .stmtCase(let match, let body, _) = caseStmt else {
                 panic()
             }
             
@@ -709,7 +722,11 @@ extension IRGenerator {
             }
             
             builder.positionAtEnd(of: thenBlock)
+
+            pushScope(for: caseStmt)
             emitStmt(body)
+            popScope()
+            
             builder.positionAtEnd(of: thenBlock)
             if !thenBlock.hasTerminatingInstruction {
                 builder.buildBr(postBlock)
@@ -942,8 +959,7 @@ extension IRGenerator {
             return builder.buildLoad(ptr)
 
         case .exprParen(let expr, _):
-            assert(!returnAddress) // TODO(vdka): we should ban paren'd lvalues
-            return emitExpr(expr)
+            return emitExpr(expr, returnAddress: returnAddress)
 
         case .exprDeref(let expr, _):
             let ptr = emitExpr(expr)
@@ -1363,17 +1379,8 @@ extension IRGenerator {
             preconditionFailure()
         }
 
-        let lvalue: IRValue
-        
-        switch receiver {
-        case .ident(let identifier, _):
-            let entity = context.scope.lookup(identifier)!
-            lvalue = llvmPointers[entity]!
-            
-        default:
-            unimplemented()
-        }
-        
+        let lvalue = emitExpr(receiver, returnAddress: true)
+
         let index = emitExpr(value)
 
         let ptr: IRValue
@@ -1480,6 +1487,9 @@ extension IRGenerator {
             return existing
         }
 
+        // Create a temp version to handle recursive types.
+        let irType = builder.createStruct(name: entity.mangledName!)
+
         let memberScope = entity.type!.underlyingType!.memberScope!
 
         var irTypes: [IRType] = []
@@ -1499,7 +1509,9 @@ extension IRGenerator {
             }
         }
 
-        return builder.createStruct(name: entity.mangledName!, types: Array(irTypes), isPacked: false)
+        irType.setBody(irTypes, isPacked: false)
+
+        return irType
     }
 }
 

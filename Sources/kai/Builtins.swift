@@ -38,6 +38,7 @@ extension Type {
             ("any", 0, 0, .none),
 
             ("<invalid>", 0, 0, .none),
+            ("<placeholder>", 0, 0, .none),
         ]
 
         return short.map { (name, size, lineNumber, flags) in
@@ -82,6 +83,7 @@ extension Type {
     static let any = builtin[20]
 
     static let invalid = builtin[21]
+    static let placeholder = builtin[22]
 }
 
 
