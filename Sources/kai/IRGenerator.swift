@@ -938,8 +938,7 @@ extension IRGenerator {
             return builder.buildLoad(ptr)
 
         case .exprParen(let expr, _):
-            assert(!returnAddress) // TODO(vdka): we should ban paren'd lvalues
-            return emitExpr(expr)
+            return emitExpr(expr, returnAddress: returnAddress)
 
         case .exprDeref(let expr, _):
             let ptr = emitExpr(expr)
@@ -1467,6 +1466,9 @@ extension IRGenerator {
             return existing
         }
 
+        // Create a temp version to handle recursive types.
+        let irType = builder.createStruct(name: entity.mangledName!)
+
         let memberScope = entity.type!.underlyingType!.memberScope!
 
         var irTypes: [IRType] = []
@@ -1486,7 +1488,9 @@ extension IRGenerator {
             }
         }
 
-        return builder.createStruct(name: entity.mangledName!, types: Array(irTypes), isPacked: false)
+        irType.setBody(irTypes, isPacked: false)
+
+        return irType
     }
 }
 

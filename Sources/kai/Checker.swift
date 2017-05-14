@@ -130,8 +130,8 @@ class Type: Equatable, CustomStringConvertible {
         case .builtin(let name):
             return name
 
-        case .named(let entity, let type):
-            return entity.name + " :: " + type.description
+        case .named(let entity, _):
+            return entity.name
 
         case .alias(let entity, let type):
             return entity.name + " aka " + type.description
@@ -1036,7 +1036,45 @@ extension Checker {
                     e.type = Type.named(e, underlyingType: underlyingType)
                 } else if let rvalueType = rvalueType, rvalueType.isStruct, case .litStruct = initExpr! {
 
-                    e.type = Type.named(e, underlyingType: rvalueType).info
+                    let newType = Type.named(e, underlyingType: rvalueType)
+
+                    // Replace nested types
+                    for member in rvalueType.memberScope!.elements.orderedValues {
+                        if member.type!.underlyingType === Type.placeholder {
+
+                            //
+                            // Ensure there is a layer of indirection before the reference to newType
+                            guard member.type!.isPointeresque else {
+                                // FIXME(vdka): currently Entity does not have reference to it's declaring node. We need that to report it's declaration location
+                                reportError("invalid recursive type \(member.type!)", at: initExpr!)
+                                member.type = Type.invalid
+                                return
+                            }
+
+                            var curType = member.type!
+                            loop: while true {
+                                switch curType.kind {
+                                case .pointer(Type.placeholder):
+                                    curType.kind = .pointer(underlyingType: newType)
+                                    break loop
+
+                                case .nullablePointer(Type.placeholder):
+                                    curType.kind = .nullablePointer(underlyingType: newType)
+                                    break loop
+
+                                case .pointer(let nextType),
+                                     .nullablePointer(let nextType):
+                                    curType = nextType
+
+                                default:
+                                    panic()
+                                }
+                            }
+                        }
+                    }
+
+                    e.type = newType.info
+
                 } else if let rvalueType = rvalueType {
 
                     e.type = rvalueType
@@ -1204,18 +1242,21 @@ extension Checker {
                 return type
 
             case .compiletime:
-                switch entity.type!.kind {
-                case .typeInfo(let underlyingType):
+                switch entity.type?.kind {
+                case .typeInfo(let underlyingType)?:
                     return underlyingType
 
-                case .named(_, let underlyingType):
+                case .named(_, let underlyingType)?:
                     return underlyingType
 
-                case .alias(_, let underlyingType):
+                case .alias(_, let underlyingType)?:
                     return underlyingType
 
-                case .struct(_):
+                case .struct(_)?:
                     return entity.type!
+
+                case nil:
+                    return Type.placeholder
 
                 default:
                     reportError("Entity '\(node)' cannot be used as type", at: node)
