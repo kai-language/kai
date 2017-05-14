@@ -1,13 +1,28 @@
 #library "c" libc
 
 print :: (string, ..any) -> void #foreign libc "printf"
+strlen :: (string) -> u64 #foreign libc "strlen"
+isUpper :: (u8) -> i32 #foreign libc "isupper"
+isAlpha :: (u8) -> i32 #foreign libc "isalpha"
+
+make_spongebob :: (text: string) -> void {
+ 	length := strlen(text)
+    shouldLower := true
+	for i := 0; i < length; i += 1 {
+        if isAlpha(text[i]) {
+            if shouldLower && isUpper(text[i]) {
+		        text[i] = text[i] + 0x20
+            } else if !shouldLower && !isUpper(text[i]) {
+                text[i] = text[i] - 0x20
+            }
+        }
+
+        shouldLower = !shouldLower
+	}
+}
 
 main :: () -> void {
-    a := "Hello, world!"
-    b := malloc(14)
-    defer free(b)
-
-    print("Before memcpy: %s\n", b)
-    memcpy((*void)(b), (*void)(a), 14)
-    print("After: %s\n", b)
+    a := "They probably learned Java, maybe learned C or C++, probably learned Python. They're not capable of understanding a brilliant language"
+    make_spongebob(a)
+    print("After: %s\n", a)
 }
