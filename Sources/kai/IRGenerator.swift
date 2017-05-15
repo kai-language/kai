@@ -348,26 +348,17 @@ extension IRGenerator {
                     let tempArrayIr: IRValue
                     let tempArrayIrType = ArrayType(elementType: IntType.int8, count: byteCount)
                     if let function = context.currentProcedure?.llvm {
-                        tempArrayIr = emitEntryBlockAlloca(
-                            in: function,
-                            type: tempArrayIrType,
-                            named: "tmp"
-                        )
+                        tempArrayIr = emitEntryBlockAlloca(in: function, type: tempArrayIrType, named: "tmp")
                     } else {
                         tempArrayIr = emitGlobal(name: "tmp", type: tempArrayIrType, value: nil)
                     }
                     
-                    let voidPtrType = PointerType(pointee: VoidType())
-                    let tempArrayVoidIr = builder.buildBitCast(tempArrayIr, type: voidPtrType)
-                    let litVoidIr = builder.buildBitCast(litIr, type: voidPtrType)
-                    
+                    let tempArrayVoidIr = builder.buildBitCast(tempArrayIr, type: PointerType.toVoid)
+                    let litVoidIr = builder.buildBitCast(litIr, type: PointerType.toVoid)
+
                     let memcpy = module.function(named: "memcpy")!
-                    
-                    let resultIr = builder.buildCall(memcpy, args: [
-                        tempArrayVoidIr,
-                        litVoidIr,
-                        IntType.int64.constant(byteCount)
-                    ])
+
+                    let resultIr = builder.buildCall(memcpy, args: [tempArrayVoidIr, litVoidIr, IntType.int64.constant(byteCount)])
                     
                     irValue = builder.buildBitCast(resultIr, type: PointerType(pointee: IntType.int8))
                 } else {
@@ -1476,12 +1467,14 @@ extension IRGenerator {
 
         let recvType = checker.info.types[receiver]!
         let entity = recvType.memberScope!.lookup(member)!
-//        let entity = recvType.child(member)!
 
-//        let recvEntity = context.scope.lookup(receiver)!
-//        let entity = recvEntity.child(member)
+        var recIrVal = emitExpr(receiver, returnAddress: true)
 
-        let recIrVal = emitExpr(receiver, returnAddress: true)
+        // We need to deref until we have a single level pointer
+        while let pt = recIrVal.type as? PointerType, pt.pointee is PointerType {
+            recIrVal = builder.buildLoad(recIrVal)
+        }
+
         let memberPtr = builder.buildStructGEP(recIrVal, index: Int(entity.offsetInParent!))
 
         if returnAddress {
@@ -1690,6 +1683,10 @@ extension IRGenerator {
         case .enum:
             let width = type.width
             unimplemented()
+
+        case .pointer(Type.void),
+             .nullablePointer(Type.void):
+            return PointerType(pointee: IntType.int8)
             
         case .pointer(let underlyingType),
              .nullablePointer(let underlyingType):
