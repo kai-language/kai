@@ -1454,10 +1454,11 @@ extension IRGenerator {
 
         var recIrVal = emitExpr(receiver, returnAddress: true)
 
-        if recvType.isPointeresque {
+        // We need to deref until we have a single level pointer
+        while let pt = recIrVal.type as? PointerType, pt.pointee is PointerType {
             recIrVal = builder.buildLoad(recIrVal)
         }
-        
+
         let memberPtr = builder.buildStructGEP(recIrVal, index: Int(entity.offsetInParent!))
 
         if returnAddress {
