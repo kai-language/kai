@@ -5,6 +5,8 @@ strlen :: (string) -> u64 #foreign libc "strlen"
 isUpper :: (u8) -> i32 #foreign libc "isupper"
 isAlpha :: (u8) -> i32 #foreign libc "isalpha"
 
+#import "trie.kai"
+
 make_spongebob :: (text: string) -> void {
  	length := strlen(text)
     shouldLower := false
@@ -13,19 +15,15 @@ make_spongebob :: (text: string) -> void {
         
         if !isAlpha(text[i]) continue
         
-        switch {
-        case shouldLower && isUpper(text[i]):
-            text[i] = text[i] + 0x20
-        case !shouldLower && !isUpper(text[i]):
-            text[i] = text[i] - 0x20
-        default:
-            continue
-        }
+        text[i] = shouldLower ? text[i] & ~0xDF : text[i] & 0xDF
 	}
 }
 
 main :: () -> void {
-    a := "They probably learned Java, maybe learned C or C++, probably learned Python. They're not capable of understanding a brilliant language"
+    a := "I love the mocking text code...hahaha"
     make_spongebob(a)
-    print("After: %s\n", a)
+    print("%s\n", a)
+
+
+    trie.test()
 }

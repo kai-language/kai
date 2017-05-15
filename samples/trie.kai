@@ -1,16 +1,9 @@
 #library "c" libc
 
+#import "globals.kai" .
+
 print :: (string, ..any) -> void #foreign libc "printf"
 
-Trie :: struct {
-    key: u8
-    value: string
-    children: [..]Trie
-}
-
-
-main :: () -> void {
-
-    print("Hello, world!\n")
-
+test :: () -> void {
+    print("Pi: %f\n", pi)
 }

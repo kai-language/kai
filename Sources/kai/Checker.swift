@@ -2079,7 +2079,7 @@ extension Checker {
 
             return operandType
 
-        case .bang: // valid on any integer type.
+        case .bang, .tilde: // valid on any integer type.
             let operandType = checkExpr(expr, typeHint: typeHint)
             guard !Type.Flag.integer.union(operandType.flags).isEmpty else {
                 reportError("Undefined unary operation '\(op)' for \(operandType)", at: location)
@@ -2087,7 +2087,7 @@ extension Checker {
             }
 
             return operandType
-
+            
         case .ampersand:
             let operandType = checkExpr(expr, typeHint: typeHint)
 

@@ -1,5 +1,4 @@
 #library "c" libc
-#import "http.kai"
 
 print :: (string, ..any) -> void #foreign libc "printf"
 
@@ -40,7 +39,6 @@ error :: (message: string) -> void {
 PORT : u16 = 8080
 
 main :: () -> void {
-    http.a()
     sockfd := socket(u32(AF_INET), SOCK_STREAM, 0)    
     if sockfd < 0 error("opening socket")
 

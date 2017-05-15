@@ -1449,11 +1449,27 @@ extension IRGenerator {
                 
                 return builder.buildLoad(val)
             } else {
-
-                let val = builder.addGlobal(entity.mangledName!, type: canonicalize(entity.type!))
-                llvmPointers[entity] = val
-
-                return builder.buildLoad(val)
+                switch entity.type?.kind {
+                case .proc(let params, let returns, let isVariadic)?:
+                    let params = params.map {
+                        canonicalize($0.type!)
+                    }
+                    
+                    //TODO: multiple returns
+                    let returnIr = canonicalize(returns.first!)
+                    
+                    let function = FunctionType(argTypes: params, returnType: returnIr, isVarArg: isVariadic)
+                    return builder.addFunction(entity.mangledName!, type: function)
+                default:
+                    let val = builder.addGlobal(entity.mangledName!, type: canonicalize(entity.type!))
+                    llvmPointers[entity] = val
+                    
+                    if returnAddress {
+                        return val
+                    }
+                    
+                    return builder.buildLoad(val)
+                }
             }
         }
 
