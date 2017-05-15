@@ -131,7 +131,7 @@ struct Compiler {
 
         let filePath = try extractFilePath()
 
-        if options.contains("emit-ast") {
+        if options.contains("emit-ast"), options.count > 1 {
             print("\n === Starting Parsing === \n")
         }
 
@@ -153,7 +153,7 @@ struct Compiler {
             }
         }
 
-        if options.contains("emit-typed-ast") {
+        if options.contains("emit-typed-ast"), options.count > 1 {
             print("\n === Starting Checking === \n")
         }
 
@@ -173,7 +173,7 @@ struct Compiler {
             }
         }
 
-        if options.contains("emit-ir") {
+        if options.contains("emit-ir"), options.count > 1 {
             print("\n === Starting IRGen === \n")
         }
 
@@ -195,15 +195,16 @@ struct Compiler {
             let module = try IRGenerator.build(for: file, checker: checker)
 
             if options.contains("emit-ir") {
-                // TODO(vdka): Do we emit file names?
-                module.dump()
+                // NOTE(vdka): This would be weird with multiple files
+                // NOTE(vdka): Not sure how portable this is
+                try module.print(to: "/dev/stdout")
             }
             do {
                 try module.verify()
             } catch {
                 module.dump()
 
-                print("Error did occur while verifying generated IR:")
+                print("\nError did occur while verifying generated IR:\n")
                 print(error)
                 exit(1)
             }
