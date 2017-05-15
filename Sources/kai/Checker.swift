@@ -67,8 +67,12 @@ class Type: Equatable, CustomStringConvertible {
              .enum(let memberScope):
             return memberScope
 
+            
+        case .pointer(let underlyingType),
+             .nullablePointer(let underlyingType):
+            return underlyingType.memberScope
+
         case .builtin,
-             .pointer, .nullablePointer,
              .typeInfo, .proc, .tuple, .array:
             return nil
         }
