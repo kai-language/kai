@@ -4,7 +4,7 @@ set -e
 
 export SDKROOT=$(xcrun --show-sdk-path --sdk macosx)
 
-FLAGS="-Xswiftc -DDebug -Xcc -I/usr/local/opt/llvm/include/ -Xlinker -L/usr/local/opt/llvm/lib/"
+FLAGS="-Xswiftc -DDEBUG -Xcc -I/usr/local/opt/llvm/include/ -Xlinker -L/usr/local/opt/llvm/lib/"
 
 case "$1" in
 run)
