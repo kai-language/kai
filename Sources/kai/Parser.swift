@@ -589,11 +589,22 @@ extension Parser {
         case .keyword(.enum):
             let (_, start) = try consume()
             try consume(.lbrace)
+
+            let prevState = state
+            defer {
+                state = prevState
+            }
+            state.insert(.disallowComma)
             
             var cases: [AstNode] = []
             while let next = try lexer.peek()?.kind, next != .rbrace {
                 let node = try expression()
-                try consumeTerminators()
+
+                if case .comma? = try lexer.peek()?.kind {
+                    try consume()
+                }
+                
+                try consumeTerminators(justNewlines: true)
                 
                 guard node.isIdent || node.isAssign else {
                     reportError("Expected enumeration case", at: node)

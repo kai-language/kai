@@ -21,8 +21,8 @@ class Type: Equatable, CustomStringConvertible {
     enum Kind {
         // These are all special cases of the named Type.
         case builtin(String)
-        case named(Entity, Type)
-        case alias(Entity, Type)
+        case named(Entity)
+        case alias(Entity)
         case `struct`(Scope)
         case `enum`(Scope)
         
@@ -30,60 +30,91 @@ class Type: Equatable, CustomStringConvertible {
         case nullablePointer(underlyingType: Type)
         case array(underlyingType: Type, count: UInt)
         case proc(params: [Entity], returns: [Type], isVariadic: Bool)
-        case typeInfo(underlyingType: Type)
 
         /// Only used for multiple returns.
         case tuple([Type])
+
+        case type(Type)
     }
 
-    var info: Type {
-        return Type(kind: .typeInfo(underlyingType: self), flags: .none, width: UInt(MemoryLayout<Int>.size * 8), location: nil)
-    }
+    var instance: Type? {
 
+        if self === Type.invalid {
+            return self
+        }
+
+        if self === Type.typeInfo {
+            return Type.typeInfo
+        }
+
+        switch self.kind {
+        case .type(let instanceType):
+            return instanceType
+
+        // FIXME(vdka): the hell do we do here?
+        case .builtin(_):
+            return self
+            
+        default:
+            return nil
+        }
+    }
+    
     var underlyingType: Type? {
         switch self.kind {
-        case .named(_, let type),
-             .alias(_, let type):
-            return type.underlyingType
+        case .named(let entity),
+             .alias(let entity):
+            return entity.type!.underlyingType
 
         case .pointer(let underlyingType),
              .nullablePointer(let underlyingType),
-             .typeInfo(let underlyingType),
              .array(let underlyingType, _):
             return underlyingType
 
         case .builtin, .struct, .proc, .tuple, .enum:
             return nil
+
+        case .type(let type):
+            return type
         }
     }
 
     var memberScope: Scope? {
         switch self.kind {
-        case .named(_, let type),
-             .alias(_, let type):
-            return type.memberScope
+        case .named(let entity),
+             .alias(let entity):
+            return entity.type!.memberScope
 
         case .struct(let memberScope),
              .enum(let memberScope):
             return memberScope
 
-            
+        case .type(let type):
+
+            // FIXME
+            // FIXME
+            // FIXME
+            // FIXME(vdka): Access the scope returned *must* only contain members on the Type itself.
+            //   Currently memberscope here includes both `::` & `:=` declarations, where `:=` should 
+            //   be only available on an instance of the type and `::` on the Type itself
+            return type.memberScope
+
         case .pointer(let underlyingType),
              .nullablePointer(let underlyingType):
             return underlyingType.memberScope
 
         case .builtin,
-             .typeInfo, .proc, .tuple, .array:
+             .proc, .tuple, .array:
             return nil
         }
     }
 
-    static func named(_ entity: Entity, underlyingType: Type) -> Type {
-        if underlyingType == Type.invalid {
+    static func named(_ entity: Entity) -> Type {
+        if entity.type == Type.invalid {
             return Type.invalid
         }
 
-        return Type(kind: .named(entity, underlyingType), flags: .none, width: underlyingType.width, location: entity.location)
+        return Type(kind: .named(entity), flags: .none, width: entity.type!.width, location: entity.location)
     }
 
     static func pointer(to underlyingType: Type) -> Type {
@@ -156,11 +187,11 @@ class Type: Equatable, CustomStringConvertible {
         case .builtin(let name):
             return name
 
-        case .named(let entity, _):
+        case .named(let entity):
             return entity.name
 
-        case .alias(let entity, let type):
-            return entity.name + " aka " + type.description
+        case .alias(let entity):
+            return entity.name + " aka " + entity.type!.description
 
         case .pointer(let underlyingType):
             return "*\(underlyingType)"
@@ -209,8 +240,8 @@ class Type: Equatable, CustomStringConvertible {
         case .tuple(let types):
             return "(" + types.map({ $0.description }).joined(separator: ", ") + ")"
 
-        case .typeInfo(let underlyingType):
-            return "TypeInfo(\(underlyingType))"
+        case .type(let instanceType):
+            return "(\(instanceType).Type)"
         }
     }
 
@@ -260,10 +291,9 @@ class Type: Equatable, CustomStringConvertible {
 
     var isNullablePointer: Bool {
         switch kind {
-        case .named(_, let underlyingType),
-             .alias(_, let underlyingType):
-
-            return underlyingType.isNullablePointer
+        case .named(let entity),
+             .alias(let entity):
+            return entity.type!.isNullablePointer
 
         case .nullablePointer:
             return true
@@ -279,10 +309,10 @@ class Type: Equatable, CustomStringConvertible {
     
     var isArray: Bool {
         switch kind {
-        case .named(_, let underlyingType),
-             .alias(_, let underlyingType):
+        case .named(let entity),
+             .alias(let entity):
 
-            return underlyingType.isArray
+            return entity.type!.isArray
 
         case .array:
             return true
@@ -302,28 +332,12 @@ class Type: Equatable, CustomStringConvertible {
     var isStruct: Bool {
 
         switch kind {
-        case .named(_, let underlyingType),
-             .alias(_, let underlyingType):
+        case .named(let entity),
+             .alias(let entity):
 
-            return underlyingType.isStruct
+            return entity.type!.isStruct
 
         case .struct:
-            return true
-
-        default:
-            return false
-        }
-    }
-
-    var isType: Bool {
-
-        switch kind {
-            case .named(_, let underlyingType),
-                 .alias(_, let underlyingType):
-
-            return underlyingType.isType
-
-        case .typeInfo:
             return true
 
         default:
@@ -334,10 +348,10 @@ class Type: Equatable, CustomStringConvertible {
     var isProc: Bool {
 
         switch kind {
-        case .named(_, let underlyingType),
-             .alias(_, let underlyingType):
+        case .named(let entity),
+             .alias(let entity):
 
-            return underlyingType.isProc
+            return entity.type!.isProc
 
         case .proc:
             return true
@@ -354,6 +368,13 @@ class Type: Equatable, CustomStringConvertible {
         return false
     }
 
+    var isType: Bool {
+        if case .type = kind {
+            return true
+        }
+        return false
+    }
+
     static func ==(lhs: Type, rhs: Type) -> Bool {
         switch (lhs.kind, rhs.kind) {
         case (.builtin, .builtin),
@@ -365,8 +386,7 @@ class Type: Equatable, CustomStringConvertible {
 
             return lhs === rhs
 
-        case (.pointer(let lhsUT), .pointer(let rhsUT)),
-             (.typeInfo(let lhsUT), .typeInfo(let rhsUT)):
+        case (.pointer(let lhsUT), .pointer(let rhsUT)):
             return lhsUT == rhsUT
 
         case (.proc(let lhsParams, let lhsResults, let lhsIsVariadic),
@@ -378,6 +398,9 @@ class Type: Equatable, CustomStringConvertible {
                 lhsResults.count == rhsResults.count &&
                 zip(lhsResults, rhsResults).reduce(true, { $0.0 && $0.1.0 == $0.1.1 }) &&
                 lhsIsVariadic == rhsIsVariadic
+
+        case (.type, .type):
+            return true
 
         default:
             return false
@@ -433,7 +456,6 @@ class Entity: PointerHashable {
     enum Kind {
         case runtime
         case compiletime
-        case type(Type)
 
         case magic(EntityExtra)
 
@@ -565,38 +587,6 @@ class Scope: PointerHashable {
     init(parent: Scope?) {
         self.parent = parent
     }
-
-    static var universal: Scope = {
-
-        var s = Scope(parent: nil)
-
-        // TODO(vdka): Create a stdtypes.kai file to refer to for location
-
-        for type in Type.builtin {
-
-            guard let location = type.location else {
-                panic()
-            }
-
-            let e = Entity(name: type.description, location: location, kind: .type(type), owningScope: s)
-            e.type = type.info
-            s.insert(e)
-        }
-
-        Entity.declareBuiltinConstant(name: "true", value: .bool(true), scope: s)
-        Entity.declareBuiltinConstant(name: "false", value: .bool(false), scope: s)
-
-        var e: Entity
-        e = Entity(name: "nil", location: .unknown, kind: .compiletime, owningScope: s)
-        e.type = Type.unconstrNil
-        s.insert(e)
-
-        e = Entity(name: "_", location: .unknown, kind: .compiletime, owningScope: s)
-        e.type = Type.any
-        s.insert(e)
-
-        return s
-    }()
 }
 
 extension Scope {
@@ -997,7 +987,7 @@ extension Checker {
 
         var explicitType: Type?
         if let typeExpr = d.typeExpr {
-            explicitType = lookupType(typeExpr)
+            explicitType = lookupType(typeExpr).instance!
         }
 
         if let explicitType = explicitType, explicitType == Type.invalid {
@@ -1059,13 +1049,11 @@ extension Checker {
                 } else if let explicitType = explicitType {
 
                     e.type = explicitType
-                } else if let rvalueType = rvalueType, rvalueType.isType {
+                } else if let rvalueType = rvalueType, case .litStruct? = initExpr {
 
-                    let underlyingType = rvalueType.underlyingType!
-                    e.type = Type.named(e, underlyingType: underlyingType)
-                } else if let rvalueType = rvalueType, rvalueType.isStruct, case .litStruct = initExpr! {
+                    e.type = rvalueType
 
-                    let newType = Type.named(e, underlyingType: rvalueType)
+                    let newType = Type.named(e)
 
                     // Replace nested types
                     for member in rvalueType.memberScope!.elements.orderedValues {
@@ -1102,8 +1090,13 @@ extension Checker {
                         }
                     }
 
-                    e.type = newType.info
+                } else if let rvalueType = rvalueType, case .litEnum? = initExpr {
 
+                    e.type = rvalueType
+
+                    let newType = Type.named(e)
+
+                    unimplemented()
                 } else if let rvalueType = rvalueType {
 
                     e.type = rvalueType
@@ -1167,7 +1160,7 @@ extension Checker {
 
                     isVariadic = true
                     let type = lookupType(typeNode)
-                    e.type = type
+                    e.type = type.instance!
                 } else {
 
                     checkDecl(paramDecl)
@@ -1190,10 +1183,10 @@ extension Checker {
                     }
 
                     isVariadic = true
-                    type = lookupType(typeNode)
+                    type = lookupType(typeNode).instance!
                 } else {
 
-                    type = lookupType(param)
+                    type = lookupType(param).instance!
                 }
 
                 e.type = type
@@ -1219,12 +1212,12 @@ extension Checker {
                     unimplemented("Default procedure argument values")
                 }
 
-                let returnType = lookupType(type)
+                let returnType = lookupType(type).instance!
                 returnTypes.append(returnType)
 
             default:
                 // If it is not a `declValue` it *must* be a type
-                let returnType = lookupType(result)
+                let returnType = lookupType(result).instance!
                 returnTypes.append(returnType)
             }
         }
@@ -1250,6 +1243,7 @@ extension Checker {
     }
 
     /// Use this when you expect the node you pass in to be a type
+    /// - Note: Will warn if the node cannot be used as a type.
     mutating func lookupType(_ node: AstNode) -> Type {
         if let type = info.types[node] {
             return type
@@ -1263,37 +1257,17 @@ extension Checker {
             }
 
             switch entity.kind {
-            case .type(let type):
-                // FIXME(vdka): Builtins shouldn't be too special and should be handled the same way
-                //   as regular types. Is this a bug?
-
-                // These are the builtin types
-                return type
-
             case .compiletime:
-                switch entity.type?.kind {
-                case .typeInfo(let underlyingType)?:
-                    return underlyingType
 
-                case .named(_, let underlyingType)?:
-                    return underlyingType
-
-                case .alias(_, let underlyingType)?:
-                    return underlyingType
-
-                case .struct(_)?:
-                    return entity.type!
-
-                case nil:
-                    return Type.placeholder
-
-                default:
-                    reportError("Entity '\(node)' cannot be used as type", at: node)
+                guard let type = entity.type, case .type = type.kind else {
+                    reportError("Entity `\(node)` cannot be used as type", at: node)
                     return Type.invalid
                 }
 
+                return type
+
             default:
-                reportError("Entity '\(node)' cannot be used as type", at: node)
+                reportError("Entity `\(node)` cannot be used as type", at: node)
                 return Type.invalid
             }
 
@@ -1303,8 +1277,8 @@ extension Checker {
                 return Type.invalid
             }
 
-            switch entity.kind {
-            case .type(let type):
+            switch entity.type?.kind {
+            case .type(let type)?:
                 return type
 
             default:
@@ -1313,15 +1287,15 @@ extension Checker {
             }
 
         case .typePointer(let type, _):
-            let underlyingType = lookupType(type)
-            return Type.pointer(to: underlyingType)
+            let underlyingType = lookupType(type).instance!
+            return Type.pointer(to: underlyingType).type
 
         case .typeNullablePointer(let type, _):
-            let underlyingType = lookupType(type)
-            return Type.nullablePointer(to: underlyingType)
+            let underlyingType = lookupType(type).instance!
+            return Type.nullablePointer(to: underlyingType).type
 
         case .typeArray(let count, let type, _):
-            let underlyingType = lookupType(type)
+            let underlyingType = lookupType(type).instance!
 
             let countValue: UInt
             switch count {
@@ -1335,7 +1309,7 @@ extension Checker {
                 unimplemented("Non literal array sizes")
             }
 
-            return Type.array(of: underlyingType, with: countValue)
+            return Type.array(of: underlyingType, with: countValue).type
 
         default:
             reportError("'\(node)' cannot be used as a type", at: node)
@@ -1652,7 +1626,14 @@ extension Checker {
                 break
             }
 
-            if case .array(let underlyingType, let count) = explicitType.kind {
+            guard let instanceType = explicitType.instance else {
+                panic()
+            }
+            
+            if case .array(let underlyingType, let count) = instanceType.kind {
+
+                // TODO(vdka): Check the underlying type is a valid MetaType
+                let underlyingInstanceType = underlyingType.instance!
 
                 if elements.count > numericCast(count), count != 0 {
                     reportError("Too many elements in array literal for type `\(explicitType)`", at: elements[numericCast(count)])
@@ -1660,8 +1641,8 @@ extension Checker {
                 }
 
                 for element in elements {
-                    let elType = checkExpr(element, typeHint: underlyingType)
-                    guard canImplicitlyConvert(elType, to: underlyingType) else {
+                    let elType = checkExpr(element, typeHint: underlyingInstanceType)
+                    guard canImplicitlyConvert(elType, to: underlyingInstanceType) else {
                         reportError("Cannot convert `\(elType)` to expected type `\(underlyingType)`", at: element)
                         continue
                     }
@@ -1672,7 +1653,7 @@ extension Checker {
                 break
             }
 
-            if explicitType.isStruct {
+            if instanceType.isStruct {
 
                 var assigned = Array(repeatElement(false, count: elements.count))
                 for (element, member) in zip(elements, explicitType.memberScope!.elements.orderedValues.enumerated()) {
@@ -1689,27 +1670,6 @@ extension Checker {
                 }
 
                 type = explicitType
-
-                // TODO(vdka): When we get tagged unions we want to be able to do the following:
-                /*
-                 Entity :: union {
-
-                    position: V3
-                    velocity: V3
-                    orientation: Quaternion
-
-                    Player: struct {
-                        health: u8
-                        weapon: Weapon
-                    }
-                    Zombie: struct {
-                        health: u8
-                        limbs: []ZombieLimb
-                    }
-                 }
-                 
-                 zombie : Entity = Zombie{}
-                */
                 break
             }
 
@@ -1724,7 +1684,8 @@ extension Checker {
             collectDecls(members)
             checkDecls(in: scope)
 
-            // FIXME(vdka): @hack The ir emitting code should handle the knowledge of values being runtime or not
+            // @hack
+            // FIXME(vdka): The ir emitting code should handle the knowledge of values being runtime or not
             //   We may need to mangle non runtime members here though.
             let entities = members.flatMap({ info.decls[$0] }).flatMap({ $0.entities }).filter {
                 if case .runtime = $0.kind {
@@ -1743,25 +1704,27 @@ extension Checker {
                 totalWidth += entity.type!.width
             }
 
-            type = Type(kind: .struct(scope), flags: .none, width: totalWidth, location: node.startLocation)
+            type = Type(kind: .struct(scope), flags: .none, width: totalWidth, location: node.startLocation).type
 
-        case .litEnum(let cases, _):
+        case .litEnum(let caseNodes, _):
+            
             let scope = pushScope(for: node)
             defer { popScope() }
             
-            var names: [String] = []
-            var values: [Int] = []
-            
+            var cases: [(String, Int)] = []
+
             var currentValue = 0
-            
-            for enumeration in cases {
-                switch enumeration {
+            // FIXME(vdka): Currently there is nothing stopping 2 enumeration cases from having the same value.
+
+            for caseNode in caseNodes {
+
+                switch caseNode {
                 case .ident(let name, _):
-                    names.append(name)
+                    cases.append((name, currentValue))
                     
                 case .stmtAssign(.equals, let lhs, let rhs, _):
                     guard lhs.count == 1 && rhs.count == 1 else {
-                        reportError("Expected enumeration", at: enumeration)
+                        reportError("Expected enumeration", at: caseNode)
                         continue
                     }
                     
@@ -1769,33 +1732,33 @@ extension Checker {
                         reportError("Expected an identifier for enumeration case", at: lhs[0])
                         continue
                     }
-                    
+
+                    // FIXME(vdka): We should not be limitted to literals, it should be anything that is compiletime determinable.
+                    //  This will also disallow negative values. as they are an AstNode.exprUnary.
                     guard case .litInteger(let value, _) = rhs[0] else {
                         reportError("Expected integer value for enumeration case", at: rhs[0])
                         continue
                     }
                     
                     currentValue = Int(value)
-                    names.append(name)
+                    cases.append((name, currentValue))
                     
                 default:
-                    reportError("Excepted enumeration", at: enumeration)
+                    reportError("Excepted enumeration", at: caseNode)
                 }
                 
-                values.append(currentValue)
                 currentValue += 1
             }
 
-            let width = Int(floor(log2(Double(currentValue - 1))) + 1)
-            let caseType = Type.integer(bits: width)
-            
-            for (name, value) in zip(names, values) {
-                let entity = Entity(name: name, kind: .runtime, type: caseType, owningScope: scope)
+            let width = UInt(floor(log2(Double(currentValue - 1))) + 1)
+
+            type = Type(kind: .enum(scope), flags: .none, width: width, location: node.startLocation).type
+
+            for (name, value) in cases {
+                let entity = Entity(name: name, kind: .runtime, type: type, owningScope: scope)
                 entity.value = ExactValue.integer(Int64(value))
                 addEntity(to: scope, entity)
             }
-            
-            type = Type(kind: .enum(scope), flags: .none, width: UInt(width), location: node.startLocation)
             
         case .ident:
             type = checkExprIdent(node)
@@ -1871,17 +1834,20 @@ extension Checker {
                 case .builtin, .struct, .array, .tuple, .enum:
                     return CallKind.invalid
 
-                case .named(_, let underlyingType),
-                     .alias(_, let underlyingType),
-                     .pointer(let underlyingType),
+                case .named(let entity),
+                     .alias(let entity):
+                    return callKind(for: entity.type!)
+
+                case .pointer(let underlyingType),
                      .nullablePointer(let underlyingType):
                     return callKind(for: underlyingType)
 
                 case .proc(let params, let results, let isVariadic):
                     return CallKind.call(params: params, results: results, isVariadic: isVariadic)
 
-                case .typeInfo(let underlyingType):
-                    return CallKind.cast(to: underlyingType)
+                case .type(let type):
+                    // TODO(vdka): Should I be returning the typeinfo or the underlying type here?
+                    return CallKind.cast(to: type.instance!)
                 }
             }
 
@@ -1897,10 +1863,10 @@ extension Checker {
                 // NOTE(vdka): This check allows omitting variadic values.
                 if  (isVariadic && args.count - 1 < params.count) &&
                     (!isVariadic && args.count < params.count) {
-                    reportError("too few arguments to procedure '\(receiver)'", at: node)
+                    reportError("too few arguments to procedure `\(receiver)`", at: node)
                     break
                 } else if args.count > params.count && !isVariadic {
-                    reportError("Too many arguments for procedure '\(receiver)", at: node)
+                    reportError("Too many arguments for procedure `\(receiver)`", at: node)
                     break
                 }
 
@@ -1921,8 +1887,8 @@ extension Checker {
 
                     let numberOfTrailingArgs = args.count - params.count
                     for arg in args.suffix(numberOfTrailingArgs) {
-                        let argType = checkExpr(arg, typeHint: vaargsType)
-                        if !canImplicitlyConvert(argType, to: vaargsType) {
+                        let argType = checkExpr(arg, typeHint: vaargsType.instance!)
+                        if !canImplicitlyConvert(argType, to: vaargsType.instance!) {
                             reportError("Incompatible type for argument, expected '\(vaargsType)' but got '\(argType)'", at: arg)
                             continue
                         }
@@ -2024,24 +1990,37 @@ extension Checker {
             type = memberEntity.type!
 
         case .typePointer(let expr, let location):
-            // TODO(vdka): Typehint should be unwrapped...
-            let operandType = checkExpr(expr, typeHint: typeHint)
-            guard case .typeInfo(let underlyingType) = operandType.kind else {
-                // TODO(vdka): This isn't really a prefix operator anymore
-                reportError("Undefined unary operator `*` for `\(operandType)`", at: location)
+
+            // TODO(vdka): Typehint should be unwrapped. 
+            // NOTE(vdka): Last time you saw this you seen that we can't use `underlyingType`
+            //    because it may recurse *real* deep if you have `****u8`. 
+            //    Instead you want `childType` which for `****u8` would return `***u8`
+            let underlyingType = checkExpr(expr, typeHint: typeHint)
+
+            guard type.isType else {
+                // @errors 
+                // FIXME(vdka): check if message is correct here.
+                reportError("Unresolved Type `\(expr)`", at: location) 
                 return Type.invalid
             }
-            type = Type.pointer(to: underlyingType).info
+
+            type = Type.pointer(to: underlyingType)
 
         case .typeNullablePointer(let expr, let location):
-            // TODO(vdka): Typehint should be unwrapped...
-            let operandType = checkExpr(expr, typeHint: typeHint)
-            guard case .typeInfo(let underlyingType) = operandType.kind else {
-                // TODO(vdka): This isn't really a prefix operator anymore
-                reportError("Undefined unary operator `^` for `\(operandType)`", at: location)
+
+            // TODO(vdka): Typehint should be unwrapped. 
+            // NOTE(vdka): Last time you saw this you seen that we can't use `underlyingType`
+            //    because it may recurse *real* deep if you have `****u8`. 
+            //    Instead you want `childType` which for `****u8` would return `***u8`
+            let underlyingType = checkExpr(expr, typeHint: typeHint)
+
+            guard type.isType else {
+                // @errors 
+                // FIXME(vdka): check if message is correct here.
+                reportError("Unresolved Type `\(expr)`", at: location) 
                 return Type.invalid
             }
-            type = Type.nullablePointer(to: underlyingType).info
+            type = Type.nullablePointer(to: underlyingType)
 
         case .directive(let string, _, _) where string == "foreign":
             // pass through foreign declarations
@@ -2094,15 +2073,7 @@ extension Checker {
             
         case .ampersand:
             let operandType = checkExpr(expr, typeHint: typeHint)
-
             return Type.pointer(to: operandType)
-
-        case .carot:
-            let operandType = checkExpr(expr, typeHint: typeHint)
-            guard case .typeInfo(let underlyingType) = operandType.kind else {
-                panic() // TODO(vdka): Error out.
-            }
-            return Type.nullablePointer(to: underlyingType).info
 
         default:
             reportError("Undefined unary operation '\(op)'", at: location)
@@ -2562,6 +2533,14 @@ extension Checker {
     /// Checks if type `a` can be converted to type `b` implicitly.
     /// True for converting unconstrained types into any of their constrained versions.
     func canImplicitlyConvert(_ type: Type, to target: Type) -> Bool {
+
+        print("\(type.description) -> \(target.description)")
+
+//        raise(SIGSTOP)
+
+        assert(!target.isType)
+        assert(!type.isType)
+        
         if type == target {
             return true
         }

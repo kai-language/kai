@@ -284,8 +284,7 @@ extension IRGenerator {
 
             emitProcedureDefinition(entity, value)
         } else if decl.entities.count == 1, let entity = decl.entities.first,
-            entity.type!.isType, let value = decl.initExprs.first,
-            case .litStruct = value {
+            let value = decl.initExprs.first, case .litStruct = value {
             // struct definitions
 
             emitGlobalType(entity)
@@ -1666,11 +1665,14 @@ extension IRGenerator {
             case "string", "unconstrString":
                 return PointerType(pointee: IntType.int8)
 
+            case "rawptr":
+                return PointerType.toVoid
+
             default:
                 unimplemented("Type emission for type \(type)")
             }
 
-        case .named(let entity, _):
+        case .named(let entity):
 
             if let type = module.type(named: entity.mangledName!) {
                 return type
@@ -1678,7 +1680,7 @@ extension IRGenerator {
 
             return emitGlobalType(entity)
 
-        case .alias(let entity, _):
+        case .alias(let entity):
             if let irType = module.type(named: entity.mangledName!) {
                 return irType
             }
@@ -1694,8 +1696,7 @@ extension IRGenerator {
             return StructType(elementTypes: memberIrTypes)
 
         case .enum:
-            let width = type.width
-            unimplemented()
+            return IntType(width: numericCast(type.width))
 
         case .pointer(Type.void),
              .nullablePointer(Type.void):
@@ -1732,9 +1733,10 @@ extension IRGenerator {
             
         case .tuple(let types):
             return StructType(elementTypes: types.map({ canonicalize($0) }))
-            
-        case .typeInfo:
-            unimplemented("Type info")
+
+        case .type(_):
+            // TODO(vdka): Emit metadata for Type.typeInfo
+            return canonicalize(Type.typeInfo)
         }
     }
 }
