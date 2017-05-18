@@ -1,9 +1,0 @@
-#library "c" libc
-
-#import "globals.kai" .
-
-print :: (string, ..any) -> void #foreign libc "printf"
-
-test :: () -> void {
-    print("Pi: %f\n", pi)
-}
