@@ -1530,7 +1530,7 @@ extension IRGenerator {
         // Create a temp version to handle recursive types.
         let irType = builder.createStruct(name: entity.mangledName!)
 
-        let memberScope = entity.type!.underlyingType!.memberScope!
+        let memberScope = entity.type!.memberScope!
 
         var irTypes: [IRType] = []
 

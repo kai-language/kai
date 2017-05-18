@@ -208,20 +208,25 @@ class Type: Equatable, CustomStringConvertible {
             var str = "("
 
             if isVariadic {
-                if params.count > 1, let firstParam = params.first {
-                    str.append(firstParam.name)
-                    str.append(": ")
-                    str.append(firstParam.type!.description)
-                }
-                for param in params.dropFirst().dropLast() {
-                    str.append(", ")
+
+                var paramStr = ""
+
+                if params.count == 1, let param = params.first {
+                    str.append("..")
                     str.append(param.type!.description)
+                } else {
+
+                    paramStr.append(
+                        params
+                            .dropLast()
+                            .map({ $0.type!.description })
+                            .joined(separator: ", ")
+                    )
+                    paramStr.append(", ..")
+                    paramStr.append(params.last!.type!.description)
                 }
 
-                str.append(", ")
-                str.append(params.last!.name)
-                str.append("..")
-                str.append(params.last!.type!.description)
+                str.append(paramStr)
             } else {
                 str.append(params.map({ $0.type!.description }).joined(separator: ", "))
             }
@@ -240,8 +245,8 @@ class Type: Equatable, CustomStringConvertible {
         case .tuple(let types):
             return "(" + types.map({ $0.description }).joined(separator: ", ") + ")"
 
-        case .type(let instanceType):
-            return "(\(instanceType).Type)"
+        case .type(_):
+            return "Metatype"
         }
     }
 
@@ -748,7 +753,7 @@ extension Checker {
 
     mutating func checkParsedFiles() {
 
-        declareBuiltinProcedures()
+        declareBuiltins()
 
         var fileScopes: [String: Scope] = [:]
 
@@ -987,7 +992,7 @@ extension Checker {
 
         var explicitType: Type?
         if let typeExpr = d.typeExpr {
-            explicitType = lookupType(typeExpr).instance!
+            explicitType = lookupType(typeExpr)
         }
 
         if let explicitType = explicitType, explicitType == Type.invalid {
@@ -1159,8 +1164,7 @@ extension Checker {
                     }
 
                     isVariadic = true
-                    let type = lookupType(typeNode)
-                    e.type = type.instance!
+                    e.type = lookupType(typeNode)
                 } else {
 
                     checkDecl(paramDecl)
@@ -1183,10 +1187,10 @@ extension Checker {
                     }
 
                     isVariadic = true
-                    type = lookupType(typeNode).instance!
+                    type = lookupType(typeNode)
                 } else {
 
-                    type = lookupType(param).instance!
+                    type = lookupType(param)
                 }
 
                 e.type = type
@@ -1212,12 +1216,12 @@ extension Checker {
                     unimplemented("Default procedure argument values")
                 }
 
-                let returnType = lookupType(type).instance!
+                let returnType = lookupType(type)
                 returnTypes.append(returnType)
 
             default:
                 // If it is not a `declValue` it *must* be a type
-                let returnType = lookupType(result).instance!
+                let returnType = lookupType(result)
                 returnTypes.append(returnType)
             }
         }
@@ -1259,14 +1263,15 @@ extension Checker {
             switch entity.kind {
             case .compiletime:
 
-                guard let type = entity.type, case .type = type.kind else {
+                guard let type = entity.type, case .type(let instanceType) = type.kind else {
                     reportError("Entity `\(node)` cannot be used as type", at: node)
                     return Type.invalid
                 }
 
-                return type
+                return instanceType
 
             default:
+                // NOTE(vdka): We could support runtime entities being used as type members.
                 reportError("Entity `\(node)` cannot be used as type", at: node)
                 return Type.invalid
             }
@@ -1287,15 +1292,15 @@ extension Checker {
             }
 
         case .typePointer(let type, _):
-            let underlyingType = lookupType(type).instance!
-            return Type.pointer(to: underlyingType).type
+            let underlyingType = lookupType(type)
+            return Type.pointer(to: underlyingType)
 
         case .typeNullablePointer(let type, _):
-            let underlyingType = lookupType(type).instance!
-            return Type.nullablePointer(to: underlyingType).type
+            let underlyingType = lookupType(type)
+            return Type.nullablePointer(to: underlyingType)
 
         case .typeArray(let count, let type, _):
-            let underlyingType = lookupType(type).instance!
+            let underlyingType = lookupType(type)
 
             let countValue: UInt
             switch count {
@@ -1309,7 +1314,7 @@ extension Checker {
                 unimplemented("Non literal array sizes")
             }
 
-            return Type.array(of: underlyingType, with: countValue).type
+            return Type.array(of: underlyingType, with: countValue)
 
         default:
             reportError("'\(node)' cannot be used as a type", at: node)
@@ -1626,11 +1631,7 @@ extension Checker {
                 break
             }
 
-            guard let instanceType = explicitType.instance else {
-                panic()
-            }
-            
-            if case .array(let underlyingType, let count) = instanceType.kind {
+            if case .array(let underlyingType, let count) = explicitType.kind {
 
                 // TODO(vdka): Check the underlying type is a valid MetaType
                 let underlyingInstanceType = underlyingType.instance!
@@ -1653,7 +1654,7 @@ extension Checker {
                 break
             }
 
-            if instanceType.isStruct {
+            if explicitType.isStruct {
 
                 var assigned = Array(repeatElement(false, count: elements.count))
                 for (element, member) in zip(elements, explicitType.memberScope!.elements.orderedValues.enumerated()) {
@@ -1845,9 +1846,8 @@ extension Checker {
                 case .proc(let params, let results, let isVariadic):
                     return CallKind.call(params: params, results: results, isVariadic: isVariadic)
 
-                case .type(let type):
-                    // TODO(vdka): Should I be returning the typeinfo or the underlying type here?
-                    return CallKind.cast(to: type.instance!)
+                case .type(let instanceType):
+                    return CallKind.cast(to: instanceType)
                 }
             }
 
@@ -1955,6 +1955,9 @@ extension Checker {
             
             case .builtin("string"):
                 type = .u8
+
+            case .builtin("rawptr"):
+                type = .u8
                 
             default:
                 reportError("Cannot subscript non array type", at: receiver)
@@ -2004,7 +2007,7 @@ extension Checker {
                 return Type.invalid
             }
 
-            type = Type.pointer(to: underlyingType)
+            type = Type.pointer(to: underlyingType).type
 
         case .typeNullablePointer(let expr, let location):
 
@@ -2014,13 +2017,13 @@ extension Checker {
             //    Instead you want `childType` which for `****u8` would return `***u8`
             let underlyingType = checkExpr(expr, typeHint: typeHint)
 
-            guard type.isType else {
-                // @errors 
+            guard case .type(let underlyingInstanceType) = underlyingType.kind else {
+                // @errors
                 // FIXME(vdka): check if message is correct here.
                 reportError("Unresolved Type `\(expr)`", at: location) 
                 return Type.invalid
             }
-            type = Type.nullablePointer(to: underlyingType)
+            type = Type.nullablePointer(to: underlyingInstanceType).type
 
         case .directive(let string, _, _) where string == "foreign":
             // pass through foreign declarations
@@ -2534,13 +2537,6 @@ extension Checker {
     /// True for converting unconstrained types into any of their constrained versions.
     func canImplicitlyConvert(_ type: Type, to target: Type) -> Bool {
 
-        print("\(type.description) -> \(target.description)")
-
-//        raise(SIGSTOP)
-
-        assert(!target.isType)
-        assert(!type.isType)
-        
         if type == target {
             return true
         }
@@ -2602,6 +2598,8 @@ extension Checker {
             }
 
             return underlyingType == underlyingTargetType && (count <= targetCount || targetCount == 0)
+        } else if type.isType, target == Type.typeInfo {
+            return true
         }
         
         return false
