@@ -3,37 +3,42 @@ import LLVM
 
 extension Scope {
 
-    static let universal: Scope = {
+    static let universal = Scope(parent: nil)
+}
 
-        var s = Scope(parent: nil)
+func declareBuiltins() {
 
-        // TODO(vdka): Create a stdtypes.kai file to refer to for location
+    for entity in builtinProcedures {
+        Scope.universal.insert(entity)
+    }
+    // TODO(vdka): Create a stdtypes.kai file to refer to for location
 
-        for type in Type.builtin {
+    for type in Type.builtin {
 
-            guard let location = type.location else {
-                panic()
-            }
-
-            let e = Entity(name: type.description, location: location, kind: .compiletime, owningScope: s)
-            e.type = type.type
-            s.insert(e)
+        guard let location = type.location else {
+            panic()
         }
 
-        Entity.declareBuiltinConstant(name: "true", value: .bool(true), scope: s)
-        Entity.declareBuiltinConstant(name: "false", value: .bool(false), scope: s)
+        let e = Entity(name: type.description, location: location, kind: .compiletime, owningScope: Scope.universal)
+        e.type = type.type
+        Scope.universal.insert(e)
+    }
 
-        var e: Entity
-        e = Entity(name: "nil", location: .unknown, kind: .compiletime, owningScope: s)
-        e.type = Type.unconstrNil
-        s.insert(e)
+    // It's complicated...
+    Entity.typeInfo.type = Type.typeInfo.type
+    Scope.universal.insert(Entity.typeInfo)
 
-        e = Entity(name: "_", location: .unknown, kind: .compiletime, owningScope: s)
-        e.type = Type.any
-        s.insert(e)
+    Entity.declareBuiltinConstant(name: "true", value: .bool(true), scope: Scope.universal)
+    Entity.declareBuiltinConstant(name: "false", value: .bool(false), scope: Scope.universal)
 
-        return s
-    }()
+    var e: Entity
+    e = Entity(name: "nil", location: .unknown, kind: .compiletime, owningScope: Scope.universal)
+    e.type = Type.unconstrNil
+    Scope.universal.insert(e)
+
+    e = Entity(name: "_", location: .unknown, kind: .compiletime, owningScope: Scope.universal)
+    e.type = Type.any
+    Scope.universal.insert(e)
 }
 
 extension Type {
@@ -42,7 +47,11 @@ extension Type {
 
         // NOTE(vdka): Order is important later.
 
-        let platformSize = UInt(MemoryLayout<Int>.size)
+        // NOTE(vdka): This isn't exactly correct. But 32 bit is pretty rare now days
+        //   Once we have a project on integrated circuit then we should fix this up.
+        // Maybe LLVM has something here?
+        let platformIntegerSize = UInt(MemoryLayout<Int>.size)
+        let platformPointerSize = UInt(MemoryLayout<UnsafeRawPointer>.size)
                   /* Name,   size, line, flags */
         let short: [(String, UInt, UInt, Flag)] = [
             ("void", 0, 0, .none),
@@ -60,8 +69,8 @@ extension Type {
             ("f32", 4, 0, .float),
             ("f64", 8, 0, .float),
 
-            ("int", UInt(MemoryLayout<Int>.size), 0, [.integer]),
-            ("uint", UInt(MemoryLayout<Int>.size), 0, [.integer, .unsigned]),
+            ("int", platformIntegerSize, 0, [.integer]),
+            ("uint", platformIntegerSize, 0, [.integer, .unsigned]),
 
             // FIXME(vdka): Currently strings are just pointers hence length 8 (will remain?)
             ("string", 8, 0, .string),
@@ -74,7 +83,7 @@ extension Type {
 
             ("any", 0, 0, .none),
 
-            ("rawptr", platformSize, 0, [.pointer]),
+            ("rawptr", platformPointerSize, 0, [.pointer]),
 
             ("<invalid>", 0, 0, .none),
             ("<placeholder>", 0, 0, .none),
@@ -147,23 +156,24 @@ extension Type {
 
         let type = Type(kind: .struct(s), flags: .none, width: totalWidth, location: .unknown)
 
-        //
-        // By making TypeInfo exist in a dummy scope it will never be possible to refer directly to it.
-        // Note that, at this point we cannot make the owning scope `.universal` because that scope 
-        //   depends upon this type.
-        // We will add `entity` to the `universal` scope and set owningScope later (in the init for `universal` scope)
-        let dummyScope = Scope(parent: nil)
-        let entity = Entity(name: "TypeInfo", kind: .compiletime, type: type, owningScope: dummyScope)
-
-        return Type.named(entity)
+        return Type.named(Entity.typeInfo)
     }()
 
     static func copy(_ type: Type) -> Type {
         let copy = Type(kind: type.kind, flags: type.flags, width: type.width, location: type.location)
         return copy
     }
+}
 
-//    static let typeInfo = Type(kind: .struct("TypeInfo"), flags: .none, width: 0, location: nil)
+extension Entity {
+    
+    static let typeInfo: Entity = {
+        
+        let entity = Entity(name: "TypeInfo", kind: .compiletime, type: .placeholder, owningScope: Scope.universal)
+        entity.mangledName = "TypeInfo"
+
+        return entity
+    }()
 }
 
 
@@ -224,7 +234,14 @@ var builtinProcedures: [Entity] = {
             params: [("dest", Type.rawptr), ("src", Type.rawptr), ("len", Type.i64)],
             returns: [Type.rawptr],
             isVariadic: false
-        )
+        ),
+        (
+            "typeof", mangled: "typeof",
+            EntityExtra(singleIrGen: IRGenerator.genForeign, callIrGen: nil),
+            params: [("value", Type.any)],
+            returns: [Type.typeInfo],
+            isVariadic: false
+        ),
     ]
 
     return short.map { (name, mangledName, extra, params, returns, isVariadic) in
@@ -236,8 +253,6 @@ var builtinProcedures: [Entity] = {
         
         let paramEntities = params.map({ Entity(name: $0.0, kind: .magic(extra), type: $0.1, owningScope: procScope) })
         entity.type = Type(kind: .proc(params: paramEntities, returns: returns, isVariadic: isVariadic), width: 0)
-
-        print(entity.type!.description)
 
         return entity
     }
@@ -275,12 +290,5 @@ extension IRGenerator {
         let type = checker.info.types[arg]!
 
         return (type.width + 7) / 8
-    }
-}
-
-func declareBuiltinProcedures() {
-
-    for entity in builtinProcedures {
-        Scope.universal.insert(entity)
     }
 }

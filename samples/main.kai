@@ -167,11 +167,11 @@ main :: () -> void {
         buf := malloc(16)
 
         for i : u8 = 0; i < 16; i += 1 {
-            <buf[int(i)] = i
+            buf[int(i)] = i
         }
 
         for i := 0; i < 16; i += 1 {
-            printf("%hhx ", <buf[i])
+            printf("%hhx ", buf[i])
         }
 
         free(buf)
@@ -208,3 +208,4 @@ main :: () -> void {
         */
     }
 }
+
