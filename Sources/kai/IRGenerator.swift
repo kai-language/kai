@@ -280,7 +280,7 @@ extension IRGenerator {
             }
 
         } else if decl.entities.count == 1, let entity = decl.entities.first,
-            case .proc = entity.type!.kind, let value = decl.initExprs.first {
+            let value = decl.initExprs.first, case .litProc = value {
 
             emitProcedureDefinition(entity, value)
         } else if decl.entities.count == 1, let entity = decl.entities.first,

@@ -39,7 +39,8 @@ struct Parser {
         static let `default`:               State = 0b0000
         static let disallowComma:           State = 0b0001
         static let disallowCompoundLiteral: State = 0b0010
-        static let permitCaseOrDefault:     State = 0b0011
+        static let permitCaseOrDefault:     State = 0b0100
+        static let disallowEquals:          State = 0b1000
     }
 }
 
@@ -104,6 +105,9 @@ extension Parser {
         switch token {
         case .operator(let symbol):
             return InfixOperator.lookup(symbol)?.lbp
+
+        case .assign where state.contains(.disallowEquals):
+            return 0
 
         case .colon, .assign:
             return 10
@@ -793,6 +797,7 @@ extension Parser {
 
             let prevState = state
             state.insert(.disallowCompoundLiteral)
+            state.insert(.disallowEquals)
 
             let results = try expression()
             let type = AstNode.typeProc(params: explode(lvalue), results: explode(results), lvalue.startLocation ..< results.endLocation)
@@ -810,8 +815,7 @@ extension Parser {
                 return AstNode.litProc(type: type, body: directiveNode, lvalue.startLocation ..< directiveNode.endLocation)
 
             default:
-                reportError("Procedure types cannot be used as values", at: type) // NOTE(vdka): Should this warn more about missing body in proc literal?
-                return AstNode.invalid(type.location)
+                return type
             }
 
         default:
