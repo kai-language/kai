@@ -1667,11 +1667,14 @@ extension IRGenerator {
 
             return emitGlobalType(entity)
 
-        case .alias(let entity):
+        case .alias(let type, let entity):
             if let irType = module.type(named: entity.mangledName!) {
                 return irType
             }
-             // should have already been declared?
+
+            // FIXME(vdka): Create an alias in LLVM for niceness.
+
+            // should have already been declared?
             // Maybe not the case if the referenced type is in another module, in which case what do we do?
             fatalError()
 

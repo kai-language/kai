@@ -235,13 +235,6 @@ var builtinProcedures: [Entity] = {
             returns: [Type.rawptr],
             isVariadic: false
         ),
-        (
-            "typeof", mangled: "typeof",
-            EntityExtra(singleIrGen: IRGenerator.genForeign, callIrGen: nil),
-            params: [("value", Type.any)],
-            returns: [Type.typeInfo],
-            isVariadic: false
-        ),
     ]
 
     return short.map { (name, mangledName, extra, params, returns, isVariadic) in

@@ -22,7 +22,7 @@ class Type: Equatable, CustomStringConvertible {
         // These are all special cases of the named Type.
         case builtin(String)
         case named(Entity)
-        case alias(Entity)
+        case alias(Type, Entity)
         case `struct`(Scope)
         case `enum`(Scope)
         
@@ -62,9 +62,11 @@ class Type: Equatable, CustomStringConvertible {
     
     var underlyingType: Type? {
         switch self.kind {
-        case .named(let entity),
-             .alias(let entity):
+        case .named(let entity):
             return entity.type!.underlyingType
+
+        case .alias(let type, _):
+            return type
 
         case .pointer(let underlyingType),
              .nullablePointer(let underlyingType),
@@ -81,9 +83,11 @@ class Type: Equatable, CustomStringConvertible {
 
     var memberScope: Scope? {
         switch self.kind {
-        case .named(let entity),
-             .alias(let entity):
+        case .named(let entity):
             return entity.type!.memberScope
+
+        case .alias(let type, _):
+            return type.memberScope
 
         case .struct(let memberScope),
              .enum(let memberScope):
@@ -109,11 +113,15 @@ class Type: Equatable, CustomStringConvertible {
         }
     }
 
+    static func alias(of type: Type, with entity: Entity) -> Type {
+
+        return Type(kind: .alias(type, entity), flags: .none, width: type.width, location: entity.location)
+    }
+
     static func named(_ entity: Entity) -> Type {
         if entity.type == Type.invalid {
             return Type.invalid
         }
-
         return Type(kind: .named(entity), flags: .none, width: entity.type!.width, location: entity.location)
     }
 
@@ -190,8 +198,8 @@ class Type: Equatable, CustomStringConvertible {
         case .named(let entity):
             return entity.name
 
-        case .alias(let entity):
-            return entity.name + " aka " + entity.type!.description
+        case .alias(let type, let entity):
+            return entity.name + " aka " + type.description
 
         case .pointer(let underlyingType):
             return "*\(underlyingType)"
@@ -296,9 +304,11 @@ class Type: Equatable, CustomStringConvertible {
 
     var isNullablePointer: Bool {
         switch kind {
-        case .named(let entity),
-             .alias(let entity):
+        case .named(let entity):
             return entity.type!.isNullablePointer
+
+        case .alias(let type, _):
+            return type.isNullablePointer
 
         case .nullablePointer:
             return true
@@ -314,10 +324,11 @@ class Type: Equatable, CustomStringConvertible {
     
     var isArray: Bool {
         switch kind {
-        case .named(let entity),
-             .alias(let entity):
-
+        case .named(let entity):
             return entity.type!.isArray
+
+        case .alias(let type, _):
+            return type.isArray
 
         case .array:
             return true
@@ -337,10 +348,11 @@ class Type: Equatable, CustomStringConvertible {
     var isStruct: Bool {
 
         switch kind {
-        case .named(let entity),
-             .alias(let entity):
-
+        case .named(let entity):
             return entity.type!.isStruct
+            
+        case .alias(let type, _):
+            return type.isStruct
 
         case .struct:
             return true
@@ -353,10 +365,11 @@ class Type: Equatable, CustomStringConvertible {
     var isProc: Bool {
 
         switch kind {
-        case .named(let entity),
-             .alias(let entity):
-
+        case .named(let entity):
             return entity.type!.isProc
+                
+        case .alias(let type, _):
+            return type.isProc
 
         case .proc:
             return true
@@ -1102,6 +1115,9 @@ extension Checker {
                     let newType = Type.named(e)
 
                     unimplemented()
+                } else if let rvalueType = rvalueType, rvalueType.isType {
+
+                    e.type = Type.alias(of: rvalueType, with: e)
                 } else if let rvalueType = rvalueType {
 
                     e.type = rvalueType
@@ -1833,9 +1849,11 @@ extension Checker {
                 case .builtin, .struct, .array, .tuple, .enum:
                     return CallKind.invalid
 
-                case .named(let entity),
-                     .alias(let entity):
+                case .named(let entity):
                     return callKind(for: entity.type!)
+                        
+                case .alias(let type, _):
+                    return callKind(for: type)
 
                 case .pointer(let underlyingType),
                      .nullablePointer(let underlyingType):

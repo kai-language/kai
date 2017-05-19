@@ -180,10 +180,25 @@ main :: () -> void {
     section()
 
     {
+
+        printPerson :: (person: Person) -> void {
+            printf("Person{'%s', %d}\n", person.name, person.age)
+        }
+
+        // aliasing
+
+        BusinessPerson :: Person
+
+        gary := Person{"Gary", 43}
+
+        printPerson(gary)
+
         red := Color{"Red", 0xff, 0, 0}
 
         bob := Person{"Bob", 21, red}
         bob.age = 42
+
+        printPerson(bob)
 
         bob.favoriteColor = Color{"Blue", 0, 0, 0xff}
 
