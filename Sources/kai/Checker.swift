@@ -1118,14 +1118,9 @@ extension Checker {
 
 extension Checker {
 
-    /// - Warning: You must queue the procedure to have it's body checked later.
-    /// - Returns: The type for the procedure
-    mutating func checkProcLitType(_ node: AstNode) -> Type {
-        guard case .litProc(let typeNode, _, _) = node else {
-            panic()
-        }
+    mutating func checkProcType(_ node: AstNode) -> Type {
 
-        guard case .typeProc(let params, let results, _) = typeNode else {
+        guard case .typeProc(let params, let results, _) = node else {
             panic()
         }
 
@@ -1290,6 +1285,9 @@ extension Checker {
                 reportError("Entity '\(node)' cannot be used as type", at: node)
                 return Type.invalid
             }
+
+        case .typeProc:
+            return checkProcType(node)
 
         case .typePointer(let type, _):
             let underlyingType = lookupType(type)
@@ -1781,8 +1779,8 @@ extension Checker {
                 performImplicitConversion(on: &type, to: typeHint)
             }
 
-        case .litProc:
-            type = checkProcLitType(node)
+        case .litProc(let typeNode, _, _):
+            type = checkProcType(typeNode)
             queueCheckProc(node, type: type, decl: decl)
 
         case .exprParen(let node, _):
