@@ -1804,12 +1804,19 @@ extension Checker {
 
         case .exprDeref(let expr, let location):
             let operandType = checkExpr(expr, typeHint: typeHint)
-
-            guard case .pointer(let underlyingType) = operandType.kind else {
+            
+            switch operandType.kind {
+            case .pointer(let underlyingType):
+                type = underlyingType
+                
+            case .nullablePointer:
+                reportError("Cannot dereference a nullable pointer. Try unwrapping it first", at: location)
+                return Type.invalid
+                
+            default:
                 reportError("Cannot dereference non pointer type `\(operandType)`", at: location)
                 return Type.invalid
             }
-            type = underlyingType
 
         case .exprUnary:
             type = checkExprUnary(node, typeHint: typeHint)
@@ -2544,6 +2551,8 @@ extension Checker {
             return true
         } else if a.isPointer && b.isPointer {
             return true
+        } else if a.isNullablePointer && b.isNullablePointer {
+            return true
         }
 
         return false
@@ -2598,10 +2607,17 @@ extension Checker {
         } else if type.isBooleanesque && target.isBoolean {
             // Numeric types can be converted to booleans through truncation
             return true
+        } else if type.isNullablePointer && target.isBoolean {
+            // Equivalent to a `null` check
+            return true
         } else if case .pointer(let underlyingType) = type.kind, case .pointer(let underlyingTargetType) = target.kind {
+            return canImplicitlyConvert(underlyingType, to: underlyingTargetType)
+        } else if case .pointer(let underlyingType) = type.kind, case .nullablePointer(let underlyingTargetType) = target.kind {
             return canImplicitlyConvert(underlyingType, to: underlyingTargetType)
         } else if case .pointer(let underlyingType) = type.kind, target.isString {
             return canImplicitlyConvert(underlyingType, to: .u8)
+        } else if case .nullablePointer(let underlyingType) = type.kind, case .nullablePointer(let underlyingTargetType) = target.kind {
+            return canImplicitlyConvert(underlyingType, to: underlyingTargetType)
         } else if case .array(let underlyingType, _) = type.kind, target.isString {
             return canImplicitlyConvert(underlyingType, to: .u8)
         } else if case .array(let underlyingType, let count) = type.kind,

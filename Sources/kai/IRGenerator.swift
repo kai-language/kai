@@ -1501,6 +1501,10 @@ extension IRGenerator {
     func emitExprConditional(_ node: AstNode) -> IRValue {
         let val = emitExpr(node)
 
+        if val.type is PointerType {
+            return builder.buildIsNotNull(val)
+        }
+        
         guard (val.type as! IntType).width == 1 else {
             return builder.buildTrunc(val, type: IntType.int1)
         }

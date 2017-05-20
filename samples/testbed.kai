@@ -24,9 +24,18 @@ lowercase :: (str: string) -> void {
     }
 }
 
+test :: () -> ^u64 {
+    return nil
+}
+
 main :: () -> void {
     name := "BrETT"
     lowercase(name)
+
+    testResult := test()
+    if testResult {
+        printf("It wasn't null: %d\n", <(*u64)(testResult))
+    }
 
     printf("%s (length: %llu, capacity: %llu)\n", name, len(name), cap(name))
 
