@@ -2016,14 +2016,14 @@ extension Checker {
             //    Instead you want `childType` which for `****u8` would return `***u8`
             let underlyingType = checkExpr(expr, typeHint: typeHint)
 
-            guard type.isType else {
+            guard case .type(let underlyingInstanceType) = underlyingType.kind else {
                 // @errors 
                 // FIXME(vdka): check if message is correct here.
                 reportError("Unresolved Type `\(expr)`", at: location) 
                 return Type.invalid
             }
 
-            type = Type.pointer(to: underlyingType).type
+            type = Type.pointer(to: underlyingInstanceType).type
 
         case .typeNullablePointer(let expr, let location):
 

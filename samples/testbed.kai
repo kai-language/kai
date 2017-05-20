@@ -8,10 +8,6 @@ cap :: (str: string) -> u64 {
     return <(*u64)(&str[-8])
 }
 
-isASCIIAlpha :: (char: u8) -> bool {
-    return (char >= 0x41 && char <= 0x5A) || (char >= 0x61 && char <= 0x7A)
-}
-
 uppercase :: (str: string) -> void {
     length := len(str)
 
