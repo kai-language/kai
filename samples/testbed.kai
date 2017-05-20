@@ -2,6 +2,10 @@
 
 #import "string.kai" str 
 
+test :: () -> ^u64 {
+    return nil
+}
+
 main :: () -> void {
     name := "Brett"
     length := str.len(name)
