@@ -1,29 +1,37 @@
 #library "c" libc
 
-print :: (string, ..any) -> void #foreign libc "printf"
-strlen :: (string) -> u64 #foreign libc "strlen"
-isUpper :: (u8) -> i32 #foreign libc "isupper"
-isAlpha :: (u8) -> i32 #foreign libc "isalpha"
+len :: (str: string) -> u64 {
+    return <(*u64)(&str[-16])
+}
 
-#import "trie.kai"
+cap :: (str: string) -> u64 {
+    return <(*u64)(&str[-8])
+}
 
-make_spongebob :: (text: string) -> void {
- 	length := strlen(text)
-    shouldLower := false
-	for i := 0; i < length; i += 1 {
-        shouldLower = !shouldLower
-        
-        if !isAlpha(text[i]) continue
-        
-        text[i] = shouldLower ? text[i] & ~0xDF : text[i] & 0xDF
-	}
+isASCIIAlpha :: (char: u8) -> bool {
+    return (char >= 0x41 && char <= 0x5A) || (char >= 0x61 && char <= 0x7A)
+}
+
+uppercase :: (str: string) -> void {
+    length := len(str)
+
+    for i := 0; i < length; i += 1 {
+        str[i] = str[i] & 0xDF
+    }
+}
+
+lowercase :: (str: string) -> void {
+    length := len(str)
+
+    for i := 0; i < length; i += 1 {
+        str[i] = str[i] | 0x20
+    }
 }
 
 main :: () -> void {
-    a := "I love the mocking text code...hahaha"
-    make_spongebob(a)
-    print("%s\n", a)
+    name := "BrETT"
+    lowercase(name)
 
+    printf("%s (length: %llu, capacity: %llu)\n", name, len(name), cap(name))
 
-    trie.test()
 }
