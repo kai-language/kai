@@ -149,13 +149,6 @@ extension Parser {
 
             return AstNode.typePointer(type: type, location ..< type.endLocation)
 
-        case .operator(.carot):
-            let (_, location) = try consume()
-
-            let underlyingType = try expression(10)
-
-            return AstNode.typeNullablePointer(type: underlyingType, location ..< underlyingType.endLocation)
-
         case .operator(let symbol):
             guard let nud = PrefixOperator.lookup(symbol)?.nud else {
                 let (_, location) = try consume()
