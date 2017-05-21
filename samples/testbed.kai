@@ -1,15 +1,10 @@
 #library "c" libc
 
-len :: (str: string) -> u64 {
-    return <(*u64)(&str[-16])
-}
-
-cap :: (str: string) -> u64 {
-    return <(*u64)(&str[-8])
-}
+#import "string.kai" str 
 
 main :: () -> void {
-    buffer: [255]i8
+    name := "Brett"
+    length := str.len(name)
 
-    ptr := (*i8)(buffer)
+    printf("%s is %llu bytes long\n", name, length)
 }

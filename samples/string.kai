@@ -1,0 +1,7 @@
+len :: (str: string) -> u64 {
+    return <(*u64)(&str[-16])
+}
+
+cap :: (str: string) -> u64 {
+    return <(*u64)(&str[-8])
+}

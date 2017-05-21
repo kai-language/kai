@@ -1976,10 +1976,7 @@ extension Checker {
                     break
                 }
             
-            case .builtin("string"):
-                type = .u8
-
-            case .builtin("rawptr"):
+            case .builtin("string"), .builtin("rawptr"), .builtin("unconstrString"):
                 type = .u8
                 
             default:
