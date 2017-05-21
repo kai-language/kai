@@ -87,7 +87,6 @@ indirect enum AstNode {
     /// - Parameter params:
     case typeProc(params: [AstNode], results: [AstNode], SourceRange)
     case typePointer(type: AstNode, SourceRange)
-    case typeNullablePointer(type: AstNode, SourceRange)
     case typeArray(count: AstNode?, type: AstNode, SourceRange)
 }
 
@@ -163,7 +162,6 @@ extension AstNode {
              .stmtContinue(let location),
              .typeProc(_, _, let location),
              .typePointer(_, let location),
-             .typeNullablePointer(_, let location),
              .typeArray(_, _, let location):
 
              return location
@@ -603,9 +601,6 @@ extension AstNode: CustomStringConvertible {
         case .typePointer(let type, _):
             return "*\(type)"
 
-        case .typeNullablePointer(let type, _):
-            return "^\(type)"
-
         case .typeArray(let count, let type, _):
             return "[\(count?.description ?? "0")]\(type)"
         }
@@ -665,7 +660,6 @@ extension AstNode {
         case .typeProc: return "typeProc"
         case .typeArray: return "typeArray"
         case .typePointer: return "typePointer"
-        case .typeNullablePointer: return "typeNullablePointer"
         case .stmtExpr: return "stmtExpr"
         }
     }
@@ -903,9 +897,6 @@ extension AstNode {
             renamedChildren.append(("results", resultList))
 
         case .typePointer(let type, _):
-            labeled.append(("type", type.description))
-
-        case .typeNullablePointer(let type, _):
             labeled.append(("type", type.description))
 
         case .typeArray(let count, let type, _):
@@ -1169,9 +1160,6 @@ extension AstNode {
             renamedChildren.append(("results", resultList))
 
         case .typePointer(let type, _):
-            labeled.append(("type", type.description))
-
-        case .typeNullablePointer(let type, _):
             labeled.append(("type", type.description))
 
         case .typeArray(let count, let type, _):

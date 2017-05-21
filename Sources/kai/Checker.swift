@@ -27,7 +27,6 @@ class Type: Equatable, CustomStringConvertible {
         case `enum`(Scope)
         
         case pointer(underlyingType: Type)
-        case nullablePointer(underlyingType: Type)
         case array(underlyingType: Type, count: UInt)
         case proc(params: [Entity], returns: [Type], isVariadic: Bool)
 
@@ -69,7 +68,6 @@ class Type: Equatable, CustomStringConvertible {
             return type
 
         case .pointer(let underlyingType),
-             .nullablePointer(let underlyingType),
              .array(let underlyingType, _):
             return underlyingType
 
@@ -103,8 +101,7 @@ class Type: Equatable, CustomStringConvertible {
             //   be only available on an instance of the type and `::` on the Type itself
             return type.memberScope
 
-        case .pointer(let underlyingType),
-             .nullablePointer(let underlyingType):
+        case .pointer(let underlyingType):
             return underlyingType.memberScope
 
         case .builtin,
@@ -130,13 +127,6 @@ class Type: Equatable, CustomStringConvertible {
             return Type.invalid
         }
         return Type(kind: .pointer(underlyingType: underlyingType), flags: .pointer, width: UInt(MemoryLayout<Int>.size * 8), location: nil)
-    }
-
-    static func nullablePointer(to underlyingType: Type) -> Type {
-        if underlyingType == Type.invalid {
-            return Type.invalid
-        }
-        return Type(kind: .nullablePointer(underlyingType: underlyingType), flags: .pointer, width: UInt(MemoryLayout<Int>.size * 8), location: nil)
     }
 
     static func array(of underlyingType: Type, with count: UInt) -> Type {
@@ -203,9 +193,6 @@ class Type: Equatable, CustomStringConvertible {
 
         case .pointer(let underlyingType):
             return "*\(underlyingType)"
-
-        case .nullablePointer(let underlyingType):
-            return "^\(underlyingType)"
 
         case .array(let underlyingType, let count):
             return "[\(count)]\(underlyingType)"
@@ -302,26 +289,6 @@ class Type: Equatable, CustomStringConvertible {
         return flags.contains(.pointer)
     }
 
-    var isNullablePointer: Bool {
-        switch kind {
-        case .named(let entity):
-            return entity.type!.isNullablePointer
-
-        case .alias(let type, _):
-            return type.isNullablePointer
-
-        case .nullablePointer:
-            return true
-
-        default:
-            return false
-        }
-    }
-
-    var isPointeresque: Bool {
-        return isPointer || isNullablePointer
-    }
-    
     var isArray: Bool {
         switch kind {
         case .named(let entity):
@@ -1088,7 +1055,7 @@ extension Checker {
 
                             //
                             // Ensure there is a layer of indirection before the reference to newType
-                            guard member.type!.isPointeresque else {
+                            guard member.type!.isPointer else {
                                 // FIXME(vdka): currently Entity does not have reference to it's declaring node. We need that to report it's declaration location
                                 reportError("invalid recursive type \(member.type!)", at: initExpr!)
                                 member.type = Type.invalid
@@ -1102,12 +1069,7 @@ extension Checker {
                                     curType.kind = .pointer(underlyingType: newType)
                                     break loop
 
-                                case .nullablePointer(Type.placeholder):
-                                    curType.kind = .nullablePointer(underlyingType: newType)
-                                    break loop
-
-                                case .pointer(let nextType),
-                                     .nullablePointer(let nextType):
+                                case .pointer(let nextType):
                                     curType = nextType
 
                                 default:
@@ -1317,10 +1279,6 @@ extension Checker {
         case .typePointer(let type, _):
             let underlyingType = lookupType(type)
             return Type.pointer(to: underlyingType)
-
-        case .typeNullablePointer(let type, _):
-            let underlyingType = lookupType(type)
-            return Type.nullablePointer(to: underlyingType)
 
         case .typeArray(let count, let type, _):
             let underlyingType = lookupType(type)
@@ -1539,7 +1497,7 @@ extension Checker {
                             return
                         }
 
-                        guard entity.type!.isPointer || entity.type!.isNullablePointer else {
+                        guard entity.type!.isPointer else {
                             reportError("FIXME(vdka): Some error", at: expr)
                             return
                         }
@@ -1864,8 +1822,7 @@ extension Checker {
                 case .alias(let type, _):
                     return callKind(for: type)
 
-                case .pointer(let underlyingType),
-                     .nullablePointer(let underlyingType):
+                case .pointer(let underlyingType):
                     return callKind(for: underlyingType)
 
                 case .proc(let params, let results, let isVariadic):
@@ -1961,8 +1918,7 @@ extension Checker {
             
             switch receiverType.kind {
             case .array(let underlyingType, _),
-                 .pointer(let underlyingType),
-                 .nullablePointer(let underlyingType):
+                 .pointer(let underlyingType):
              
                 switch receiverType.kind {
                 case .array:
@@ -1970,9 +1926,6 @@ extension Checker {
                     
                 case .pointer:
                     type = .pointer(to: underlyingType)
-                    
-                case .nullablePointer:
-                    type = .nullablePointer(to: underlyingType)
                     
                 default:
                     break
@@ -2033,22 +1986,6 @@ extension Checker {
             }
 
             type = Type.pointer(to: underlyingType).type
-
-        case .typeNullablePointer(let expr, let location):
-
-            // TODO(vdka): Typehint should be unwrapped. 
-            // NOTE(vdka): Last time you saw this you seen that we can't use `underlyingType`
-            //    because it may recurse *real* deep if you have `****u8`. 
-            //    Instead you want `childType` which for `****u8` would return `***u8`
-            let underlyingType = checkExpr(expr, typeHint: typeHint)
-
-            guard case .type(let underlyingInstanceType) = underlyingType.kind else {
-                // @errors
-                // FIXME(vdka): check if message is correct here.
-                reportError("Unresolved Type `\(expr)`", at: location) 
-                return Type.invalid
-            }
-            type = Type.nullablePointer(to: underlyingInstanceType).type
 
         case .directive(let string, _, _) where string == "foreign":
             // pass through foreign declarations
@@ -2284,13 +2221,6 @@ extension Checker {
         //
         if canImplicitlyConvert(exprType, to: targetType) {
             attemptLiteralConstraint(expr, to: targetType)
-            return targetType
-        }
-
-        if case .pointer(let exprUnderlyingType) = exprType.kind,
-            case .nullablePointer(let targetUnderlyingType) = targetType.kind,
-            canImplicitlyConvert(exprUnderlyingType, to: targetUnderlyingType) {
-
             return targetType
         }
 
@@ -2601,9 +2531,6 @@ extension Checker {
             if type.isString && target == Type.pointer(to: Type.void) {
                 return true
             }
-            if type == Type.unconstrNil && target.isNullablePointer {
-                return true
-            }
         } else if type.isBooleanesque && target.isBoolean {
             // Numeric types can be converted to booleans through truncation
             return true
@@ -2703,7 +2630,7 @@ extension Checker {
             info.types[node] = type
 
         case .ident("nil", _):
-            guard type.isNullablePointer else {
+            guard type.isPointer else {
                 return
             }
 

@@ -1411,7 +1411,7 @@ extension IRGenerator {
             ptr = builder.buildGEP(lvalue, indices: [index])
         }
 
-        if returnAddress || type.isPointeresque {
+        if returnAddress || type.isPointer {
             return ptr
         }
 
@@ -1688,12 +1688,10 @@ extension IRGenerator {
         case .enum:
             return IntType(width: numericCast(type.width))
 
-        case .pointer(Type.void),
-             .nullablePointer(Type.void):
+        case .pointer(Type.void):
             return PointerType(pointee: IntType.int8)
             
-        case .pointer(let underlyingType),
-             .nullablePointer(let underlyingType):
+        case .pointer(let underlyingType):
             return PointerType(pointee: canonicalize(underlyingType))
 
         case .array(let underlyingType, let count):
