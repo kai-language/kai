@@ -962,16 +962,25 @@ extension Checker {
                     addEntity(to: parentScope, entity)
                     parentScope.file!.importedEntities.append(entity)
                 }
+
+                continue
+            }
+
+            var identifier: String
+            if case .ident(let ident, _)? = importName {
+                identifier = ident
             } else {
-                let (importName, error) = Checker.pathToEntityName(fullpath)
+                let (ident, error) = Checker.pathToEntityName(fullpath)
                 if error {
                     reportError("File name cannot be automatically assigned an identifier name, you will have to manually specify one.", at: path)
-                } else {
-                    let e = Entity(name: importName, location: path.startLocation, kind: .importName, owningScope: scope)
-                    e.childScope = scope
-                    addEntity(to: parentScope, e)
+                    continue
                 }
+                identifier = ident
             }
+            
+            let e = Entity(name: identifier, location: path.startLocation, kind: .importName, owningScope: scope)
+            e.childScope = scope
+            addEntity(to: parentScope, e)
         }
     }
 
