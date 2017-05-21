@@ -2296,6 +2296,13 @@ extension Checker {
             return targetType
         }
         
+        if case .array(let underlyingType, _) = exprType.kind,
+            case .pointer(let targetUnderlyingType) = targetType.kind,
+            canImplicitlyConvert(underlyingType, to: targetUnderlyingType) {
+            
+            return targetType
+        }
+        
         //
         // Ensure the two types are of the same size
         //
@@ -2561,10 +2568,10 @@ extension Checker {
     /// Checks if type `a` can be converted to type `b` implicitly.
     /// True for converting unconstrained types into any of their constrained versions.
     func canImplicitlyConvert(_ type: Type, to target: Type) -> Bool {
-
         if type == target {
             return true
         }
+        
         if target == Type.any {
             return true
         }
@@ -2601,13 +2608,20 @@ extension Checker {
             if type.isString && target == Type.pointer(to: Type.void) {
                 return true
             }
-            if type == Type.unconstrNil && target.isNullablePointer {
+            // FIXME: In the future, this will only allow nullable pointers.
+            // Currently, until sema gets better, we allow both pointers to be
+            // null.
+            if type == Type.unconstrNil && target.isPointeresque {
                 return true
             }
         } else if type.isBooleanesque && target.isBoolean {
             // Numeric types can be converted to booleans through truncation
             return true
-        } else if type.isNullablePointer && target.isBoolean {
+        } else if type.isPointeresque && target.isBoolean {
+            // FIXME: In the future, this will only allow nullable pointers.
+            // Currently, until sema gets better, we allow both pointers to be
+            // null.
+            
             // Equivalent to a `null` check
             return true
         } else if case .pointer(let underlyingType) = type.kind, case .pointer(let underlyingTargetType) = target.kind {
