@@ -17,8 +17,8 @@ clearBackground :: (color: Color) -> void #foreign raylib "ClearBackground"
 drawText :: (string, x: i32, y: i32, size: i32, color: Color) -> void #foreign raylib "DrawText"
 
 main :: () -> void {
-	lightGray   := Color { 0xC8, 0xC8, 0xC8, 0xFF }
-	raywhite    := Color { 0xF5, 0xF5, 0xF5, 0xFF }
+	background := Color { 0x2A, 0x36, 0x3B, 0xFF }
+	foreground := Color { 0xFE, 0xCE, 0xA8, 0xFF }
 
 	screenWidth: i32 = 800
 	screenHeight: i32 = 450
@@ -30,8 +30,8 @@ main :: () -> void {
 	for !windowShouldClose() {
 		beginDrawing();
 
-			clearBackground(raywhite)
-			drawText("Congrats! You created your first language!", 190, 200, 20, lightGray)
+			clearBackground(background)
+			drawText("Congrats! You created your first language!", 190, 200, 20, foreground)
 
 		endDrawing()
 	}
