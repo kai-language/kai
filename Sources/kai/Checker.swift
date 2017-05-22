@@ -28,6 +28,7 @@ class Type: Equatable, CustomStringConvertible {
         
         case pointer(underlyingType: Type)
         case array(underlyingType: Type, count: UInt)
+        case dynamicArray(underlyingType: Type)
         case proc(params: [Entity], returns: [Type], isVariadic: Bool)
 
         /// Only used for multiple returns.
@@ -68,7 +69,8 @@ class Type: Equatable, CustomStringConvertible {
             return type
 
         case .pointer(let underlyingType),
-             .array(let underlyingType, _):
+             .array(let underlyingType, _),
+             .dynamicArray(let underlyingType):
             return underlyingType
 
         case .builtin, .struct, .proc, .tuple, .enum:
@@ -105,7 +107,7 @@ class Type: Equatable, CustomStringConvertible {
             return underlyingType.memberScope
 
         case .builtin,
-             .proc, .tuple, .array:
+             .proc, .tuple, .array, .dynamicArray:
             return nil
         }
     }
@@ -133,8 +135,18 @@ class Type: Equatable, CustomStringConvertible {
         if underlyingType == Type.invalid {
             return Type.invalid
         }
+        
         // NOTE(vdka): Size may not be correct with alignments and paddings?
         return Type(kind: .array(underlyingType: underlyingType, count: count), flags: .none, width: underlyingType.width * count, location: nil)
+    }
+    
+    static func dynamicArray(of underlyingType: Type) -> Type {
+        if underlyingType == Type.invalid {
+            return Type.invalid
+        }
+        
+        // NOTE(vdka, Brett): Size may not be correct with alignments and paddings?
+        return Type(kind: .dynamicArray(underlyingType: underlyingType), flags: .none, width: underlyingType.width, location: nil)
     }
 
     static func tuple(of types: [Type]) -> Type {
@@ -197,6 +209,9 @@ class Type: Equatable, CustomStringConvertible {
         case .array(let underlyingType, let count):
             return "[\(count)]\(underlyingType)"
 
+        case .dynamicArray(let underlyingType):
+            return "[..]\(underlyingType)"
+            
         case .proc(let params, let results, let isVariadic):
             // FIXME(vdka): This is wrong.
             // `(, array..[0]any) -> void` should be `(array: [0]any) -> void`
@@ -1144,6 +1159,12 @@ extension Checker {
                         reportError("Can only use `..` as final param in list", at: param)
                         return Type.invalid
                     }
+                    
+                    guard let typeNode = typeNode else {
+                        // TODO: tip/suggestion support
+                        reportError("Expected type after `..`\n    Replace with `..any` or append expected type", at: param)
+                        return Type.invalid
+                    }
 
                     isVariadic = true
                     e.type = lookupType(typeNode)
@@ -1168,6 +1189,12 @@ extension Checker {
                         return Type.invalid
                     }
 
+                    guard let typeNode = typeNode else {
+                        // TODO: tip/suggestion support
+                        reportError("Expected type after `..`\n    Replace with `..any` or append expected type", at: param)
+                        return Type.invalid
+                    }
+                    
                     isVariadic = true
                     type = lookupType(typeNode)
                 } else {
@@ -1287,6 +1314,9 @@ extension Checker {
             switch count {
             case .litInteger(let count, _)?:
                 countValue = UInt(count)
+                
+            case .ellipsis?:
+                return Type.dynamicArray(of: underlyingType)
                 
             case .none:
                 countValue = 0
@@ -1816,7 +1846,7 @@ extension Checker {
             func callKind(for type: Type) -> CallKind {
 
                 switch type.kind {
-                case .builtin, .struct, .array, .tuple, .enum:
+                case .builtin, .struct, .array, .dynamicArray, .tuple, .enum:
                     return CallKind.invalid
 
                 case .named(let entity):

@@ -38,7 +38,7 @@ indirect enum AstNode {
     case ident(String, SourceRange)
     case directive(String, args: [AstNode], SourceRange)
 
-    case ellipsis(AstNode, SourceRange)
+    case ellipsis(AstNode?, SourceRange)
 
     case litInteger(Int64, SourceRange)
     case litFloat(Double, SourceRange)
@@ -697,8 +697,10 @@ extension AstNode {
             unlabeled.append(directive)
 
         case .ellipsis(let expr, _):
-            children.append(expr)
-
+            if let expr = expr {
+                children.append(expr)
+            }
+            
         case .litInteger(let val, _):
             unlabeled.append("'" + val.description + "'")
 
@@ -964,7 +966,9 @@ extension AstNode {
             unlabeled.append(directive)
 
         case .ellipsis(let expr, _):
-            children.append(expr)
+            if let expr = expr {
+                children.append(expr)
+            }
 
         case .litInteger(let val, _):
             unlabeled.append("'" + val.description + "'")

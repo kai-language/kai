@@ -39,8 +39,9 @@ struct Parser {
         static let `default`:               State = 0b0000
         static let disallowComma:           State = 0b0001
         static let disallowCompoundLiteral: State = 0b0010
-        static let permitCaseOrDefault:     State = 0b0100
-        static let disallowEquals:          State = 0b1000
+        static let permitCaseOrDefault:     State = 0b0011
+        static let disallowEquals:          State = 0b0100
+        static let arrayCount:              State = 0b0101
     }
 }
 
@@ -160,8 +161,15 @@ extension Parser {
 
         case .ellipsis:
             let (_, ellipsis) = try consume()
-            let expr = try expression(UInt8.max) // TODO(vdka): Binding power?
-            return AstNode.ellipsis(expr, ellipsis ..< expr.endLocation)
+            
+            let expr: AstNode?
+            if state.contains(.arrayCount) {
+                expr = nil
+            } else {
+                expr = try expression(UInt8.max) // TODO(vdka): Binding power?
+            }
+
+             return AstNode.ellipsis(expr, ellipsis ..< (expr?.endLocation ?? ellipsis))
 
         case .ident(let symbol):
             let (_, location) = try consume()
@@ -191,8 +199,10 @@ extension Parser {
 
                 count = nil
             } else {
-                
+                let prevState = state
+                state.insert(.arrayCount)
                 count = try expression()
+                state = prevState
             }
             
             try consume(.rbrack)

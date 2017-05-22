@@ -1714,6 +1714,9 @@ extension IRGenerator {
         case .array(let underlyingType, let count):
             return ArrayType(elementType: canonicalize(underlyingType), count: Int(count))
 
+        case .dynamicArray(let underlyingType):
+            unimplemented()
+            
         case .proc(let params, let results, let isVariadic):
 
             let paramTypes: [IRType]

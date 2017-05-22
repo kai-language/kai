@@ -1,14 +1,5 @@
 #library "c" libc
 
-#import "string.kai" str 
-
-test :: () -> ^u64 {
-    return nil
-}
-
 main :: () -> void {
-    name := "Brett"
-    length := str.len(name)
-
-    printf("%s is %llu bytes long\n", name, length)
+    dynamic : [..]i8 = { 1, 2, 3, 4 }   
 }
