@@ -1,17 +1,24 @@
 
-Color :: enum { red, green, blue }
+//Direction :: enum {
+//    north,
+//    east,
+//    south,
+//    west
+//}
 
 Person :: struct {
     name: string
-    favColor: Color
+    age: int
 }
 
-Company :: struct {
-    boss: Person
-}
+//Company :: struct {
+//    boss: Person
+//}
 
 main :: () -> void {
 
-    color := Color.red
+    //dir := Direction.north
+
+    gary := Person{"Gary", 23}
 }
 

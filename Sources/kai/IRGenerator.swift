@@ -330,9 +330,6 @@ extension IRGenerator {
                 if entity.name == "_" {
                     continue // do nothing.
                 }
-                if case .alias? = entity.type?.kind {
-                    continue
-                }
 
                 let entityType = entity.type!
                 let irType = canonicalize(entityType)
@@ -1659,24 +1656,14 @@ extension IRGenerator {
                 unimplemented("Type emission for type \(type)")
             }
 
-        case .named(let entity):
+        case .named(_, let entity):
+            // NOTE(vdka): I feel like we actually need to use the type here.
 
             if let type = module.type(named: entity.mangledName!) {
                 return type
             }
 
             return emitGlobalType(entity)
-
-        case .alias(let type, let entity):
-            if let irType = module.type(named: entity.mangledName!) {
-                return irType
-            }
-
-            // FIXME(vdka): Create an alias in LLVM for niceness.
-
-            // should have already been declared?
-            // Maybe not the case if the referenced type is in another module, in which case what do we do?
-            fatalError()
 
         case .struct(let members):
 
@@ -1722,9 +1709,8 @@ extension IRGenerator {
         case .tuple(let types):
             return StructType(elementTypes: types.map({ canonicalize($0) }))
 
-        case .type(_):
-            // TODO(vdka): Emit metadata for Type.typeInfo
-            return canonicalize(Type.typeInfo)
+        case .instance(let type):
+            return canonicalize(type)
         }
     }
 }

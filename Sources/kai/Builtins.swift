@@ -20,7 +20,7 @@ func declareBuiltins() {
         }
 
         let e = Entity(name: type.description, location: location, kind: .compiletime, owningScope: Scope.universal)
-        e.type = type.type
+        e.type = type
         Scope.universal.insert(e)
     }
 
@@ -132,10 +132,11 @@ extension Type {
     static let invalid = builtin[22]
     static let placeholder = builtin[23]
 
-
     var type: Type {
-        let type = Type.copy(Type.typeInfo)
-        type.kind = .type(self)
+        guard case .instance(let type) = kind else {
+            return Type.typeInfo
+        }
+        
         return type
     }
 
@@ -156,7 +157,7 @@ extension Type {
 
         let type = Type(kind: .struct(s), flags: .none, width: totalWidth, location: .unknown)
 
-        return Type.named(Entity.typeInfo)
+        return Type.named(type, with: Entity.typeInfo)
     }()
 
     static func copy(_ type: Type) -> Type {
