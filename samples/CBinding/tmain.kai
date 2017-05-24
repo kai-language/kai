@@ -1,0 +1,122 @@
+#library "/usr/local/lib/libglfw.dylib" glfw
+#library "OpenGL.framework" gl
+#library "libraylib.a" raylib
+
+Color :: struct {
+    r, g, b, a: u8
+}
+
+Texture2D :: struct {
+    id: u32
+    width: i32
+    height: i32
+    mipmaps: i32
+    format: i32
+}
+
+initWindow :: (i32, i32, title: string) -> void #foreign raylib "InitWindow"
+closeWindow :: () -> void #foreign raylib "CloseWindow"
+setTargetFPS :: (i32) -> void #foreign raylib "SetTargetFPS"
+windowShouldClose :: () -> bool #foreign raylib "WindowShouldClose"
+beginDrawing :: () -> void #foreign raylib "BeginDrawing"
+endDrawing :: () -> void #foreign raylib "EndDrawing"
+clearBackground :: (color: Color) -> void #foreign raylib "ClearBackground"
+drawText :: (string, x: i32, y: i32, size: i32, color: Color) -> void #foreign raylib "DrawText"
+drawRectangle :: (x: i32, y: i32, width: i32, height: i32, color: Color) -> void #foreign raylib "DrawRectangle"
+getMouseX :: () -> i32 #foreign raylib "GetMouseX"
+getMouseY :: () -> i32 #foreign raylib "GetMouseY"
+random :: (min: i32, max: i32) -> i32 #foreign raylib "GetRandomValue"
+
+getAJob :: () -> i32, i32 {
+    x := random(1, 800)
+    y := random(1, 450)
+
+    return x, y
+}
+
+
+main :: () -> void {
+    background  := Color { 0x2A, 0x36, 0x3B, 0xFF }
+    foreground  := Color { 0xFE, 0xCE, 0xA8, 0xFF }
+    block       := Color { 0xCC, 0x52, 0x7A, 0xFF }
+    clear       := Color { 0xFF, 0xFF, 0xFF, 0xFF }
+
+    screenWidth: i32 = 800
+    screenHeight: i32 = 450
+
+    initWindow(screenWidth, screenHeight, "Presented using Raylib in Kai")
+
+    setTargetFPS(60)
+
+    xPositions: [100]i32
+    yPositions: [100]i32
+    xGoals: [100]i32
+    yGoals: [100]i32
+
+    xStart: i32 = screenWidth / 2
+    yStart: i32 = screenHeight / 2
+
+    for i := 0; i < 100; i += 1 {
+        xPositions[i] = xStart
+        yPositions[i] = yStart
+
+        x, y := getAJob()
+        xGoals[i], yGoals[i] = getAJob()
+    }
+
+    speed : i32 = 5
+
+    for !windowShouldClose() {
+        x := getMouseX()
+        y := getMouseY()
+
+        beginDrawing()
+        clearBackground(background)
+
+        for i := 0; i < 100; i += 1 {
+            blockX := xPositions[i]
+            blockY := yPositions[i]
+            blockTargetX := xGoals[i]
+            blockTargetY := yGoals[i]    
+
+            if blockX < blockTargetX {
+                blockX += speed
+            } else if blockX > blockTargetX {
+                blockX -= speed
+            }
+
+            if blockY < blockTargetY {
+                blockY += speed
+            } else if blockY > blockTargetY {
+                blockY -= speed
+            }
+
+            deltaX : i32 = blockX - blockTargetX
+            if deltaX >= 0 && deltaX <= speed {
+                blockX = blockTargetX
+            }
+
+            deltaY : i32 = blockY - blockTargetY
+            if deltaY >= 0 && deltaY <= speed {
+                blockY = blockTargetY
+            }
+
+            if blockX == blockTargetX && blockY == blockTargetY {
+                blockTargetX, blockTargetY = getAJob()
+                xGoals[i] = blockTargetX
+                yGoals[i] = blockTargetY
+            }
+
+            xPositions[i] = blockX
+            yPositions[i] = blockY
+
+            drawRectangle(blockX, blockY, 32, 32, block)
+        }
+
+            drawText("Congrats! You created your first language!", x, y, 20, foreground)
+
+        endDrawing()
+    }
+
+    closeWindow()
+}

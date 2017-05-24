@@ -1462,7 +1462,10 @@ extension IRGenerator {
                     let returnIr = canonicalize(returns.first!)
                     
                     let function = FunctionType(argTypes: params, returnType: returnIr, isVarArg: isVariadic)
-                    return builder.addFunction(entity.mangledName!, type: function)
+                    let ptr = builder.addFunction(entity.mangledName!, type: function)
+                    llvmPointers[entity] = ptr
+                    return ptr
+                    
                 default:
                     let val = builder.addGlobal(entity.mangledName!, type: canonicalize(entity.type!))
                     llvmPointers[entity] = val
