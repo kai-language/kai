@@ -1535,19 +1535,19 @@ extension Checker {
 
         switch node {
         case .litInteger:
-            type = Type.unconstrInteger
+            type = Type.unconstrInteger.instance
             if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
                 performImplicitConversion(on: &type, to: typeHint)
             }
 
         case .litFloat:
-            type = Type.unconstrFloat
+            type = Type.unconstrFloat.instance
             if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
                 performImplicitConversion(on: &type, to: typeHint)
             }
 
         case .litString:
-            type = Type.unconstrString
+            type = Type.unconstrString.instance
             if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
                 performImplicitConversion(on: &type, to: typeHint)
             }
@@ -1556,7 +1556,7 @@ extension Checker {
 
             // NOTE(vdka): litCompounds mostly ignore the typeHint thanks to having an explicit type (here typeNode)
 
-            let explicitType = lookupType(typeNode)
+            let explicitType = lookupType(typeNode).instance
 
             if elements.isEmpty {
                 type = explicitType
@@ -1704,20 +1704,20 @@ extension Checker {
 
         case .directive("file", let args, _):
             assert(args.isEmpty)
-            type = Type.unconstrString
+            type = Type.unconstrString.instance
             if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
                 performImplicitConversion(on: &type, to: typeHint)
             }
 
         case .directive("line", let args, _):
             assert(args.isEmpty)
-            type = Type.unconstrInteger
+            type = Type.unconstrInteger.instance
             if let typeHint = typeHint, canImplicitlyConvert(type, to: typeHint) {
                 performImplicitConversion(on: &type, to: typeHint)
             }
 
         case .litProc(let typeNode, _, _):
-            type = checkProcType(typeNode)
+            type = checkProcType(typeNode).instance
             queueCheckProc(node, type: type, decl: decl)
 
         case .exprParen(let node, _):
@@ -2201,7 +2201,8 @@ extension Checker {
 
         assert(info.types[pi.node] != nil)
 
-        guard case .proc(let params, let results, let isVariadic) = pi.type.kind else {
+        // pi.type.type because we don't want to use the instance.
+        guard case .proc(let params, let results, let isVariadic) = pi.type.type.kind else {
             panic()
         }
 
@@ -2446,6 +2447,12 @@ extension Checker {
     /// Checks if type `a` can be converted to type `b` implicitly.
     /// True for converting unconstrained types into any of their constrained versions.
     func canImplicitlyConvert(_ type: Type, to target: Type) -> Bool {
+
+        if type.isInstance {
+            assert(target.isInstance)
+        } else {
+            assert(target.isType)
+        }
 
         if type == target {
             return true
