@@ -40,7 +40,7 @@ class Type: Equatable, CustomStringConvertible {
         precondition(!isInstance)
         precondition(!isTuple)
 
-        return Type(kind: .instance(self), width: width)
+        return Type(kind: .instance(self), flags: self.flags, width: width)
     }
     
     var underlyingType: Type? {
@@ -205,7 +205,7 @@ class Type: Equatable, CustomStringConvertible {
             return "(" + types.map({ $0.description }).joined(separator: ", ") + ")"
 
         case .instance(let type):
-            return type.description
+            return "instance of " + type.description
         }
     }
 
@@ -338,6 +338,24 @@ class Type: Equatable, CustomStringConvertible {
     }
 
     static func ==(lhs: Type, rhs: Type) -> Bool {
+
+        var lhs = lhs
+        var rhs = rhs
+
+        switch (lhs.kind, rhs.kind) {
+        case (.instance(let lhsMetatype), .instance(let rhsMetatype)):
+            lhs = lhsMetatype
+            rhs = rhsMetatype
+
+        case _ where lhs === Type.invalid || rhs === Type.invalid:
+            return lhs === rhs
+
+        default:
+            
+            // Any two non instances are equal and are to be treated as TypeInfo
+            return true
+        }
+        
         switch (lhs.kind, rhs.kind) {
         case (.builtin, .builtin),
              (.struct, .struct),
@@ -358,8 +376,10 @@ class Type: Equatable, CustomStringConvertible {
                 zip(lhsResults, rhsResults).reduce(true, { $0.0 && $0.1.0 == $0.1.1 }) &&
                 lhsIsVariadic == rhsIsVariadic
 
-        case (.instance(let lhsType), .instance(let rhsType)):
-            return lhsType === rhsType
+        case (.instance, .instance),
+             (.instance, _),
+             (_, .instance):
+            panic("Instances must have been unwrapped already, somehow you have an instance of an instance")
 
         default:
             return false
@@ -928,7 +948,7 @@ extension Checker {
 
         var explicitType: Type?
         if let typeExpr = d.typeExpr {
-            explicitType = lookupType(typeExpr)
+            explicitType = lookupType(typeExpr).instance
         }
 
         if let explicitType = explicitType, explicitType == Type.invalid {
@@ -1100,7 +1120,7 @@ extension Checker {
                     }
 
                     isVariadic = true
-                    e.type = lookupType(typeNode)
+                    e.type = lookupType(typeNode).instance
                 } else {
 
                     checkDecl(paramDecl)
@@ -1152,12 +1172,12 @@ extension Checker {
                     unimplemented("Default procedure argument values")
                 }
 
-                let returnType = lookupType(type)
+                let returnType = lookupType(type).instance
                 returnTypes.append(returnType)
 
             default:
                 // If it is not a `declValue` it *must* be a type
-                let returnType = lookupType(result)
+                let returnType = lookupType(result).instance
                 returnTypes.append(returnType)
             }
         }
@@ -1563,7 +1583,7 @@ extension Checker {
                 break
             }
 
-            if case .array(let underlyingType, let count) = explicitType.kind {
+            if case .array(let underlyingType, let count) = explicitType.metatype.kind {
 
                 // TODO(vdka): Check the underlying type is a valid MetaType
                 // FIXME(vdka): This will likely break for type aliased arrays.
@@ -1824,8 +1844,8 @@ extension Checker {
 
                     let numberOfTrailingArgs = args.count - params.count
                     for arg in args.suffix(numberOfTrailingArgs) {
-                        let argType = checkExpr(arg, typeHint: vaargsType.instance)
-                        if !canImplicitlyConvert(argType, to: vaargsType.instance) {
+                        let argType = checkExpr(arg, typeHint: vaargsType)
+                        if !canImplicitlyConvert(argType, to: vaargsType) {
                             reportError("Incompatible type for argument, expected '\(vaargsType)' but got '\(argType)'", at: arg)
                             continue
                         }
@@ -1940,7 +1960,7 @@ extension Checker {
                 return Type.invalid
             }
 
-            type = Type.pointer(to: underlyingType).type
+            type = Type.pointer(to: underlyingType).metatype
 
         case .directive(let string, _, _) where string == "foreign":
             // pass through foreign declarations
@@ -2202,7 +2222,7 @@ extension Checker {
         assert(info.types[pi.node] != nil)
 
         // pi.type.type because we don't want to use the instance.
-        guard case .proc(let params, let results, let isVariadic) = pi.type.type.kind else {
+        guard case .proc(let params, let results, let isVariadic) = pi.type.metatype.kind else {
             panic()
         }
 
@@ -2448,18 +2468,14 @@ extension Checker {
     /// True for converting unconstrained types into any of their constrained versions.
     func canImplicitlyConvert(_ type: Type, to target: Type) -> Bool {
 
-        if type.isInstance {
-            assert(target.isInstance)
-        } else {
-            assert(target.isType)
-        }
-
         if type == target {
             return true
         }
         if target == Type.any {
             return true
         }
+
+        
 
         if type.isUnconstrained {
             if type.isFloat && target.isFloat {

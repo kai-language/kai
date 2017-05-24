@@ -818,7 +818,7 @@ extension IRGenerator {
 
         let procedure = builder.addFunction(entity.mangledName!, type: procIrType)
 
-        guard case .proc(let params, _, _) = entity.type!.kind else {
+        guard case .proc(let params, _, _) = entity.type!.metatype.kind else {
             panic()
         }
 
@@ -877,7 +877,7 @@ extension IRGenerator {
         let type = checker.info.types[node]!
         let irType = canonicalize(type) as! FunctionType
 
-        guard case .proc(let params, let results, _) = type.kind else {
+        guard case .proc(let params, let results, _) = type.metatype.kind else {
             panic()
         }
 
@@ -1047,7 +1047,7 @@ extension IRGenerator {
         case .litCompound(_, let elements, _):
             let type = checker.info.types[node]!
 
-            switch type.kind {
+            switch type.metatype.kind {
             case .named:
                 if type.isStruct {
                     fallthrough

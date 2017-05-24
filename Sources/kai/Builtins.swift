@@ -25,7 +25,7 @@ func declareBuiltins() {
     }
 
     // It's complicated...
-    Entity.typeInfo.type = Type.typeInfo.type
+    Entity.typeInfo.type = Type.typeInfo.metatype
     Scope.universal.insert(Entity.typeInfo)
 
     Entity.declareBuiltinConstant(name: "true", value: .bool(true), scope: Scope.universal)
@@ -132,7 +132,7 @@ extension Type {
     static let invalid = builtin[22]
     static let placeholder = builtin[23]
 
-    var type: Type {
+    var metatype: Type {
         guard case .instance(let type) = kind else {
             return Type.typeInfo
         }
@@ -245,8 +245,11 @@ var builtinProcedures: [Entity] = {
         let procScope = Scope(parent: Scope.universal)
         entity.childScope = procScope
         
-        let paramEntities = params.map({ Entity(name: $0.0, kind: .magic(extra), type: $0.1, owningScope: procScope) })
-        entity.type = Type(kind: .proc(params: paramEntities, returns: returns, isVariadic: isVariadic), width: 0)
+        let paramEntities = params.map { name, type in
+            return Entity(name: name, kind: .magic(extra), type: type.instance, owningScope: procScope)
+        }
+
+        entity.type = Type(kind: .proc(params: paramEntities, returns: returns, isVariadic: isVariadic), width: 0).instance
 
         return entity
     }
