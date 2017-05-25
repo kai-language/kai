@@ -9,7 +9,7 @@ FLAGS="-Xswiftc -DDEBUG -Xcc -I/usr/local/opt/llvm/include/ -Xlinker -L/usr/loca
 case "$1" in
 run)
     swift build $FLAGS
-    cp .build/debug/kai $HOME/.dotfiles/bin/
+    cp .build/debug/kai /usr/local/bin/
 
     if [ -z "$2" ]; then
         .build/debug/kai --emit-all samples/main.kai
@@ -26,7 +26,7 @@ xcode)
 ;;
 *)
     swift build $FLAGS
-    cp .build/debug/kai $HOME/.dotfiles/bin/
+    cp .build/debug/kai /usr/local/bin/
 esac
 
 echo "done"

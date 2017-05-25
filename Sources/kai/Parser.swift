@@ -41,7 +41,6 @@ struct Parser {
         static let disallowCompoundLiteral: State = 0b0010
         static let permitCaseOrDefault:     State = 0b0011
         static let disallowEquals:          State = 0b0100
-        static let arrayCount:              State = 0b0101
     }
 }
 
@@ -162,14 +161,9 @@ extension Parser {
         case .ellipsis:
             let (_, ellipsis) = try consume()
             
-            let expr: AstNode?
-            if state.contains(.arrayCount) {
-                expr = nil
-            } else {
-                expr = try expression(UInt8.max) // TODO(vdka): Binding power?
-            }
+            let expr = try expression(UInt8.max) // TODO(vdka): Binding power?
 
-             return AstNode.ellipsis(expr, ellipsis ..< (expr?.endLocation ?? ellipsis))
+            return AstNode.ellipsis(expr, ellipsis ..< expr.endLocation)
 
         case .ident(let symbol):
             let (_, location) = try consume()
@@ -196,13 +190,9 @@ extension Parser {
 
             var count: AstNode?
             if case (.rbrack, let rbrack)? = try lexer.peek() {
-
                 count = nil
             } else {
-                let prevState = state
-                state.insert(.arrayCount)
                 count = try expression()
-                state = prevState
             }
             
             try consume(.rbrack)

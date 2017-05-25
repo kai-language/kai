@@ -1,0 +1,22 @@
+Array_string :: struct {
+    length: u64
+    capacity: u64
+    data: *string
+}
+
+make_StringArray :: (capacity: u64) -> Array_string {
+    // assumes 64bit-width pointer
+    ptr := (*string)(malloc(capacity * 8))
+
+    return Array_string {
+        0, capacity, ptr
+    }
+}
+
+set_stringArray :: (array: *Array_string, index: u64, value: string) {
+    a := 0
+}
+
+main :: () -> void {
+    printf("Hello, world!\n")
+}

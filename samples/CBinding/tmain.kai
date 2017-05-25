@@ -34,6 +34,16 @@ getAJob :: () -> i32, i32 {
     return x, y
 }
 
+getAColour :: () -> Color {
+    r := u8(random(1, 255))
+    g := u8(random(1, 255))
+    b := u8(random(1, 255))
+
+    return Color {
+        0x00, g, b, 0xFF
+    }
+}
+
 
 main :: () -> void {
     background  := Color { 0x2A, 0x36, 0x3B, 0xFF }
@@ -50,8 +60,9 @@ main :: () -> void {
 
     xPositions: [100]i32
     yPositions: [100]i32
-    xGoals: [100]i32
-    yGoals: [100]i32
+    xGoals:     [100]i32
+    yGoals:     [100]i32
+    colours:    [100]Color
 
     xStart: i32 = screenWidth / 2
     yStart: i32 = screenHeight / 2
@@ -61,7 +72,10 @@ main :: () -> void {
         yPositions[i] = yStart
 
         x, y := getAJob()
-        xGoals[i], yGoals[i] = getAJob()
+        xGoals[i] = x
+        yGoals[i] = y   
+
+        colours[i] = getAColour()
     }
 
     speed : i32 = 5
@@ -110,7 +124,10 @@ main :: () -> void {
             xPositions[i] = blockX
             yPositions[i] = blockY
 
-            drawRectangle(blockX, blockY, 32, 32, block)
+            colour := colours[i]
+            printf("%d %d %d %d\n", colour.r, colour.g, colour.b, colour.a)
+
+            drawRectangle(blockX, blockY, 32, 32, colours[i])
         }
 
             drawText("Congrats! You created your first language!", x, y, 20, foreground)
