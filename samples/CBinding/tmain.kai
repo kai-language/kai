@@ -28,10 +28,7 @@ getMouseY :: () -> i32 #foreign raylib "GetMouseY"
 random :: (min: i32, max: i32) -> i32 #foreign raylib "GetRandomValue"
 
 getAJob :: () -> i32, i32 {
-    x := random(1, 800)
-    y := random(1, 450)
-
-    return x, y
+    return random(1, 800), random(1, 450)
 }
 
 getAColour :: () -> Color {
@@ -40,7 +37,7 @@ getAColour :: () -> Color {
     b := u8(random(1, 255))
 
     return Color {
-        0x00, g, b, 0xFF
+        r, g, b, 0xFF
     }
 }
 
@@ -71,10 +68,7 @@ main :: () -> void {
         xPositions[i] = xStart
         yPositions[i] = yStart
 
-        x, y := getAJob()
-        xGoals[i] = x
-        yGoals[i] = y   
-
+        xGoals[i], yGoals[i] = getAJob()
         colours[i] = getAColour()
     }
 
@@ -123,9 +117,6 @@ main :: () -> void {
 
             xPositions[i] = blockX
             yPositions[i] = blockY
-
-            colour := colours[i]
-            printf("%d %d %d %d\n", colour.r, colour.g, colour.b, colour.a)
 
             drawRectangle(blockX, blockY, 32, 32, colours[i])
         }

@@ -10,6 +10,7 @@ class IRGenerator {
     
     let module: Module
     let builder: IRBuilder
+    let passManager: FunctionPassManager
 
     class Context {
 
@@ -30,6 +31,8 @@ class IRGenerator {
         self.file = file
         module = Module(name: file.name)
         builder = IRBuilder(module: module)
+        passManager = FunctionPassManager(module: module)
+        passManager.addPasses(for: Compiler.optimisationLevel)
     }
     
     static func build(for file: ASTFile, checker: Checker) throws -> Module {
@@ -39,6 +42,22 @@ class IRGenerator {
         generator.emitGlobals()
 
         return generator.module
+    }
+}
+
+extension FunctionPassManager {
+    func addPasses(for level: OptimisationLevel) {
+        guard level >= .O1 else { return }
+        
+        add(.promoteMemoryToRegister, .basicAliasAnalysis, .instructionCombining, .reassociate)
+        
+        guard level >= .O2 else { return }
+        
+        add(.gvn, .cfgSimplification)
+        
+        guard level >= .O3 else { return }
+        
+        add(.loopUnroll, .tailCallElimination, .argumentPromotion)
     }
 }
 
@@ -954,6 +973,8 @@ extension IRGenerator {
             builder.buildRet(result)
         }
 
+        passManager.run(on: proc)
+        
         return proc
     }
 

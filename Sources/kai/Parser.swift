@@ -109,10 +109,10 @@ extension Parser {
         case .assign where state.contains(.disallowEquals):
             return 0
 
-        case .colon, .assign:
+        case .lparen, .colon, .assign:
             return 10
 
-        case .lparen, .dot, .lbrack:
+        case .dot, .lbrack:
             return 80
 
         case .comma where state.contains(.disallowComma):

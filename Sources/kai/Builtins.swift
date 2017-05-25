@@ -199,6 +199,13 @@ var builtinProcedures: [Entity] = {
             returns: [Type.rawptr],
             isVariadic: false
         ),
+        (
+            "realloc", mangled: "realloc",
+            EntityExtra(singleIrGen: IRGenerator.genForeign, callIrGen: nil),
+            params: [("ptr", Type.rawptr), ("size", Type.u64)],
+            returns: [Type.rawptr],
+            isVariadic: false
+        ),
         ( // NOTE(vdka): This will need to be different dependent on the type of the value.
             // if it is a dynamic Array then we need to free at a predefined offset from the pointer we are given.
             "free", mangled: "free",

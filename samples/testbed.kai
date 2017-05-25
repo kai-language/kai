@@ -1,5 +1,11 @@
 #library "c" libc
 
+random :: () -> u64 {
+    return 3
+}
+
 main :: () -> void {
-    dynamic : [..]i8 = { 1, 2, 3, 4 }   
+    x, y := random(), random()
+
+    printf("%d %d\n", x, y)
 }
