@@ -7,21 +7,22 @@ extension Scope {
 }
 
 func declareBuiltins() {
-
-    for entity in builtinProcedures {
-        Scope.universal.insert(entity)
-    }
     // TODO(vdka): Create a stdtypes.kai file to refer to for location
 
     for type in Type.builtin {
 
-        guard let location = type.location else {
+        guard let location = type.location, case .builtin(let name) = type.kind else {
             panic()
         }
 
-        let e = Entity(name: type.description, location: location, kind: .compiletime, owningScope: Scope.universal)
+        let e = Entity(name: name, location: location, kind: .compiletime, owningScope: Scope.universal)
         e.type = type
         Scope.universal.insert(e)
+    }
+    
+
+    for entity in builtinProcedures {
+        Scope.universal.insert(entity)
     }
 
     // It's complicated...

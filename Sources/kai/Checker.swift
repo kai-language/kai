@@ -1489,7 +1489,7 @@ extension Checker {
                 checkStmt(initializer)
             }
             if let cond = cond {
-                let type = checkExpr(cond, typeHint: Type.bool.instance)
+                let type = checkExpr(cond)
                 guard canImplicitlyConvert(type, to: Type.bool.instance) else {
                     reportError("Non-bool \(cond) (type \(type)) used as condition", at: cond)
                     return
@@ -2168,7 +2168,7 @@ extension Checker {
 
         switch op {
         case .plus where lhsType.isString && rhsType.isString:
-            return Type.string
+            return Type.string.instance
 
         case .plus,
              .minus,
@@ -2233,7 +2233,7 @@ extension Checker {
                 attemptLiteralConstraint(rhs, to: lhsType)
             }
 
-            return Type.bool
+            return Type.bool.instance
 
         case .ampersand,
              .carot,
@@ -2274,7 +2274,7 @@ extension Checker {
                 return Type.invalid
             }
 
-            return Type.bool
+            return Type.bool.instance
 
         default:
             reportError(invalidOpError, at: node)
