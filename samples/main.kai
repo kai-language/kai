@@ -1,6 +1,5 @@
 #library "c" libc
 
-//printf :: (string, ..any) -> void #foreign libc "printf"
 length :: (string) -> u64 #foreign libc "strlen"
 
 Color :: struct {
@@ -171,7 +170,7 @@ main :: () -> void {
 
     {
 
-        printfPerson :: (person: Person) -> void {
+        printPerson :: (person: Person) -> void {
             printf("Person{'%s', %d}\n", person.name, person.age)
         }
 
@@ -181,14 +180,14 @@ main :: () -> void {
 
         gary := Person{"Gary", 43}
 
-        printfPerson(gary)
+        printPerson(gary)
 
         red := Color{"Red", 0xff, 0, 0}
 
         bob := Person{"Bob", 21, red}
         bob.age = 42
 
-        printfPerson(bob)
+        printPerson(bob)
 
         bob.favoriteColor = Color{"Blue", 0, 0, 0xff}
 

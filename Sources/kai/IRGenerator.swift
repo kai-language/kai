@@ -322,6 +322,11 @@ extension IRGenerator {
             
             
             
+        } else if decl.entities.count == 1, let entity = decl.entities.first,
+            entity.type!.isType {
+
+            // Do nothing This is a type alias and LLVM IR does not seem to support them.
+            
         } else {
             assert(decl.entities.count == decl.initExprs.count)
 

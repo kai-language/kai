@@ -144,6 +144,16 @@ class Type: Equatable, CustomStringConvertible {
 
     var description: String {
         switch kind {
+        case .instance(let type):
+            return type.instanceDescription
+
+        default:
+            return "Type"
+        }
+    }
+
+    var instanceDescription: String {
+        switch kind {
         case .builtin(let name):
             return name
 
@@ -200,7 +210,7 @@ class Type: Equatable, CustomStringConvertible {
             return "(" + types.map({ $0.description }).joined(separator: ", ") + ")"
 
         case .instance(let type):
-            return "instance of " + type.description
+            panic()
         }
     }
 
@@ -1479,8 +1489,8 @@ extension Checker {
                 checkStmt(initializer)
             }
             if let cond = cond {
-                let type = checkExpr(cond)
-                guard canImplicitlyConvert(type, to: Type.bool) else {
+                let type = checkExpr(cond, typeHint: Type.bool.instance)
+                guard canImplicitlyConvert(type, to: Type.bool.instance) else {
                     reportError("Non-bool \(cond) (type \(type)) used as condition", at: cond)
                     return
                 }
