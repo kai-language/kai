@@ -1291,7 +1291,7 @@ extension Checker {
                     }
 
                     isVariadic = true
-                    type = lookupType(typeNode).instance
+                    type = lookupType(typeNode!).instance
                 } else {
 
                     type = lookupType(param).instance
