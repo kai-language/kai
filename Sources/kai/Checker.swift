@@ -75,8 +75,7 @@ class Type: Equatable, CustomStringConvertible {
         case .pointer(let underlyingType):
             return underlyingType.memberScope
 
-        case .builtin,
-             .proc, .tuple, .array:
+        case .builtin, .proc, .tuple, .array:
             return nil
         }
     }
@@ -109,26 +108,6 @@ class Type: Equatable, CustomStringConvertible {
         return Type(kind: .tuple(types), flags: .none, width: types.reduce(0, { $0.0 + $0.1.width }), location: nil)
     }
     
-    static func integer(bits: Int) -> Type {
-        switch bits {
-        case 0...8:
-            return Type.i8
-            
-        case 9...16:
-            return Type.i16
-            
-        case 17...32:
-            return Type.i32
-            
-        case 33...64:
-            return Type.i16
-            
-        default:
-            return Type.invalid
-            
-        }
-    }
-
     struct Flag: OptionSet {
         var rawValue: UInt64
         init(rawValue: UInt64) { self.rawValue = rawValue }
@@ -210,53 +189,185 @@ class Type: Equatable, CustomStringConvertible {
     }
 
     var isOrdered: Bool {
-        return !flags.union(.ordered).isEmpty
+        return isNumeric || isString || isPointer
+    }
+
+    var isTypeOrdered: Bool {
+        return isTypeNumeric || isTypeString || isTypePointer
     }
 
     var isBooleanesque: Bool {
         return isNumeric || isBoolean
     }
 
+    var isTypeBooleanesque: Bool {
+        // isTypeNullable???
+        return isTypeNumeric || isTypeBoolean
+    }
+
     var isNumeric: Bool {
         return isInteger || isFloat || isBoolean
     }
 
+    var isTypeNumeric: Bool {
+        // NOTE(vdka): Should Booleans really be considered numeric?
+        //   Does this make false + 1 valid? Also why!?!
+        //   Maybe so they are comparable? /shrug
+        return isTypeInteger || isTypeFloat || isTypeBoolean
+    }
+
     var isUnconstrained: Bool {
-        return flags.contains(.unconstrained)
+        guard case .instance(let type) = kind else {
+            return false
+        }
+        return type.isTypeUnconstrained
+    }
+
+    var isTypeUnconstrained: Bool {
+        switch kind {
+        case .builtin:
+            return flags.contains(.unconstrained)
+
+        default:
+            return false
+        }
     }
 
     var isString: Bool {
-        return flags.contains(.string)
+        guard case .instance(let type) = kind else {
+            return false
+        }
+        return type.isTypeString
+    }
+
+    var isTypeString: Bool {
+        switch kind {
+        case .builtin:
+            return flags.contains(.string)
+
+        default:
+            return false
+        }
     }
 
     var isBoolean: Bool {
-        return flags.contains(.boolean)
+        guard case .instance(let type) = kind else {
+            return false
+        }
+        return type.isTypeBoolean
+    }
+
+    var isTypeBoolean: Bool {
+        switch kind {
+        case .builtin:
+            return flags.contains(.boolean)
+
+        default:
+            return false
+        }
     }
 
     var isInteger: Bool {
-        return flags.contains(.integer)
+        guard case .instance(let type) = kind else {
+            return false
+        }
+        return type.isTypeInteger
+    }
+
+    var isTypeInteger: Bool {
+        switch kind {
+        case .builtin:
+            return flags.contains(.integer)
+
+        default:
+            return false
+        }
     }
 
     var isSigned: Bool {
-        return isInteger && !isUnsigned
+        guard case .instance(let type) = kind else {
+            return false
+        }
+        return type.isTypeSigned
+    }
+
+    var isTypeSigned: Bool {
+        switch kind {
+        case .builtin:
+            return flags.contains(.integer) && !flags.contains(.unsigned)
+
+        default:
+            return false
+        }
     }
 
     var isUnsigned: Bool {
-        return flags.contains(.unsigned)
+        guard case .instance(let type) = kind else {
+            return false
+        }
+        return type.isTypeUnsigned
+    }
+
+    var isTypeUnsigned: Bool {
+        switch kind {
+        case .builtin:
+            return flags.contains(.unsigned)
+
+        default:
+            return false
+        }
     }
 
     var isFloat: Bool {
-        return flags.contains(.float)
+        guard case .instance(let type) = kind else {
+            return false
+        }
+        return type.isTypeFloat
+    }
+
+    var isTypeFloat: Bool {
+        switch kind {
+        case .builtin:
+            return flags.contains(.float)
+
+        default:
+            return false
+        }
     }
 
     var isPointer: Bool {
-        return flags.contains(.pointer)
+        guard case .instance(let type) = kind else {
+            return false
+        }
+
+        if type === Type.rawptr { return true }
+        return type.isTypePointer
+    }
+
+    var isTypePointer: Bool {
+        switch kind {
+        case .named(let type, _):
+            return type.isTypePointer
+            
+        case .pointer:
+            return true
+
+        default:
+            return false
+        }
     }
 
     var isArray: Bool {
+        guard case .instance(let type) = kind else {
+            return false
+        }
+        return type.isTypeArray
+    }
+
+    var isTypeArray: Bool {
         switch kind {
         case .named(let type, _):
-            return type.isArray
+            return type.isTypeArray
 
         case .array:
             return true
@@ -265,15 +376,18 @@ class Type: Equatable, CustomStringConvertible {
             return false
         }
     }
-
+    
     var isStruct: Bool {
+        guard case .instance(let type) = kind else {
+            return false
+        }
+        return type.isTypeStruct
+    }
 
+    var isTypeStruct: Bool {
         switch kind {
         case .named(let type, _):
-            return type.isStruct
-
-        case .instance(let type):
-            return type.isStruct
+            return type.isTypeStruct
 
         case .struct:
             return true
@@ -284,13 +398,16 @@ class Type: Equatable, CustomStringConvertible {
     }
 
     var isEnum: Bool {
+        guard case .instance(let type) = kind else {
+            return false
+        }
+        return type.isTypeEnum
+    }
 
+    var isTypeEnum: Bool {
         switch kind {
         case .named(let type, _):
-            return type.isEnum
-
-        case .instance(let type):
-            return type.isEnum
+            return type.isTypeEnum
 
         case .enum:
             return true
@@ -301,13 +418,16 @@ class Type: Equatable, CustomStringConvertible {
     }
 
     var isProc: Bool {
+        guard case .instance(let type) = kind else {
+            return false
+        }
+        return type.isTypeProc
+    }
 
+    var isTypeProc: Bool {
         switch kind {
         case .named(let type, _):
-            return type.isProc
-            
-        case .instance(let type):
-            return type.isProc
+            return type.isTypeProc
 
         case .proc:
             return true
@@ -318,17 +438,29 @@ class Type: Equatable, CustomStringConvertible {
     }
 
     var isTuple: Bool {
-        // NOTE(vdka): No ability to refer to tuples directly means we don't need to do extra checks.
-        if case .tuple = kind {
-            return true
+        guard case .instance(let type) = kind else {
+            return false
         }
-        return false
+        return type.isTypeTuple
+    }
+
+    var isTypeTuple: Bool {
+        switch kind {
+        case .named(let type, _):
+            return type.isTypeProc
+
+        case .tuple:
+            return true
+
+        default:
+            return false
+        }
     }
 
     var isType: Bool {
         return !isInstance
     }
-    
+
     var isInstance: Bool {
         if case .instance = kind {
             return true
@@ -959,7 +1091,7 @@ extension Checker {
 
             let resultType = checkExpr(initExpr)
 
-            if case .tuple(let types) = resultType.kind {
+            if case .tuple(let types) = resultType.metatype.kind {
                 guard d.entities.count == types.count else {
                     reportError("Arity mismatch got \(d.entities.count) expected \(types.count)", at: initExpr)
 
@@ -997,7 +1129,7 @@ extension Checker {
                     let finalType: Type
                     // check if the array is implicitly sized, if so, take the
                     // size of the initialiser
-                    if case .array(_, 0) = explicitType.kind {
+                    if case .array(_, 0) = explicitType.metatype.kind {
                         finalType = rvalueType
                     } else {
                         finalType = explicitType
@@ -1027,6 +1159,8 @@ extension Checker {
                                 member.type = Type.invalid
                                 return
                             }
+
+                            // FIXME(vdka): Need `metatype` changes here?
 
                             var curType = member.type!
                             loop: while true {
@@ -1746,7 +1880,7 @@ extension Checker {
         case .exprDeref(let expr, let location):
             let operandType = checkExpr(expr, typeHint: typeHint)
 
-            guard case .pointer(let underlyingType) = operandType.kind else {
+            guard case .pointer(let underlyingType) = operandType.metatype.kind else {
                 reportError("Cannot dereference non pointer type `\(operandType)`", at: location)
                 return Type.invalid
             }
