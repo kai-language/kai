@@ -2164,7 +2164,7 @@ extension Checker {
         let lhsType = checkExpr(lhs, typeHint: typeHint)
         let rhsType = checkExpr(rhs, typeHint: typeHint)
 
-        let invalidOpError = "Invalid operation binary operation \(op) between types \(lhsType) and \(rhsType)"
+        let invalidOpError = "Invalid operation binary operation `\(op)` between types `\(lhsType)` and `\(rhsType)`"
 
         switch op {
         case .plus where lhsType.isString && rhsType.isString:

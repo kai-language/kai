@@ -426,7 +426,7 @@ extension Lexer {
 	}
 }
 
-enum AssignOperator: String {
+enum AssignOperator: String, CustomStringConvertible {
     case equals = "="
     case addEquals = "+="
     case subEquals = "-="
@@ -439,9 +439,13 @@ enum AssignOperator: String {
     case orEquals = "|="
     case andEquals = "&="
     case xorEquals = "^="
+    
+    var description: String {
+        return rawValue
+    }
 }
 
-enum Operator: String {
+enum Operator: String, CustomStringConvertible {
     case plus    = "+"
     case asterix = "*"
     case minus   = "-"
@@ -468,6 +472,10 @@ enum Operator: String {
 
     case doubleLeftChevron  = "<<"
     case doubleRightChevron = ">>"
+
+    var description: String {
+        return rawValue
+    }
 }
 
 enum Directive: String {
