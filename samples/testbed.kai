@@ -1,11 +1,5 @@
-#library "c" libc
-
-random :: () -> u64 {
-    return 3
-}
+BUFFER_SIZE :: 100
 
 main :: () -> void {
-    x, y := random(), random()
-
-    printf("%d %d\n", x, y)
+    anArray : [BUFFER_SIZE]i8
 }
