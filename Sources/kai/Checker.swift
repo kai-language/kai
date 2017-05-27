@@ -161,10 +161,10 @@ class Type: Equatable, CustomStringConvertible {
             return entity.name
 
         case .pointer(let underlyingType):
-            return "*\(underlyingType)"
+            return "*\(underlyingType.instanceDescription)"
 
         case .array(let underlyingType, let count):
-            return "[\(count)]\(underlyingType)"
+            return "[\(count)]\(underlyingType.instanceDescription)"
 
         case .proc(let params, let results, let isVariadic):
             // FIXME(vdka): This is wrong.
@@ -2665,6 +2665,8 @@ extension Checker {
             }
 
             return underlyingType == underlyingTargetType && (count <= targetCount || targetCount == 0)
+        } else if type.isString, case .pointer(Type.u8)? = target.typeKind {
+            return true
         } else if type.isType, target == Type.typeInfo {
             return true
         }

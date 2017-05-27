@@ -171,8 +171,8 @@ extension Entity {
     
     static let typeInfo: Entity = {
         
-        let entity = Entity(name: "TypeInfo", kind: .compiletime, type: .placeholder, owningScope: Scope.universal)
-        entity.mangledName = "TypeInfo"
+        let entity = Entity(name: "Type", kind: .compiletime, type: .placeholder, owningScope: Scope.universal)
+        entity.mangledName = "Type"
 
         return entity
     }()
