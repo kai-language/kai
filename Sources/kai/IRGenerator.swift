@@ -289,7 +289,7 @@ extension IRGenerator {
 
             emitGlobalType(entity)
         } else if decl.entities.count == 1, let entity = decl.entities.first,
-            case .array(let underlyingType, let count) = entity.type!.kind, values.count == 0 {
+            case .array(let underlyingType, let count)? = entity.type!.typeKind, values.count == 0 {
             
             let irType = ArrayType(elementType: canonicalize(underlyingType), count: Int(count))
             
@@ -302,7 +302,7 @@ extension IRGenerator {
             
             llvmPointers[entity] = irValuePtr
         } else if decl.entities.count == 1, let entity = decl.entities.first,
-            case .enum(let scope) = entity.type!.kind {
+            case .enum(let scope)? = entity.type!.typeKind {
             
             for element in scope.elements.orderedValues {
                 guard let type = element.type, let value = entity.value else {
@@ -818,7 +818,7 @@ extension IRGenerator {
 
         let procedure = builder.addFunction(entity.mangledName!, type: procIrType)
 
-        guard case .proc(let params, _, _) = entity.type!.metatype.kind else {
+        guard case .proc(let params, _, _)? = entity.type!.typeKind else {
             panic()
         }
 
@@ -877,7 +877,7 @@ extension IRGenerator {
         let type = checker.info.types[node]!
         let irType = canonicalize(type) as! FunctionType
 
-        guard case .proc(let params, let results, _) = type.metatype.kind else {
+        guard case .proc(let params, let results, _)? = type.typeKind else {
             panic()
         }
 
@@ -1047,15 +1047,15 @@ extension IRGenerator {
         case .litCompound(_, let elements, _):
             let type = checker.info.types[node]!
 
-            switch type.metatype.kind {
-            case .named:
+            switch type.typeKind {
+            case .named?:
                 if type.isStruct {
                     fallthrough
                 }
 
                 unimplemented() // Named arrays? `People :: [5]Person`
 
-            case .struct:
+            case .struct?:
                 let values = elements.map {
                     emitExpr($0)
                 }
@@ -1068,12 +1068,12 @@ extension IRGenerator {
 
                 return val
 
-            case .array(let underlyingType, _):
+            case .array(let underlyingType, _)?:
                 let values = elements.map {
                     emitExpr($0)
                 }
                 // FIXME(vdka): For literals that do not exactly match the count of the array they are assigned to this emits bad IR.
-                return ArrayType.constant(values, type: canonicalize(underlyingType))
+                return ArrayType.constant(values, type: canonicalize(underlyingType.instance))
 
             default:
                 unimplemented("Emitting constants for \(type)")
@@ -1094,11 +1094,11 @@ extension IRGenerator {
         let arg = args.first!
 
         let argType = checker.info.types[arg]!
-        let outType = checker.info.types[r]!.underlyingType!
+        let outType = checker.info.types[r]!.instance
 
         let outIrType = canonicalize(outType)
-        
-        if case .array = argType.kind, case .pointer = outType.kind {
+
+        if argType.isArray, outType.isPointer {
             let argIrVal  = emitExpr(arg, returnAddress: true)
             
             return builder.buildBitCast(argIrVal, type: outIrType)
@@ -1241,7 +1241,7 @@ extension IRGenerator {
 
         // TODO(vdka): Trunc or Ext if needed / possible
 
-        if lhsType !== rhsType {
+        if lhsType != rhsType {
             if lhsType.width == rhsType.width {
                 //
                 // `x: uint = 1; y: int = 1; z := x + y`
@@ -1436,7 +1436,7 @@ extension IRGenerator {
                 
                 return builder.buildLoad(val)
             } else {
-                switch entity.type?.kind {
+                switch entity.type?.typeKind {
                 case .proc(let params, let returns, let isVariadic)?:
                     let params = params.map {
                         canonicalize($0.type!)
@@ -1619,8 +1619,8 @@ extension IRGenerator {
 
     func canonicalize(_ type: Type) -> IRType {
 
-        switch type.kind {
-        case .builtin(let typeName):
+        switch type.typeKind {
+        case .builtin(let typeName)?:
             switch typeName {
             case "void", "unconstrNil":
                 return VoidType()
@@ -1656,7 +1656,7 @@ extension IRGenerator {
                 unimplemented("Type emission for type \(type)")
             }
 
-        case .named(_, let entity):
+        case .named(_, let entity)?:
             // NOTE(vdka): I feel like we actually need to use the type here.
 
             if let type = module.type(named: entity.mangledName!) {
@@ -1665,26 +1665,26 @@ extension IRGenerator {
 
             return emitGlobalType(entity)
 
-        case .struct(let members):
+        case .struct(let members)?:
 
             // FIXME(vdka): If types can be nested (they can) this won't be correct. Fix that.
             let memberIrTypes = Array(members.elements.orderedValues.map({ self.canonicalize($0.type!) }))
 
             return StructType(elementTypes: memberIrTypes)
 
-        case .enum:
+        case .enum?:
             return IntType(width: numericCast(type.width))
 
-        case .pointer(Type.void):
+        case .pointer(Type.void)?:
             return PointerType(pointee: IntType.int8)
             
-        case .pointer(let underlyingType):
-            return PointerType(pointee: canonicalize(underlyingType))
+        case .pointer(let underlyingType)?:
+            return PointerType(pointee: canonicalize(underlyingType.instance))
 
-        case .array(let underlyingType, let count):
-            return ArrayType(elementType: canonicalize(underlyingType), count: Int(count))
+        case .array(let underlyingType, let count)?:
+            return ArrayType(elementType: canonicalize(underlyingType.instance), count: Int(count))
 
-        case .proc(let params, let results, let isVariadic):
+        case .proc(let params, let results, let isVariadic)?:
 
             let paramTypes: [IRType]
             if isVariadic {
@@ -1706,11 +1706,17 @@ extension IRGenerator {
 
             return FunctionType(argTypes: paramTypes, returnType: resultType, isVarArg: isVariadic)
             
-        case .tuple(let types):
+        case .tuple(let types)?:
             return StructType(elementTypes: types.map({ canonicalize($0) }))
 
-        case .instance(let type):
+        case .instance(let type)?:
             return canonicalize(type)
+
+        case nil:
+            if type === Type.void {
+                return VoidType()
+            }
+            panic()
         }
     }
 }

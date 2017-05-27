@@ -15,10 +15,16 @@ Person :: struct {
 //    boss: Person
 //}
 
+hello :: (name: string) -> void {
+
+    printf("Hello, %s!\n", name)
+}
+
 main :: () -> void {
 
     //dir := Direction.north
 
     gary := Person{"Gary", 23}
-}
 
+    hello(gary.name)
+}

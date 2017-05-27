@@ -245,11 +245,15 @@ var builtinProcedures: [Entity] = {
         let procScope = Scope(parent: Scope.universal)
         entity.childScope = procScope
         
-        let paramEntities = params.map { name, type in
+        let params = params.map { name, type in
             return Entity(name: name, kind: .magic(extra), type: type.instance, owningScope: procScope)
         }
 
-        entity.type = Type(kind: .proc(params: paramEntities, returns: returns, isVariadic: isVariadic), width: 0).instance
+        let returns = returns.map { type in
+            return type.instance
+        }
+
+        entity.type = Type(kind: .proc(params: params, returns: returns, isVariadic: isVariadic), width: 0).instance
 
         return entity
     }

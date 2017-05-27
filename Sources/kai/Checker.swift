@@ -18,6 +18,14 @@ class Type: Equatable, CustomStringConvertible {
         self.location = location
     }
 
+    var typeKind: Kind? {
+        guard case .instance(let type) = kind else {
+            return nil
+        }
+
+        return type.kind
+    }
+
     enum Kind {
         // These are all special cases of the named Type.
         case builtin(String)
@@ -38,7 +46,15 @@ class Type: Equatable, CustomStringConvertible {
     var instance: Type {
         // NOTE(vdka): Perhaps we want this to work for types and return Type.typeInfo
         precondition(!isInstance)
-        precondition(!isTuple)
+        precondition(!isTuple, "You may not instantiate instances of tuples. There is no syntax to refer to them by type.")
+
+        /// There may exist no instances of void
+        if self === Type.void {
+            return Type.void
+        }
+        if self === Type.invalid {
+            return Type.invalid
+        }
 
         return Type(kind: .instance(self), flags: self.flags, width: width)
     }
@@ -437,24 +453,18 @@ class Type: Equatable, CustomStringConvertible {
         }
     }
 
+    /// NOTE(vdka): You may not have an instance of a tuple
     var isTuple: Bool {
-        guard case .instance(let type) = kind else {
-            return false
+        if case .tuple = kind {
+            return true
         }
-        return type.isTypeTuple
+
+        return false
     }
 
+    @available(*, unavailable, message: "You cannot refer to the Type of a Tuple. Therefore you can never have a TypeTuple")
     var isTypeTuple: Bool {
-        switch kind {
-        case .named(let type, _):
-            return type.isTypeProc
-
-        case .tuple:
-            return true
-
-        default:
-            return false
-        }
+        fatalError()
     }
 
     var isType: Bool {
@@ -479,13 +489,8 @@ class Type: Equatable, CustomStringConvertible {
             lhs = lhsMetatype
             rhs = rhsMetatype
 
-        case _ where lhs === Type.invalid || rhs === Type.invalid:
-            return lhs === rhs
-
         default:
-            
-            // Any two non instances are equal and are to be treated as TypeInfo
-            return true
+            return lhs === rhs
         }
         
         switch (lhs.kind, rhs.kind) {
@@ -1091,7 +1096,7 @@ extension Checker {
 
             let resultType = checkExpr(initExpr)
 
-            if case .tuple(let types) = resultType.metatype.kind {
+            if case .tuple(let types) = resultType.kind {
                 guard d.entities.count == types.count else {
                     reportError("Arity mismatch got \(d.entities.count) expected \(types.count)", at: initExpr)
 
@@ -1129,7 +1134,7 @@ extension Checker {
                     let finalType: Type
                     // check if the array is implicitly sized, if so, take the
                     // size of the initialiser
-                    if case .array(_, 0) = explicitType.metatype.kind {
+                    if case .array(_, 0)? = explicitType.typeKind {
                         finalType = rvalueType
                     } else {
                         finalType = explicitType
@@ -1164,12 +1169,12 @@ extension Checker {
 
                             var curType = member.type!
                             loop: while true {
-                                switch curType.kind {
-                                case .pointer(Type.placeholder):
+                                switch curType.typeKind {
+                                case .pointer(Type.placeholder)?:
                                     curType.kind = .pointer(underlyingType: newType)
                                     break loop
 
-                                case .pointer(let nextType):
+                                case .pointer(let nextType)?:
                                     curType = nextType
 
                                 default:
@@ -1214,7 +1219,6 @@ extension Checker {
 extension Checker {
 
     mutating func checkProcType(_ node: AstNode) -> Type {
-
         guard case .typeProc(let params, let results, _) = node else {
             panic()
         }
@@ -1277,10 +1281,10 @@ extension Checker {
                     }
 
                     isVariadic = true
-                    type = lookupType(typeNode)
+                    type = lookupType(typeNode).instance
                 } else {
 
-                    type = lookupType(param)
+                    type = lookupType(param).instance
                 }
 
                 e.type = type
@@ -1440,7 +1444,7 @@ extension Checker {
 
         case .stmtReturn(let exprs, _):
 
-            guard case .proc(_, let results, _)? = context.scope.containingProc?.type.kind else {
+            guard case .proc(_, let results, _)? = context.scope.containingProc?.type.typeKind else {
                 reportError("'return' is not valid in this scope", at: node)
                 return
             }
@@ -1602,17 +1606,18 @@ extension Checker {
                             return
                         }
 
-                        guard entity.type!.isPointer else {
+                        guard entity.type!.isPointer, case .pointer(let underlyingType)? = entity.type!.typeKind else {
                             reportError("FIXME(vdka): Some error", at: expr)
                             return
                         }
-                        let underlyingType = entity.type!.underlyingType!
 
                         // FIXME
                         // FIXME
                         // FIXME
 
-                        guard canImplicitlyConvert(result, to: underlyingType) else {
+                        // NOTE(vdka): this doesn't even print the right error message for things with multiple returns where 1 of the elements is wrong.
+
+                        guard canImplicitlyConvert(result, to: underlyingType.instance) else {
                             reportError("Cannot use `\(rval)` (type \(result)) as rvalue in assignment to `\(lval)` (type \(entity.type!))", at: rval)
                             return
                         }
@@ -1717,7 +1722,7 @@ extension Checker {
                 break
             }
 
-            if case .array(let underlyingType, let count) = explicitType.metatype.kind {
+            if case .array(let underlyingType, let count)? = explicitType.typeKind {
 
                 // TODO(vdka): Check the underlying type is a valid MetaType
                 // FIXME(vdka): This will likely break for type aliased arrays.
@@ -1880,11 +1885,11 @@ extension Checker {
         case .exprDeref(let expr, let location):
             let operandType = checkExpr(expr, typeHint: typeHint)
 
-            guard case .pointer(let underlyingType) = operandType.metatype.kind else {
+            guard case .pointer(let underlyingType)? = operandType.typeKind else {
                 reportError("Cannot dereference non pointer type `\(operandType)`", at: location)
                 return Type.invalid
             }
-            type = underlyingType
+            type = underlyingType.instance
 
         case .exprUnary:
             type = checkExprUnary(node, typeHint: typeHint)
@@ -1893,15 +1898,15 @@ extension Checker {
             type = checkExprBinary(node, typeHint: typeHint)
 
         case .exprTernary(let cond, let thenExpr, let elseExpr, _):
-            let condType = checkExpr(cond, typeHint: Type.bool)
+            let condType = checkExpr(cond, typeHint: Type.bool.instance)
 
-            guard canImplicitlyConvert(condType, to: Type.bool) else {
+            guard canImplicitlyConvert(condType, to: Type.bool.instance) else {
                 reportError("Cannot use expression as boolean value", at: cond)
                 return Type.invalid
             }
 
             let thenType = checkExpr(thenExpr)
-            let elseType = checkExpr(elseExpr)
+            let elseType = checkExpr(elseExpr, typeHint: thenType)
 
             guard thenType == elseType else {
                 reportError("result values in '? :' expression have mismatching types '\(thenType)' and '\(elseType)'", at: node)
@@ -1920,26 +1925,20 @@ extension Checker {
             /// If this returns false then we are actually dealing with a cast
             func callKind(for type: Type) -> CallKind {
 
-                guard case .instance(let type) = type.kind else {
-                    return .invalid
+                if type.isType {
+                    assert(!type.isTuple)
+                    return CallKind.cast(to: type.instance)
                 }
 
-                switch type.kind {
-                case .builtin, .struct, .array, .tuple, .enum:
-                    return CallKind.invalid
-
-                case .named(let type, _):
-                    return callKind(for: type)
-
-                case .pointer(let underlyingType):
-                    return callKind(for: underlyingType)
-
-                case .proc(let params, let results, let isVariadic):
+                if type.isProc, case .proc(let params, let results, let isVariadic)? = type.typeKind {
                     return CallKind.call(params: params, results: results, isVariadic: isVariadic)
-
-                case .instance:
-                    panic() // We must never have an instance type referencing another
                 }
+
+                if type.isPointer, case .pointer(let underlyingType)? = type.typeKind {
+                    return callKind(for: underlyingType)
+                }
+
+                return CallKind.invalid
             }
 
             let receiverType = checkExpr(receiver, typeHint: nil)
@@ -2011,43 +2010,35 @@ extension Checker {
                 reportError("Cannot call expr of type \(type)", at: node)
             }
 
-        case .exprSubscript(let receiver, let value, _):
+        case .exprSubscript(let receiver, let index, _):
             let receiverType = checkExpr(receiver, typeHint: nil)
 
             if receiverType == Type.invalid {
                 return Type.invalid
             }
             
-            let valueType = checkExpr(value, typeHint: Type.int)
+            let indexType = checkExpr(index, typeHint: Type.int.instance)
             
-            guard canImplicitlyConvert(valueType, to: Type.int) else {
-                reportError("Cannot subscript with type \(valueType)", at: value)
+            guard canImplicitlyConvert(indexType, to: Type.int.instance) else {
+                reportError("Cannot subscript with type \(indexType)", at: index)
                 return Type.invalid
             }
             
-            switch receiverType.kind {
-            case .array(let underlyingType, _),
-                 .pointer(let underlyingType):
-             
-                switch receiverType.kind {
-                case .array:
-                    type = underlyingType
-                    
-                case .pointer:
-                    type = .pointer(to: underlyingType)
-                    
-                default:
-                    break
-                }
-            
-            case .builtin("string"):
-                type = .u8
+            switch receiverType.typeKind {
+            case .array(let underlyingType, _)?:
+                type = underlyingType.instance
 
-            case .builtin("rawptr"):
-                type = .u8
+            case .pointer(let underlyingType)?:
+                type = Type.pointer(to: underlyingType).instance
+
+            case .builtin("string")?:
+                type = Type.u8.instance
+
+            case .builtin("rawptr")?:
+                type = Type.u8.instance
                 
             default:
-                reportError("Cannot subscript non array type", at: receiver)
+                reportError("Cannot subscript type `\(receiverType)", at: receiver)
                 return Type.invalid
             }
 
@@ -2147,7 +2138,7 @@ extension Checker {
             
         case .ampersand:
             let operandType = checkExpr(expr, typeHint: typeHint)
-            return Type.pointer(to: operandType)
+            return Type.pointer(to: operandType.metatype).instance
 
         default:
             reportError("Undefined unary operation '\(op)'", at: location)
@@ -2333,7 +2324,7 @@ extension Checker {
             return targetType
         }
 
-        if case .pointer = exprType.kind, case .pointer(underlyingType: Type.void) = targetType.kind {
+        if case .pointer = exprType.kind, case .pointer(underlyingType: Type.void)? = targetType.typeKind {
             return targetType
         }
         
@@ -2356,7 +2347,7 @@ extension Checker {
         assert(info.types[pi.node] != nil)
 
         // pi.type.type because we don't want to use the instance.
-        guard case .proc(let params, let results, let isVariadic) = pi.type.metatype.kind else {
+        guard case .proc(let params, let results, let isVariadic)? = pi.type.typeKind else {
             panic()
         }
 
@@ -2419,7 +2410,7 @@ extension Checker {
         guard let firstResult = results.first else {
             panic()
         }
-        let voidResultTypes = results.count(where: { $0 == Type.void })
+        let voidResultTypes = results.count(where: { $0 === Type.void })
         if voidResultTypes > 1 {
             reportError("Multiple returns with a void value is forbidden.", at: pi.node)
         }
@@ -2435,7 +2426,7 @@ extension Checker {
                 panic() // implementation error in terminatingStatements
             }
 
-            if returnedExprs.count == 0 && firstResult == Type.void {
+            if returnedExprs.count == 0 && firstResult === Type.void {
                 return
             }
             if returnedExprs.count < results.count {
@@ -2575,7 +2566,8 @@ extension Checker {
 
     func performImplicitConversion(on type: inout Type, to target: Type) {
 
-        guard target != Type.any, target.underlyingType != Type.any else {
+        // FIXME(vdka): I think `underlyingType` here is not what we want.
+        guard target != Type.any.instance, target.underlyingType != Type.any else {
             // TODO(vdka): Once we get struct's box this with a pointer to the underlying type and its
             // value if type.width < 8 otherwise put it on the heap and store a pointer
             return
@@ -2605,7 +2597,7 @@ extension Checker {
         if type == target {
             return true
         }
-        if target == Type.any {
+        if target == Type.any.instance {
             return true
         }
 
@@ -2634,26 +2626,27 @@ extension Checker {
             if type.isString && target.isString {
                 return true
             }
-            if type.isString && target == Type.pointer(to: Type.u8) {
+            if type.isString && target == Type.pointer(to: Type.u8).instance {
                 return true
             }
-            if type.isString, case .array(let type, _) = target.kind, type == .u8 {
+            if type.isString, case .array(let type, _)? = target.typeKind, type == .u8 {
                 return true
             }
-            if type.isString && target == Type.pointer(to: Type.void) {
+            // FIXME(vdka): Not sure why this one is here?
+            if type.isString && target == Type.pointer(to: Type.void).instance {
                 return true
             }
         } else if type.isBooleanesque && target.isBoolean {
             // Numeric types can be converted to booleans through truncation
             return true
-        } else if case .pointer(let underlyingType) = type.kind, case .pointer(let underlyingTargetType) = target.kind {
+        } else if case .pointer(let underlyingType)? = type.typeKind, case .pointer(let underlyingTargetType)? = target.typeKind {
             return canImplicitlyConvert(underlyingType, to: underlyingTargetType)
-        } else if case .pointer(let underlyingType) = type.kind, target.isString {
+        } else if case .pointer(let underlyingType)? = type.typeKind, target.isString {
             return canImplicitlyConvert(underlyingType, to: .u8)
-        } else if case .array(let underlyingType, _) = type.kind, target.isString {
+        } else if case .array(let underlyingType, _)? = type.typeKind, target.isString {
             return canImplicitlyConvert(underlyingType, to: .u8)
-        } else if case .array(let underlyingType, let count) = type.kind,
-            case .array(let underlyingTargetType, let targetCount) = target.kind {
+        } else if case .array(let underlyingType, let count)? = type.typeKind,
+            case .array(let underlyingTargetType, let targetCount)? = target.typeKind {
             // NOTE(vdka): I am unsure if we should support implicit conversion between 2 arrays with different underlying types
             //  provided their underlying types are implicitely convertable. So I left that out.
 

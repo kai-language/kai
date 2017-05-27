@@ -1,6 +1,6 @@
 #library "c" libc
 
-print :: (string, ..any) -> void #foreign libc "printf"
+//printf :: (string, ..any) -> void #foreign libc "printf"
 length :: (string) -> u64 #foreign libc "strlen"
 
 Color :: struct {
@@ -19,13 +19,13 @@ Person :: struct {
 main :: () -> void {
     section :: () -> void {
         for i := 0; i < 3; i += 1 {
-            print("\n")
+            printf("\n")
         }
     }
 
     { // Exponents
       val := 2837.5e-2
-      print("val: %f\n", val)
+      printf("val: %f\n", val)
     }
 
     section()
@@ -39,7 +39,7 @@ main :: () -> void {
 
         <p1 *= 2
 
-        print("val1: %d, p1: 0x%08x, p2: 0x%08x\n", val1, p1, p2)
+        printf("val1: %d, p1: 0x%08x, p2: 0x%08x\n", val1, p1, p2)
     }
 
     section()
@@ -49,11 +49,11 @@ main :: () -> void {
         str := "Hey\n"
         p := &str
 
-        print(<p)
+        printf(<p)
 
         <p = "I got changed\n"
 
-        print(<p)
+        printf(<p)
     }
 
     section()
@@ -65,9 +65,9 @@ main :: () -> void {
 
         strPtr : *u8 = name
 
-        print("The string is `%s`\n", name)
-        print("The string is `%d` bytes long.\n", len)
-        print("The first byte is `%c`\n", <strPtr)
+        printf("The string is `%s`\n", name)
+        printf("The string is `%d` bytes long.\n", len)
+        printf("The first byte is `%c`\n", <strPtr)
     }
 
     section()
@@ -76,15 +76,15 @@ main :: () -> void {
 
         foo :: (n: int) -> void {
             n += 5
-            print("foo printing %d\n", n)
+            printf("foo printfing %d\n", n)
             n = 4
-            print("foo printing %d\n", n)
+            printf("foo printfing %d\n", n)
         }
 
         n := 5
         foo(n)
 
-        print("main printing %d\n", n)
+        printf("main printfing %d\n", n)
     }
 
     section()
@@ -95,7 +95,7 @@ main :: () -> void {
 
 
         for i := 0; i < 3; i += 1 {
-            print("x[%d] = %d\n", i, x[i])
+            printf("x[%d] = %d\n", i, x[i])
         }
     }
 
@@ -112,43 +112,43 @@ main :: () -> void {
         }
 
         x1, x2 := origin()
-        print("x1: %d, x2: %d\n", x1, x2)
+        printf("x1: %d, x2: %d\n", x1, x2)
 
         x1, x2 = addFive(x1, x2)
-        print("x1: %d, x2: %d\n", x1, x2)
+        printf("x1: %d, x2: %d\n", x1, x2)
 
         p1, p2 := &x1, &x2
-        print("p1: %d, p2: %d\n", <p1, <p2)
+        printf("p1: %d, p2: %d\n", <p1, <p2)
 
         <p1, <p2 = addFive(<p1, <p2)
-        print("p1: %d, p2: %d\n", <p1, <p2)
+        printf("p1: %d, p2: %d\n", <p1, <p2)
     }
 
     section()
 
     { // Double dereference and simple precedence
-        print("%d\n", 2 + 4 * 10)
+        printf("%d\n", 2 + 4 * 10)
 
         x := 5
         y := &x
 
-        print("y: %d\n", <y)
+        printf("y: %d\n", <y)
 
         z := &y
-        print("z: %d\n", <<z)
+        printf("z: %d\n", <<z)
 
         <<z = 19
-        print("z: %d\n", <<z)
+        printf("z: %d\n", <<z)
     }
 
     section()
 
     {
-        print("0 ? 1 : 0 -> %d\n", 0 ? 1 : 0)
-        print("1 ? 1 : 0 -> %d\n", 1 ? 1 : 0)
+        printf("0 ? 1 : 0 -> %d\n", 0 ? 1 : 0)
+        printf("1 ? 1 : 0 -> %d\n", 1 ? 1 : 0)
 
-        print("0 ? 1 ? 2 : 3 : 0 -> %d\n", 0 ? 1 ? 2 : 3 : 0)
-        print("1 ? 1 ? 2 : 3 : 0 -> %d\n", 1 ? 1 ? 2 : 3 : 0)
+        printf("0 ? 1 ? 2 : 3 : 0 -> %d\n", 0 ? 1 ? 2 : 3 : 0)
+        printf("1 ? 1 ? 2 : 3 : 0 -> %d\n", 1 ? 1 ? 2 : 3 : 0)
     }
 
     section()
@@ -171,7 +171,7 @@ main :: () -> void {
 
     {
 
-        printPerson :: (person: Person) -> void {
+        printfPerson :: (person: Person) -> void {
             printf("Person{'%s', %d}\n", person.name, person.age)
         }
 
@@ -181,14 +181,14 @@ main :: () -> void {
 
         gary := Person{"Gary", 43}
 
-        printPerson(gary)
+        printfPerson(gary)
 
         red := Color{"Red", 0xff, 0, 0}
 
         bob := Person{"Bob", 21, red}
         bob.age = 42
 
-        printPerson(bob)
+        printfPerson(bob)
 
         bob.favoriteColor = Color{"Blue", 0, 0, 0xff}
 
