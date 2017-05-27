@@ -1,5 +1,3 @@
 #library "libCHTTP.dylib" chttp
 
-aFunc :: () -> void {
-    printf("Hello, world!\n")
-}
+

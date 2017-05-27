@@ -4,7 +4,48 @@ import Foundation
 
 var linkedLibraries: Set<String> = []
 
-struct Compiler {
+enum OptimisationLevel: Int {
+    case O0, O1, O2, O3
+    
+    init(_ string: String) {
+        switch string {
+        case "O0":
+            self = .O0
+            
+        case "O1":
+            self = .O1
+            
+        case "O2":
+            self = .O2
+            
+        case "O3":
+            self = .O3
+            
+        default:
+            self = .O0
+        }
+    }
+}
+
+extension OptimisationLevel: Comparable {
+    static func <(lhs: OptimisationLevel, rhs: OptimisationLevel) -> Bool {
+        return lhs.rawValue < rhs.rawValue
+    }
+    
+    static func <=(lhs: OptimisationLevel, rhs: OptimisationLevel) -> Bool {
+        return lhs.rawValue <= rhs.rawValue
+    }
+    
+    static func >(lhs: OptimisationLevel, rhs: OptimisationLevel) -> Bool {
+        return lhs.rawValue > rhs.rawValue
+    }
+    
+    static func >=(lhs: OptimisationLevel, rhs: OptimisationLevel) -> Bool {
+        return lhs.rawValue > rhs.rawValue
+    }
+}
+
+class Compiler {
     enum Error: Swift.Error {
         case fileNameNotProvided
     }
@@ -14,6 +55,8 @@ struct Compiler {
 
     let args: [String]
     let fileName: String?
+    
+    static var optimisationLevel: OptimisationLevel = .O1
     
     let version = "0.0.0"
 
@@ -92,7 +135,8 @@ struct Compiler {
         }
 
         let optimization = optimizations[0]
-
+        Compiler.optimisationLevel = OptimisationLevel(optimization)
+        
         try build(options: options, optimization: optimization)
     }
 
@@ -113,7 +157,8 @@ struct Compiler {
         print("  --emit-ast             Output generated abstract syntax tree")
         print("  --emit-typed-ast       Output type annotated syntax tree")
         print("  --emit-ir              Output generated LLVM IR")
-        print("  --emit-all             Output both AST and LLVM IR")
+        print("  --emit-time            Output compiler profiling")
+        print("  --emit-all             Output all debug information")
         print("")
         print("  --time, -t             Profile the compiler's operations")
         print("")

@@ -1,0 +1,45 @@
+Array_string :: struct {
+    length: u64
+    capacity: u64
+    data: *string
+}
+
+make_StringArray :: (capacity: u64) -> Array_string {
+    // assumes 64bit-width pointer
+    ptr := (*string)(malloc(capacity * 8))
+
+    return Array_string {
+        0, capacity, ptr
+    }
+}
+
+set_stringArray :: (array: *Array_string, index: u64, value: string) -> void {
+    if index >= array.length {
+        printf("%llu is out of array's bounds (%llu)\n", index, array.length)
+    } else {
+        <array.data[int(index)] = value
+    }
+}
+
+append_stringArray :: (array: *Array_string, value: string) -> void {
+    if array.length >= array.capacity {
+        expand_stringArray(array)    
+    }
+
+    <array.data[int(array.length)] = value
+    array.length += 1
+}
+
+expand_stringArray :: (array: *Array_string) -> void {
+    newCapacity := array.capacity * 2
+    ptr := realloc((rawptr)(array.data), newCapacity * 8)
+    if ptr {
+        array.capacity = newCapacity
+        array.data = (*string)(ptr)
+    }
+}
+
+main :: () -> void {
+    names := make_StringArray(100)
+    append_stringArray(&names, "Brett")
+}

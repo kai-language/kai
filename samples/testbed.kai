@@ -1,29 +1,5 @@
-#library "c" libc
-
-print :: (string, ..any) -> void #foreign libc "printf"
-strlen :: (string) -> u64 #foreign libc "strlen"
-isUpper :: (u8) -> i32 #foreign libc "isupper"
-isAlpha :: (u8) -> i32 #foreign libc "isalpha"
-
-#import "trie.kai"
-
-make_spongebob :: (text: string) -> void {
- 	length := strlen(text)
-    shouldLower := false
-	for i := 0; i < length; i += 1 {
-        shouldLower = !shouldLower
-        
-        if !isAlpha(text[i]) continue
-        
-        text[i] = shouldLower ? text[i] & ~0xDF : text[i] & 0xDF
-	}
-}
+BUFFER_SIZE :: 100
 
 main :: () -> void {
-    a := "I love the mocking text code...hahaha"
-    make_spongebob(a)
-    print("%s\n", a)
-
-
-    trie.test()
+    anArray : [BUFFER_SIZE]i8
 }

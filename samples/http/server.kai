@@ -71,9 +71,8 @@ main :: () -> void {
     buffer : [255]i8
     running := true
     for running {
-        //n := read(newsockfd, (*i8)(buffer), 255)
+        n := read(newsockfd, (*i8)(buffer), 255)
         
-        n := 10
         if n == 0 {
             print("Connection closed\n")
             running = false

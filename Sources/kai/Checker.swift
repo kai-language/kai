@@ -1268,7 +1268,7 @@ extension Checker {
                     }
 
                     isVariadic = true
-                    e.type = lookupType(typeNode).instance
+                    e.type = lookupType(typeNode!).instance
                 } else {
 
                     checkDecl(paramDecl)
