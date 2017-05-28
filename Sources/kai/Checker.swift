@@ -612,17 +612,17 @@ class Entity: PointerHashable {
         case .invalid, .type:
             panic()
 
-        case .bool(_):
-            type = .unconstrBool
+        case .bool:
+            type = Type.unconstrBool.instance
 
-        case .float(_):
-            type = .unconstrFloat
+        case .float:
+            type = Type.unconstrFloat.instance
 
-        case .integer(_):
-            type = .unconstrInteger
+        case .integer:
+            type = Type.unconstrInteger.instance
 
-        case .string(_):
-            type = .unconstrString
+        case .string:
+            type = Type.unconstrString.instance
         }
 
         let e = Entity(name: name, location: .unknown, kind: .compiletime, owningScope: scope)
