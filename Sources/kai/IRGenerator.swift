@@ -1469,6 +1469,17 @@ extension IRGenerator {
         let recvType = checker.info.types[receiver]!
         let entity = recvType.memberScope!.lookup(member)!
 
+        guard !recvType.isTypeEnum else {
+
+            let irVal = llvmPointers[entity]!
+
+            if returnAddress {
+                return irVal
+            }
+            
+            return builder.buildLoad(irVal)
+        }
+
         var recIrVal = emitExpr(receiver, returnAddress: true)
 
         // We need to deref until we have a single level pointer
@@ -1536,22 +1547,40 @@ extension IRGenerator {
 
         var irTypes: [IRType] = []
 
+        var rawType: IntType?
+        if entity.type!.isTypeEnum {
+            
+            rawType = IntType(width: numericCast(entity.type!.width))
+            irTypes.append(rawType!)
+        }
+
         for member in memberScope.elements.orderedValues {
             switch member.kind {
             case .runtime:
+                assert(!entity.type!.isTypeEnum)
                 let irType = canonicalize(member.type!)
                 irTypes.append(irType)
 
             case .compiletime:
-                // This is likely to be a type nested within
-                break
+
+                if member.type!.isType {
+                    break // to switch
+                }
+
+                if member.type!.isEnum, case .integer(let val)? = member.value {
+                    // emit a global for this enum case.
+
+                    let irValue = irType.constant(values: [rawType!.constant(val)])
+
+                    llvmPointers[member] = builder.addGlobal(member.mangledName!, initializer: irValue)
+                }
 
             default:
                 continue
             }
         }
 
-        irType.setBody(irTypes, isPacked: false)
+        irType.setBody(irTypes, isPacked: entity.type!.isTypeEnum)
 
         return irType
     }
@@ -1678,7 +1707,8 @@ extension IRGenerator {
             return StructType(elementTypes: memberIrTypes)
 
         case .enum?:
-            return IntType(width: numericCast(type.width))
+            let rawType = IntType(width: numericCast(type.width))
+            return StructType(elementTypes: [rawType], isPacked: true)
 
         case .pointer(Type.void)?:
             return PointerType(pointee: IntType.int8)
@@ -1722,6 +1752,26 @@ extension IRGenerator {
                 return VoidType()
             }
             panic()
+        }
+    }
+}
+
+import cllvm
+
+
+// TODO(vdka): PR for this into LLVMSwift
+extension StructType {
+    
+    /// Creates a constant value of this structure type initialized with the given
+    /// list of values.
+    ///
+    /// - parameter values: A list of values of members of this structure.
+    ///
+    /// - returns: A value representing a constant value of this structure type.
+    public func constant(values: [IRValue]) -> IRValue {
+        var vals = values.map { $0.asLLVM() as Optional }
+        return vals.withUnsafeMutableBufferPointer { buf in
+            return LLVMConstNamedStruct(asLLVM(), buf.baseAddress, UInt32(buf.count))
         }
     }
 }

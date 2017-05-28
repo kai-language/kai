@@ -1207,6 +1207,7 @@ extension Checker {
                         }
 
                         member.type = newType.instance
+                        member.kind = .compiletime
                     }
 
                 } else if let rvalueType = rvalueType, rvalueType.isType {
@@ -1784,6 +1785,11 @@ extension Checker {
 
             let scope = pushScope(for: node, isStruct: true)
             defer { popScope() }
+            
+            if let decl = decl {
+                // NOTE(vdka): This should be fine if we forbid things like: `A, B :: enum {}, enum {}`
+                scope.owningEntity = decl.entities.first
+            }
 
             collectDecls(members)
             checkDecls(in: scope)
@@ -1814,6 +1820,11 @@ extension Checker {
             
             let scope = pushScope(for: node)
             defer { popScope() }
+
+            if let decl = decl {
+                // NOTE(vdka): This should be fine if we forbid things like: `A, B :: enum {}, enum {}`
+                scope.owningEntity = decl.entities.first
+            }
             
             var cases: [(String, Int)] = []
 
