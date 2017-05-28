@@ -143,6 +143,13 @@ class Type: Equatable, CustomStringConvertible {
     }
 
     var description: String {
+        if self === Type.invalid {
+            return "<invalid>"
+        }
+        if self === Type.placeholder {
+            return "<placeholder>"
+        }
+        
         switch kind {
         case .instance(let type):
             return type.instanceDescription
