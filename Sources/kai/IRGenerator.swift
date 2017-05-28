@@ -1756,8 +1756,19 @@ extension IRGenerator {
     }
 }
 
-import cllvm
+extension StructType {
 
+    @available(*, unavailable, message: "Uncomment this and add the code in the comments below into StructType.swift")
+    public func constant(values: [IRValue]) -> IRValue {
+        fatalError()
+    }
+}
+
+// NOTE IMPORTANT: This needs to go into the LLVMSwift module, throw it at the bottom of `StructType.swift`.
+//   If this code exists in the Kai module it causes a double free of a pointer. :'(
+// This should go into a fork and we should depend on said fork.
+/*
+import cllvm
 
 // TODO(vdka): PR for this into LLVMSwift
 extension StructType {
@@ -1775,3 +1786,4 @@ extension StructType {
         }
     }
 }
+*/
