@@ -2113,7 +2113,7 @@ extension Checker {
                 return Type.invalid
             }
 
-            type = Type.pointer(to: underlyingType).metatype
+            type = Type.pointer(to: underlyingType)
 
         case .directive(let string, _, _) where string == "foreign":
             // pass through foreign declarations
@@ -2179,8 +2179,8 @@ extension Checker {
             panic()
         }
 
-        let lhsType = checkExpr(lhs, typeHint: typeHint)
-        let rhsType = checkExpr(rhs, typeHint: typeHint)
+        let lhsType = checkExpr(lhs, typeHint: lhs.isLit ? nil : typeHint)
+        let rhsType = checkExpr(rhs, typeHint: rhs.isLit ? nil : typeHint)
 
         let invalidOpError = "Invalid operation binary operation `\(op)` between types `\(lhsType)` and `\(rhsType)`"
 
@@ -2202,10 +2202,10 @@ extension Checker {
                 return lhsType
             } else if canImplicitlyConvert(lhsType, to: rhsType) {
                 attemptLiteralConstraint(lhs, to: rhsType)
-                return lhsType
+                return rhsType
             } else if canImplicitlyConvert(rhsType, to: lhsType) {
                 attemptLiteralConstraint(rhs, to: lhsType)
-                return rhsType
+                return lhsType
             } else {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
