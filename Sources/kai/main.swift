@@ -207,6 +207,7 @@ class Compiler {
         checker.checkParsedFiles()
 
         guard errors.isEmpty else {
+            errors = errors.filter { !$0.contains("<invalid>") }
             print("There were \(errors.count) errors during checking\nexiting")
             emitErrors()
             exit(1)
