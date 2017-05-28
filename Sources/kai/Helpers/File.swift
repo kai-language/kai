@@ -17,10 +17,10 @@ struct File {
 
         let chunkSize = 1024
         let buffer: UnsafeMutablePointer<CChar> = UnsafeMutablePointer.allocate(capacity: chunkSize + 1) // 1 byte for a null pointer.
-        buffer[chunkSize + 1] = 0 // null term
+        buffer[chunkSize] = 0 // null term
         defer { buffer.deallocate(capacity: chunkSize) }
         repeat {
-            let count: Int = fread(buffer, 1, chunkSize - 1, fp)
+            let count: Int = fread(buffer, 1, chunkSize, fp)
             guard ferror(fp) == 0 else { break }
             buffer[count] = 0
             if count > 0 {
