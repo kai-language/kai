@@ -2811,7 +2811,25 @@ extension Checker {
 // MARK: Universal helpers
 
 extension Checker {
-
+    static func compileTimeValue(_ node: AstNode) -> ExactValue? {
+        switch node {
+        case .litFloat(let value, _):
+            return .float(value)
+            
+        case .litInteger(let value, _):
+            return .integer(value)
+            
+        case .litString(let value, _):
+            return .string(value)
+            
+        case .ident(let identifier, _):
+            unimplemented()
+            
+        default:
+            unimplemented()
+        }
+    }
+    
     static func pathToEntityName(_ path: String) -> (String, error: Bool) {
         precondition(!path.isEmpty)
 
