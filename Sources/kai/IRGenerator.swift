@@ -632,8 +632,19 @@ extension IRGenerator {
             context.escapePoints.break = postBlock
 
             builder.positionAtEnd(of: curBlock)
+
+            let subjectType = checker.info.types[subject]!
             
-            let value = emitExpr(subject)
+            var value: IRValue
+            if subjectType.isEnum {
+                let rawType = IntType(width: numericCast(subjectType.width))
+
+                value = emitExpr(subject, returnAddress: true)
+                value = builder.buildBitCast(value, type: PointerType(pointee: rawType))
+                value = builder.buildLoad(value)
+            } else {
+                value = emitExpr(subject)
+            }
             
             var caseBlocks: [BasicBlock] = []
             var constants: [IRValue] = []
@@ -644,8 +655,20 @@ extension IRGenerator {
                 }
                 
                 let block: BasicBlock
+
+                if let match = match, subjectType.isEnum {
+
+                    let rawType = IntType(width: numericCast(subjectType.width))
+
+                    var matchValue = emitExpr(match, returnAddress: true)
+                    matchValue = builder.buildBitCast(matchValue, type: PointerType(pointee: rawType))
+                    matchValue = builder.buildLoad(matchValue)
+
+                    constants.append(matchValue)
+                    block = currentProcedure.appendBasicBlock(named: "switch.case")
+                    caseBlocks.append(block)
+                } else if let match = match {
                 
-                if let match = match {
                     constants.append(emitExpr(match))
                     block = currentProcedure.appendBasicBlock(named: "switch.case")
                     caseBlocks.append(block)
