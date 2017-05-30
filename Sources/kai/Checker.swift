@@ -1473,7 +1473,7 @@ extension Checker {
         case .stmtIf(let cond, let body, let elseExpr, _):
 
             let condType = checkExpr(cond)
-            guard canImplicitlyConvert(condType, to: Type.bool) else {
+            guard canImplicitlyConvert(condType, to: Type.bool.instance) else {
                 reportError("Cannot use expression as boolean value", at: cond)
                 return
             }
@@ -2231,12 +2231,18 @@ extension Checker {
                 reportError(invalidOpError, at: node)
                 return Type.invalid
             }
+            
+        case .equalsEquals:
+
+            if lhsType.isEnum && rhsType == lhsType {
+                return Type.bool.instance
+            }
+            fallthrough
 
         case .leftChevron,
              .rightChevron,
              .leftChevronEquals,
              .rightChevronEquals,
-             .equalsEquals,
              .bangEquals:
             guard lhsType.isOrdered && rhsType.isOrdered else {
                     reportError(invalidOpError, at: node)

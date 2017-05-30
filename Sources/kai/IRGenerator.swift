@@ -289,7 +289,14 @@ extension IRGenerator {
 
             emitGlobalType(entity)
         } else if decl.entities.count == 1, let entity = decl.entities.first,
+            let value = decl.initExprs.first, case .litEnum = value {
+            // enum definitions
+
+            emitGlobalType(entity)
+        }
+        else if decl.entities.count == 1, let entity = decl.entities.first,
             case .array(let underlyingType, let count)? = entity.type!.typeKind, values.count == 0 {
+            // FIXME(vdka): The above won't work if the array is a `named` type
             
             let irType = ArrayType(elementType: canonicalize(underlyingType), count: Int(count))
             
@@ -301,27 +308,6 @@ extension IRGenerator {
             }
             
             llvmPointers[entity] = irValuePtr
-        } else if decl.entities.count == 1, let entity = decl.entities.first,
-            case .enum(let scope)? = entity.type!.typeKind {
-            
-            for element in scope.elements.orderedValues {
-                guard let type = element.type, let value = entity.value else {
-                    continue
-                }
-
-                let irType = canonicalize(type)
-                
-                let irValuePtr: IRValue
-                if let function = context.currentProcedure?.llvm {
-                    irValuePtr = emitEntryBlockAlloca(in: function, type: irType, named: entity.mangledName!)
-                } else {
-                    irValuePtr = emitGlobal(name: entity.mangledName!, type: irType, value: nil)
-                }
-            }
-            
-            
-            
-            
         } else if decl.entities.count == 1, let entity = decl.entities.first,
             entity.type!.isType {
 
@@ -1238,11 +1224,19 @@ extension IRGenerator {
             panic()
         }
 
-        var lvalue = emitExpr(lhs)
-        var rvalue = emitExpr(rhs)
-
         let lhsType = checker.info.types[lhs]!
         let rhsType = checker.info.types[rhs]!
+
+        var lvalue: IRValue
+        var rvalue: IRValue
+
+        if lhsType.isEnum && rhsType.isEnum {
+            lvalue = emitExpr(lhs, returnAddress: true)
+            rvalue = emitExpr(rhs, returnAddress: true)
+        } else {
+            lvalue = emitExpr(lhs)
+            rvalue = emitExpr(rhs)
+        }
 
         // TODO(vdka): Trunc or Ext if needed / possible
 
@@ -1350,6 +1344,18 @@ extension IRGenerator {
                 return builder.buildICmp(lvalue, rvalue, .equal)
             } else if lhsType.isFloat {
                 return builder.buildFCmp(lvalue, rvalue, .orderedEqual)
+            } else if lhsType.isEnum {
+                assert(lhsType == rhsType)
+
+                let rawType = IntType(width: numericCast(lhsType.width))
+
+                lvalue = builder.buildBitCast(lvalue, type: PointerType(pointee: rawType))
+                rvalue = builder.buildBitCast(rvalue, type: PointerType(pointee: rawType))
+                
+                lvalue = builder.buildLoad(lvalue)
+                rvalue = builder.buildLoad(rvalue)
+                
+                return builder.buildICmp(lvalue, rvalue, .equal)
             }
             panic()
 
