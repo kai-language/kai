@@ -197,7 +197,7 @@ var builtinProcedures: [Entity] = {
         (
             "malloc", mangled: "malloc",
             EntityExtra(singleIrGen: IRGenerator.genForeign, callIrGen: nil),
-            params: [("size", Type.i64)],
+            params: [("size", Type.u64)],
             returns: [Type.rawptr],
             isVariadic: false
         ),
