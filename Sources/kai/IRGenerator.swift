@@ -866,11 +866,7 @@ extension IRGenerator {
         }
 
         // TODO(Brett): use mangled name when available
-        var name = entity.mangledName!
-        if case .directive("foreign", let args, _) = body, case .litString(let symbolName, _)? = args[safe: 1] {
-            name = symbolName
-        }
-
+        let name = entity.mangledName!
         let proc = emitProcedurePrototype(entity)
 
         llvmPointers[entity] = proc
