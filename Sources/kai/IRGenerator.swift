@@ -658,11 +658,12 @@ extension IRGenerator {
 
                 if let match = match, subjectType.isEnum {
 
-                    let rawType = IntType(width: numericCast(subjectType.width))
+                    assert(MemoryLayout<Constant<Struct>>.size == MemoryLayout<Global>.size)
 
+                    // FIXME(vdka): Clean this up.
                     var matchValue = emitExpr(match, returnAddress: true)
-                    matchValue = builder.buildBitCast(matchValue, type: PointerType(pointee: rawType))
-                    matchValue = builder.buildLoad(matchValue)
+                    let g = (matchValue as! Global).initializer! as! OpaquePointer
+                    matchValue = unsafeBitCast(g, to: Constant<Struct>.self).getElement(indices: [0])
 
                     constants.append(matchValue)
                     block = currentProcedure.appendBasicBlock(named: "switch.case")
