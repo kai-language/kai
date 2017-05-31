@@ -1761,35 +1761,3 @@ extension IRGenerator {
         }
     }
 }
-
-extension StructType {
-
-    @available(*, unavailable, message: "Uncomment this and add the code in the comments below into StructType.swift")
-    public func constant(values: [IRValue]) -> IRValue {
-        fatalError()
-    }
-}
-
-// NOTE IMPORTANT: This needs to go into the LLVMSwift module, throw it at the bottom of `StructType.swift`.
-//   If this code exists in the Kai module it causes a double free of a pointer. :'(
-// This should go into a fork and we should depend on said fork.
-/*
-import cllvm
-
-// TODO(vdka): PR for this into LLVMSwift
-extension StructType {
-    
-    /// Creates a constant value of this structure type initialized with the given
-    /// list of values.
-    ///
-    /// - parameter values: A list of values of members of this structure.
-    ///
-    /// - returns: A value representing a constant value of this structure type.
-    public func constant(values: [IRValue]) -> IRValue {
-        var vals = values.map { $0.asLLVM() as Optional }
-        return vals.withUnsafeMutableBufferPointer { buf in
-            return LLVMConstNamedStruct(asLLVM(), buf.baseAddress, UInt32(buf.count))
-        }
-    }
-}
-*/
