@@ -225,15 +225,15 @@ main :: () -> void {
 
         printf("dir %d\n", Direction.south) // dir 2
 
-        /*
-        switch dir {
-        case Direction.north: printf("North\n")
-        case Direction.east:  printf("East\n")
-        case Direction.south: printf("South\n")
-        case Direction.west:  printf("West\n")
-        default: break
+        { using Direction        
+            switch dir {
+            case north: printf("North\n")
+            case east:  printf("East\n")
+            case south: printf("South\n")
+            case west:  printf("West\n")
+            default: break
+            }
         }
-        */
 
         if dir == Direction.east printf("Bad direction\n")
         else if dir == Direction.south printf("Expected direction\n")

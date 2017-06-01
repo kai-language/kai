@@ -73,7 +73,7 @@ class Compiler {
 
     func run() throws {
         var options: Set<String> = []
-        var optimizations: [String] = []
+        var optimisations: [String] = []
 
         args.forEach {
             switch $0 {
@@ -102,16 +102,16 @@ class Compiler {
                 options.insert("emit-time")
 
             case "-O0", "--O0", "--Onone":
-                optimizations.append("O0")
+                optimisations.append("O0")
 
             case "-O1", "--O1":
-                optimizations.append("O1")
+                optimisations.append("O1")
 
             case "-O2", "--O2":
-                optimizations.append("O2")
+                optimisations.append("O2")
 
             case "-O3", "--O3":
-                optimizations.append("O3")
+                optimisations.append("O3")
 
             default:
                 if !$0.hasSuffix(".kai") {
@@ -122,22 +122,21 @@ class Compiler {
         }
 
         //default to `O0` optimization
-        if optimizations.count == 0 {
-            optimizations.append("O1")
+        if optimisations.count == 0 {
+            optimisations.append("O1")
         }
 
-        guard optimizations.count == 1 else {
+        guard optimisations.count == 1 else {
             print(
                 "error: multiple optimizations provided: " +
-                "[\(optimizations.joined(separator: ", "))]"
+                "[\(optimisations.joined(separator: ", "))]"
             )
             exit(1)
         }
 
-        let optimization = optimizations[0]
-        Compiler.optimisationLevel = OptimisationLevel(optimization)
+        Compiler.optimisationLevel = OptimisationLevel(optimisations[0])
         
-        try build(options: options, optimization: optimization)
+        try build(options: options)
     }
 
     func printVersion() {
@@ -172,7 +171,7 @@ class Compiler {
         exit(0)
     }
 
-    func build(options: Set<String>, optimization: String) throws {
+    func build(options: Set<String>) throws {
 
         let filePath = try extractFilePath()
 
