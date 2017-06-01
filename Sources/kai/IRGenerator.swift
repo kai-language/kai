@@ -1425,6 +1425,10 @@ extension IRGenerator {
                 rvalue = builder.buildLoad(rvalue)
                 
                 return builder.buildICmp(lvalue, rvalue, .equal)
+            } else if lhsType.isPointer {
+                lvalue = builder.buildPtrToInt(lvalue, type: IntType.int64)
+                rvalue = builder.buildPtrToInt(rvalue, type: IntType.int64)
+                return builder.buildICmp(lvalue, rvalue, .equal)
             }
             panic()
 

@@ -222,11 +222,11 @@ class Type: Equatable, CustomStringConvertible {
     }
 
     var isOrdered: Bool {
-        return isNumeric || isString || isPointer
+        return isNumeric || isString || isPointer || isNil
     }
 
     var isTypeOrdered: Bool {
-        return isTypeNumeric || isTypeString || isTypePointer
+        return isTypeNumeric || isTypeString || isTypePointer || isTypeNil
     }
 
     var isBooleanesque: Bool {
@@ -247,6 +247,23 @@ class Type: Equatable, CustomStringConvertible {
         //   Does this make false + 1 valid? Also why!?!
         //   Maybe so they are comparable? /shrug
         return isTypeInteger || isTypeFloat || isTypeBoolean
+    }
+    
+    var isNil: Bool {
+        guard case .instance(let type) = kind else {
+            return false
+        }
+        return type.isTypeNil
+    }
+    
+    var isTypeNil: Bool {
+        switch kind {
+        case .builtin("unconstrNil"):
+            return true
+            
+        default:
+            return false
+        }
     }
 
     var isUnconstrained: Bool {
