@@ -1517,10 +1517,17 @@ extension Checker {
                     guard case .runtime = entity.kind else {
                         continue
                     }
-                    let replaced = context.scope.insert(entity)
+
+                    let copy = Entity(name: entity.name, location: entity.location, kind: entity.kind, type: entity.type, owningScope: entity.owningScope)
+                    copy.mangledName = entity.mangledName
+                    copy.childScope = entity.childScope
+                    copy.value = entity.value
+                    
+                    let replaced = context.scope.insert(copy)
+
                     if replaced != nil, !didWarn {
                         didWarn = true
-                        reportError("use of `using` results in name collision for `\(entity.name)`", at: node)
+                        reportError("use of `using` results in name collision for `\(copy.name)`", at: node)
                         continue
                     }
                 }

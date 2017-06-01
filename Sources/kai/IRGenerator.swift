@@ -7,7 +7,7 @@ class IRGenerator {
 
     var checker: Checker
     var llvmPointers:   [Entity: IRValue]  = [:]
-    
+
     let module: Module
     let builder: IRBuilder
 
@@ -128,8 +128,29 @@ extension IRGenerator {
             // these are just expressions which do not have their values used
             emitStmt(expr)
 
-        case .stmtUsing:
-            break
+        case .stmtUsing(let expr, _):
+
+            let type = checker.info.types[expr]!
+            if type.isStruct {
+                for entity in type.memberScope!.elements.orderedValues {
+                    guard case .runtime = entity.kind else { continue }
+                    let copy = context.scope.elements.orderedValues.first(where: { $0.name == entity.name })!
+
+                    var recIrVal = emitExpr(expr, returnAddress: true)
+
+                    // We need to deref until we have a single level pointer
+                    // this is because we allow access to the member variables of pointers to structures
+                    while let pt = recIrVal.type as? PointerType, pt.pointee is PointerType {
+                        recIrVal = builder.buildLoad(recIrVal)
+                    }
+
+                    let memberPtr = builder.buildStructGEP(recIrVal, index: Int(entity.offsetInParent!))
+
+                    llvmPointers[copy] = memberPtr
+                }
+            } else {
+                assert(type.isTypeEnum, "Using on unsupported value")
+            }
 
         case .stmtAssign:
             emitStmtAssignment(node)
