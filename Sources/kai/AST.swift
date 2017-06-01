@@ -81,6 +81,7 @@ indirect enum AstNode {
     case stmtSwitch(subject: AstNode?, cases: [AstNode], SourceRange)
     case stmtCase(AstNode?, body: AstNode, SourceRange)
     case stmtDefer(AstNode, SourceRange)
+    case stmtUsing(AstNode, SourceRange)
     case stmtBreak(SourceRange)
     case stmtContinue(SourceRange)
 
@@ -158,6 +159,7 @@ extension AstNode {
              .stmtSwitch(_, _, let location),
              .stmtCase(_, _, let location),
              .stmtDefer(_, let location),
+             .stmtUsing(_, let location),
              .stmtBreak(let location),
              .stmtContinue(let location),
              .typeProc(_, _, let location),
@@ -301,7 +303,7 @@ extension AstNode {
         case .stmtBlock, .stmtEmpty, .stmtAssign,
              .stmtIf,
              .stmtFor,
-             .stmtReturn, .stmtDefer,
+             .stmtReturn, .stmtDefer, .stmtUsing,
              .stmtBreak, .stmtContinue:
             return true
 
@@ -586,8 +588,11 @@ extension AstNode: CustomStringConvertible {
             }
             return "default"
 
-        case .stmtDefer(let expr, _):
-            return "defer \(expr)"
+        case .stmtDefer(let stmt, _):
+            return "defer \(stmt)"
+
+        case .stmtUsing(let expr, _):
+            return "using \(expr)"
 
         case .stmtBreak:
             return "break"
@@ -655,6 +660,7 @@ extension AstNode {
         case .stmtSwitch: return "stmtSwitch"
         case .stmtCase(let match, _, _): return match == nil ? "stmtDefaultCase" : "stmtCase"
         case .stmtDefer: return "stmtDefer"
+        case .stmtUsing: return "stmtUsing"
         case .stmtBreak: return "stmtBreak"
         case .stmtContinue: return "stmtContinue"
         case .typeProc: return "typeProc"
@@ -832,6 +838,9 @@ extension AstNode {
 
         case .stmtDefer(let stmt, _):
             children.append(stmt)
+
+        case .stmtUsing(let expr, _):
+            children.append(expr)
 
         case .stmtBreak, .stmtContinue:
             break
@@ -1100,6 +1109,9 @@ extension AstNode {
             
         case .stmtDefer(let stmt, _):
             children.append(stmt)
+
+        case .stmtUsing(let expr, _):
+            children.append(expr)
 
         case .stmtBreak, .stmtContinue:
             break

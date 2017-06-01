@@ -470,8 +470,13 @@ extension Parser {
 
         case .keyword(.defer):
             let (_, startLocation) = try consume(.keyword(.defer))
+            let stmt = try expression()
+            return AstNode.stmtDefer(stmt, startLocation ..< lexer.location)
+
+        case .keyword(.using):
+            let (_, startLocation) = try consume(.keyword(.using))
             let expr = try expression()
-            return AstNode.stmtDefer(expr, startLocation ..< lexer.location)
+            return AstNode.stmtUsing(expr, startLocation ..< lexer.location)
 
         case .lbrace:
             let (_, startLocation) = try consume(.lbrace)

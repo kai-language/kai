@@ -1490,6 +1490,43 @@ extension Checker {
             checkStmt(stmt)
             // TODO(vdka): Validate that the deferal is unTerminated (defer cannot return)
 
+        case .stmtUsing(let expr, _):
+            let type = checkExpr(expr)
+
+            guard let memberScope = type.memberScope else {
+                reportError("`using` is not valid on a non aggregate type", at: expr)
+                return
+            }
+
+            if type.isType {
+
+                for entity in memberScope.elements.orderedValues {
+                    guard case .compiletime = entity.kind else {
+                        continue
+                    }
+                    context.scope.insert(entity)
+                }
+            } else {
+                guard type.isStruct else {
+                    reportError("`using` is invalid on type `\(type)`", at: expr)
+                    return
+                }
+
+                var didWarn = false
+                for entity in memberScope.elements.orderedValues {
+                    guard case .runtime = entity.kind else {
+                        continue
+                    }
+                    let replaced = context.scope.insert(entity)
+                    if replaced != nil, !didWarn {
+                        didWarn = true
+                        reportError("use of `using` results in name collision for `\(entity.name)`", at: node)
+                        continue
+                    }
+                }
+            }
+
+
         case .stmtFor(let initializer, let cond, let step, let body, _):
             
             let bodyScope = pushScope(for: body, isLoop: true)

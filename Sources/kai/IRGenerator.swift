@@ -122,9 +122,14 @@ extension IRGenerator {
             emitStmtDeclaration(node)
             
         case .stmtDefer:
-            emitStmtDefer(node)        case .stmtExpr(let expr):
+            emitStmtDefer(node)
+
+        case .stmtExpr(let expr):
             // these are just expressions which do not have their values used
             emitStmt(expr)
+
+        case .stmtUsing:
+            break
 
         case .stmtAssign:
             emitStmtAssignment(node)
@@ -1508,7 +1513,6 @@ extension IRGenerator {
                 }
             }
         }
-
 
         let recvType = checker.info.types[receiver]!
         let entity = recvType.memberScope!.lookup(member)!

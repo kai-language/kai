@@ -504,10 +504,9 @@ enum Keyword: String {
     case `switch`
     case `case`
     case `default`
-    
-    case type
-    case alias
 
+    case using
+    
     case returnArrow = "->"
 }
 
