@@ -601,8 +601,10 @@ class Entity: PointerHashable {
         var rawValue: UInt8
         init(rawValue: UInt8) { self.rawValue = rawValue }
 
-        static let none = Flag(rawValue: 0b00000000)
-        static let used = Flag(rawValue: 0b00000001)
+        static let none     = Flag(rawValue: 0b00000000)
+        static let used     = Flag(rawValue: 0b00000001)
+
+        static let foreign  = Flag(rawValue: 0b10000000)
     }
 
     static var dispose: Entity = {
@@ -2419,6 +2421,7 @@ extension Checker {
             }
 
             pi.decl?.entities[0].mangledName = symbol
+            pi.decl?.entities[0].flags.insert(.foreign)
 
             return
         }

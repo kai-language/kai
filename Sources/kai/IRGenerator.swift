@@ -833,6 +833,24 @@ extension IRGenerator {
 
         let procedure = builder.addFunction(entity.mangledName!, type: procIrType)
 
+        if entity.flags.contains(.foreign) {
+            // HEISENBUG! This didn't work but for some reason it does now...
+            // If it returns to not working consider using the x86 SysV CC below
+            procedure.callingConvention = .c
+
+            /*
+            // FIXME(vdka): Find out why Xcode causes a double free when you include `cllvm` and you call to it's functions.
+            #if (os(macOS) || os(Linux)) && arch(x86_64) && !Xcode
+                // Set the calling convention to x86 SysV Calling Convention
+                LLVMSetFunctionCallConv(procedure.asLLVM(), 78)
+            #elseif Xcode
+                // Do nothing. Otherwise we get a double free crash when we emit the module.
+            #else
+                fatalError("Calling convention is different here.")
+            #endif
+            */
+        }
+
         guard case .proc(let params, _, _)? = entity.type!.typeKind else {
             panic()
         }
