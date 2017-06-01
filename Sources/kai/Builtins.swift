@@ -34,7 +34,7 @@ func declareBuiltins() {
 
     var e: Entity
     e = Entity(name: "nil", location: .unknown, kind: .compiletime, owningScope: Scope.universal)
-    e.type = Type.unconstrNil
+    e.type = Type.unconstrNil.instance
     Scope.universal.insert(e)
 
     e = Entity(name: "_", location: .unknown, kind: .compiletime, owningScope: Scope.universal)
