@@ -66,9 +66,11 @@ main :: () -> void {
 
         name : string = "Brett"
         len := strings.len(name)
+        cap := strings.cap(name)
 
         printf("The string is `%s`\n", name)
-        printf("The string is `%d` bytes long.\n", len)
+        printf("The string is `%llu` bytes long.\n", len)
+        printf("The string's capacity is `%llu` bytes\n", cap)
         printf("The first byte is `%c`\n", name[0])
     }
 
