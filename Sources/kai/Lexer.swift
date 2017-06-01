@@ -161,10 +161,10 @@ struct Lexer {
                 
                 return (.float(double), location)
                 
-//            case _ where number.contains("e"):
-//                return parseEnotation(Array(number.split(separator: "e")), original: number)
-//            case _ where number.contains("E"):
-//                return parseEnotation(number.split(separator: "E"), original: number)
+            case _ where number.contains("e") && !number.hasPrefix("0x"):
+                return parseEnotation(Array(number.split(separator: "e")), original: number)
+            case _ where number.contains("E") && !number.hasPrefix("0x"):
+                return parseEnotation(number.split(separator: "E"), original: number)
                 
             default:
                 guard let int = extractInteger(number) else {

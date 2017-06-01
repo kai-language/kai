@@ -1,6 +1,6 @@
 #library "c" libc
 
-length :: (string) -> u64 #foreign libc "strlen"
+#import "strings.kai"
 
 Color :: struct {
     name: string
@@ -24,7 +24,12 @@ main :: () -> void {
 
     { // Exponents
       val := 2837.5e-2
-      printf("val: %f\n", val)
+      printf("val: %f (should be 28.375000)\n", val)
+    }
+
+    {
+        val := 0xEE
+        printf("val: %d (should be 238)", val)
     }
 
     section()
@@ -59,14 +64,12 @@ main :: () -> void {
 
     { // NullablePointers
 
-        name := "Brett"
-        len := length(name)
-
-        strPtr : *u8 = name
+        name : string = "Brett"
+        len := strings.len(name)
 
         printf("The string is `%s`\n", name)
         printf("The string is `%d` bytes long.\n", len)
-        printf("The first byte is `%c`\n", <strPtr)
+        printf("The first byte is `%c`\n", name[0])
     }
 
     section()
