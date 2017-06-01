@@ -359,17 +359,29 @@ extension IRGenerator {
                     irValue = nil
                 } else if case .litString(let string, _) = value {
                     let litIr = emitExpr(value)
-                    let byteCount = string.escaped.utf8.count + 1 // null term.
+                    
+                    let stringHeaderSize = 16
+                    let stringLength = string.escaped.utf8.count
+                    let byteCount = stringLength + 1 // null term.
                     
                     let tempArrayIr: IRValue
-                    let tempArrayIrType = ArrayType(elementType: IntType.int8, count: byteCount)
+                    let tempArrayIrType = ArrayType(elementType: IntType.int8, count: byteCount + stringHeaderSize)
                     if let function = context.currentProcedure?.llvm {
                         tempArrayIr = emitEntryBlockAlloca(in: function, type: tempArrayIrType, named: "tmp")
                     } else {
                         tempArrayIr = emitGlobal(name: "tmp", type: tempArrayIrType, value: nil)
                     }
                     
-                    let tempArrayVoidIr = builder.buildBitCast(tempArrayIr, type: PointerType.toVoid)
+                    let lenPtr = builder.buildGEP(tempArrayIr, indices: [0])
+                    let lenPtrIr = builder.buildBitCast(lenPtr, type: PointerType(pointee: IntType.int64))
+                    builder.buildStore(stringLength, to: lenPtrIr)
+                    
+                    let capPtr = builder.buildGEP(tempArrayIr, indices: [0, 8])
+                    let capPtrIr = builder.buildBitCast(capPtr, type: PointerType(pointee: IntType.int64))
+                    builder.buildStore(stringLength, to: capPtrIr)
+                    
+                    let offsetArrayIr = builder.buildGEP(tempArrayIr, indices: [0, stringHeaderSize])
+                    let tempArrayVoidIr = builder.buildBitCast(offsetArrayIr, type: PointerType.toVoid)
                     let litVoidIr = builder.buildBitCast(litIr, type: PointerType.toVoid)
 
                     let memcpy = module.function(named: "memcpy")!

@@ -1,5 +1,6 @@
-BUFFER_SIZE :: 100
+#import "strings.kai"
 
 main :: () -> void {
-    anArray : [BUFFER_SIZE]i8
+    a: string = "Hello, world!"
+    printf("%d %d %s\n", strings.len(a), strings.cap(a), a)
 }
