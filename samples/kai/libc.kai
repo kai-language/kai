@@ -1,0 +1,5 @@
+#library "c" libc
+
+fopen :: (filename: *u8, mode: *u8) -> rawptr #foreign libc "fopen"
+fread :: (ptr: rawptr, size: u64, nmemb: u64, file: rawptr) -> i64 #foreign libc "fread"
+

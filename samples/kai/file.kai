@@ -1,10 +1,17 @@
-#library "c" libc
+#import "libc.kai"
+#import "strings.kai"
 
-fopen :: (filename: *u8, mode: *u8) -> rawptr #foreign libc "fopen"
-fread :: (ptr: rawptr, size: u64, nmemb: u64, file: rawptr) -> i64 #foreign libc "fread"
+stringFromRaw :: (ptr: rawptr, len: u64) -> string {
+    buff := malloc(len + 17) // len, cap and \0
 
-main :: () -> void {
-    file := fopen("/Users/bretttoomey/Documents/kai/TODO.md", "r")
+    <(*u64)(&buff[0]) = len // len
+    <(*u64)(&buff[8]) = len // cap
+
+    return (string)(memcpy((rawptr)(&buff[16]), ptr, i64(len)))
+}
+
+main :: (argc: i32, argv: **u8) -> void {
+    file := libc.fopen("/Users/bretttoomey/Documents/kai/TODO.md", "r")
     if file == nil {
         printf("Dead\n")
     }
@@ -12,8 +19,9 @@ main :: () -> void {
     buffer := malloc(1024 * 1024)
     buffer[1024 * 1024] = 0
 
-    count := fread(buffer, 1, 1024 * 1024, file) 
+    count := libc.fread(buffer, 1, 1024 * 1024, file) 
 
-    printf("%d\n", count)
-    printf("%s\n", buffer)
+    str := stringFromRaw(buffer, u64(count))
+    printf("The string is %llu bytes long (cap: %llu)\n", strings.len(str), strings.cap(str))
+    printf(str)
 }

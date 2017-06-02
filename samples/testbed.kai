@@ -1,6 +1,5 @@
 #import "strings.kai"
 
-main :: () -> void {
-    a: string = "Hello, world!"
-    printf("%d %d %s\n", strings.len(a), strings.cap(a), a)
+main :: (argc: i32, argv: **u8) -> void {
+    printf("%d %s\n", argc, <argv[2])
 }

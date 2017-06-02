@@ -123,7 +123,7 @@ class Compiler {
 
         //default to `O0` optimization
         if optimisations.count == 0 {
-            optimisations.append("O1")
+            optimisations.append("O0")
         }
 
         guard optimisations.count == 1 else {
