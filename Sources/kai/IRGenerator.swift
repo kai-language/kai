@@ -1504,7 +1504,7 @@ extension IRGenerator {
             ptr = builder.buildGEP(lvalue, indices: [index])
         }
 
-        if returnAddress || type.isPointer {
+        if returnAddress {
             return ptr
         }
 
