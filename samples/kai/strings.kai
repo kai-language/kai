@@ -14,6 +14,15 @@ setLen :: (str: string, length: u64) -> void {
     <(*u64)(&str[-16]) = length
 }
 
+expandTo :: (str: string, capacity: u64) -> string {
+    length := len(str)
+    
+    str = string(realloc(rawptr(&str[-16]), capacity))
+    setCap(str, capacity)
+    setLen(str, length)
+    return str
+}
+
 makeWithCap :: (capacity: u64) -> string {
     buff := malloc(capacity + 17)
 
@@ -41,7 +50,7 @@ appendRaw :: (str: string, ptr: rawptr, ptrLen: u64) -> string {
         str = expandTo(str, newLen * 2)
     }
 
-    //memcpy(rawptr(&str[oldLen]), ptr, ptrLen)
+    memcpy(rawptr(&str[int(oldLen)]), ptr, ptrLen)
     setLen(str, newLen)
 
     return str
@@ -57,14 +66,6 @@ expand :: (str: string) -> string {
     return str
 }
 
-expandTo :: (str: string, capacity: u64) -> string {
-    length := len(str)
-    
-    str = string(realloc(rawptr(&str[-16]), capacity))
-    setCap(str, capacity)
-    setLen(str, length)
-    return str
-}
 
 destroy :: (str: string) -> void {
     free(rawptr(&str[-16]))

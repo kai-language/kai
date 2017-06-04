@@ -2737,6 +2737,9 @@ extension Checker {
         } else if type.isBooleanesque && target.isBoolean {
             // Numeric types can be converted to booleans through truncation
             return true
+        } else if type.isPointer && target.isBoolean {
+            // Pointer null check
+            return true
         } else if case .pointer(let underlyingType)? = type.typeKind, case .pointer(let underlyingTargetType)? = target.typeKind {
             return canImplicitlyConvert(underlyingType, to: underlyingTargetType)
         } else if case .pointer(let underlyingType)? = type.typeKind, target.isString {
@@ -2776,7 +2779,7 @@ extension Checker {
         case .stmtIf(_, let body, let elseExpr, _):
             let bodyTerminators = terminatingStatments(body)
             guard let elseExpr = elseExpr else {
-                return (bodyTerminators.0, .unTerminated)
+                return (bodyTerminators.0, .notApplicable)
             }
 
             let elseTerminators = terminatingStatments(elseExpr)
