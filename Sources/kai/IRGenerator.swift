@@ -1805,6 +1805,10 @@ extension IRGenerator {
             let rawType = IntType(width: numericCast(type.width))
             return StructType(elementTypes: [rawType], isPacked: true)
 
+        case .union?:
+            let rawType = IntType(width: numericCast(type.width))
+            return StructType(elementTypes: [rawType], isPacked: true)
+
         case .pointer(Type.void)?:
             return PointerType(pointee: IntType.int8)
             

@@ -586,7 +586,7 @@ extension Parser {
 
             let (_, rbrace) = try consume(.rbrace)
 
-            return AstNode.litStruct(members: decls, start ..< rbrace)
+            return AstNode.litStruct(nodes: decls, start ..< rbrace)
 
         case .keyword(.enum):
             let (_, start) = try consume()
@@ -618,6 +618,27 @@ extension Parser {
             
             let (_, end) = try consume(.rbrace)
             return AstNode.litEnum(cases: cases, start ..< end)
+            
+        case .keyword(.union):
+            let (_, start) = try consume()
+            try consume(.lbrace)
+
+            var decls: [AstNode] = []
+            while let next = try lexer.peek()?.kind, next != .rbrace {
+                let node = try expression()
+                try consumeTerminators()
+
+                guard node.isDecl || node.isComment else {
+                    reportError("Expected declaration", at: node)
+                    continue
+                }
+
+                decls.append(node)
+            }
+
+            let (_, rbrace) = try consume(.rbrace)
+
+            return AstNode.litUnion(nodes: decls, start ..< rbrace)
 
         default:
             try consume()

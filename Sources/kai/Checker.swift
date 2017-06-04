@@ -32,6 +32,7 @@ class Type: Equatable, CustomStringConvertible {
         case named(Type, Entity)
         case `struct`(Scope)
         case `enum`(Scope)
+        case union(Scope)
         
         case pointer(underlyingType: Type)
         case array(underlyingType: Type, count: UInt)
@@ -71,7 +72,7 @@ class Type: Equatable, CustomStringConvertible {
         case .instance(let type):
             return type.underlyingType
 
-        case .builtin, .struct, .enum, .proc, .tuple:
+        case .builtin, .struct, .enum, .union, .proc, .tuple:
             return nil
         }
     }
@@ -82,7 +83,8 @@ class Type: Equatable, CustomStringConvertible {
             return type.memberScope
 
         case .struct(let memberScope),
-             .enum(let memberScope):
+             .enum(let memberScope),
+             .union(let memberScope):
             return memberScope
 
         case .instance(let type):
@@ -212,6 +214,9 @@ class Type: Equatable, CustomStringConvertible {
 
         case .enum(let cases):
             return "enum { " + cases.elements.orderedValues.map({ $0.name }).joined(separator: ", ") + " }"
+            
+        case .union(let members):
+            return "union { " + members.elements.orderedValues.map({ $0.name + ": " + $0.type!.description }).joined(separator: ", ") + " }"
             
         case .tuple(let types):
             return "(" + types.map({ $0.description }).joined(separator: ", ") + ")"
@@ -460,6 +465,26 @@ class Type: Equatable, CustomStringConvertible {
             return type.isTypeEnum
 
         case .enum:
+            return true
+
+        default:
+            return false
+        }
+    }
+    
+    var isUnion: Bool {
+        guard case .instance(let type) = kind else {
+            return false
+        }
+        return type.isTypeUnion
+    }
+
+    var isTypeUnion: Bool {
+        switch kind {
+        case .named(let type, _):
+            return type.isTypeUnion
+
+        case .union:
             return true
 
         default:
@@ -1848,10 +1873,14 @@ extension Checker {
                 break
             }
 
+            if explicitType.isUnion {
+                unimplemented()
+            }
+
             // NOTE(vdka): we have handled both Structs and Arrays. There should not be anything else
             panic(node)
 
-        case .litStruct(let members, _):
+        case .litStruct(let nodes, _):
 
             let scope = pushScope(for: node, isStruct: true)
             defer { popScope() }
@@ -1861,13 +1890,13 @@ extension Checker {
                 scope.owningEntity = decl.entities.first
             }
 
-            collectDecls(members)
+            collectDecls(nodes)
             checkDecls(in: scope)
 
             // @hack
             // FIXME(vdka): The ir emitting code should handle the knowledge of values being runtime or not
             //   We may need to mangle non runtime members here though.
-            let entities = members.flatMap({ info.decls[$0] }).flatMap({ $0.entities }).filter {
+            let entities = nodes.flatMap({ info.decls[$0] }).flatMap({ $0.entities }).filter {
                 if case .runtime = $0.kind {
                     return true
                 }
@@ -1945,6 +1974,41 @@ extension Checker {
                 entity.type = Type.placeholder
                 addEntity(to: scope, entity)
             }
+
+        case .litUnion(let nodes, _):
+
+            let scope = pushScope(for: node, isStruct: true)
+            defer { popScope() }
+            
+            if let decl = decl {
+                // NOTE(vdka): This should be fine if we forbid things like: `A, B :: enum {}, enum {}`
+                scope.owningEntity = decl.entities.first
+            }
+
+            collectDecls(nodes)
+            checkDecls(in: scope)
+
+            // @hack
+            // FIXME(vdka): The ir emitting code should handle the knowledge of values being runtime or not
+            //   We may need to mangle non runtime members here though.
+            let entities = nodes.flatMap({ info.decls[$0] }).flatMap({ $0.entities }).filter {
+                if case .runtime = $0.kind {
+                    return true
+                }
+                return false
+            }
+
+            // FIXME(vdka): Be smarter about this
+            // Also allow #packed and whatnot
+
+            var width: UInt = 0
+
+            for (index, entity) in entities.enumerated() {
+                entity.offsetInParent = 0
+                width = max(width, entity.type!.width)
+            }
+
+            type = Type(kind: .union(scope), flags: .none, width: width, location: node.startLocation)
             
         case .ident:
             type = checkExprIdent(node)

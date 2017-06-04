@@ -490,6 +490,7 @@ enum Directive: String {
 enum Keyword: String {
     case `struct`
     case `enum`
+    case union
 
     case `if`
     case `else`

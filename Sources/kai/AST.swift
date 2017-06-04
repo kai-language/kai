@@ -51,9 +51,11 @@ indirect enum AstNode {
     /// - Note: Used to represent array literals
     case litCompound(type: AstNode, elements: [AstNode], SourceRange)
 
-    case litStruct(members: [AstNode], SourceRange)
+    case litStruct(nodes: [AstNode], SourceRange)
     
     case litEnum(cases: [AstNode], SourceRange)
+
+    case litUnion(nodes: [AstNode], SourceRange)
 
     case declValue(isRuntime: Bool, names: [AstNode], type: AstNode?, values: [AstNode], SourceRange)
     case declImport(path: AstNode, fullpath: String?, importName: AstNode?, SourceRange)
@@ -139,6 +141,7 @@ extension AstNode {
              .litCompound(_, _, let location),
              .litStruct(_, let location),
              .litEnum(_, let location),
+             .litUnion(_, let location),
              .declValue(_, _, _, _, let location),
              .declImport(_, _, _, let location),
              .declLibrary(_, _, _, let location),
@@ -283,7 +286,7 @@ extension AstNode {
 
     var isExpr: Bool {
         switch self {
-        case .litInteger, .litFloat, .litString, .litProc, .litStruct, .litCompound:
+        case .litInteger, .litFloat, .litString, .litProc, .litCompound:
             return true
 
         case .exprParen, .exprDeref,
@@ -505,11 +508,14 @@ extension AstNode: CustomStringConvertible {
         case .litCompound(let type, let elements, _):
             return type.description + "{ " + elements.map({ $0.description }).joined(separator: ", ") + " }"
 
-        case .litStruct(let members, _):
-            return "struct { " + members.map({ $0.description }).joined(separator: "; ") + " }"
+        case .litStruct(let nodes, _):
+            return "struct { " + nodes.map({ $0.description }).joined(separator: "; ") + " }"
 
         case .litEnum(let cases, _):
             return "enum { " + cases.map({ $0.description }).joined(separator: ", ") + " }"
+
+        case .litUnion(let nodes, _):
+            return "union { " + nodes.map({ $0.description }).joined(separator: "; ") + " }"
             
         case .declValue(let isRuntime, let names, let type, let values, _):
             let declChar = isRuntime ? "=" : ":"
@@ -640,6 +646,7 @@ extension AstNode {
         case .litCompound: return "litCompound"
         case .litStruct: return "litStruct"
         case .litEnum: return "litEnum"
+        case .litUnion: return "litUnion"
         case .declValue(let decl): return decl.isRuntime ? "declRt" : "declCt"
         case .declImport: return "declImport"
         case .declLibrary: return "declLibrary"
@@ -745,11 +752,14 @@ extension AstNode {
             labeled.append(("type", type.description))
             children.append(contentsOf: elements)
 
-        case .litStruct(let members, _):
-            children.append(contentsOf: members)
+        case .litStruct(let nodes, _):
+            children.append(contentsOf: nodes)
 
         case .litEnum(let cases, _):
             children.append(contentsOf: cases)
+
+        case .litUnion(let nodes, _):
+            children.append(contentsOf: nodes)
             
         case .exprParen(let expr, _):
             children.append(expr)
@@ -1016,11 +1026,14 @@ extension AstNode {
             labeled.append(("type", type.description))
             children.append(contentsOf: elements)
 
-        case .litStruct(let members, _):
-            children.append(contentsOf: members)
+        case .litStruct(let nodes, _):
+            children.append(contentsOf: nodes)
             
         case .litEnum(let cases, _):
             children.append(contentsOf: cases)
+            
+        case .litUnion(let nodes, _):
+            children.append(contentsOf: nodes)
 
         case .exprDeref(let expr, _):
             children.append(expr)
