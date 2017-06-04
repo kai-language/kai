@@ -5,3 +5,67 @@ len :: (str: string) -> u64 {
 cap :: (str: string) -> u64 {
     return <(*u64)(&str[-8])
 }
+
+setCap :: (str: string, capacity: u64) -> void {
+    <(*u64)(&str[-8]) = capacity
+}
+
+setLen :: (str: string, length: u64) -> void {
+    <(*u64)(&str[-16]) = length
+}
+
+makeWithCap :: (capacity: u64) -> string {
+    buff := malloc(capacity + 17)
+
+    strPtr := string(&buff[16])
+
+    setLen(strPtr, 0)
+    setCap(strPtr, capacity)
+
+    return strPtr
+}
+
+makeFromRaw :: (ptr: rawptr, len: u64) -> string {
+    buff := malloc(len + 17) // len, cap and \0
+
+    <(*u64)(&buff[0]) = len // len
+    <(*u64)(&buff[8]) = len // cap
+
+    return (string)(memcpy((rawptr)(&buff[16]), ptr, len))
+}
+
+appendRaw :: (str: string, ptr: rawptr, ptrLen: u64) -> string {
+    oldLen := len(str)
+    newLen := oldLen + ptrLen
+    if newLen > cap(str) {
+        str = expandTo(str, newLen * 2)
+    }
+
+    //memcpy(rawptr(&str[oldLen]), ptr, ptrLen)
+    setLen(str, newLen)
+
+    return str
+}
+
+expand :: (str: string) -> string {
+    length := len(str)
+    newCap := cap(str) * 2
+
+    str = string(realloc(rawptr(&str[-16]), newCap))
+    setCap(str, newCap)
+    setLen(str, length)
+    return str
+}
+
+expandTo :: (str: string, capacity: u64) -> string {
+    length := len(str)
+    
+    str = string(realloc(rawptr(&str[-16]), capacity))
+    setCap(str, capacity)
+    setLen(str, length)
+    return str
+}
+
+destroy :: (str: string) -> void {
+    free(rawptr(&str[-16]))
+}

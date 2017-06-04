@@ -1,27 +1,27 @@
 #import "libc.kai"
 #import "strings.kai"
 
-stringFromRaw :: (ptr: rawptr, len: u64) -> string {
-    buff := malloc(len + 17) // len, cap and \0
-
-    <(*u64)(&buff[0]) = len // len
-    <(*u64)(&buff[8]) = len // cap
-
-    return (string)(memcpy((rawptr)(&buff[16]), ptr, i64(len)))
-}
-
 main :: (argc: i32, argv: **u8) -> void {
     file := libc.fopen("/Users/bretttoomey/Documents/kai/TODO.md", "r")
     if file == nil {
         printf("Dead\n")
     }
 
+
+    test := strings.makeWithCap(100)
+    printf("Test len: %llu cap: %llu\n", strings.len(test), strings.cap(test))
+    
+    test = strings.expand(test)
+    printf("Test len: %llu cap: %llu\n", strings.len(test), strings.cap(test))
+    
+    strings.destroy(test)
+
     buffer := malloc(1024 * 1024)
     buffer[1024 * 1024] = 0
 
     count := libc.fread(buffer, 1, 1024 * 1024, file) 
 
-    str := stringFromRaw(buffer, u64(count))
+    str := strings.makeFromRaw(buffer, u64(count))
     printf("The string is %llu bytes long (cap: %llu)\n", strings.len(str), strings.cap(str))
     printf(str)
 }
