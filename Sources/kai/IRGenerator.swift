@@ -1120,13 +1120,7 @@ extension IRGenerator {
             let type = checker.info.types[node]!
 
             switch type.typeKind {
-            case .named?:
-                if type.isStruct {
-                    fallthrough
-                }
-
-                unimplemented() // Named arrays? `People :: [5]Person`
-
+            case .named? where type.isStruct: fallthrough
             case .struct?:
                 let values = elements.map {
                     emitExpr($0)
@@ -1136,6 +1130,22 @@ extension IRGenerator {
 
                 for (index, value) in values.enumerated() {
                     val = builder.buildInsertValue(aggregate: val, element: value, index: index)
+                }
+
+                return val
+
+            case .named? where type.isUnion: fallthrough
+            case .union?:
+                let value = elements.first.map {
+                    emitExpr($0)
+                }
+
+                var val = canonicalize(type).undef()
+
+                if let value = value {
+
+                    let uval = builder.buildBitCast(value, type: canonicalize(type))
+                    val = builder.buildInsertValue(aggregate: uval, element: uval, index: 0)
                 }
 
                 return val
@@ -1575,6 +1585,21 @@ extension IRGenerator {
             return builder.buildLoad(irVal)
         }
 
+        guard !recvType.isUnion else {
+
+            let recvEntity = checker.info.uses[receiver]!
+
+            var irVal = llvmPointers[recvEntity]!
+
+            irVal = builder.buildBitCast(irVal, type: PointerType(pointee: canonicalize(entity.type!)))
+
+            if returnAddress {
+                return irVal
+            }
+
+            return builder.buildLoad(irVal)
+        }
+
         var recIrVal = emitExpr(receiver, returnAddress: true)
 
         // We need to deref until we have a single level pointer
@@ -1643,35 +1668,37 @@ extension IRGenerator {
         var irTypes: [IRType] = []
 
         var rawType: IntType?
-        if entity.type!.isTypeEnum {
+        if entity.type!.isTypeEnum || entity.type!.isTypeUnion {
             
             rawType = IntType(width: numericCast(entity.type!.width))
             irTypes.append(rawType!)
         }
 
-        for member in memberScope.elements.orderedValues {
-            switch member.kind {
-            case .runtime:
-                assert(!entity.type!.isTypeEnum)
-                let irType = canonicalize(member.type!)
-                irTypes.append(irType)
+        if !entity.type!.isTypeUnion {
+            for member in memberScope.elements.orderedValues {
+                switch member.kind {
+                case .runtime:
+                    assert(!entity.type!.isTypeEnum)
+                    let irType = canonicalize(member.type!)
+                    irTypes.append(irType)
 
-            case .compiletime:
+                case .compiletime:
 
-                if member.type!.isType {
-                    break // to switch
+                    if member.type!.isType {
+                        break // to switch
+                    }
+
+                    if member.type!.isEnum, case .integer(let val)? = member.value {
+                        // emit a global for this enum case.
+
+                        let irValue = irType.constant(values: [rawType!.constant(val)])
+
+                        llvmPointers[member] = builder.addGlobal(member.mangledName!, initializer: irValue)
+                    }
+
+                default:
+                    continue
                 }
-
-                if member.type!.isEnum, case .integer(let val)? = member.value {
-                    // emit a global for this enum case.
-
-                    let irValue = irType.constant(values: [rawType!.constant(val)])
-
-                    llvmPointers[member] = builder.addGlobal(member.mangledName!, initializer: irValue)
-                }
-
-            default:
-                continue
             }
         }
 

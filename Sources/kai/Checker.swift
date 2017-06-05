@@ -1874,7 +1874,13 @@ extension Checker {
             }
 
             if explicitType.isUnion {
-                unimplemented()
+                guard elements.isEmpty || elements.count == 1 else {
+                    reportError("Multiple values in union literal is invalid", at: node)
+                    return Type.invalid
+                }
+
+                type = explicitType
+                break
             }
 
             // NOTE(vdka): we have handled both Structs and Arrays. There should not be anything else

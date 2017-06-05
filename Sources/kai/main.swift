@@ -56,7 +56,7 @@ class Compiler {
     let args: [String]
     let fileName: String?
     
-    static var optimisationLevel: OptimisationLevel = .O1
+    static var optimisationLevel: OptimisationLevel = .O0
     
     let version = "0.0.0"
 

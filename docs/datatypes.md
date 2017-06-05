@@ -22,6 +22,8 @@ These are C unions with Kai syntax
 Variants are essentially a tagged union. Their syntax deviates from that of unions and structs somewhat because of the behaviours they enable.
 ```
     Type :: variant {
+        size, align: uint
+
         Named   :: struct { name: string, base: *Type }
         Integer :: struct { signed: bool }
         Float   :: struct {}
@@ -87,4 +89,10 @@ Variants are switchable:
         printf("type is not a number\n")
     }
 ```
+
+An Instance of a variant is referencable on both an instance and on the type itself. (`Type.Integer` & `type.Integer`)
+
+```
+    typeof(Type.Integer) // struct { size, align: uint, signed: bool, padding: [12]u8 }
+
 
