@@ -2,11 +2,7 @@ main :: () -> void {
     b := 100
     a : *int = nil
 
-    if 2 - 2 == 4 {
-        printf("true is true\n")
-    }
-
-    if a {
+    if !a {
         printf("Hello, world!\n")
     }
 }

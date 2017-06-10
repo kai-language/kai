@@ -1277,6 +1277,8 @@ extension IRGenerator {
             let val = emitExpr(expr)
             if type === Type.bool {
                 return builder.buildNot(val)
+            } else if type.isPointer {
+                return builder.buildIsNull(val)
             } else {
                 let truncdVal = builder.buildTrunc(val, type: IntType.int1)
                 return builder.buildNot(truncdVal)
