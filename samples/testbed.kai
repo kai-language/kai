@@ -1,7 +1,12 @@
-#import "strings.kai"
+main :: () -> void {
+    b := 100
+    a : *int = nil
 
-main :: (argc: i32, argv: **u8) -> void {
-    for i := 0; i < i64(argc); i += 1 {
-        printf("%s\n", argv[i])
+    if 2 - 2 == 4 {
+        printf("true is true\n")
+    }
+
+    if a {
+        printf("Hello, world!\n")
     }
 }

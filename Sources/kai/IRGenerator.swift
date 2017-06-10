@@ -1451,7 +1451,13 @@ extension IRGenerator {
                 lvalue = builder.buildPtrToInt(lvalue, type: IntType.int64)
                 rvalue = builder.buildPtrToInt(rvalue, type: IntType.int64)
                 return builder.buildICmp(lvalue, rvalue, .equal)
+            } else if lhsType.isString {
+                lvalue = builder.buildPtrToInt(lvalue, type: IntType.int64)
+                rvalue = builder.buildPtrToInt(rvalue, type: IntType.int64)
+                
+                return builder.buildICmp(lvalue, rvalue, .equal)
             }
+            
             panic()
 
         case .bangEquals:
@@ -1620,7 +1626,11 @@ extension IRGenerator {
     /// It will truncate to an `i1` for you
     func emitExprConditional(_ node: AstNode) -> IRValue {
         let val = emitExpr(node)
-
+        
+        if checker.lookupType(node).isPointer {
+            return builder.buildIsNotNull(val)
+        }
+        
         guard (val.type as! IntType).width == 1 else {
             return builder.buildTrunc(val, type: IntType.int1)
         }

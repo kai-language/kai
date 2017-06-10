@@ -195,15 +195,16 @@ main :: () -> void {
         printPerson(bob)
 
         bob.favoriteColor = Color{"Blue", 0, 0, 0xff}
-
         printf("%s is %d years old\n", bob.name, bob.age)
+
+        using bob
         printf(
             "%s's favorite Color is %s (#%02hhx%02hhx%02hhx)\n",
-            bob.name,
-            bob.favoriteColor.name,
-            bob.favoriteColor.r,
-            bob.favoriteColor.g,
-            bob.favoriteColor.b
+            name,
+            favoriteColor.name,
+            favoriteColor.r,
+            favoriteColor.g,
+            favoriteColor.b
         )
 
         /*

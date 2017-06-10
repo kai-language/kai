@@ -26,6 +26,25 @@ readWholeFile :: (path: string) -> string, FileStatus {
     return result, FileStatus.ok
 }
 
+SourceLocation :: struct {
+    file : string
+    line: u64
+    column: u64
+}
+
+SourceRange :: struct {
+    lowerBound : SourceLocation
+    upperBound : SourceLocation
+}
+
+describeSourceLocation :: (location: SourceLocation) -> string {
+    // TODO(Brett): string split
+    return ""
+}
+
+cmpSourceLocation :: (lhs: SourceLocation, rhs: SourceLocation) -> bool {
+    return lhs.file == rhs.file && lhs.line == rhs.line && lhs.column == rhs.column
+}
 
 main :: (argc: i32, argv: **u8) -> i32 {
     if argc < 2 {

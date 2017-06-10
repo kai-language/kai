@@ -2804,6 +2804,14 @@ extension Checker {
             if type.isString && target == Type.pointer(to: Type.void).instance {
                 return true
             }
+            
+            if type.isNil && target.isPointer {
+                return true
+            }
+            
+            if type.isNil && target.isBoolean {
+                return true
+            }
         } else if type.isBooleanesque && target.isBoolean {
             // Numeric types can be converted to booleans through truncation
             return true
