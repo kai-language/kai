@@ -17,7 +17,9 @@ setLen :: (str: string, length: u64) -> void {
 expandTo :: (str: string, capacity: u64) -> string {
     length := len(str)
     
-    str = string(realloc(rawptr(&str[-16]), capacity))
+    ptr := realloc(rawptr(&str[-16]), capacity)
+    str = string(&ptr[16])
+
     setCap(str, capacity)
     setLen(str, length)
     return str
