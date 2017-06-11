@@ -1,0 +1,39 @@
+ArgError :: enum {
+    ok,
+    noInput
+}
+
+Settings :: struct {
+    optimisationLevel :: u8    
+}
+
+parseArgs :: (args: **u8, count: i32) -> ArgError {
+    using ArgError
+
+    if count < 2 { return noInput }
+
+    return ok
+}
+
+main :: (argc: i32, argv: **u8) -> i32 {
+    err := parseArgs(argv, argc)
+
+    { using ArgError
+        switch err {
+        case ok: break
+
+        case noInput: {
+            printf("error: no input provided\n")
+            return 1
+        }
+
+        default: {
+            printf("An unknown error occured\n")
+            return 2
+        }
+        }
+    }
+
+    return 0
+}
+

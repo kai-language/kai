@@ -2820,6 +2820,8 @@ extension Checker {
             return true
         } else if case .pointer(let underlyingType)? = type.typeKind, case .pointer(let underlyingTargetType)? = target.typeKind {
             return canImplicitlyConvert(underlyingType, to: underlyingTargetType)
+        } else if case .pointer(let underlyingType) = type.kind, case .pointer(let underlyingTargetType) = target.kind {
+            return canImplicitlyConvert(underlyingType, to: underlyingTargetType)
         } else if case .pointer(let underlyingType)? = type.typeKind, target.isString {
             return canImplicitlyConvert(underlyingType, to: .u8)
         } else if case .array(let underlyingType, _)? = type.typeKind, target.isString {
