@@ -14,6 +14,40 @@ setLen :: (str: string, length: u64) -> void {
     <(*u64)(&str[-16]) = length
 }
 
+rawLen :: (str: rawptr) -> u64 {
+    length := 0
+
+    for i := 0; str[i] != 0; i += 1 {
+        length += 1
+    }
+
+    return length
+}
+
+hasSuffix :: (str: string, suffix: string) -> bool {
+    strLen := len(str)
+    suffixLen := len(suffix)
+
+    if strLen < suffixLen return false
+
+    strEnd := strLen - 1
+    suffixEnd := suffixLen - 1
+
+    for i := 0; i < suffixLen; i += 1 {
+        if str[int(strEnd) - i] != suffix[int(suffixEnd) - i] return false 
+    }
+
+    return true
+}
+
+hasRawSuffix :: (str: string, suffix: rawptr, suffixLen: u64) -> bool {
+    return true
+}
+
+rawHasRawSuffix :: (str: rawptr, strLen: u64, suffix: rawptr, suffixLen: u64) -> bool {
+    return true
+}
+
 expandTo :: (str: string, capacity: u64) -> string {
     length := len(str)
     
@@ -38,6 +72,7 @@ makeWithCap :: (capacity: u64) -> string {
 
 makeFromRaw :: (ptr: rawptr, len: u64) -> string {
     buff := malloc(len + 17) // len, cap and \0
+    buff[int(len + 16)] = 0
 
     <(*u64)(&buff[0]) = len // len
     <(*u64)(&buff[8]) = len // cap

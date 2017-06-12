@@ -1,22 +1,42 @@
+#import "strings.kai"
+//#import "file.kai"  
+
 ArgError :: enum {
     ok,
-    noInput
+    noInput,
+    noKaiInput
+}
+
+OptimisationLevel :: enum {
+    O0, O1, O2, O3
 }
 
 Settings :: struct {
-    optimisationLevel :: u8    
+    optimisationLevel: OptimisationLevel
 }
 
-parseArgs :: (args: **u8, count: i32) -> ArgError {
+parseArgs :: (args: **u8, count: i32) -> Settings, ArgError {
     using ArgError
 
-    if count < 2 { return noInput }
+    if count < 2 
+        return Settings {}, noInput
+    
+    lastArgRaw := rawptr(args[int(count - 1)])
+    lastArg := strings.makeFromRaw(lastArgRaw, strings.rawLen(lastArgRaw))
 
-    return ok
+    kaiSuffix := ".kai"
+    if !strings.hasSuffix(lastArg, kaiSuffix) 
+        return Settings {}, noKaiInput
+
+    settings := Settings {
+        OptimisationLevel.O1
+    }
+
+    return settings, ok
 }
 
 main :: (argc: i32, argv: **u8) -> i32 {
-    err := parseArgs(argv, argc)
+    settings, err := parseArgs(argv, argc)
 
     { using ArgError
         switch err {
@@ -27,9 +47,14 @@ main :: (argc: i32, argv: **u8) -> i32 {
             return 1
         }
 
-        default: {
-            printf("An unknown error occured\n")
+        case noKaiInput: {
+            printf("error: no .kai input provided\n")
             return 2
+        }
+
+        default: {
+            printf("error: an unknown error occured\n")
+            return -1
         }
         }
     }
