@@ -87,7 +87,7 @@ appendRaw :: (str: string, ptr: rawptr, ptrLen: u64) -> string {
         str = expandTo(str, newLen * 2)
     }
 
-    memcpy(rawptr(&str[int(oldLen)]), ptr, ptrLen)
+    memcpy(rawptr(&str[oldLen]), ptr, ptrLen)
     setLen(str, newLen)
 
     return str
