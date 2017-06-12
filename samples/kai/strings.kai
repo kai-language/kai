@@ -33,8 +33,8 @@ hasSuffix :: (str: string, suffix: string) -> bool {
     strEnd := strLen - 1
     suffixEnd := suffixLen - 1
 
-    for i := 0; i < suffixLen; i += 1 {
-        if str[int(strEnd) - i] != suffix[int(suffixEnd) - i] return false 
+    for i : u64 = 0; i < suffixLen; i += 1 {
+        if str[strEnd - i] != suffix[suffixEnd - i] return false 
     }
 
     return true

@@ -2179,8 +2179,8 @@ extension Checker {
             }
             
             let indexType = checkExpr(index, typeHint: Type.int.instance)
-            
-            guard canImplicitlyConvert(indexType, to: Type.int.instance) else {
+
+            guard indexType.isInteger else {
                 reportError("Cannot subscript with type \(indexType)", at: index)
                 return Type.invalid
             }
