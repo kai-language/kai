@@ -1,5 +1,0 @@
-main :: () -> void {
-    anArray := [3]u64 { 1, 2, 3 }
-    aU8: u8 = 1
-    printf("%d\n", anArray[aU8])
-}

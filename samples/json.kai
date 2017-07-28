@@ -1,7 +1,0 @@
-
-#import "internals/parser.kai"
-
-parse :: (s: str) -> (JSON, error) {
-    return lol, nope
-}
-

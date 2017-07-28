@@ -1,0 +1,13 @@
+
+foo :: fn (a: A) -> B {
+    return t
+}
+
+a :: 7
+b :: a
+a, b :: 8, 8
+
+Struct :: struct {
+    a, b: int
+}
+

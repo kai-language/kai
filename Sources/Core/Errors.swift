@@ -1,0 +1,48 @@
+/*
+import func Darwin.C.stdlib.exit
+
+var errors: [String] = []
+var notes: [Int: [String]] = [:]
+
+func attachNote(_ message: String) {
+    assert(!errors.isEmpty)
+
+    guard var existingNotes = notes[errors.endIndex - 1] else {
+        notes[errors.endIndex - 1] = [message]
+        return
+    }
+    existingNotes.append(message)
+    notes[errors.endIndex - 1] = existingNotes
+}
+
+func rememberError(_ message: String, at position: Position) {
+
+    let formatted = "ERROR(" + position.description + "): " + message
+    errors.append(formatted)
+}
+ */
+
+struct SourceError {
+    var pos: Pos
+    var msg: String
+}
+
+func emitErrors(for file: SourceFile, at stage: String) {
+    guard !file.errors.isEmpty else {
+        return
+    }
+
+    let filteredErrors = file.errors.enumerated().filter { !$0.element.msg.contains("<invalid>") }
+
+    print("There were \(filteredErrors.count) errors during \(stage)\nexiting")
+
+    for error in filteredErrors {
+        print(error.element)
+        if let notes = file.notes[error.offset] {
+            for note in notes {
+                print("  " + note)
+            }
+        }
+        print()
+    }
+}

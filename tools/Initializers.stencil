@@ -1,0 +1,12 @@
+
+{% for type in types.classes|!annotated:"noinit" %}
+
+// sourcery:inline:auto:{{ type.name }}.Init
+init({% for var in type.storedVariables %}{{ var.name }}: {{ var.typeName }}{% if not forloop.last %}, {% endif %}{% endfor %}) {
+{% for var in type.storedVariables %}
+    self.{{ var.name }} = {{ var.name }}
+{% endfor %}
+}
+// sourcery:end
+
+{% endfor %}

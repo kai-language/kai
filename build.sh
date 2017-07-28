@@ -2,31 +2,20 @@
 
 set -e
 
-export SDKROOT=$(xcrun --show-sdk-path --sdk macosx)
-
-FLAGS="-Xswiftc -DDEBUG -Xcc -I/usr/local/opt/llvm/include/ -Xlinker -L/usr/local/opt/llvm/lib/"
-
 case "$1" in
-run)
-    swift build $FLAGS
-    cp .build/debug/kai /usr/local/bin/
-
-    if [ -z "$2" ]; then
-        .build/debug/kai --emit-all samples/main.kai
-    else
-        .build/debug/kai --emit-all $2
-    fi
-
-    echo
-    ./main
-    echo
-;;
 xcode)
-    swift package generate-xcodeproj $FLAGS
+    swift package generate-xcodeproj 
 ;;
+
+sourcery)
+    ./tools/genAccessors.sh
+;;
+
 *)
-    swift build $FLAGS
+    MACOSX_DEPLOYMENT_TARGET=10.12
+    swift build -Xswiftc -DDEBUG -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx10.12"
     cp .build/debug/kai /usr/local/bin/
 esac
 
 echo "done"
+
