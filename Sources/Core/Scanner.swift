@@ -294,7 +294,7 @@ struct Scanner {
             }
         }
 
-        return String(bytes: data[start..<offset], encoding: .utf8)!
+        return String(bytes: data[start..<offset - 1], encoding: .utf8)!
     }
 
     mutating func skipWhitespace() {
@@ -435,6 +435,8 @@ struct Scanner {
                 } else {
                     tok = .period
                 }
+            case "?":
+                tok = .question
             case ",":
                 tok = .comma
             case ";":
@@ -460,6 +462,9 @@ struct Scanner {
                 tok = switch3(.sub, .assignSub, ch2: ">", tok2: .retArrow)
             case "*":
                 tok = switch2(.mul, .assignMul)
+            case "#":
+                tok = .directive
+                lit = scanIdentifier()
             case "/":
                 if self.ch == "/" || self.ch == "*" {
                     // comment

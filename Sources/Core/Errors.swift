@@ -36,9 +36,9 @@ func emitErrors(for file: SourceFile, at stage: String) {
 
     print("There were \(filteredErrors.count) errors during \(stage)\nexiting")
 
-    for error in filteredErrors {
-        print(error.element)
-        if let notes = file.notes[error.offset] {
+    for (offset, error) in filteredErrors {
+        print("ERROR(" + file.position(for: error.pos).description + "): " + error.msg)
+        if let notes = file.notes[offset] {
             for note in notes {
                 print("  " + note)
             }

@@ -7,7 +7,12 @@ protocol Node: class {
 protocol Expr: Node {}
 protocol Stmt: Node {}
 protocol Decl: Stmt {}
-
+protocol LinknameApplicable: Stmt {
+    var linkname: String? { get set }
+}
+protocol CallConvApplicable: Stmt {
+    var callconv: String? { get set }
+}
 
 class Comment: Node {
     /// Position of the '/' starting the comment
@@ -32,7 +37,7 @@ init(slash: Pos, text: String) {
 
 // MARK: Expressions
 
-class Field: Expr {
+class StructField: Expr {
     var names: [Ident]
     var colon: Pos
     var type: Expr
@@ -40,25 +45,11 @@ class Field: Expr {
     var start: Pos { return names.first?.start ?? type.start }
     var end: Pos { return type.end }
 
-// sourcery:inline:auto:Field.Init
+// sourcery:inline:auto:StructField.Init
 init(names: [Ident], colon: Pos, type: Expr) {
     self.names = names
     self.colon = colon
     self.type = type
-}
-// sourcery:end
-}
-
-class FieldList: Node {
-    var start: Pos
-    var fields: [Field]
-    var end: Pos
-
-// sourcery:inline:auto:FieldList.Init
-init(start: Pos, fields: [Field], end: Pos) {
-    self.start = start
-    self.fields = fields
-    self.end = end
 }
 // sourcery:end
 }
@@ -117,13 +108,15 @@ init(start: Pos, token: Token, value: String) {
 }
 
 class Parameter: Expr {
+    var names: [(poly: Bool, Ident)]
     var type: Expr
 
-    var start: Pos { return type.start }
+    var start: Pos { return names.first!.poly ? names.first!.1.start - 1 : names.first!.1.start }
     var end: Pos { return type.end }
 
 // sourcery:inline:auto:Parameter.Init
-init(type: Expr) {
+init(names: [(poly: Bool, Ident)], type: Expr) {
+    self.names = names
     self.type = type
 }
 // sourcery:end
@@ -182,6 +175,23 @@ init(keyword: Pos, params: ParameterList, results: ResultList, body: Block) {
     self.params = params
     self.results = results
     self.body = body
+}
+// sourcery:end
+}
+
+class ForeignFuncLit: Expr {
+    var keyword: Pos
+    var params: ParameterList
+    var results: ResultList
+
+    var start: Pos { return keyword }
+    var end: Pos { return results.end }
+
+// sourcery:inline:auto:ForeignFuncLit.Init
+init(keyword: Pos, params: ParameterList, results: ResultList) {
+    self.keyword = keyword
+    self.params = params
+    self.results = results
 }
 // sourcery:end
 }
@@ -291,6 +301,27 @@ init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr) {
 // sourcery:end
 }
 
+class Ternary: Expr {
+    var cond: Expr
+    var qmark: Pos
+    var then: Expr?
+    var colon: Pos
+    var els: Expr
+
+    var start: Pos { return cond.start }
+    var end: Pos { return els.end }
+
+// sourcery:inline:auto:Ternary.Init
+init(cond: Expr, qmark: Pos, then: Expr?, colon: Pos, els: Expr) {
+    self.cond = cond
+    self.qmark = qmark
+    self.then = then
+    self.colon = colon
+    self.els = els
+}
+// sourcery:end
+}
+
 class KeyValue: Expr {
     var key: Expr
     var colon: Pos
@@ -325,7 +356,7 @@ init(star: Pos, type: Expr) {
 
 class ArrayType: Expr {
     var lbrack: Pos
-    var len: Expr?
+    var length: Expr
     var rbrack: Pos
     var type: Expr
 
@@ -333,9 +364,26 @@ class ArrayType: Expr {
     var end: Pos { return type.end }
 
 // sourcery:inline:auto:ArrayType.Init
-init(lbrack: Pos, len: Expr?, rbrack: Pos, type: Expr) {
+init(lbrack: Pos, length: Expr, rbrack: Pos, type: Expr) {
     self.lbrack = lbrack
-    self.len = len
+    self.length = length
+    self.rbrack = rbrack
+    self.type = type
+}
+// sourcery:end
+}
+
+class SliceType: Expr {
+    var lbrack: Pos
+    var rbrack: Pos
+    var type: Expr
+
+    var start: Pos { return lbrack }
+    var end: Pos { return type.end }
+
+// sourcery:inline:auto:SliceType.Init
+init(lbrack: Pos, rbrack: Pos, type: Expr) {
+    self.lbrack = lbrack
     self.rbrack = rbrack
     self.type = type
 }
@@ -344,21 +392,54 @@ init(lbrack: Pos, len: Expr?, rbrack: Pos, type: Expr) {
 
 class StructType: Expr {
     var keyword: Pos
-    var fields: FieldList
+    var lbrace: Pos
+    var fields: [StructField]
+    var rbrace: Pos
 
     var start: Pos { return keyword }
-    var end: Pos { return fields.end }
+    var end: Pos { return rbrace }
 
 // sourcery:inline:auto:StructType.Init
-init(keyword: Pos, fields: FieldList) {
+init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos) {
     self.keyword = keyword
+    self.lbrace = lbrace
     self.fields = fields
+    self.rbrace = rbrace
+}
+// sourcery:end
+}
+
+class PolyType: Expr {
+    var dollar: Pos
+    var type: Expr
+
+    var start: Pos { return dollar }
+    var end: Pos { return type.end }
+
+// sourcery:inline:auto:PolyType.Init
+init(dollar: Pos, type: Expr) {
+    self.dollar = dollar
+    self.type = type
+}
+// sourcery:end
+}
+
+class VariadicType: Expr {
+    var ellipsis: Pos
+    var type: Expr
+
+    var start: Pos { return ellipsis }
+    var end: Pos { return type.end }
+
+// sourcery:inline:auto:VariadicType.Init
+init(ellipsis: Pos, type: Expr) {
+    self.ellipsis = ellipsis
+    self.type = type
 }
 // sourcery:end
 }
 
 class FuncType: Expr {
-
     var lparen: Pos
     var params: [Expr]
     var results: [Expr]
@@ -390,19 +471,6 @@ init(start: Pos, end: Pos) {
 // sourcery:end
 }
 
-class DeclStmt: Stmt {
-    var decl: Decl
-
-    var start: Pos { return decl.start }
-    var end: Pos { return decl.end }
-
-// sourcery:inline:auto:DeclStmt.Init
-init(decl: Decl) {
-    self.decl = decl
-}
-// sourcery:end
-}
-
 class Empty: Stmt {
     var semicolon: Pos
     // if true ';' was omitted from source
@@ -419,19 +487,17 @@ init(semicolon: Pos, isImplicit: Bool) {
 // sourcery:end
 }
 
-class Labeled: Stmt {
+class Label: Stmt {
     var label: Ident
     var colon: Pos
-    var stmt: Stmt
 
     var start: Pos { return label.start }
-    var end: Pos { return stmt.end }
+    var end: Pos { return colon }
 
-// sourcery:inline:auto:Labeled.Init
-init(label: Ident, colon: Pos, stmt: Stmt) {
+// sourcery:inline:auto:Label.Init
+init(label: Ident, colon: Pos) {
     self.label = label
     self.colon = colon
-    self.stmt = stmt
 }
 // sourcery:end
 }
@@ -500,16 +566,16 @@ init(token: Token, label: Ident?, start: Pos) {
 
 class Block: Stmt {
     var lbrace: Pos
-    var elements: [Stmt]
+    var stmts: [Stmt]
     var rbrace: Pos
 
     var start: Pos { return lbrace }
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:Block.Init
-init(lbrace: Pos, elements: [Stmt], rbrace: Pos) {
+init(lbrace: Pos, stmts: [Stmt], rbrace: Pos) {
     self.lbrace = lbrace
-    self.elements = elements
+    self.stmts = stmts
     self.rbrace = rbrace
 }
 // sourcery:end
@@ -593,18 +659,18 @@ init(keyword: Pos, initializer: Stmt?, cond: Expr?, post: Stmt?, body: Block) {
 
 // MARK: Declarations
 
-class Import: Decl {
+class Import: Stmt {
     var directive: Pos
-    var path: BasicLit
+    var path: Expr
     var alias: Ident?
     var importSymbolsIntoScope: Bool
-    var file: SourceFile
+    var file: SourceFile?
 
     var start: Pos { return directive }
     var end: Pos { return alias?.end ?? path.end }
 
 // sourcery:inline:auto:Import.Init
-init(directive: Pos, path: BasicLit, alias: Ident?, importSymbolsIntoScope: Bool, file: SourceFile) {
+init(directive: Pos, path: Expr, alias: Ident?, importSymbolsIntoScope: Bool, file: SourceFile?) {
     self.directive = directive
     self.path = path
     self.alias = alias
@@ -614,16 +680,16 @@ init(directive: Pos, path: BasicLit, alias: Ident?, importSymbolsIntoScope: Bool
 // sourcery:end
 }
 
-class Library: Decl {
+class Library: Stmt {
     var directive: Pos
-    var path: BasicLit
+    var path: Expr
     var alias: Ident?
 
     var start: Pos { return directive }
     var end: Pos { return alias?.end ?? path.end }
 
 // sourcery:inline:auto:Library.Init
-init(directive: Pos, path: BasicLit, alias: Ident?) {
+init(directive: Pos, path: Expr, alias: Ident?) {
     self.directive = directive
     self.path = path
     self.alias = alias
@@ -631,72 +697,85 @@ init(directive: Pos, path: BasicLit, alias: Ident?) {
 // sourcery:end
 }
 
-class Foreign: Decl {
+class Foreign: Decl, LinknameApplicable, CallConvApplicable {
     var directive: Pos
     var library: Ident
     var decl: Decl
+
+    var linkname: String?
+    var callconv: String?
 
     var start: Pos { return directive }
     var end: Pos { return decl.end }
 
 // sourcery:inline:auto:Foreign.Init
-init(directive: Pos, library: Ident, decl: Decl) {
+init(directive: Pos, library: Ident, decl: Decl, linkname: String?, callconv: String?) {
     self.directive = directive
     self.library = library
     self.decl = decl
+    self.linkname = linkname
+    self.callconv = callconv
 }
 // sourcery:end
 }
 
-class ForeignBlock: Decl {
-    var directive: Pos
-    var library: Ident
+class DeclBlock: Decl, CallConvApplicable {
     var block: Block
 
-    var start: Pos { return directive }
+    var callconv: String?
+
+    var start: Pos { return block.start }
     var end: Pos { return block.end }
 
-// sourcery:inline:auto:ForeignBlock.Init
-init(directive: Pos, library: Ident, block: Block) {
-    self.directive = directive
-    self.library = library
+// sourcery:inline:auto:DeclBlock.Init
+init(block: Block, callconv: String?) {
     self.block = block
+    self.callconv = callconv
 }
 // sourcery:end
 }
 
-class ValueDecl: Decl {
+class ValueDecl: Decl, LinknameApplicable, CallConvApplicable {
     var names: [Ident]
     var type: Expr?
     var values: [Expr]
+
+    var callconv: String?
+    var linkname: String?
 
     var start: Pos { return names.first!.start }
     var end: Pos { return values.first!.end }
 
 // sourcery:inline:auto:ValueDecl.Init
-init(names: [Ident], type: Expr?, values: [Expr]) {
+init(names: [Ident], type: Expr?, values: [Expr], callconv: String?, linkname: String?) {
     self.names = names
     self.type = type
     self.values = values
+    self.callconv = callconv
+    self.linkname = linkname
 }
 // sourcery:end
 }
 
-class VariableDecl: Decl {
+class VariableDecl: Decl, LinknameApplicable, CallConvApplicable {
     var names: [Ident]
     var type: Expr?
     var values: [Expr]
 
+    var callconv: String?
+    var linkname: String?
     //    var flags: DeclarationFlags
 
     var start: Pos { return names.first!.start }
     var end: Pos { return values.first!.end }
 
 // sourcery:inline:auto:VariableDecl.Init
-init(names: [Ident], type: Expr?, values: [Expr]) {
+init(names: [Ident], type: Expr?, values: [Expr], callconv: String?, linkname: String?) {
     self.names = names
     self.type = type
     self.values = values
+    self.callconv = callconv
+    self.linkname = linkname
 }
 // sourcery:end
 }

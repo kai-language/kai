@@ -83,13 +83,37 @@ public final class SourceFile {
 
 extension SourceFile {
 
+    func add(import i: Import, importedFrom: SourceFile? = nil) -> SourceFile? {
+
+        switch i.path {
+        case let path as BasicLit where path.token == .string:
+            guard let file = SourceFile.new(path: path.value, importedFrom: importedFrom) else {
+                addError("Failed to open '\(path.value)'", path.start)
+                return nil
+            }
+            file.parseEmittingErrors()
+            return file
+
+        case let call as Call where (call.fun as? Ident)?.name == "git":
+            print("Found git import, not executing")
+            return nil
+
+        default:
+            addError("Expected import path as string", i.path.start)
+            return nil
+        }
+    }
+}
+
+extension SourceFile {
+
     public func parseEmittingErrors() {
         assert(!hasBeenParsed)
         stage = "Parsing"
         var parser = Parser(file: self)
         self.nodes = parser.parseFile()
 
-        let importedFiles = imports.map({ $0.file })
+        let importedFiles = imports.flatMap({ $0.file })
 
         for importedFile in importedFiles {
             guard !importedFile.hasBeenParsed else {

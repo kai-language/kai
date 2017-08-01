@@ -52,8 +52,9 @@ enum Token: UInt8 {
     case geq        // >=
 
     case assign     // =
-    case ellipsis   // ...
+    case ellipsis   // ..
     case dollar     // $
+    case question   // ?
     case retArrow   // ->
 
     case lparen     // (
@@ -128,7 +129,7 @@ extension Token: CustomStringConvertible {
         case .shl:       return "<<"
         case .shr:       return ">>"
         case .assign:    return "="
-        case .ellipsis:  return "..."
+        case .ellipsis:  return ".."
         case .dollar:    return "$"
         case .retArrow:  return "->"
         case .lparen:    return "("
