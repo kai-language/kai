@@ -83,7 +83,7 @@ extension Parser {
     mutating func parseExprList() -> [Expr] {
         var list = [parseExpr()]
         while tok == .comma {
-            eatToken()
+            next()
             list.append(parseExpr())
         }
         return list
@@ -92,7 +92,7 @@ extension Parser {
     mutating func parseTypeList(allowPolyType: Bool = false) -> [Expr] {
         var list = [parseType(allowPolyType: allowPolyType)]
         while tok == .comma {
-            eatToken()
+            next()
             list.append(parseType(allowPolyType: allowPolyType))
         }
         return list
@@ -186,7 +186,7 @@ extension Parser {
             case .question:
                 x = parseTernaryExpr(x)
             case .period:
-                eatToken()
+                next()
                 x = Selector(rec: x, sel: parseIdent())
             case .lparen:
                 let lparen = eatToken()
@@ -305,7 +305,7 @@ extension Parser {
             fields = parseStructFieldList()
         }
         if tok == .semicolon {
-            eatToken()
+            next()
         }
         let rbrace = expect(.rbrace)
         return StructType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace)
@@ -369,14 +369,14 @@ extension Parser {
     mutating func parseParameterNames() -> [(poly: Bool, Ident)] {
         var poly = tok == .dollar
         if poly {
-            eatToken()
+            next()
         }
         var list = [(poly, parseIdent())]
         while tok == .comma {
             next()
             poly = tok == .dollar
             if poly {
-                eatToken()
+                next()
             }
             list.append((poly, parseIdent()))
         }
@@ -412,7 +412,7 @@ extension Parser {
             if !(type is Ident) {
                 reportExpected("identifier", at: type.start)
             }
-            eatToken()
+            next()
             type = parseTypeOrPolyType()
         }
         return type
@@ -502,7 +502,7 @@ extension Parser {
              .assignAnd, .assignOr, .assignXor, .assignShl, .assignShr:
             let pos = self.pos
             let tok = self.tok
-            eatToken()
+            next()
             let rhs = parseExprList()
             if rhs.count > 1 || x.count > 1 {
                 reportError("Assignment macros only permit a single values", at: rhs[0].start)
@@ -523,22 +523,22 @@ extension Parser {
                 names.append(name)
             }
             if tok == .assign {
-                eatToken()
+                next()
                 let values = parseExprList()
                 return VariableDecl(names: names, type: nil, values: values, callconv: nil, linkname: nil)
             } else if tok == .colon {
-                eatToken()
+                next()
                 let values = parseExprList()
                 return ValueDecl(names: names, type: nil, values: values, callconv: nil, linkname: nil)
             }
             let type = parseType()
             switch tok {
             case .assign:
-                eatToken()
+                next()
                 let values = parseExprList()
                 return VariableDecl(names: names, type: type, values: values, callconv: nil, linkname: nil)
             case .colon:
-                eatToken()
+                next()
                 let values = parseExprList()
                 return ValueDecl(names: names, type: type, values: values, callconv: nil, linkname: nil)
             default:
@@ -583,7 +583,7 @@ extension Parser {
         var els_: Stmt?
         expectTerm()
         if tok == .else {
-            eatToken()
+            next()
             els_ = parseStmt()
         }
         return If(keyword: keyword, cond: cond, body: body, els: els_)
@@ -624,7 +624,7 @@ extension Parser {
             s2 = parseSimpleStmt()
         }
         if tok == .semicolon {
-            eatToken()
+            next()
             s1 = s2
             s2 = nil
             if tok != .semicolon {
@@ -664,7 +664,7 @@ extension Parser {
             if tok == .ident {
                 alias = parseIdent()
             } else if tok == .period {
-                eatToken()
+                next()
                 importSymbolsIntoScope = true
             } else if tok != .semicolon {
                 reportError("Expected identifier to bind imported or terminator", at: pos)
@@ -756,12 +756,12 @@ extension Parser {
             reportExpected("type", at: pos)
             file.attachNote("Variable declarations in declaration blocks must not have a value")
             file.attachNote("Perhaps you meant to make a ValueDeclaration using ':' instead of '='") 
-            eatToken()
+            next()
             let end = pos
             recover()
             return BadDecl(start: name.start, end: end)
         } else if tok == .colon {
-            eatToken()
+            next()
             let type = parseType()
             return ValueDecl(names: [name], type: type, values: [], callconv: nil, linkname: nil)
         } else {
@@ -787,6 +787,10 @@ extension Parser {
 
 extension Parser {
 
+    mutating func next0() {
+        (pos, tok, lit) = scanner.scan()
+    }
+
     @discardableResult
     mutating func consumeComments() -> [Comment?] {
         var list: [Comment?] = []
@@ -797,21 +801,14 @@ extension Parser {
             } else {
                 list.append(nil) // 1 nil for all sequential newlines
             }
-            next()
+            next0()
         }
         return list
     }
 
-    static let lowestPrecedence  = 0
-    static let unaryPrecedence   = 7
-    static let highestPrecedence = 8
-
     mutating func next() {
-        (pos, tok, lit) = scanner.scan()
-
-        while tok == .comment {
-            (pos, tok, lit) = scanner.scan()
-        }
+        next0()
+        consumeComments()
     }
 
     func operatorFor(assignMacro: Token) -> Token {
@@ -819,6 +816,10 @@ extension Parser {
 
         return Token(rawValue: Token.assignAdd.rawValue - 10)!
     }
+
+    static let lowestPrecedence  = 0
+    static let unaryPrecedence   = 7
+    static let highestPrecedence = 8
 
     func tokenPrecedence() -> Int {
         switch tok {
@@ -863,7 +864,9 @@ extension Parser {
                     syncPos = pos
                     syncCnt = 0
                 }
-            case .colon:
+            case .colon, .assign,
+                 .assignAdd, .assignSub, .assignMul, .assignQuo, .assignRem,
+                 .assignAnd, .assignXor, .assignShl, .assignShr, .assignOr:
                 if let startOfLine = startOfLine {
                     scanner.set(offset: file.offset(pos: startOfLine))
                     return
@@ -879,7 +882,6 @@ extension Parser {
         }
     }
 
-    @discardableResult
     mutating func eatToken() -> Pos {
         let pos = self.pos
         next()
