@@ -16,6 +16,7 @@ struct Scanner {
     var readOffset: Int = 0
     var lineOffset: Int = 0
     var insertSemi = false
+    var insertSemiBeforeLbrace = false
 
     var errorHandler: ErrorHandler?
 
@@ -400,6 +401,8 @@ struct Scanner {
                 switch tok {
                 case .ident, .break, .continue, .fallthrough, .return:
                     insertSemi = true
+                case .if, .for:
+                    insertSemiBeforeLbrace = true
                 default:
                     break
                 }
@@ -418,6 +421,7 @@ struct Scanner {
                 // set in the first place and exited early
                 // from self.skipWhitespace()
                 self.insertSemi = false // newline consumed
+                self.insertSemiBeforeLbrace = false
                 return (start, .semicolon, "\n")
             case "\"":
                 insertSemi = true
@@ -435,6 +439,8 @@ struct Scanner {
                 } else {
                     tok = .period
                 }
+            case "$":
+                tok = .dollar
             case "?":
                 tok = .question
             case ",":
@@ -452,6 +458,10 @@ struct Scanner {
                 insertSemi = true
                 tok = .rbrack
             case "{":
+                if insertSemiBeforeLbrace {
+                    self.insertSemiBeforeLbrace = false
+                    return (start, .semicolon, "{")
+                }
                 tok = .lbrace
             case "}":
                 insertSemi = true
@@ -485,6 +495,8 @@ struct Scanner {
                 tok = switch2(.rem, .assignRem)
             case "^":
                 tok = switch2(.xor, .assignXor)
+            case ">":
+                tok = switch4(.gtr, .geq, ">", .shr, .assignShr)
             case "<":
                 tok = switch4(.lss, .leq, "<", .shl, .assignShl)
             case "=":

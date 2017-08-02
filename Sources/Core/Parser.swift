@@ -29,6 +29,7 @@ struct Parser {
         var nodes: [Node] = []
         while tok != .eof {
             let node = parseStmt()
+            expectTerm()
             nodes.append(node)
             consumeComments()
         }
@@ -59,7 +60,7 @@ extension Parser {
             name = lit
             next()
         } else {
-            expect(.ident)
+            reportExpected("ident", at: pos)
         }
         return Ident(start: pos, name: name)
     }
@@ -88,28 +89,30 @@ extension Parser {
         return list
     }
 
-    mutating func parseTypeList() -> [Expr] {
-        var list = [parseType()]
+    mutating func parseTypeList(allowPolyType: Bool = false) -> [Expr] {
+        var list = [parseType(allowPolyType: allowPolyType)]
         while tok == .comma {
             eatToken()
-            list.append(parseType())
-        }
-        return list
-    }
-
-    mutating func parseTypeOrPolyTypeList() -> [Expr] {
-        var list = [parseTypeOrPolyType()]
-        while tok == .comma {
-            eatToken()
-            list.append(parseTypeOrPolyType())
+            list.append(parseType(allowPolyType: allowPolyType))
         }
         return list
     }
 
     mutating func parseStmtList() -> [Stmt] {
         var list = [parseStmt()]
+        expectTerm()
         while tok != .case && tok != .rbrace && tok != .eof {
             list.append(parseStmt())
+            expectTerm()
+        }
+        return list
+    }
+
+    mutating func parseDeclList(foreign: Bool) -> [Decl] {
+        var list = [parseDecl(foreign: foreign)]
+        expectTerm()
+        while tok != .case && tok != .rbrace && tok != .eof {
+            list.append(parseDecl(foreign: foreign))
             expectTerm()
         }
         return list
@@ -227,7 +230,7 @@ extension Parser {
 
 extension Parser {
 
-    mutating func parseType() -> Expr {
+    mutating func parseType(allowPolyType: Bool = false) -> Expr {
         switch tok {
         case .ident:
             return parseIdent()
@@ -243,6 +246,10 @@ extension Parser {
             return PointerType(star: star, type: type)
         case .lparen:
             return parseFuncType()
+        case .dollar:
+            let dollar = eatToken()
+            let type = parseType(allowPolyType: false)
+            return PolyType(dollar: dollar, type: type)
         default:
             // we have an error
             let start = pos
@@ -254,28 +261,28 @@ extension Parser {
 
     mutating func parseFuncType() -> Expr {
         let lparen = eatToken()
-        let params = parseTypeOrPolyTypeList()
+        let params = parseParameterTypeList()
         expect(.rparen)
         expect(.retArrow)
-        let results = parseTypeOrPolyTypeList()
+        let results = parseTypeList(allowPolyType: true)
         return FuncType(lparen: lparen, params: params, results: results)
     }
 
     mutating func parseParameterTypeList() -> [Expr] {
         if tok == .ellipsis {
             let ellipsis = eatToken()
-            return [VariadicType(ellipsis: ellipsis, type: parseTypeOrPolyType())]
+            return [VariadicType(ellipsis: ellipsis, type: parseType(allowPolyType: true))]
         }
-        var list = [parseTypeOrPolyType()]
+        var list = [parseType(allowPolyType: true)]
         while tok == .comma {
             next()
             if tok == .ellipsis {
                 let ellipsis = eatToken()
-                let variadicType = VariadicType(ellipsis: ellipsis, type: parseTypeOrPolyType())
+                let variadicType = VariadicType(ellipsis: ellipsis, type: parseType(allowPolyType: true))
                 list.append(variadicType)
                 return list
             }
-            list.append(parseTypeOrPolyType())
+            list.append(parseType(allowPolyType: true))
         }
         return list
     }
@@ -318,6 +325,7 @@ extension Parser {
     mutating func parseFuncLit() -> FuncLit {
         let keyword = eatToken()
         let signature = parseSignature()
+        expect(.retArrow)
         let results = parseResultList()
         let body = parseBlock()
         return FuncLit(keyword: keyword, params: signature, results: results, body: body)
@@ -343,11 +351,28 @@ extension Parser {
     }
 
     mutating func parseParameter() -> Parameter {
-        let names = parseIdentList()
+        let names = parseParameterNames()
         // TODO: Explicit Poly Parameters
         expect(.colon)
         let type = parseType()
-        return Parameter(names: names.map({ (false, $0) }), type: type)
+        return Parameter(names: names, type: type)
+    }
+
+    mutating func parseParameterNames() -> [(poly: Bool, Ident)] {
+        var poly = tok == .dollar
+        if poly {
+            eatToken()
+        }
+        var list = [(poly, parseIdent())]
+        while tok == .comma {
+            next()
+            poly = tok == .dollar
+            if poly {
+                eatToken()
+            }
+            list.append((poly, parseIdent()))
+        }
+        return list
     }
 
     mutating func parseResultList() -> ResultList {
@@ -359,7 +384,7 @@ extension Parser {
             resultTypes = parseLabeledResultList()
             rparen = expect(.rparen)
         } else {
-            resultTypes = parseTypeOrPolyTypeList()
+            resultTypes = parseTypeList(allowPolyType: true)
         }
         return ResultList(lparen: lparen, types: resultTypes, rparen: rparen)
     }
@@ -437,10 +462,9 @@ extension Parser {
             return parseReturn()
         case .lbrace:
             let block = parseBlock()
-            expectTerm()
             return block
         case .if:
-            return parseIf()
+            return parseIfStmt()
         case .switch:
             return parseSwitchStmt()
         case .for:
@@ -493,12 +517,10 @@ extension Parser {
             if tok == .assign {
                 eatToken()
                 let values = parseExprList()
-                expectTerm()
                 return VariableDecl(names: names, type: nil, values: values, callconv: nil, linkname: nil)
             } else if tok == .colon {
                 eatToken()
                 let values = parseExprList()
-                expectTerm()
                 return ValueDecl(names: names, type: nil, values: values, callconv: nil, linkname: nil)
             }
             let type = parseType()
@@ -506,15 +528,12 @@ extension Parser {
             case .assign:
                 eatToken()
                 let values = parseExprList()
-                expectTerm()
                 return VariableDecl(names: names, type: type, values: values, callconv: nil, linkname: nil)
             case .colon:
                 eatToken()
                 let values = parseExprList()
-                expectTerm()
                 return ValueDecl(names: names, type: type, values: values, callconv: nil, linkname: nil)
             default:
-                expectTerm()
                 return VariableDecl(names: names, type: type, values: [], callconv: nil, linkname: nil)
             }
         default:
@@ -525,6 +544,7 @@ extension Parser {
             reportExpected("1 expression", at: x[1].start)
             // continue with first expression
         }
+
         return ExprStmt(expr: x[0])
     }
 
@@ -549,9 +569,10 @@ extension Parser {
         return Branch(token: token, label: label, start: start)
     }
 
-    mutating func parseIf() -> If {
+    mutating func parseIfStmt() -> If {
         let keyword = eatToken()
         let cond = parseExpr()
+        // TODO: Disambiguate composite lit
         let body = parseStmt()
         var els_: Stmt?
         if tok == .else {
@@ -611,6 +632,7 @@ extension Parser {
                 s3 = parseSimpleStmt()
             }
         }
+        expectTerm() // Scanner inserts a
         let body = parseBlock()
         expectTerm()
         var cond: Expr?
@@ -629,7 +651,7 @@ extension Parser {
 
 extension Parser {
 
-    mutating func parseDirective() -> Stmt {
+    mutating func parseDirective(foreign: Bool = false) -> Stmt {
         let name = lit
         let directive = eatToken()
         switch name {
@@ -645,7 +667,6 @@ extension Parser {
             } else if tok != .semicolon {
                 reportError("Expected identifier to bind imported or terminator", at: pos)
             }
-            expectTerm()
 
             let i = Import(directive: directive, path: path, alias: alias, importSymbolsIntoScope: importSymbolsIntoScope, file: file)
             i.file = file.add(import: i, importedFrom: file)
@@ -656,21 +677,26 @@ extension Parser {
             if tok == .ident {
                 alias = parseIdent()
             }
-            expectTerm()
             return Library(directive: directive, path: path, alias: alias)
         case "foreign":
             let library = parseIdent()
             switch tok {
             case .lbrace:
-                let block = parseDeclBlock()
-                return Foreign(directive: directive, library: library, decl: block)
+                let block = parseDeclBlock(foreign: true)
+                return Foreign(directive: directive, library: library, decl: block, linkname: nil, callconv: nil)
             default:
-                let decl = parseForeignDecl()
-                return Foreign(directive: directive, library: library, decl: decl)
+                let decl = parseDecl(foreign: true)
+                return Foreign(directive: directive, library: library, decl: decl, linkname: nil, callconv: nil)
             }
         case "linkname":
             let linkname = parseStringLit()
-            var x = parseStmt()
+
+            var x: Stmt
+            if tok == .directive {
+                 x = parseDirective(foreign: foreign)
+            } else {
+                x = parseDecl(foreign: foreign)
+            }
             guard let decl = x as? LinknameApplicable else {
                 reportExpected("declaration", at: x.start)
                 break
@@ -679,18 +705,25 @@ extension Parser {
             return decl
         case "callconv":
             let conv = parseStringLit()
-            let subject = parseStmt()
-            switch subject {
+            var x: Stmt
+            if tok == .directive {
+                x = parseDirective(foreign: foreign)
+            } else if tok == .lbrace {
+                x = parseDeclBlock(foreign: foreign)
+            } else {
+                x = parseDecl(foreign: foreign)
+            }
+            switch x {
             case let block as DeclBlock:
                 // TODO: Take normal block and convert to declblock
                 block.callconv = conv.value
             case let decl as CallConvApplicable:
                 decl.callconv = conv.value
             default:
-                reportExpected("individual or block of declarations", at: subject.start)
-                return BadStmt(start: directive, end: subject.end)
+                reportExpected("individual or block of declarations", at: x.start)
+                return BadStmt(start: directive, end: x.end)
             }
-            return subject
+            return x
         case "cvargs":
             reportError("cvargs directive is only valid before a vargs parameter", at: directive)
         default:
@@ -700,11 +733,39 @@ extension Parser {
     }
 
     mutating func parseDeclBlock(foreign: Bool) -> DeclBlock {
-
+        let lbrace = eatToken()
+        let decls = parseDeclList(foreign: foreign)
+        let rbrace = expect(.rbrace)
+        return DeclBlock(lbrace: lbrace, decls: decls, rbrace: rbrace, callconv: nil)
     }
 
-    mutating func parseDecl() -> Decl {
-        
+    mutating func parseDecl(foreign: Bool) -> Decl {
+        if tok == .directive {
+            let x = parseDirective(foreign: foreign)
+            guard let decl = x as? Decl else {
+                reportExpected("declaration", at: x.start)
+                return BadDecl(start: x.start, end: x.end)
+            }
+            return decl
+        }
+        let name = parseIdent()
+        expect(.colon)
+        if tok == .assign {
+            reportExpected("type", at: pos)
+            file.attachNote("Variable declarations in declaration blocks must not have a value")
+            file.attachNote("Perhaps you meant to make a ValueDeclaration using ':' instead of '='") 
+            eatToken()
+            let end = pos
+            syncStmt()
+            return BadDecl(start: name.start, end: end)
+        } else if tok == .colon {
+            eatToken()
+            let type = parseType()
+            return ValueDecl(names: [name], type: type, values: [], callconv: nil, linkname: nil)
+        } else {
+            let type = parseType()
+            return VariableDecl(names: [name], type: type, values: [], callconv: nil, linkname: nil)
+        }
     }
 
     mutating func parseForeignFuncLit() -> ForeignFuncLit {
@@ -782,6 +843,7 @@ extension Parser {
 
     // syncStmt advances to the next statement after an error
     mutating func syncStmt() {
+        var prevPos = pos
         while true {
             switch tok {
             case .break, .continue, .defer, .fallthrough, .for, .goto, .if, .return, .switch:
@@ -817,32 +879,32 @@ extension Parser {
     }
 
     @discardableResult
-    mutating func expect(_ expected: Token, line: UInt = #line) -> Pos {
+    mutating func expect(_ expected: Token, function: StaticString = #function, line: UInt = #line) -> Pos {
         let pos = self.pos
         if tok != expected {
-            reportExpected("'" + String(describing: expected) + "'", at: pos, line: line)
+            reportExpected("'" + String(describing: expected) + "'", at: pos, function: function, line: line)
         }
         next() // make progress
         return pos
     }
 
-    mutating func expectTerm(line: UInt = #line) {
+    mutating func expectTerm(function: StaticString = #function, line: UInt = #line) {
         if tok != .rparen && tok != .rbrace {
             switch tok {
             case .comma:
                 // allow a comma instead of a ';' but complain
-                reportExpected("';'", at: pos, line: line)
+                reportExpected("';'", at: pos, function: function, line: line)
                 fallthrough
             case .semicolon:
                 next()
             default:
-                reportExpected("';'", at: pos, line: line)
+                reportExpected("';'", at: pos, function: function, line: line)
                 syncStmt()
             }
         }
     }
 
-    func atComma(in context: String, _ follow: Token, line: UInt = #line) -> Bool {
+    func atComma(in context: String, _ follow: Token, function: StaticString = #function, line: UInt = #line) -> Bool {
         if tok == .comma {
             return true
         }
@@ -851,18 +913,22 @@ extension Parser {
             if tok == .semicolon && lit == "\n" {
                 msg += " before newline"
             }
-            reportExpected(msg + " in " + context, at: pos, line: line)
+            reportExpected(msg + " in " + context, at: pos, function: function, line: line)
             return true // _insert_ comma and continue
         }
         return false
     }
 
-    func reportExpected(_ msg: String, at pos: Pos, line: UInt = #line) {
-        reportError("Expected \(msg), found '\(tok)'", at: pos, line: line)
+    func reportExpected(_ msg: String, at pos: Pos, function: StaticString = #function, line: UInt = #line) {
+        reportError("Expected \(msg), found '\(tok)'", at: pos, function: function, line: line)
     }
 
-    func reportError(_ message: String, at pos: Pos, line: UInt = #line) {
-        file.addError(message, pos, line: line)
+    func reportError(_ message: String, at pos: Pos, function: StaticString = #function, line: UInt = #line) {
+        file.addError(message, pos)
+        #if DEBUG
+            file.attachNote("In \(file.stage), \(function), line \(line)")
+            file.attachNote("At an offset of \(file.offset(pos: pos)) in the file")
+        #endif
     }
 }
 

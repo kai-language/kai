@@ -720,16 +720,20 @@ init(directive: Pos, library: Ident, decl: Decl, linkname: String?, callconv: St
 }
 
 class DeclBlock: Decl, CallConvApplicable {
-    var block: Block
+    var lbrace: Pos
+    var decls: [Decl]
+    var rbrace: Pos
 
     var callconv: String?
 
-    var start: Pos { return block.start }
-    var end: Pos { return block.end }
+    var start: Pos { return lbrace }
+    var end: Pos { return rbrace }
 
 // sourcery:inline:auto:DeclBlock.Init
-init(block: Block, callconv: String?) {
-    self.block = block
+init(lbrace: Pos, decls: [Decl], rbrace: Pos, callconv: String?) {
+    self.lbrace = lbrace
+    self.decls = decls
+    self.rbrace = rbrace
     self.callconv = callconv
 }
 // sourcery:end
@@ -776,6 +780,18 @@ init(names: [Ident], type: Expr?, values: [Expr], callconv: String?, linkname: S
     self.values = values
     self.callconv = callconv
     self.linkname = linkname
+}
+// sourcery:end
+}
+
+class BadDecl: Decl {
+    var start: Pos
+    var end: Pos
+
+// sourcery:inline:auto:BadDecl.Init
+init(start: Pos, end: Pos) {
+    self.start = start
+    self.end = end
 }
 // sourcery:end
 }

@@ -128,9 +128,19 @@ extension Token: CustomStringConvertible {
         case .xor:       return "^"
         case .shl:       return "<<"
         case .shr:       return ">>"
+        case .land:      return "&&"
+        case .lor:       return "||"
+        case .lss:       return "<"
+        case .gtr:       return ">"
+        case .not:       return "!"
+        case .eql:       return "=="
+        case .neq:       return "!="
+        case .leq:       return "<="
+        case .geq:       return ">="
         case .assign:    return "="
         case .ellipsis:  return ".."
         case .dollar:    return "$"
+        case .question:  return "?"
         case .retArrow:  return "->"
         case .lparen:    return "("
         case .lbrack:    return "["
@@ -142,6 +152,21 @@ extension Token: CustomStringConvertible {
         case .period:    return "."
         case .colon:     return ":"
         case .semicolon: return ";"
+        case .goto:      return "goto"
+        case .break:     return "break"
+        case .continue:  return "continue"
+        case .fallthrough: return "fallthrough"
+        case .return:    return "return"
+        case .if:        return "if"
+        case .for:       return "for"
+        case .else:      return "else"
+        case .defer:     return "defer"
+        case .switch:    return "switch"
+        case .case:      return "case"
+        case .fn:        return "fn"
+        case .union:     return "union"
+        case .enum:      return "enum"
+        case .struct:    return "struct"
         case .assignAdd: fallthrough
         case .assignSub: fallthrough
         case .assignMul: fallthrough
@@ -153,9 +178,6 @@ extension Token: CustomStringConvertible {
         case .assignShl: fallthrough
         case .assignShr:
             return Token(rawValue: self.rawValue - 10)!.description + "="
-
-        default:
-            return String(describing: self)
         }
     }
 }

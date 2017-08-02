@@ -1,13 +1,124 @@
 
-foo :: fn (a: A) -> B {
-    return t
+#library "libc" libc
+
+#foreign libc #callconv "c" {
+    printf :: (string, ..any) -> i32
+
+    sprintf :: (*u8, string, ..any) -> i32
 }
 
-a :: 7
-b :: a
-a, b :: 8, 8
+sum :: fn (a: $T, b: $U) -> T {
 
-Struct :: struct {
-    a, b: int
+  total : T = a
+  total = total + T(b)
+  return total
 }
+
+this := sum(1, 2.5)
+printf("total: %d\n", this)
+that := sum(1, 5.5)
+printf("total: %d\n", that)
+
+min :: fn ($U: type, a: U, b: U) -> U {
+  if a < b return a
+  else return b
+}
+
+max :: fn (a: $T, b: T) -> T {
+  if a > b return a
+  else return b
+}
+
+add :  (i64) -> i64 : fn (foo: i64) -> i64 {
+    return foo + 1
+}
+
+sub :: fn (foo: i64) -> i64 {
+    return foo - 1
+}
+
+forExample :: fn () -> void {
+
+    for i := 0; i < 5; i += 1 {
+        printf("%d\n", i)
+    }
+
+    return
+}
+
+a : f64 = 5.0
+b : i64 = 3
+c := min(f64, a, 4)
+d := max(b, 4)
+e := min(i64, b, d)
+j := max(a, 4)
+
+f := f64(b)
+
+g : fn(i64) -> i64 = add
+
+h := g(8)
+
+g = sub
+
+h = g(8)
+
+forExample()
+addrA := &a
+valA := <addrA
+
+swap :: fn (a: $T, b: T) -> T, T {
+    return b, a
+}
+
+x, y := 1, 2
+
+x, y = 3, 4
+
+x, y = y, x
+
+x, y = swap(x, y)
+
+printf("%d, %d\n", x, y)
+
+x1, y1 := swap(x, y)
+
+printf("%d, %d\n", x1, y1)
+
+Foo :: struct {
+    a, b: f64
+}
+
+Bar :: struct {
+    foo: Foo
+}
+
+k := 4.0
+
+foo := Foo { b: k, a: 3.6 }
+
+bar := Bar { Foo { 3.9, 4.3 } }
+
+printf("%f, %f\n", foo.a, foo.b)
+printf("%f, %f\n", bar.foo.a, bar.foo.b)
+
+// NOTE: On the following 2 calls the kind value *must* be last due to what will otherwise be a misaligned stack pointer
+printf("%s's is of kind %d and is %d bits wide\n" , typeinfo(i64).name, typeinfo(i64).kind, typeinfo(i64).width)
+printf("%s's is of kind %d and is %d bits wide\n", typeinfo(string).name, typeinfo(string).kind, typeinfo(string).width)
+
+printf("%d, %d, %s\n", typeinfo(u8).kind, typeinfo(u8).width, typeinfo(u8).name)
+
+Baz :: union {
+    i: i32
+    f: f32
+    s: string
+    b: struct { a, b: f32; }
+}
+
+baz := Baz { i: 0x40486bf8 }
+
+printf("i = %d\n", baz.i) // 10785300000
+printf("f = %f\n", baz.f) // FIXME: 0.000000
+printf("s = %p\n", baz.s) // 0x40490fd0
+
 

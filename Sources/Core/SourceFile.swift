@@ -165,13 +165,9 @@ extension SourceFile {
         return Position(filename: pathFirstImportedAs, offset: offset, line: line, column: column)
     }
 
-    func addError(_ msg: String, _ pos: Pos, line: UInt = #line) {
+    func addError(_ msg: String, _ pos: Pos) {
         let error = SourceError(pos: pos, msg: msg)
         errors.append(error)
-        #if DEBUG
-        attachNote("In \(stage), line \(line)")
-        attachNote("At an offset of \(offset(pos: pos)) in the file")
-        #endif
     }
 
     func attachNote(_ message: String) {
