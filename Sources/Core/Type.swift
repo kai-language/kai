@@ -17,13 +17,6 @@ final class Type: Hashable, CustomStringConvertible {
         self.value = value
     }
 
-    init(entity: Entity?, width: Int?, flags: Flag, value: TypeValue) {
-        self.entity = entity
-        self.width = width
-        self.flags = flags
-        self.value = value
-    }
-
     struct Flag: OptionSet {
         let rawValue: UInt8
         static let none = Flag(rawValue: 0b0000_0000)
@@ -67,7 +60,55 @@ final class Type: Hashable, CustomStringConvertible {
     }
 
     var isSignedInteger: Bool {
-        return as
+        return asInteger.isSigned
+    }
+
+    var isUnsignedInteger: Bool {
+        return asInteger.isSigned == false
+    }
+
+    var isFloatingPoint: Bool {
+        return kind == .floatingPoint
+    }
+
+    var isFunction: Bool {
+        return kind == .function
+    }
+
+    var isFunctionPointer: Bool {
+        return kind == .pointer && asPointer.pointeeType.isFunction
+    }
+
+    var isTuple: Bool {
+        return kind == .tuple
+    }
+
+    var isPolymorphic: Bool {
+        return kind == .polymorphic
+    }
+
+    var isMetatype: Bool {
+        return kind == .metatype
+    }
+
+    func compatibleWithoutExtOrTrunc(_ type: Type) -> Bool {
+        return type == self
+    }
+
+    func compatibleWtihExtOrTrunc(_ type: Type) -> Bool {
+        if type.isInteger && self.isInteger {
+            return true
+        }
+
+        if type.isFloatingPoint && self.isFloatingPoint {
+            return true
+        }
+
+        return false
+    }
+
+    static func lowerFromMetatype(_ type: Type) -> Type {
+        return type.asMetatype.instanceType
     }
 
 // sourcery:inline:auto:Type.Init
@@ -188,6 +229,8 @@ extension Type {
 
     struct Metatype: TypeValue {
         static let typeKind: TypeKind = .metatype
+
+        let instanceType: Type
     }
 
     struct File: TypeValue {
