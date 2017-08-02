@@ -64,7 +64,7 @@ struct Scanner {
             offset = data.endIndex
             if ch == "\n" {
                 lineOffset = offset
-                file.addLine(offset: offset)
+                file.addLine(offset: UInt32(offset))
             }
             ch = nil // eof
             return
@@ -74,7 +74,7 @@ struct Scanner {
         if ch == "\n" {
             file.linesOfSource += insertSemi ? 1 : 0
             lineOffset = offset
-            file.addLine(offset: offset)
+            file.addLine(offset: UInt32(offset))
         }
 
         var decoder = UTF8()
@@ -396,6 +396,13 @@ struct Scanner {
     }
 
     mutating func scan() -> (Pos, Token, String) {
+        let (off, tok, lit) = scan0()
+
+        let pos = file.pos(offset: UInt32(off))
+        return (pos, tok, lit)
+    }
+
+    mutating func scan0() -> (Int, Token, String) {
         skipWhitespace()
 
         var insertSemi = false
@@ -544,7 +551,7 @@ struct Scanner {
 extension Scanner {
 
     func reportError(_ message: String, at offset: Int, file: StaticString = #file, line: UInt = #line) {
-        let pos = self.file.pos(offset: offset)
+        let pos = self.file.pos(offset: UInt32(offset))
         errorHandler?(message, pos)
     }
 }

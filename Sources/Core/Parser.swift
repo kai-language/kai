@@ -868,7 +868,7 @@ extension Parser {
                  .assignAdd, .assignSub, .assignMul, .assignQuo, .assignRem,
                  .assignAnd, .assignXor, .assignShl, .assignShr, .assignOr:
                 if let startOfLine = startOfLine {
-                    scanner.set(offset: file.offset(pos: startOfLine))
+                    scanner.set(offset: Int(file.offset(pos: startOfLine)))
                     return
                 }
             case .semicolon:

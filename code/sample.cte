@@ -1,4 +1,6 @@
 
+#import "math/constants.cte"
+
 #library "libc" libc
 
 #foreign libc #callconv "c" {

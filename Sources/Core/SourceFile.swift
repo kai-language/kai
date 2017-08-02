@@ -9,6 +9,9 @@ var moduleName: String!
 
 var knownSourceFiles: [String: SourceFile] = [:]
 
+var currentFilenoMutex = PThreadMutex()
+var currentFileno: UInt32 = 1
+
 // sourcery:noinit
 public final class SourceFile {
 
@@ -18,9 +21,9 @@ public final class SourceFile {
     }
 
     /// The base offset for this file
-    var base: Int
-    var size: Int
-    var lineOffsets: [Int] = [0]
+    var fileno: UInt32
+    var size: UInt32
+    var lineOffsets: [UInt32] = [0]
     var linesOfSource: Int = 0
 
     var errors: [SourceError] = []
@@ -48,8 +51,11 @@ public final class SourceFile {
         self.fullpath = fullpath
         self.pathFirstImportedAs = pathImportedAs
         self.firstImportedFrom = importedFrom
-        self.base = 1
-        self.size = Int(handle.seekToEndOfFile())
+        self.size = UInt32(handle.seekToEndOfFile())
+        currentFilenoMutex.lock()
+        self.fileno = currentFileno
+        currentFileno += 1
+        currentFilenoMutex.unlock()
         handle.seek(toFileOffset: 0)
     }
 
@@ -130,34 +136,34 @@ extension SourceFile {
 
 extension SourceFile {
     
-    func addLine(offset: Int) {
+    func addLine(offset: UInt32) {
         assert(lineOffsets.count == 0 || lineOffsets.last! < offset)
         lineOffsets.append(offset)
     }
 
-    func pos(offset: Int) -> Pos {
+    func pos(offset: UInt32) -> Pos {
         assert(offset <= self.size)
-        return base + offset
+        return Pos(fileno: fileno, offset: offset)
     }
 
-    func offset(pos: Pos) -> Int {
-        assert(pos >= base && pos <= base + size)
-        return pos - base
+    func offset(pos: Pos) -> UInt32 {
+        assert(pos.offset <= size)
+        return pos.offset
     }
 
     func position(for pos: Pos) -> Position {
         return unpack(offset: offset(pos: pos))
     }
 
-    func position(forOffset offset: Int) -> Position {
+    func position(forOffset offset: UInt32) -> Position {
         return unpack(offset: offset)
     }
 
-    func unpack(offset: Int) -> Position {
-        var line, column: Int
+    func unpack(offset: UInt32) -> Position {
+        var line, column: UInt32
         if let firstPast = lineOffsets.enumerated().first(where: { $0.element > offset }) {
             let i = firstPast.offset - 1
-            line = i + 1
+            line = UInt32(i) + 1
             column = offset - lineOffsets[i] + 1
         } else {
             (line, column) = (0, 0)
