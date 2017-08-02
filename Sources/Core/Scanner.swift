@@ -32,16 +32,34 @@ struct Scanner {
         }
     }
 
-    mutating func next() {
-        let inOffset = offset
-        let inReadOffset = readOffset
-        defer {
-            if offset != 0 && ch != nil {
-                assert(offset < readOffset)
-                assert(readOffset - 1 == inReadOffset)
-                assert(offset - 1 == inOffset)
+    mutating func set(offset: Int) {
+        assert(offset < data.count)
+
+        self.offset = offset
+
+        var decoder = UTF8()
+        var iterator = data[offset...].makeIterator()
+        var scalar: UnicodeScalar
+        switch decoder.decode(&iterator) {
+        case .scalarValue(let v):
+            scalar = v
+            if v == byteOrderMark {
+                reportError("Illegal byte order mark", at: offset)
+            } else if ch == "\0" {
+                reportError("Illegal character NUL", at: offset)
             }
+        case .emptyInput:
+            fatalError("Empty is handled prior")
+        case .error:
+            reportError("illegal UTF8 encoding", at: offset)
+            scalar = Unicode.Scalar(UInt32(0xFFFD))!
         }
+
+        readOffset += unicodeScalarByteLength(data[offset])
+        ch = scalar
+    }
+
+    mutating func next() {
         guard readOffset < data.count else {
             offset = data.endIndex
             if ch == "\n" {

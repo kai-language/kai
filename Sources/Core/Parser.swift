@@ -136,7 +136,7 @@ extension Parser {
 
     mutating func parseUnaryExpr() -> Expr {
         switch tok {
-        case .add, .sub, .not, .xor, .and:
+        case .add, .sub, .not, .xor, .and, .lss:
             let op = tok
             let pos = eatToken()
             let expr = parseUnaryExpr()
@@ -190,9 +190,14 @@ extension Parser {
                 x = Selector(rec: x, sel: parseIdent())
             case .lparen:
                 let lparen = eatToken()
-                let args = parseExprList()
+                var args: [Expr] = []
+                if tok != .rparen {
+                    args = parseExprList()
+                }
                 let rparen = expect(.rparen)
                 x = Call(fun: x, lparen: lparen, args: args, rparen: rparen)
+            case .lbrace:
+                return parseCompositeLiteralBody(x)
             default:
                 return x
             }
@@ -215,12 +220,7 @@ extension Parser {
             let rparen = expect(.rparen)
             return Paren(lparen: lparen, element: expr, rparen: rparen)
         default:
-            let type = parseType()
-            // TODO: Make lexer auto insert semicolon before '{' when it sees `for` `switch` etc...
-            if tok == .lbrace {
-                return parseCompositeLiteralBody(type)
-            }
-            return type
+            return parseType()
         }
     }
 }
@@ -250,11 +250,13 @@ extension Parser {
             let dollar = eatToken()
             let type = parseType(allowPolyType: false)
             return PolyType(dollar: dollar, type: type)
+        case .struct:
+            return parseStructType()
         default:
             // we have an error
             let start = pos
             reportExpected("operand", at: start)
-            syncStmt()
+            recover()
             return BadExpr(start: start, end: pos)
         }
     }
@@ -298,7 +300,13 @@ extension Parser {
     mutating func parseStructType() -> Expr {
         let keyword = eatToken()
         let lbrace = expect(.lbrace)
-        let fields = parseStructFieldList()
+        var fields: [StructField] = []
+        if tok != .rbrace {
+            fields = parseStructFieldList()
+        }
+        if tok == .semicolon {
+            eatToken()
+        }
         let rbrace = expect(.rbrace)
         return StructType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace)
     }
@@ -476,7 +484,7 @@ extension Parser {
         default:
             let start = pos
             reportExpected("statement", at: start)
-            syncStmt()
+            recover()
             return BadStmt(start: start, end: pos)
         }
     }
@@ -554,7 +562,6 @@ extension Parser {
         if tok != .semicolon && tok != .rbrace {
             x = parseExprList()
         }
-        expectTerm()
         return Return(keyword: keyword, results: x)
     }
 
@@ -565,7 +572,6 @@ extension Parser {
         if tok != .fallthrough && tok == .ident {
             label = parseIdent()
         }
-        expectTerm()
         return Branch(token: token, label: label, start: start)
     }
 
@@ -575,11 +581,10 @@ extension Parser {
         // TODO: Disambiguate composite lit
         let body = parseStmt()
         var els_: Stmt?
+        expectTerm()
         if tok == .else {
             eatToken()
             els_ = parseStmt()
-        } else {
-            expectTerm()
         }
         return If(keyword: keyword, cond: cond, body: body, els: els_)
     }
@@ -596,7 +601,6 @@ extension Parser {
             list.append(parseCaseClause())
         }
         let rbrace = expect(.rbrace)
-        expectTerm()
         let body = Block(lbrace: lbrace, stmts: list, rbrace: rbrace)
         return Switch(keyword: keyword, match: match, block: body)
     }
@@ -609,7 +613,6 @@ extension Parser {
         }
         let colon = expect(.colon)
         let body = parseStmtList()
-        expectTerm()
         let block = Block(lbrace: colon, stmts: body, rbrace: body.last?.end ?? colon)
         return CaseClause(keyword: keyword, match: match, colon: colon, block: block)
     }
@@ -632,9 +635,8 @@ extension Parser {
                 s3 = parseSimpleStmt()
             }
         }
-        expectTerm() // Scanner inserts a
+        expectTerm() // Scanner inserts a terminator
         let body = parseBlock()
-        expectTerm()
         var cond: Expr?
         if let s2 = s2 as? ExprStmt {
             cond = s2.expr
@@ -756,7 +758,7 @@ extension Parser {
             file.attachNote("Perhaps you meant to make a ValueDeclaration using ':' instead of '='") 
             eatToken()
             let end = pos
-            syncStmt()
+            recover()
             return BadDecl(start: name.start, end: end)
         } else if tok == .colon {
             eatToken()
@@ -841,9 +843,8 @@ extension Parser {
 
 extension Parser {
 
-    // syncStmt advances to the next statement after an error
-    mutating func syncStmt() {
-        var prevPos = pos
+    mutating func recover() {
+        var startOfLine: Pos?
         while true {
             switch tok {
             case .break, .continue, .defer, .fallthrough, .for, .goto, .if, .return, .switch:
@@ -862,6 +863,13 @@ extension Parser {
                     syncPos = pos
                     syncCnt = 0
                 }
+            case .colon:
+                if let startOfLine = startOfLine {
+                    scanner.set(offset: file.offset(pos: startOfLine))
+                    return
+                }
+            case .semicolon:
+                startOfLine = pos
             case .eof:
                 return
             default:
@@ -899,7 +907,7 @@ extension Parser {
                 next()
             default:
                 reportExpected("';'", at: pos, function: function, line: line)
-                syncStmt()
+                recover()
             }
         }
     }

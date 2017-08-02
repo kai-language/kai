@@ -55,7 +55,7 @@ j := max(a, 4)
 
 f := f64(b)
 
-g : fn(i64) -> i64 = add
+g : (i64) -> i64 = add
 
 h := g(8)
 
@@ -108,6 +108,7 @@ printf("%s's is of kind %d and is %d bits wide\n", typeinfo(string).name, typein
 
 printf("%d, %d, %s\n", typeinfo(u8).kind, typeinfo(u8).width, typeinfo(u8).name)
 
+/*
 Baz :: union {
     i: i32
     f: f32
@@ -120,5 +121,5 @@ baz := Baz { i: 0x40486bf8 }
 printf("i = %d\n", baz.i) // 10785300000
 printf("f = %f\n", baz.f) // FIXME: 0.000000
 printf("s = %p\n", baz.s) // 0x40490fd0
-
+*/
 
