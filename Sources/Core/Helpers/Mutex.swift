@@ -40,4 +40,10 @@ final class PThreadMutex {
         defer { pthread_mutex_unlock(&unsafeMutex) }
         return try work()
     }
+
+// sourcery:inline:auto:PThreadMutex.Init
+init(unsafeMutex: pthread_mutex_t) {
+    self.unsafeMutex = unsafeMutex
+}
+// sourcery:end
 }
