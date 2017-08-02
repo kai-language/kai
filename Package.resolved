@@ -2,57 +2,12 @@
   "object": {
     "pins": [
       {
-        "package": "ByteHashable",
-        "repositoryURL": "https://github.com/vdka/ByteHashable.git",
-        "state": {
-          "branch": null,
-          "revision": "22bcba651a6caa7c0b49e5a95374b624a6918c9d",
-          "version": "1.0.0"
-        }
-      },
-      {
-        "package": "Console",
-        "repositoryURL": "https://github.com/vapor/console.git",
-        "state": {
-          "branch": null,
-          "revision": "88e7b2347636c534ef3e8e537ffd31e551e9a161",
-          "version": "1.0.2"
-        }
-      },
-      {
-        "package": "Core",
-        "repositoryURL": "https://github.com/vapor/core.git",
-        "state": {
-          "branch": null,
-          "revision": "661a105e25a8d84cb61f268c0b6ed85834493761",
-          "version": "1.1.2"
-        }
-      },
-      {
         "package": "LLVM",
         "repositoryURL": "https://github.com/vdka/LLVMSwift.git",
         "state": {
-          "branch": null,
-          "revision": "498a1dfc9e51b6f4e033662690e0efcfbf8f6b20",
-          "version": "0.2.0"
-        }
-      },
-      {
-        "package": "OrderedDictionary",
-        "repositoryURL": "https://github.com/vdka/OrderedDictionary.git",
-        "state": {
-          "branch": null,
-          "revision": "d7b388d5bcaa4c57f6a289a1894b453fb1a81bf0",
-          "version": "1.0.0"
-        }
-      },
-      {
-        "package": "Polymorphic",
-        "repositoryURL": "https://github.com/vapor/polymorphic.git",
-        "state": {
-          "branch": null,
-          "revision": "43ad0c4ce02cff79fbdf33977c2a9599835d4dde",
-          "version": "1.0.1"
+          "branch": "master",
+          "revision": "d3155b8d2c03ff2e465b4ec55057cf251f903839",
+          "version": null
         }
       },
       {
