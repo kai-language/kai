@@ -26,6 +26,15 @@ extension String {
     }
 }
 
+extension BidirectionalCollection {
+    subscript(safe index: Index) -> Element? {
+        guard indices.contains(index) else {
+            return nil
+        }
+        return self[index]
+    }
+}
+
 public func dirname(path: String) -> String {
     if !path.contains("/") {
         return "."
