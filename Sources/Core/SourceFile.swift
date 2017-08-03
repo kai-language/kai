@@ -9,7 +9,7 @@ var moduleName: String!
 
 var knownSourceFiles: [String: SourceFile] = [:]
 
-var currentFilenoMutex = PThreadMutex()
+var currentFilenoMutex = Mutex()
 var currentFileno: UInt32 = 1
 
 // sourcery:noinit
@@ -97,7 +97,10 @@ extension SourceFile {
                 addError("Failed to open '\(path.value)'", path.start)
                 return nil
             }
-            file.parseEmittingErrors()
+            let parsingJob = Job("\(path.value) - Parsing", work: file.parseEmittingErrors)
+            let checkingJob = Job("\(path.value) - Checking", work: file.checkEmittingErrors)
+            parsingJob.addDependent(checkingJob)
+            threadPool.add(job: parsingJob)
             return file
 
         case let call as Call where (call.fun as? Ident)?.name == "git":
@@ -113,24 +116,48 @@ extension SourceFile {
 
 extension SourceFile {
 
+    public func start() {
+        let parsingJob = Job("\(basename(path: pathFirstImportedAs)) - Parsing", work: parseEmittingErrors)
+        let checkingJob = Job("\(basename(path: pathFirstImportedAs)) - Checking", work: checkEmittingErrors)
+        parsingJob.addDependent(checkingJob)
+        threadPool.add(job: parsingJob)
+    }
+
     public func parseEmittingErrors() {
         assert(!hasBeenParsed)
+        let startTime = gettime()
+
         stage = "Parsing"
         var parser = Parser(file: self)
         self.nodes = parser.parseFile()
-
         let importedFiles = imports.flatMap({ $0.file })
-
         for importedFile in importedFiles {
             guard !importedFile.hasBeenParsed else {
                 continue
             }
             importedFile.parseEmittingErrors()
         }
-
         hasBeenParsed = true
-
         emitErrors(for: self, at: stage)
+
+        let endTime = gettime()
+        let totalTime = endTime - startTime
+        timingMutex.lock()
+        parseStageTiming += totalTime
+        timingMutex.unlock()
+    }
+
+    public func checkEmittingErrors() {
+        assert(hasBeenParsed && !hasBeenChecked)
+        let startTime = gettime()
+
+        stage = "Checking"
+
+        let endTime = gettime()
+        let totalTime = endTime - startTime
+        timingMutex.lock()
+        checkStageTiming += totalTime
+        timingMutex.unlock()
     }
 }
 

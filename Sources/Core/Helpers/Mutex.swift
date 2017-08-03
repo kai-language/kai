@@ -1,8 +1,8 @@
 
 import Darwin
 
-/// A basic wrapper around the "NORMAL" and "RECURSIVE" `pthread_mutex_t` (a safe, general purpose FIFO mutex). This type is a "class" type to take advantage of the "deinit" method and prevent accidental copying of the `pthread_mutex_t`.
-final class PThreadMutex {
+/// A basic wrapper around the "NORMAL" `pthread_mutex_t` (a safe, general purpose FIFO mutex). This type is a "class" type to take advantage of the "deinit" method and prevent accidental copying of the `pthread_mutex_t`.
+final class Mutex {
     typealias MutexPrimitive = pthread_mutex_t
 
     var unsafeMutex = pthread_mutex_t()
