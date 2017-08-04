@@ -4,9 +4,9 @@
 #library "libc" libc
 
 #foreign libc #callconv "c" {
-    printf :: (string, ..any) -> i32
+    printf :: (string, #cvargs ..any) -> i32
 
-    sprintf :: (*u8, string, ..any) -> i32
+    sprintf :: (*u8, string, #cvargs ..any) -> i32
 }
 
 sum :: fn (a: $T, b: $U) -> T {

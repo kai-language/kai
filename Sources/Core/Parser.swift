@@ -273,16 +273,27 @@ extension Parser {
     mutating func parseParameterTypeList() -> [Expr] {
         if tok == .ellipsis {
             let ellipsis = eatToken()
-            return [VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), type: nil)]
+            let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), cvargs: false, type: nil)
+            return [variadic]
+        } else if tok == .directive && lit == "cvargs" {
+            next()
+            let ellipsis = expect(.ellipsis)
+            let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), cvargs: false, type: nil)
+            return [variadic]
         }
         var list = [parseType(allowPolyType: true)]
         while tok == .comma {
             next()
             if tok == .ellipsis {
                 let ellipsis = eatToken()
-                let variadicType = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), type: nil)
+                let variadicType = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), cvargs: false, type: nil)
                 list.append(variadicType)
                 return list
+            } else if tok == .directive && lit == "cvargs" {
+                next()
+                let ellipsis = expect(.ellipsis)
+                let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), cvargs: false, type: nil)
+                return [variadic]
             }
             list.append(parseType(allowPolyType: true))
         }
@@ -726,8 +737,6 @@ extension Parser {
                 return BadStmt(start: directive, end: x.end)
             }
             return x
-        case "cvargs":
-            reportError("cvargs directive is only valid before a vargs parameter", at: directive)
         default:
             reportError("Unknown directive '\(name)'", at: directive)
         }

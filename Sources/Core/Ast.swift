@@ -502,15 +502,18 @@ class VariadicType: Expr {
     var ellipsis: Pos
     var explicitType: Expr
 
+    var isCvargs: Bool
+
     var type: Type!
 
     var start: Pos { return ellipsis }
     var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:VariadicType.Init
-init(ellipsis: Pos, explicitType: Expr, type: Type!) {
+init(ellipsis: Pos, explicitType: Expr, cvargs: Bool, type: Type!) {
     self.ellipsis = ellipsis
     self.explicitType = explicitType
+    self.isCvargs = cvargs
     self.type = type
 }
 // sourcery:end
