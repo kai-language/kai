@@ -197,6 +197,63 @@ extension Checker {
                 lit.type = type
                 return type
 
+
+            case let fn as FuncLit:
+                if !fn.isSpecialization {
+                    pushContext()
+                }
+
+                var needsSpecialization = false
+                var params: [Type] = []
+                for param in fn.params.list {
+                    needsSpecialization = needsSpecialization || (param.explicitType is PolyType) || param.names.map({ $0.poly }).reduce(false, { $0 || $1 })
+
+                    if let variadic = param.type as? VariadicType {
+                        fn.flags.insert(variadic.isCvargs ? .cVariadic : .variadic)
+                    }
+
+                    check(node: param)
+
+                    params.append(param.type)
+                }
+
+                var returnTypes: [Type] = []
+                for resultType in fn.results.types {
+                    var type = check(expr: resultType)
+                    type = lowerFromMetatype(type, atNode: resultType)
+                    returnTypes.append(type)
+                }
+
+                let returnType = ty.Tuple.make(returnTypes)
+
+                if (returnType is ty.Void) && fn.isDiscardable {
+                    reportError("#discardable on void returning function is superflous", at: expr.start)
+                }
+
+                context.expectedReturnType = returnType
+                if !needsSpecialization {
+                    check(node: fn.body)
+                }
+                context.expectedReturnType = nil
+
+                var flags: ty.Function.Flags = .none
+                if fn.isVariadic {
+                    flags.insert(.variadic)
+                }
+                if fn.isCVariadic {
+                    flags.insert(.cVariadic)
+                }
+                if needsSpecialization {
+                    flags.insert(.polymorphic)
+                }
+
+                let type = ty.Function(width: nil, node: expr, params: params, returnType: returnType, flags: flags)
+                if !needsSpecialization {
+                    fn.type = type
+                }
+
+                return type
+
             default:
                 fatalError() // TODO
             }

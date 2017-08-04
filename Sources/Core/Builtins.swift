@@ -23,9 +23,9 @@ struct BuiltinType {
 
     static let f32 = BuiltinType(name: "f32", type: ty.FloatingPoint())
     static let f64 = BuiltinType(name: "f64", type: ty.FloatingPoint())
-    static let u8  = BuiltinType(name: "u8",  type: ty.Integer(entity: nil, width: 8,  isSigned: false))
-    static let i32 = BuiltinType(name: "i32", type: ty.Integer(entity: nil, width: 32, isSigned: true))
-    static let i64 = BuiltinType(name: "i64", type: ty.Integer(entity: nil, width: 64, isSigned: true))
+    static let u8  = BuiltinType(name: "u8",  type: ty.Integer(width: 8,  isSigned: false))
+    static let i32 = BuiltinType(name: "i32", type: ty.Integer(width: 32, isSigned: true))
+    static let i64 = BuiltinType(name: "i64", type: ty.Integer(width: 64, isSigned: true))
 }
 
 extension Entity {

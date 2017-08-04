@@ -1,7 +1,6 @@
 import LLVM
 
 protocol Type {
-    weak var entity: Entity? { get }
     var width: Int? { get }
 }
 
@@ -57,13 +56,13 @@ extension Array where Element == Type {
 func canConvert(_ lhs: Type, to rhs: Type) -> Bool {
 
     if lhs is ty.Type {
-        return rhs is ty.Metatype || rhs.entity === BuiltinType.type.entity
+        return rhs is ty.Metatype || (rhs as! ty.Metatype).entity === BuiltinType.type.entity
     }
-    if lhs.entity === BuiltinType.type.entity {
-        return (rhs is ty.Metatype) || rhs.entity === BuiltinType.type.entity
+    if let lhs = lhs as? ty.Metatype, lhs.entity === BuiltinType.type.entity {
+        return (rhs as? ty.Metatype)?.entity === BuiltinType.type.entity
     }
-    if rhs.entity === BuiltinType.type.entity {
-        return (lhs is ty.Metatype) || lhs.entity === BuiltinType.type.entity
+    if let rhs = rhs as? ty.Metatype, rhs.entity === BuiltinType.type.entity {
+        return (lhs as? ty.Metatype)?.entity === BuiltinType.type.entity
     }
     if let lhs = lhs as? ty.Metatype, let rhs = rhs as? ty.Metatype {
         return canConvert(lhs.instanceType, to: rhs.instanceType)
@@ -81,28 +80,23 @@ func canConvert(_ lhs: Type, to rhs: Type) -> Bool {
 enum ty {
 
     struct Void: Type {
-        weak var entity: Entity? = nil
         var width: Int? = 0
     }
 
     struct Boolean: Type {
-        weak var entity: Entity? = nil
         var width: Int? = 1
     }
 
     struct Integer: Type {
-        weak var entity: Entity? = nil
         var width: Int? = 0
         var isSigned: Bool
     }
 
     struct FloatingPoint: Type {
-        weak var entity: Entity? = nil
         var width: Int? = nil
     }
 
     struct Pointer: Type {
-        weak var entity: Entity? = nil
         var width: Int? = MemoryLayout<Int>.size
         var pointeeType: Type
 
@@ -112,7 +106,6 @@ enum ty {
     }
 
     struct Struct: Type {
-        weak var entity: Entity? = nil
         var width: Int? = 0
 
         var node: Node
@@ -156,13 +149,12 @@ enum ty {
 
             irType.setBody(irTypes)
 
-            let type = Struct(entity: nil, width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields, ir: Ref(irType))
+            let type = Struct(width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields, ir: Ref(irType))
             return Metatype(instanceType: type)
         }
     }
 
     struct Function: Type {
-        weak var entity: Entity? = nil
         var width: Int? = 0
 
         var node: FuncLit
@@ -187,15 +179,21 @@ enum ty {
     }
 
     struct Tuple: Type {
-        weak var entity: Entity? = nil
         var width: Int?
         var types: [Type]
+
+        static func make(_ types: [Type]) -> Type {
+
+            let width = types.map({ $0.width ?? 0 }).reduce(0, +)
+
+            let type = Tuple(width: width, types: types)
+
+            return type
+        }
     }
 
     struct Polymorphic: Type {
-        weak var entity: Entity? = nil
         var width: Int? = nil
-
     }
 
     struct Metatype: Type {
@@ -210,23 +208,19 @@ enum ty {
 
     struct Invalid: Type {
         static let instance = Invalid()
-        weak var entity: Entity? = nil
         var width: Int? = nil
     }
 
     struct Anyy: Type {
-        weak var entity: Entity? = nil
         var width: Int? = 64
     }
 
     struct CVarArg: Type {
         static let instance = CVarArg()
-        weak var entity: Entity? = nil
         var width: Int? = nil
     }
 
     struct File: Type {
-        weak var entity: Entity? = nil
         var width: Int? = nil
         let memberScope: Scope
 
