@@ -1,0 +1,15 @@
+
+{% for type in types.implementing.Node %}
+{% for var in type.storedVariables where var.name == "flags" %}
+
+extension {{ type.name }} {
+    {% for flag in var.type.staticVariables where flag.name != "none" %}
+
+    var is{{ flag.name|upperFirst }}: Bool {
+        return flags.contains(.{{ flag.name }}) 
+    }
+    {% endfor %}
+}
+{% endfor %}
+{% endfor %}
+

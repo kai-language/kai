@@ -4,7 +4,9 @@ protocol Node: class {
     var end: Pos { get }
 }
 
-protocol Expr: Node {}
+protocol Expr: Node {
+    var type: Type! { get }
+}
 protocol Stmt: Node {}
 protocol Decl: Stmt {}
 protocol LinknameApplicable: Stmt {
@@ -37,7 +39,7 @@ init(slash: Pos, text: String) {
 
 // MARK: Expressions
 
-class StructField: Expr {
+class StructField: Node {
     var names: [Ident]
     var colon: Pos
     var type: Expr
@@ -58,6 +60,8 @@ class BadExpr: Expr {
     var start: Pos
     var end: Pos
 
+    var type: Type! { return ty.invalid }
+
 // sourcery:inline:auto:BadExpr.Init
 init(start: Pos, end: Pos) {
     self.start = start
@@ -69,12 +73,19 @@ init(start: Pos, end: Pos) {
 class Ident: Expr {
     var start: Pos
     var name: String
+
+    var entity: Entity!
+    var type: Type! {
+        return entity!.type!
+    }
+
     var end: Pos { return start + name.count }
 
 // sourcery:inline:auto:Ident.Init
-init(start: Pos, name: String) {
+init(start: Pos, name: String, entity: Entity!) {
     self.start = start
     self.name = name
+    self.entity = entity
 }
 // sourcery:end
 }
@@ -82,12 +93,15 @@ init(start: Pos, name: String) {
 class Ellipsis: Expr {
     var start: Pos
     var element: Expr?
-    var end: Pos { return start + 2 }
+    var type: Type!
+
+    var end: Pos { return element?.end ?? (start + 2) }
 
 // sourcery:inline:auto:Ellipsis.Init
-init(start: Pos, element: Expr?) {
+init(start: Pos, element: Expr?, type: Type!) {
     self.start = start
     self.element = element
+    self.type = type
 }
 // sourcery:end
 }
@@ -95,13 +109,18 @@ init(start: Pos, element: Expr?) {
 class BasicLit: Expr {
     var start: Pos
     var token: Token
-    var value: String
-    var end: Pos { return start + value.count }
+    var text: String
+    var type: Type!
+    var value: Value!
+
+    var end: Pos { return start + text.count }
 
 // sourcery:inline:auto:BasicLit.Init
-init(start: Pos, token: Token, value: String) {
+init(start: Pos, token: Token, text: String, type: Type!, value: Value!) {
     self.start = start
     self.token = token
+    self.text = text
+    self.type = type
     self.value = value
 }
 // sourcery:end
@@ -109,15 +128,21 @@ init(start: Pos, token: Token, value: String) {
 
 class Parameter: Expr {
     var names: [(poly: Bool, Ident)]
-    var type: Expr
+    var explicitType: Expr
+
+    var entity: Entity!
+    var type: Type! {
+        return entity.type!
+    }
 
     var start: Pos { return names.first!.poly ? names.first!.1.start - 1 : names.first!.1.start }
-    var end: Pos { return type.end }
+    var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:Parameter.Init
-init(names: [(poly: Bool, Ident)], type: Expr) {
+init(names: [(poly: Bool, Ident)], explicitType: Expr, entity: Entity!) {
     self.names = names
-    self.type = type
+    self.explicitType = explicitType
+    self.entity = entity
 }
 // sourcery:end
 }
@@ -139,17 +164,13 @@ init(lparen: Pos, list: [Parameter], rparen: Pos) {
 // sourcery:end
 }
 
-class ResultList: Expr {
+class ResultList: Node {
     var lparen: Pos?
     var types: [Expr]
     var rparen: Pos?
 
-    var start: Pos {
-        return lparen ?? types.first!.start
-    }
-    var end: Pos {
-        return rparen ?? types.last!.end
-    }
+    var start: Pos { return lparen ?? types.first!.start }
+    var end: Pos { return rparen ?? types.last!.end }
 
 // sourcery:inline:auto:ResultList.Init
 init(lparen: Pos?, types: [Expr], rparen: Pos?) {
@@ -165,16 +186,21 @@ class FuncLit: Expr {
     var params: ParameterList
     var results: ResultList
     var body: Block
+    var flags: FunctionFlags
+
+    var type: Type!
 
     var start: Pos { return keyword }
     var end: Pos { return body.end }
 
 // sourcery:inline:auto:FuncLit.Init
-init(keyword: Pos, params: ParameterList, results: ResultList, body: Block) {
+init(keyword: Pos, params: ParameterList, results: ResultList, body: Block, flags: FunctionFlags, type: Type!) {
     self.keyword = keyword
     self.params = params
     self.results = results
     self.body = body
+    self.flags = flags
+    self.type = type
 }
 // sourcery:end
 }
@@ -183,34 +209,42 @@ class ForeignFuncLit: Expr {
     var keyword: Pos
     var params: ParameterList
     var results: ResultList
+    var flags: FunctionFlags
+
+    var type: Type!
 
     var start: Pos { return keyword }
     var end: Pos { return results.end }
 
 // sourcery:inline:auto:ForeignFuncLit.Init
-init(keyword: Pos, params: ParameterList, results: ResultList) {
+init(keyword: Pos, params: ParameterList, results: ResultList, flags: FunctionFlags, type: Type!) {
     self.keyword = keyword
     self.params = params
     self.results = results
+    self.flags = flags
+    self.type = type
 }
 // sourcery:end
 }
 
 class CompositeLit: Expr {
-    var type: Expr
+    var explicitType: Expr
     var lbrace: Pos
-    var elements: [Expr]
+    var elements: [KeyValue]
     var rbrace: Pos
 
-    var start: Pos { return type.start }
+    var type: Type!
+
+    var start: Pos { return explicitType.start }
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:CompositeLit.Init
-init(type: Expr, lbrace: Pos, elements: [Expr], rbrace: Pos) {
-    self.type = type
+init(explicitType: Expr, lbrace: Pos, elements: [KeyValue], rbrace: Pos, type: Type!) {
+    self.explicitType = explicitType
     self.lbrace = lbrace
     self.elements = elements
     self.rbrace = rbrace
+    self.type = type
 }
 // sourcery:end
 }
@@ -220,14 +254,17 @@ class Paren: Expr {
     var element: Expr
     var rparen: Pos
 
+    var type: Type!
+
     var start: Pos { return lparen }
     var end: Pos { return rparen }
 
 // sourcery:inline:auto:Paren.Init
-init(lparen: Pos, element: Expr, rparen: Pos) {
+init(lparen: Pos, element: Expr, rparen: Pos, type: Type!) {
     self.lparen = lparen
     self.element = element
     self.rparen = rparen
+    self.type = type
 }
 // sourcery:end
 }
@@ -236,13 +273,20 @@ class Selector: Expr {
     var rec: Expr
     var sel: Ident
 
+    let entity: Entity!
+    var type: Type! {
+        return entity.type!
+    }
+    // TODO: (Struct|Enum|Union|File) access
+
     var start: Pos { return rec.start }
     var end: Pos { return sel.end }
 
 // sourcery:inline:auto:Selector.Init
-init(rec: Expr, sel: Ident) {
+init(rec: Expr, sel: Ident, entity: Entity!) {
     self.rec = rec
     self.sel = sel
+    self.entity = entity
 }
 // sourcery:end
 }
@@ -253,15 +297,18 @@ class Call: Expr {
     var args: [Expr]
     var rparen: Pos
 
+    var type: Type!
+
     var start: Pos { return fun.start }
     var end: Pos { return rparen }
 
 // sourcery:inline:auto:Call.Init
-init(fun: Expr, lparen: Pos, args: [Expr], rparen: Pos) {
+init(fun: Expr, lparen: Pos, args: [Expr], rparen: Pos, type: Type!) {
     self.fun = fun
     self.lparen = lparen
     self.args = args
     self.rparen = rparen
+    self.type = type
 }
 // sourcery:end
 }
@@ -271,13 +318,16 @@ class Unary: Expr {
     var op: Token
     var element: Expr
 
+    var type: Type!
+
     var end: Pos { return element.end }
 
 // sourcery:inline:auto:Unary.Init
-init(start: Pos, op: Token, element: Expr) {
+init(start: Pos, op: Token, element: Expr, type: Type!) {
     self.start = start
     self.op = op
     self.element = element
+    self.type = type
 }
 // sourcery:end
 }
@@ -288,15 +338,18 @@ class Binary: Expr {
     var opPos: Pos
     var rhs: Expr
 
+    var type: Type!
+
     var start: Pos { return lhs.start }
     var end: Pos { return rhs.end }
 
 // sourcery:inline:auto:Binary.Init
-init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr) {
+init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr, type: Type!) {
     self.lhs = lhs
     self.op = op
     self.opPos = opPos
     self.rhs = rhs
+    self.type = type
 }
 // sourcery:end
 }
@@ -308,47 +361,56 @@ class Ternary: Expr {
     var colon: Pos
     var els: Expr
 
+    var type: Type!
+
     var start: Pos { return cond.start }
     var end: Pos { return els.end }
 
 // sourcery:inline:auto:Ternary.Init
-init(cond: Expr, qmark: Pos, then: Expr?, colon: Pos, els: Expr) {
+init(cond: Expr, qmark: Pos, then: Expr?, colon: Pos, els: Expr, type: Type!) {
     self.cond = cond
     self.qmark = qmark
     self.then = then
     self.colon = colon
     self.els = els
+    self.type = type
 }
 // sourcery:end
 }
 
 class KeyValue: Expr {
-    var key: Expr
-    var colon: Pos
+    var key: Expr?
+    var colon: Pos?
     var value: Expr
 
-    var start: Pos { return key.start }
+    var type: Type!
+
+    var start: Pos { return key?.start ?? value.start }
     var end: Pos { return value.end }
 
 // sourcery:inline:auto:KeyValue.Init
-init(key: Expr, colon: Pos, value: Expr) {
+init(key: Expr?, colon: Pos?, value: Expr, type: Type!) {
     self.key = key
     self.colon = colon
     self.value = value
+    self.type = type
 }
 // sourcery:end
 }
 
 class PointerType: Expr {
     var star: Pos
-    var type: Expr
+    var explicitType: Expr
+
+    var type: Type!
 
     var start: Pos { return star }
-    var end: Pos { return type.end }
+    var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:PointerType.Init
-init(star: Pos, type: Expr) {
+init(star: Pos, explicitType: Expr, type: Type!) {
     self.star = star
+    self.explicitType = explicitType
     self.type = type
 }
 // sourcery:end
@@ -358,16 +420,19 @@ class ArrayType: Expr {
     var lbrack: Pos
     var length: Expr
     var rbrack: Pos
-    var type: Expr
+    var explicitType: Expr
+
+    var type: Type!
 
     var start: Pos { return lbrack }
-    var end: Pos { return type.end }
+    var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:ArrayType.Init
-init(lbrack: Pos, length: Expr, rbrack: Pos, type: Expr) {
+init(lbrack: Pos, length: Expr, rbrack: Pos, explicitType: Expr, type: Type!) {
     self.lbrack = lbrack
     self.length = length
     self.rbrack = rbrack
+    self.explicitType = explicitType
     self.type = type
 }
 // sourcery:end
@@ -376,15 +441,18 @@ init(lbrack: Pos, length: Expr, rbrack: Pos, type: Expr) {
 class SliceType: Expr {
     var lbrack: Pos
     var rbrack: Pos
-    var type: Expr
+    var explicitType: Expr
+
+    var type: Type!
 
     var start: Pos { return lbrack }
-    var end: Pos { return type.end }
+    var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:SliceType.Init
-init(lbrack: Pos, rbrack: Pos, type: Expr) {
+init(lbrack: Pos, rbrack: Pos, explicitType: Expr, type: Type!) {
     self.lbrack = lbrack
     self.rbrack = rbrack
+    self.explicitType = explicitType
     self.type = type
 }
 // sourcery:end
@@ -396,29 +464,35 @@ class StructType: Expr {
     var fields: [StructField]
     var rbrace: Pos
 
+    var type: Type!
+
     var start: Pos { return keyword }
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:StructType.Init
-init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos) {
+init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!) {
     self.keyword = keyword
     self.lbrace = lbrace
     self.fields = fields
     self.rbrace = rbrace
+    self.type = type
 }
 // sourcery:end
 }
 
 class PolyType: Expr {
     var dollar: Pos
-    var type: Expr
+    var explicitType: Expr
+
+    var type: Type!
 
     var start: Pos { return dollar }
-    var end: Pos { return type.end }
+    var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:PolyType.Init
-init(dollar: Pos, type: Expr) {
+init(dollar: Pos, explicitType: Expr, type: Type!) {
     self.dollar = dollar
+    self.explicitType = explicitType
     self.type = type
 }
 // sourcery:end
@@ -426,14 +500,17 @@ init(dollar: Pos, type: Expr) {
 
 class VariadicType: Expr {
     var ellipsis: Pos
-    var type: Expr
+    var explicitType: Expr
+
+    var type: Type!
 
     var start: Pos { return ellipsis }
-    var end: Pos { return type.end }
+    var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:VariadicType.Init
-init(ellipsis: Pos, type: Expr) {
+init(ellipsis: Pos, explicitType: Expr, type: Type!) {
     self.ellipsis = ellipsis
+    self.explicitType = explicitType
     self.type = type
 }
 // sourcery:end
@@ -444,14 +521,17 @@ class FuncType: Expr {
     var params: [Expr]
     var results: [Expr]
 
+    var type: Type!
+
     var start: Pos { return lparen }
     var end: Pos { return results.last!.end }
 
 // sourcery:inline:auto:FuncType.Init
-init(lparen: Pos, params: [Expr], results: [Expr]) {
+init(lparen: Pos, params: [Expr], results: [Expr], type: Type!) {
     self.lparen = lparen
     self.params = params
     self.results = results
+    self.type = type
 }
 // sourcery:end
 }
@@ -739,10 +819,12 @@ init(lbrace: Pos, decls: [Decl], rbrace: Pos, callconv: String?) {
 // sourcery:end
 }
 
-class ValueDecl: Decl, LinknameApplicable, CallConvApplicable {
+class Declaration: Decl, LinknameApplicable, CallConvApplicable {
     var names: [Ident]
-    var type: Expr?
+    var explicitType: Expr?
     var values: [Expr]
+
+    var isConstant: Bool
 
     var callconv: String?
     var linkname: String?
@@ -750,34 +832,12 @@ class ValueDecl: Decl, LinknameApplicable, CallConvApplicable {
     var start: Pos { return names.first!.start }
     var end: Pos { return values.first!.end }
 
-// sourcery:inline:auto:ValueDecl.Init
-init(names: [Ident], type: Expr?, values: [Expr], callconv: String?, linkname: String?) {
+// sourcery:inline:auto:Declaration.Init
+init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?) {
     self.names = names
-    self.type = type
+    self.explicitType = explicitType
     self.values = values
-    self.callconv = callconv
-    self.linkname = linkname
-}
-// sourcery:end
-}
-
-class VariableDecl: Decl, LinknameApplicable, CallConvApplicable {
-    var names: [Ident]
-    var type: Expr?
-    var values: [Expr]
-
-    var callconv: String?
-    var linkname: String?
-    //    var flags: DeclarationFlags
-
-    var start: Pos { return names.first!.start }
-    var end: Pos { return values.first!.end }
-
-// sourcery:inline:auto:VariableDecl.Init
-init(names: [Ident], type: Expr?, values: [Expr], callconv: String?, linkname: String?) {
-    self.names = names
-    self.type = type
-    self.values = values
+    self.isConstant = isConstant
     self.callconv = callconv
     self.linkname = linkname
 }
@@ -794,4 +854,15 @@ init(start: Pos, end: Pos) {
     self.end = end
 }
 // sourcery:end
+}
+
+
+struct FunctionFlags: OptionSet {
+    var rawValue: UInt8
+
+    static let none             = FunctionFlags(rawValue: 0b0000)
+    static let variadic         = FunctionFlags(rawValue: 0b0001)
+    static let cVariadic        = FunctionFlags(rawValue: 0b0011) // implies variadic
+    static let discardable      = FunctionFlags(rawValue: 0b0100)
+    static let specialization   = FunctionFlags(rawValue: 0b1000)
 }

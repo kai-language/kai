@@ -3,6 +3,7 @@ import Foundation
 
 public var threadPool: ThreadPool!
 
+// sourcery:noinit
 final class WorkerThread: Thread {
     unowned var pool: ThreadPool
     var isIdle: Bool = true
@@ -41,6 +42,7 @@ final class WorkerThread: Thread {
     }
 }
 
+// sourcery:noinit
 public final class ThreadPool {
 
     let mutex = Mutex()
@@ -71,6 +73,7 @@ public final class ThreadPool {
     }
 }
 
+// sourcery:noinit
 final class Job {
 
     var name: String

@@ -1,202 +1,125 @@
 import LLVM
 
-final class Type: Hashable, CustomStringConvertible {
-    weak var entity: Entity?
-    var width: Int?
-
-    var flags: Flag = .none
-
-    var value: TypeValue
-    var kind: TypeKind {
-        return Swift.type(of: value).typeKind
-    }
-
-    init<T: TypeValue>(value: T, entity: Entity? = nil) {
-        self.entity = entity
-        self.width = nil
-        self.value = value
-    }
-
-    struct Flag: OptionSet {
-        let rawValue: UInt8
-        static let none = Flag(rawValue: 0b0000_0000)
-        static let used = Flag(rawValue: 0b0000_0001)
-    }
-
-    var description: String {
-        return "placeholder"
-    }
-
-    var name: String {
-        return description
-    }
-
-    var isVoid: Bool {
-        return kind == .void || (kind == .tuple && (asTuple.types.isEmpty || asTuple.types[0].isVoid))
-    }
-
-    var isAny: Bool {
-        return kind == .any
-    }
-
-    var isCVargAny: Bool {
-        return kind == .cvargsAny
-    }
-
-    var isBoolean: Bool {
-        return kind == .boolean
-    }
-
-    var isBooleanesque: Bool {
-        return isBoolean || isNumber
-    }
-
-    var isNumber: Bool {
-        return isInteger || isFloatingPoint
-    }
-
-    var isInteger: Bool {
-        return kind == .integer
-    }
-
-    var isSignedInteger: Bool {
-        return asInteger.isSigned
-    }
-
-    var isUnsignedInteger: Bool {
-        return asInteger.isSigned == false
-    }
-
-    var isFloatingPoint: Bool {
-        return kind == .floatingPoint
-    }
-
-    var isFunction: Bool {
-        return kind == .function
-    }
-
-    var isFunctionPointer: Bool {
-        return kind == .pointer && asPointer.pointeeType.isFunction
-    }
-
-    var isTuple: Bool {
-        return kind == .tuple
-    }
-
-    var isPolymorphic: Bool {
-        return kind == .polymorphic
-    }
-
-    var isMetatype: Bool {
-        return kind == .metatype
-    }
-
-    func compatibleWithoutExtOrTrunc(_ type: Type) -> Bool {
-        return type == self
-    }
-
-    func compatibleWtihExtOrTrunc(_ type: Type) -> Bool {
-        if type.isInteger && self.isInteger {
-            return true
-        }
-
-        if type.isFloatingPoint && self.isFloatingPoint {
-            return true
-        }
-
-        return false
-    }
-
-    static func lowerFromMetatype(_ type: Type) -> Type {
-        return type.asMetatype.instanceType
-    }
-
-// sourcery:inline:auto:Type.Init
-init(entity: Entity?, width: Int?, flags: Flag, value: TypeValue) {
-    self.entity = entity
-    self.width = width
-    self.flags = flags
-    self.value = value
-}
-// sourcery:end
-}
-
-enum TypeKind {
-    case void
-    case any
-    case cvargsAny
-    case integer
-    case floatingPoint
-    case boolean
-    case function
-    case `struct`
-    case tuple
-    case pointer
-    case polymorphic
-    case metatype
-    case file
-}
-
-protocol TypeValue {
-    static var typeKind: TypeKind { get }
+protocol Type {
+    weak var entity: Entity? { get }
+    var width: Int? { get }
 }
 
 extension Type {
-    struct Void: TypeValue {
-        static let typeKind: TypeKind = .void
+    
+    func lower() -> Type {
+        return (self as! ty.Metatype).instanceType
+    }
+}
+
+func != (lhs: Type, rhs: Type) -> Bool {
+    return !(lhs == rhs)
+}
+
+func == (lhs: Type, rhs: Type) -> Bool {
+
+    switch (lhs, rhs) {
+    case (is ty.Void, is ty.Void),
+         (is ty.Anyy, is ty.Anyy),
+         (is ty.CVarArg, is ty.CVarArg),
+         (is ty.Boolean, is ty.Boolean):
+        return true
+    case (let lhs as ty.Integer, let rhs as ty.Integer):
+        return lhs.isSigned == rhs.isSigned && lhs.width == rhs.width
+    case (is ty.FloatingPoint, is ty.FloatingPoint):
+        return lhs.width == rhs.width
+    case (let lhs as ty.Pointer, let rhs as ty.Pointer):
+        return lhs.pointeeType == rhs.pointeeType
+    case (let lhs as ty.Struct, let rhs as ty.Struct):
+        return lhs.node.start == rhs.node.start
+    case (let lhs as ty.Function, let rhs as ty.Function):
+        return lhs.params == rhs.params && lhs.returnType == rhs.returnType
+    case (let lhs as ty.Tuple, let rhs as ty.Tuple):
+        return lhs.types == rhs.types
+    case (let lhs as ty.Metatype, let rhs as ty.Metatype):
+        return lhs.instanceType == rhs.instanceType
+    default:
+        return false
+    }
+}
+
+extension Array where Element == Type {
+    static func == (lhs: [Type], rhs: [Type]) -> Bool {
+        for (l, r) in zip(lhs, rhs) {
+            if l != r {
+                return false
+            }
+        }
+        return true
+    }
+}
+
+func canConvert(_ lhs: Type, to rhs: Type) -> Bool {
+
+    if lhs is ty.Type {
+        return rhs is ty.Metatype || rhs.entity === BuiltinType.type.entity
+    }
+    if lhs.entity === BuiltinType.type.entity {
+        return (rhs is ty.Metatype) || rhs.entity === BuiltinType.type.entity
+    }
+    if rhs.entity === BuiltinType.type.entity {
+        return (lhs is ty.Metatype) || lhs.entity === BuiltinType.type.entity
+    }
+    if let lhs = lhs as? ty.Metatype, let rhs = rhs as? ty.Metatype {
+        return canConvert(lhs.instanceType, to: rhs.instanceType)
+    }
+    if let lhs = lhs as? ty.Tuple, lhs.types.count == 1 {
+        return canConvert(lhs.types[0], to: rhs)
+    }
+    if let rhs = rhs as? ty.Tuple, rhs.types.count == 1 {
+        return canConvert(rhs.types[0], to: lhs)
+    }
+    return lhs == rhs
+}
+
+/// A name space containing all type specifics
+enum ty {
+
+    struct Void: Type {
+        weak var entity: Entity? = nil
+        var width: Int? = 0
     }
 
-    struct `Any`: TypeValue {
-        static let typeKind: TypeKind = .any
+    struct Boolean: Type {
+        weak var entity: Entity? = nil
+        var width: Int? = 1
     }
 
-    struct CVargsAny: TypeValue {
-        static let typeKind: TypeKind = .cvargsAny
-    }
-
-    struct Integer: TypeValue {
-        static let typeKind: TypeKind = .integer
+    struct Integer: Type {
+        weak var entity: Entity? = nil
+        var width: Int? = 0
         var isSigned: Bool
     }
 
-    struct FloatingPoint: TypeValue {
-        static let typeKind: TypeKind = .floatingPoint
+    struct FloatingPoint: Type {
+        weak var entity: Entity? = nil
+        var width: Int? = nil
     }
 
-    struct Boolean: TypeValue {
-        static let typeKind: TypeKind = .boolean
-    }
+    struct Pointer: Type {
+        weak var entity: Entity? = nil
+        var width: Int? = MemoryLayout<Int>.size
+        var pointeeType: Type
 
-    struct Function: TypeValue {
-        static let typeKind: TypeKind = .function
-
-        var node: Node
-        var params: [Type]
-        /// - Note: Always a tuple type.
-        var returnType: Type
-        var flags: Flag
-
-        var isVariadic: Bool { return flags.contains(.variadic) }
-        var isCVariadic: Bool { return flags.contains(.cVariadic) }
-        var needsSpecialization: Bool { return flags.contains(.polymorphic) }
-        var isBuiltin: Bool { return flags.contains(.builtin) }
-
-        struct Flag: OptionSet {
-            var rawValue: UInt8
-
-            static let none         = Flag(rawValue: 0b0000)
-            static let variadic     = Flag(rawValue: 0b0001)
-            static let cVariadic    = Flag(rawValue: 0b0011)
-            static let polymorphic  = Flag(rawValue: 0b0100)
-            static let builtin      = Flag(rawValue: 0b1000)
+        init(pointeeType: Type) {
+            self.pointeeType = pointeeType
         }
     }
 
-    struct Struct: TypeValue {
-        static let typeKind: TypeKind = .struct
+    struct Struct: Type {
+        weak var entity: Entity? = nil
+        var width: Int? = 0
 
         var node: Node
         var fields: [Field] = []
+
+        /// Used for the named type
+        var ir: Ref<IRType?>
 
         struct Field {
             let ident: Ident
@@ -209,54 +132,106 @@ extension Type {
                 return ident.name
             }
         }
+
+        static func make(named name: String, builder: IRBuilder, _ members: [(String, Type)]) -> Type {
+
+            var width = 0
+            var fields: [Struct.Field] = []
+            for (index, (name, type)) in members.enumerated() {
+
+                let ident = Ident(start: noPos, name: name, entity: nil)
+
+                let field = Struct.Field(ident: ident, type: type, index: index, offset: width)
+                fields.append(field)
+
+                width = (width + type.width!).round(upToNearest: 8)
+            }
+
+            let irType = builder.createStruct(name: name)
+            var irTypes: [IRType] = []
+            for field in fields {
+                let fieldType = canonicalize(field.type)
+                irTypes.append(fieldType)
+            }
+
+            irType.setBody(irTypes)
+
+            let type = Struct(entity: nil, width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields, ir: Ref(irType))
+            return Metatype(instanceType: type)
+        }
     }
 
-    struct Tuple: TypeValue {
-        static let typeKind: TypeKind = .tuple
+    struct Function: Type {
+        weak var entity: Entity? = nil
+        var width: Int? = 0
 
+        var node: FuncLit
+        var params: [Type]
+        var returnType: Type
+        var flags: Flags
+
+        var isVariadic: Bool { return flags.contains(.variadic) }
+        var isCVariadic: Bool { return flags.contains(.cVariadic) }
+        var needsSpecialization: Bool { return flags.contains(.polymorphic) }
+        var isBuiltin: Bool { return flags.contains(.builtin) }
+
+        struct Flags: OptionSet {
+            var rawValue: UInt8
+
+            static let none         = Flags(rawValue: 0b0000)
+            static let variadic     = Flags(rawValue: 0b0001)
+            static let cVariadic    = Flags(rawValue: 0b0011)
+            static let polymorphic  = Flags(rawValue: 0b0100)
+            static let builtin      = Flags(rawValue: 0b1000)
+        }
+    }
+
+    struct Tuple: Type {
+        weak var entity: Entity? = nil
+        var width: Int?
         var types: [Type]
     }
 
-    struct Pointer: TypeValue {
-        static let typeKind: TypeKind = .pointer
+    struct Polymorphic: Type {
+        weak var entity: Entity? = nil
+        var width: Int? = nil
 
-        let pointeeType: Type
     }
 
-    struct Polymorphic: TypeValue {
-        static let typeKind: TypeKind = .polymorphic
-    }
+    struct Metatype: Type {
+        weak var entity: Entity? = nil
+        var width: Int? = nil
+        var instanceType: Type
 
-    struct Metatype: TypeValue {
-        static let typeKind: TypeKind = .metatype
-
-        let instanceType: Type
-    }
-
-    struct File: TypeValue {
-        static let typeKind: TypeKind = .file
-
-        let memberScope: Scope
-    }
-}
-
-extension Type {
-    var memberScope: Scope? {
-        switch self.kind {
-        case .file:
-            return asFile.memberScope
-        default:
-            return nil
+        init(instanceType: Type) {
+            self.instanceType = instanceType
         }
     }
-}
 
-extension Type {
-    var hashValue: Int {
-        return unsafeBitCast(self, to: Int.self)
+    struct Invalid: Type {
+        static let instance = Invalid()
+        weak var entity: Entity? = nil
+        var width: Int? = nil
     }
 
-    static func ==(lhs: Type, rhs: Type) -> Bool {
-        return false
+    struct Anyy: Type {
+        weak var entity: Entity? = nil
+        var width: Int? = 64
+    }
+
+    struct CVarArg: Type {
+        static let instance = CVarArg()
+        weak var entity: Entity? = nil
+        var width: Int? = nil
+    }
+
+    struct File: Type {
+        weak var entity: Entity? = nil
+        var width: Int? = nil
+        let memberScope: Scope
+
+        init(memberScope: Scope) {
+            self.memberScope = memberScope
+        }
     }
 }

@@ -44,3 +44,13 @@ init(ident: Ident, type: Type?, flags: Flag, memberScope: Scope?, owningScope: S
 }
 // sourcery:end
 }
+
+extension Entity {
+
+    static func makeBuiltin(_ name: String, type: Type? = nil) -> Entity {
+
+        let ident = Ident(start: noPos, name: name, entity: nil)
+        let entity = Entity(ident: ident, type: type, flags: .compileTime, memberScope: nil, owningScope: nil, value: nil)
+        return entity
+    }
+}

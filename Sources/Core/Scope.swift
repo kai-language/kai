@@ -26,11 +26,10 @@ final class Scope {
         return parent?.lookup(name)
     }
 
-    func insert(_ entity: Entity, scopeOwnsEntity: Bool = true) {
+    /// - Note: Returns previous
+    func insert(_ entity: Entity, scopeOwnsEntity: Bool = true) -> Entity? {
         if let existing = members.first(where: { $0.name == entity.name }) {
-            //todo: report error
-            fatalError("Invalid redeclaration of '\(existing.name)'")
-            // "Previous declaration here: \(existing.ident.start)"
+            return existing
         }
 
         if scopeOwnsEntity {
@@ -38,7 +37,9 @@ final class Scope {
         }
 
         members.append(entity)
+        return nil
     }
 
-    static let global = Scope(members: builtins)
+    // TODO: builtins
+    static let global = Scope(members: [])
 }

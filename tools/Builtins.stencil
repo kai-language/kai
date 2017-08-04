@@ -1,0 +1,46 @@
+
+extension Entity {
+{% for type in types.all where type.name == "BuiltinType" %}
+{% for var in type.staticVariables %}
+    static let {{ var.name }} = BuiltinType.{{ var.name }}.entity
+{% endfor %}
+{% endfor %}
+}
+
+extension ty {
+{% for type in types.all where type.name == "BuiltinType" %}
+{% for var in type.staticVariables %}
+    static let {{ var.name }} = BuiltinType.{{ var.name }}.type
+{% endfor %}
+{% endfor %}
+
+    static let builtin: [BuiltinType] = [
+    {% for type in types.all where type.name == "BuiltinType" %}
+    {% for var in type.staticVariables %}
+        BuiltinType.{{ var.name }},
+    {% endfor %}
+    {% endfor %}
+    ]
+}
+
+let builtinEntities: [BuiltinEntity] = [
+{% for type in types.all where type.name == "BuiltinEntity" %}
+{% for var in type.staticVariables %}
+    BuiltinEntity.{{ var.name }},
+{% endfor %}
+{% endfor %}
+]
+
+let builtins: [Entity] = [
+{% for type in types.all where type.name == "BuiltinEntity" %}
+{% for var in type.staticVariables %}
+    BuiltinEntity.{{ var.name }}.entity,
+{% endfor %}
+{% endfor %}
+{% for type in types.all where type.name == "BuiltinType" %}
+{% for var in type.staticVariables %}
+    BuiltinType.{{ var.name }}.entity,
+{% endfor %}
+{% endfor %}
+]
+

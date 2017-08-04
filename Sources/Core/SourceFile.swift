@@ -93,12 +93,12 @@ extension SourceFile {
 
         switch i.path {
         case let path as BasicLit where path.token == .string:
-            guard let file = SourceFile.new(path: path.value, importedFrom: importedFrom) else {
-                addError("Failed to open '\(path.value)'", path.start)
+            guard let file = SourceFile.new(path: path.text, importedFrom: importedFrom) else {
+                addError("Failed to open '\(path.text)'", path.start)
                 return nil
             }
-            let parsingJob = Job("\(path.value) - Parsing", work: file.parseEmittingErrors)
-            let checkingJob = Job("\(path.value) - Checking", work: file.checkEmittingErrors)
+            let parsingJob = Job("\(path.text) - Parsing", work: file.parseEmittingErrors)
+            let checkingJob = Job("\(path.text) - Checking", work: file.checkEmittingErrors)
             parsingJob.addDependent(checkingJob)
             threadPool.add(job: parsingJob)
             return file
@@ -148,10 +148,17 @@ extension SourceFile {
     }
 
     public func checkEmittingErrors() {
-        assert(hasBeenParsed && !hasBeenChecked)
+        assert(hasBeenParsed)
+        guard !hasBeenChecked else {
+            return
+        }
         let startTime = gettime()
 
         stage = "Checking"
+        var checker = Checker(file: self)
+        checker.check()
+        hasBeenChecked = true
+        emitErrors(for: self, at: stage)
 
         let endTime = gettime()
         let totalTime = endTime - startTime

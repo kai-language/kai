@@ -51,7 +51,7 @@ extension Parser {
         } else {
             reportExpected("string literal", at: pos)
         }
-        return BasicLit(start: start, token: .string, value: val)
+        return BasicLit(start: start, token: .string, text: val, type: nil, value: nil)
     }
 
     mutating func parseIdent() -> Ident {
@@ -62,7 +62,7 @@ extension Parser {
         } else {
             reportExpected("ident", at: pos)
         }
-        return Ident(start: pos, name: name)
+        return Ident(start: pos, name: name, entity: nil)
     }
 }
 
@@ -140,10 +140,10 @@ extension Parser {
             let op = tok
             let pos = eatToken()
             let expr = parseUnaryExpr()
-            return Unary(start: pos, op: op, element: expr)
+            return Unary(start: pos, op: op, element: expr, type: nil)
         case .mul:
             let star = eatToken()
-            return PointerType(star: star, type: parseType())
+            return PointerType(star: star, explicitType: parseType(), type: nil)
         default:
             return parsePrimaryExpr()
         }
@@ -162,7 +162,7 @@ extension Parser {
             }
             next()
             let rhs = parseBinaryExpr(oprec + 1)
-            lhs = Binary(lhs: lhs, op: op, opPos: pos, rhs: rhs)
+            lhs = Binary(lhs: lhs, op: op, opPos: pos, rhs: rhs, type: nil)
         }
     }
 
@@ -174,7 +174,7 @@ extension Parser {
         }
         let colon = expect(.colon)
         let els = parseExpr()
-        return Ternary(cond: cond, qmark: qmark, then: then, colon: colon, els: els)
+        return Ternary(cond: cond, qmark: qmark, then: then, colon: colon, els: els, type: nil)
     }
 
     mutating func parsePrimaryExpr() -> Expr {
@@ -187,7 +187,7 @@ extension Parser {
                 x = parseTernaryExpr(x)
             case .period:
                 next()
-                x = Selector(rec: x, sel: parseIdent())
+                x = Selector(rec: x, sel: parseIdent(), entity: nil)
             case .lparen:
                 let lparen = eatToken()
                 var args: [Expr] = []
@@ -195,7 +195,7 @@ extension Parser {
                     args = parseExprList()
                 }
                 let rparen = expect(.rparen)
-                x = Call(fun: x, lparen: lparen, args: args, rparen: rparen)
+                x = Call(fun: x, lparen: lparen, args: args, rparen: rparen, type: nil)
             case .lbrace:
                 return parseCompositeLiteralBody(x)
             default:
@@ -209,7 +209,7 @@ extension Parser {
         case .ident:
             return parseIdent()
         case .int, .string, .float:
-            let val = BasicLit(start: pos, token: tok, value: lit)
+            let val = BasicLit(start: pos, token: tok, text: lit, type: nil, value: nil)
             next()
             return val
         case .fn:
@@ -218,7 +218,7 @@ extension Parser {
             let lparen = eatToken()
             let expr = parseExpr()
             let rparen = expect(.rparen)
-            return Paren(lparen: lparen, element: expr, rparen: rparen)
+            return Paren(lparen: lparen, element: expr, rparen: rparen, type: nil)
         default:
             return parseType()
         }
@@ -239,17 +239,17 @@ extension Parser {
             let length = parseExpr()
             let rbrack = expect(.rbrack)
             let type = parseType()
-            return ArrayType(lbrack: lbrack, length: length, rbrack: rbrack, type: type)
+            return ArrayType(lbrack: lbrack, length: length, rbrack: rbrack, explicitType: type, type: nil)
         case .mul:
             let star = eatToken()
             let type = parseType()
-            return PointerType(star: star, type: type)
+            return PointerType(star: star, explicitType: type, type: nil)
         case .lparen:
             return parseFuncType()
         case .dollar:
             let dollar = eatToken()
             let type = parseType(allowPolyType: false)
-            return PolyType(dollar: dollar, type: type)
+            return PolyType(dollar: dollar, explicitType: type, type: nil)
         case .struct:
             return parseStructType()
         default:
@@ -267,20 +267,20 @@ extension Parser {
         expect(.rparen)
         expect(.retArrow)
         let results = parseTypeList(allowPolyType: true)
-        return FuncType(lparen: lparen, params: params, results: results)
+        return FuncType(lparen: lparen, params: params, results: results, type: nil)
     }
 
     mutating func parseParameterTypeList() -> [Expr] {
         if tok == .ellipsis {
             let ellipsis = eatToken()
-            return [VariadicType(ellipsis: ellipsis, type: parseType(allowPolyType: true))]
+            return [VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), type: nil)]
         }
         var list = [parseType(allowPolyType: true)]
         while tok == .comma {
             next()
             if tok == .ellipsis {
                 let ellipsis = eatToken()
-                let variadicType = VariadicType(ellipsis: ellipsis, type: parseType(allowPolyType: true))
+                let variadicType = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), type: nil)
                 list.append(variadicType)
                 return list
             }
@@ -292,7 +292,7 @@ extension Parser {
     mutating func parseTypeOrPolyType() -> Expr {
         if tok == .dollar {
             let dollar = eatToken()
-            return PolyType(dollar: dollar, type: parseType())
+            return PolyType(dollar: dollar, explicitType: parseType(), type: nil)
         }
         return parseType()
     }
@@ -308,7 +308,7 @@ extension Parser {
             next()
         }
         let rbrace = expect(.rbrace)
-        return StructType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace)
+        return StructType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace, type: nil)
     }
 
     mutating func parseStructFieldList() -> [StructField] {
@@ -336,7 +336,7 @@ extension Parser {
         expect(.retArrow)
         let results = parseResultList()
         let body = parseBlock()
-        return FuncLit(keyword: keyword, params: signature, results: results, body: body)
+        return FuncLit(keyword: keyword, params: signature, results: results, body: body, flags: .none, type: nil)
     }
 
     mutating func parseSignature() -> ParameterList {
@@ -363,7 +363,7 @@ extension Parser {
         // TODO: Explicit Poly Parameters
         expect(.colon)
         let type = parseType()
-        return Parameter(names: names, type: type)
+        return Parameter(names: names, explicitType: type, entity: nil)
     }
 
     mutating func parseParameterNames() -> [(poly: Bool, Ident)] {
@@ -421,17 +421,17 @@ extension Parser {
 
     // MARK: - Composite Literals
 
-    mutating func parseElement() -> Expr {
-        var el = parseExpr()
+    mutating func parseElement() -> KeyValue {
+        let el = parseExpr()
         if tok == .colon {
             let colon = eatToken()
-            el = KeyValue(key: el, colon: colon, value: parseExpr())
+            return KeyValue(key: el, colon: colon, value: parseExpr(), type: nil)
         }
-        return el
+        return KeyValue(key: nil, colon: nil, value: el, type: nil)
     }
 
-    mutating func parseElementList() -> [Expr] {
-        var list: [Expr] = []
+    mutating func parseElementList() -> [KeyValue] {
+        var list: [KeyValue] = []
         while tok != .rbrace && tok != .eof {
             list.append(parseElement())
             if !atComma(in: "composite literal", .rbrace) {
@@ -444,12 +444,12 @@ extension Parser {
 
     mutating func parseCompositeLiteralBody(_ type: Expr) -> CompositeLit {
         let lbrace = eatToken()
-        var list: [Expr] = []
+        var list: [KeyValue] = []
         if tok != .lbrace {
             list = parseElementList()
         }
         let rbrace = expect(.rbrace)
-        return CompositeLit(type: type, lbrace: lbrace, elements: list, rbrace: rbrace)
+        return CompositeLit(explicitType: type, lbrace: lbrace, elements: list, rbrace: rbrace, type: nil)
     }
 }
 
@@ -507,7 +507,7 @@ extension Parser {
             if rhs.count > 1 || x.count > 1 {
                 reportError("Assignment macros only permit a single values", at: rhs[0].start)
             }
-            let operation = Binary(lhs: x[0], op: operatorFor(assignMacro: tok), opPos: pos, rhs: rhs[0])
+            let operation = Binary(lhs: x[0], op: operatorFor(assignMacro: tok), opPos: pos, rhs: rhs[0], type: nil)
             return Assign(lhs: x, equals: pos, rhs: [operation])
         case .colon: // could be label or decl
             let colon = eatToken()
@@ -525,24 +525,24 @@ extension Parser {
             if tok == .assign {
                 next()
                 let values = parseExprList()
-                return VariableDecl(names: names, type: nil, values: values, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: nil, values: values, isConstant: false, callconv: nil, linkname: nil)
             } else if tok == .colon {
                 next()
                 let values = parseExprList()
-                return ValueDecl(names: names, type: nil, values: values, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: nil, values: values, isConstant: true, callconv: nil, linkname: nil)
             }
             let type = parseType()
             switch tok {
             case .assign:
                 next()
                 let values = parseExprList()
-                return VariableDecl(names: names, type: type, values: values, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: type, values: values, isConstant: false, callconv: nil, linkname: nil)
             case .colon:
                 next()
                 let values = parseExprList()
-                return ValueDecl(names: names, type: type, values: values, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: type, values: values, isConstant: true, callconv: nil, linkname: nil)
             default:
-                return VariableDecl(names: names, type: type, values: [], callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil)
             }
         default:
             break
@@ -670,8 +670,8 @@ extension Parser {
                 reportError("Expected identifier to bind imported or terminator", at: pos)
             }
 
-            let i = Import(directive: directive, path: path, alias: alias, importSymbolsIntoScope: importSymbolsIntoScope, file: file)
-            i.file = file.add(import: i, importedFrom: file)
+            let i = Import(directive: directive, path: path, alias: alias, importSymbolsIntoScope: importSymbolsIntoScope, file: nil)
+            i.file = file.add(import: i, importedFrom: file) // TODO: Does `Import` actually need reference to the file?
             return i
         case "library":
             let path = parseExpr()
@@ -703,7 +703,7 @@ extension Parser {
                 reportExpected("declaration", at: x.start)
                 break
             }
-            decl.linkname = linkname.value
+            decl.linkname = linkname.text
             return decl
         case "callconv":
             let conv = parseStringLit()
@@ -718,9 +718,9 @@ extension Parser {
             switch x {
             case let block as DeclBlock:
                 // TODO: Take normal block and convert to declblock
-                block.callconv = conv.value
+                block.callconv = conv.text
             case let decl as CallConvApplicable:
-                decl.callconv = conv.value
+                decl.callconv = conv.text
             default:
                 reportExpected("individual or block of declarations", at: x.start)
                 return BadStmt(start: directive, end: x.end)
@@ -763,10 +763,10 @@ extension Parser {
         } else if tok == .colon {
             next()
             let type = parseType()
-            return ValueDecl(names: [name], type: type, values: [], callconv: nil, linkname: nil)
+            return Declaration(names: [name], explicitType: type, values: [], isConstant: true, callconv: nil, linkname: nil)
         } else {
             let type = parseType()
-            return VariableDecl(names: [name], type: type, values: [], callconv: nil, linkname: nil)
+            return Declaration(names: [name], explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil)
         }
     }
 
@@ -778,7 +778,7 @@ extension Parser {
         if tok == .lbrace {
             reportError("Foreign function declarations need not have a body", at: pos)
         }
-        return ForeignFuncLit(keyword: keyword, params: params, results: results)
+        return ForeignFuncLit(keyword: keyword, params: params, results: results, flags: .none, type: nil)
     }
 }
 

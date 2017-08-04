@@ -1,17 +1,12 @@
 
 import Darwin
 
+// sourcery:noinit
 class Ref<T> {
     var val: T
     init(_ val: T) {
         self.val = val
     }
-
-// sourcery:inline:auto:Ref.Init
-init(val: T) {
-    self.val = val
-}
-// sourcery:end
 }
 
 extension String {
@@ -56,6 +51,17 @@ public func realpath(relpath: String) -> String? {
     }
 
     return String(cString: fullpathC)
+}
+
+extension Int {
+
+    func round(upToNearest multiple: Int) -> Int {
+        return (self + multiple - 1) & ~(multiple - 1)
+    }
+
+    func bitsNeeded() -> Int {
+        return Int(floor(log2(Double(self - 1))) + 1)
+    }
 }
 
 func unicodeScalarByteLength(_ leadingByte: UTF8.CodeUnit) -> Int {
