@@ -43,8 +43,8 @@ public final class SourceFile {
     var imports: [Import] = []
 
     // Set in Checker
-//    var scope: Scope!
-//    var linkedLibraries: Set<String> = []
+    var scope: Scope!
+    var linkedLibraries: Set<String> = []
 
     init(handle: FileHandle, fullpath: String, pathImportedAs: String, importedFrom: SourceFile?) {
         self.handle = handle
@@ -101,6 +101,7 @@ extension SourceFile {
             let checkingJob = Job("\(path.text) - Checking", work: file.checkEmittingErrors)
             parsingJob.addDependent(checkingJob)
             threadPool.add(job: parsingJob)
+            i.resolvedName = pathToEntityName(path.text)
             return file
 
         case let call as Call where (call.fun as? Ident)?.name == "git":

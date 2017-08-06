@@ -162,7 +162,7 @@ extension Parser {
             }
             next()
             let rhs = parseBinaryExpr(oprec + 1)
-            lhs = Binary(lhs: lhs, op: op, opPos: pos, rhs: rhs, type: nil)
+            lhs = Binary(lhs: lhs, op: op, opPos: pos, rhs: rhs, type: nil, irOp: nil, irLCast: nil, irRCast: nil)
         }
     }
 
@@ -187,7 +187,7 @@ extension Parser {
                 x = parseTernaryExpr(x)
             case .period:
                 next()
-                x = Selector(rec: x, sel: parseIdent(), entity: nil)
+                x = Selector(rec: x, sel: parseIdent(), checked: nil)
             case .lparen:
                 let lparen = eatToken()
                 var args: [Expr] = []
@@ -195,7 +195,7 @@ extension Parser {
                     args = parseExprList()
                 }
                 let rparen = expect(.rparen)
-                x = Call(fun: x, lparen: lparen, args: args, rparen: rparen, type: nil)
+                x = Call(fun: x, lparen: lparen, args: args, rparen: rparen, type: nil, checked: nil)
             case .lbrace:
                 return parseCompositeLiteralBody(x)
             default:
@@ -267,18 +267,18 @@ extension Parser {
         expect(.rparen)
         expect(.retArrow)
         let results = parseTypeList(allowPolyType: true)
-        return FuncType(lparen: lparen, params: params, results: results, type: nil)
+        return FuncType(lparen: lparen, params: params, results: results, flags: .none, type: nil)
     }
 
     mutating func parseParameterTypeList() -> [Expr] {
         if tok == .ellipsis {
             let ellipsis = eatToken()
-            let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), cvargs: false, type: nil)
+            let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: false, type: nil)
             return [variadic]
         } else if tok == .directive && lit == "cvargs" {
             next()
             let ellipsis = expect(.ellipsis)
-            let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), cvargs: false, type: nil)
+            let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: false, type: nil)
             return [variadic]
         }
         var list = [parseType(allowPolyType: true)]
@@ -286,13 +286,13 @@ extension Parser {
             next()
             if tok == .ellipsis {
                 let ellipsis = eatToken()
-                let variadicType = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), cvargs: false, type: nil)
+                let variadicType = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: false, type: nil)
                 list.append(variadicType)
                 return list
             } else if tok == .directive && lit == "cvargs" {
                 next()
                 let ellipsis = expect(.ellipsis)
-                let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), cvargs: false, type: nil)
+                let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: false, type: nil)
                 return [variadic]
             }
             list.append(parseType(allowPolyType: true))
@@ -335,7 +335,7 @@ extension Parser {
         let names = parseIdentList()
         let colon = expect(.colon)
         let type = parseType()
-        return StructField(names: names, colon: colon, type: type)
+        return StructField(names: names, colon: colon, explicitType: type, type: nil)
     }
 
 
@@ -518,7 +518,7 @@ extension Parser {
             if rhs.count > 1 || x.count > 1 {
                 reportError("Assignment macros only permit a single values", at: rhs[0].start)
             }
-            let operation = Binary(lhs: x[0], op: operatorFor(assignMacro: tok), opPos: pos, rhs: rhs[0], type: nil)
+            let operation = Binary(lhs: x[0], op: operatorFor(assignMacro: tok), opPos: pos, rhs: rhs[0], type: nil, irOp: nil, irLCast: nil, irRCast: nil)
             return Assign(lhs: x, equals: pos, rhs: [operation])
         case .colon: // could be label or decl
             let colon = eatToken()

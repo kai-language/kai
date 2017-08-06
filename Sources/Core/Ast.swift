@@ -1,4 +1,6 @@
 
+import LLVM
+
 protocol Node: class {
     var start: Pos { get }
     var end: Pos { get }
@@ -42,15 +44,18 @@ init(slash: Pos, text: String) {
 class StructField: Node {
     var names: [Ident]
     var colon: Pos
-    var type: Expr
+    var explicitType: Expr
 
-    var start: Pos { return names.first?.start ?? type.start }
-    var end: Pos { return type.end }
+    var type: Type!
+
+    var start: Pos { return names.first?.start ?? explicitType.start }
+    var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:StructField.Init
-init(names: [Ident], colon: Pos, type: Expr) {
+init(names: [Ident], colon: Pos, explicitType: Expr, type: Type!) {
     self.names = names
     self.colon = colon
+    self.explicitType = explicitType
     self.type = type
 }
 // sourcery:end
@@ -273,20 +278,29 @@ class Selector: Expr {
     var rec: Expr
     var sel: Ident
 
-    let entity: Entity!
+    var checked: Checked!
     var type: Type! {
-        return entity.type!
+        switch checked! {
+        case .file(let entity): return entity.type!
+        case .struct(let field): return field.type
+        case .invalid: return ty.invalid
+        }
     }
-    // TODO: (Struct|Enum|Union|File) access
+
+    enum Checked {
+        case invalid
+        case file(Entity)
+        case `struct`(ty.Struct.Field)
+    }
 
     var start: Pos { return rec.start }
     var end: Pos { return sel.end }
 
 // sourcery:inline:auto:Selector.Init
-init(rec: Expr, sel: Ident, entity: Entity!) {
+init(rec: Expr, sel: Ident, checked: Checked!) {
     self.rec = rec
     self.sel = sel
-    self.entity = entity
+    self.checked = checked
 }
 // sourcery:end
 }
@@ -298,17 +312,26 @@ class Call: Expr {
     var rparen: Pos
 
     var type: Type!
+    var checked: Checked!
 
     var start: Pos { return fun.start }
     var end: Pos { return rparen }
 
+    enum Checked {
+        case call
+        case specializedCall(FunctionSpecialization)
+        case builtinCall(BuiltinFunction)
+        case cast(OpCode.Cast)
+    }
+
 // sourcery:inline:auto:Call.Init
-init(fun: Expr, lparen: Pos, args: [Expr], rparen: Pos, type: Type!) {
+init(fun: Expr, lparen: Pos, args: [Expr], rparen: Pos, type: Type!, checked: Checked!) {
     self.fun = fun
     self.lparen = lparen
     self.args = args
     self.rparen = rparen
     self.type = type
+    self.checked = checked
 }
 // sourcery:end
 }
@@ -340,16 +363,23 @@ class Binary: Expr {
 
     var type: Type!
 
+    var irOp: OpCode.Binary!
+    var irLCast: OpCode.Cast!
+    var irRCast: OpCode.Cast!
+
     var start: Pos { return lhs.start }
     var end: Pos { return rhs.end }
 
 // sourcery:inline:auto:Binary.Init
-init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr, type: Type!) {
+init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr, type: Type!, irOp: OpCode.Binary!, irLCast: OpCode.Cast!, irRCast: OpCode.Cast!) {
     self.lhs = lhs
     self.op = op
     self.opPos = opPos
     self.rhs = rhs
     self.type = type
+    self.irOp = irOp
+    self.irLCast = irLCast
+    self.irRCast = irRCast
 }
 // sourcery:end
 }
@@ -510,10 +540,10 @@ class VariadicType: Expr {
     var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:VariadicType.Init
-init(ellipsis: Pos, explicitType: Expr, cvargs: Bool, type: Type!) {
+init(ellipsis: Pos, explicitType: Expr, isCvargs: Bool, type: Type!) {
     self.ellipsis = ellipsis
     self.explicitType = explicitType
-    self.isCvargs = cvargs
+    self.isCvargs = isCvargs
     self.type = type
 }
 // sourcery:end
@@ -523,6 +553,7 @@ class FuncType: Expr {
     var lparen: Pos
     var params: [Expr]
     var results: [Expr]
+    var flags: FunctionFlags
 
     var type: Type!
 
@@ -530,10 +561,11 @@ class FuncType: Expr {
     var end: Pos { return results.last!.end }
 
 // sourcery:inline:auto:FuncType.Init
-init(lparen: Pos, params: [Expr], results: [Expr], type: Type!) {
+init(lparen: Pos, params: [Expr], results: [Expr], flags: FunctionFlags, type: Type!) {
     self.lparen = lparen
     self.params = params
     self.results = results
+    self.flags = flags
     self.type = type
 }
 // sourcery:end
@@ -747,6 +779,7 @@ class Import: Stmt {
     var path: Expr
     var alias: Ident?
     var importSymbolsIntoScope: Bool
+    var resolvedName: String?
     var file: SourceFile?
 
     var start: Pos { return directive }
@@ -868,4 +901,20 @@ struct FunctionFlags: OptionSet {
     static let cVariadic        = FunctionFlags(rawValue: 0b0011) // implies variadic
     static let discardable      = FunctionFlags(rawValue: 0b0100)
     static let specialization   = FunctionFlags(rawValue: 0b1000)
+}
+
+class FunctionSpecialization {
+    let specializedTypes: [Type]
+    let strippedType: Type
+    let generatedFunctionNode: FuncLit
+    var llvm: Function?
+
+// sourcery:inline:auto:FunctionSpecialization.Init
+init(specializedTypes: [Type], strippedType: Type, generatedFunctionNode: FuncLit, llvm: Function?) {
+    self.specializedTypes = specializedTypes
+    self.strippedType = strippedType
+    self.generatedFunctionNode = generatedFunctionNode
+    self.llvm = llvm
+}
+// sourcery:end
 }

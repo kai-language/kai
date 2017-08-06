@@ -1,5 +1,5 @@
 
-{% for type in types.implementing.Node %}
+{% for type in types.all %}
 {% for var in type.storedVariables where var.name == "flags" %}
 
 extension {{ type.name }} {

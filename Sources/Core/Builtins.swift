@@ -85,3 +85,44 @@ class BuiltinEntity {
     static let trué = BuiltinEntity(name: "true", type: ty.bool, gen: { $0.addGlobal("true", initializer: true.asLLVM()) })
     static let falsé = BuiltinEntity(name: "false", type: ty.bool, gen: { $0.addGlobal("false", initializer: false.asLLVM()) })
 }
+
+let polymorphicT = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
+let polymorphicU = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
+let polymorphicV = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
+
+func lookupBuiltinFunction(_ fun: Expr) -> BuiltinFunction? {
+    return builtinFunctions.first(where: { $0.entity.name == (fun as? Ident)?.name })
+}
+
+// sourcery:noinit
+class BuiltinFunction {
+    // TODO: Take IRGen too
+    typealias Generate = (BuiltinFunction, [Expr], Void) -> IRValue
+    typealias CallCheck = (inout Checker, Call) -> Type
+
+    var entity: Entity
+    var type: Type
+    var generate: Generate
+    var irValue: IRValue?
+
+    var onCallCheck: CallCheck?
+
+    init(entity: Entity, generate: @escaping Generate, onCallCheck: CallCheck?) {
+        self.entity = entity
+        self.type = entity.type!
+        self.generate = generate
+        self.onCallCheck = onCallCheck
+    }
+
+    /// - Note: OutTypes must be metatypes and will be made instance instanceTypes
+    static func make(_ name: String, in inTypes: [Type], out outTypes: [Type], isVariadic: Bool = false, gen: @escaping Generate, onCallCheck: CallCheck? = nil) -> BuiltinFunction {
+        let returnType = ty.Tuple.make(outTypes.map(ty.Metatype.init))
+        let type = ty.Function(width: nil, node: nil, params: inTypes, returnType: returnType, flags: .none)
+
+        let ident = Ident(start: noPos, name: name, entity: nil)
+        let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil)
+
+        return BuiltinFunction(entity: entity, generate: gen, onCallCheck: onCallCheck)
+    }
+}
+

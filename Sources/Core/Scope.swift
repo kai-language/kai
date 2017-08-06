@@ -40,6 +40,5 @@ final class Scope {
         return nil
     }
 
-    // TODO: builtins
-    static let global = Scope(members: [])
+    static let global = Scope(members: builtins)
 }
