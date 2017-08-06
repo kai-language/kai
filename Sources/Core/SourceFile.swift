@@ -1,19 +1,12 @@
 
 import Foundation
 
-var currentDirectory = FileManager.default.currentDirectoryPath
-let fileExtension = ".cte"
-var buildDirectory = currentDirectory + "/" + fileExtension + "/"
-
-var moduleName: String!
-
 var knownSourceFiles: [String: SourceFile] = [:]
-
-var currentFilenoMutex = Mutex()
-var currentFileno: UInt32 = 1
 
 // sourcery:noinit
 public final class SourceFile {
+
+    unowned var package: SourcePackage
 
     weak var firstImportedFrom: SourceFile?
     var isInitialFile: Bool {
@@ -42,25 +35,30 @@ public final class SourceFile {
     var pathFirstImportedAs: String
     var imports: [Import] = []
 
-    // Set in Checker
-    var scope: Scope!
-    var linkedLibraries: Set<String> = []
+    var parsingJob: Job!
+    var checkingJob: Job!
 
-    init(handle: FileHandle, fullpath: String, pathImportedAs: String, importedFrom: SourceFile?) {
+    // Set in Checker
+    var scope: Scope
+
+    init(handle: FileHandle, fullpath: String, pathImportedAs: String, importedFrom: SourceFile?, package: SourcePackage) {
+        self.package = package
         self.handle = handle
         self.fullpath = fullpath
         self.pathFirstImportedAs = pathImportedAs
         self.firstImportedFrom = importedFrom
         self.size = UInt32(handle.seekToEndOfFile())
-        currentFilenoMutex.lock()
-        self.fileno = currentFileno
-        currentFileno += 1
-        currentFilenoMutex.unlock()
+
+        package.filenoMutex.lock()
+        self.fileno = package.fileno
+        self.scope = Scope(parent: Scope.global, isFile: true)
+        package.fileno += 1
+        package.filenoMutex.unlock()
         handle.seek(toFileOffset: 0)
     }
 
     /// - Returns: nil iff the file could not be located or opened for reading
-    public static func new(path: String, importedFrom: SourceFile? = nil) -> SourceFile? {
+    public static func new(path: String, package: SourcePackage, importedFrom: SourceFile? = nil) -> SourceFile? {
 
         var pathRelativeToInitialFile = path
 
@@ -80,7 +78,11 @@ public final class SourceFile {
             return nil
         }
 
-        let sourceFile = SourceFile(handle: handle, fullpath: fullpath, pathImportedAs: path, importedFrom: importedFrom)
+        let sourceFile = SourceFile(handle: handle, fullpath: fullpath, pathImportedAs: path, importedFrom: importedFrom, package: package)
+        sourceFile.parsingJob = Job("\(path) - Parsing", work: sourceFile.parseEmittingErrors)
+        sourceFile.checkingJob = Job("\(path) - Checking", work: sourceFile.checkEmittingErrors)
+        sourceFile.parsingJob.addDependent(sourceFile.checkingJob)
+        package.files.append(sourceFile)
         knownSourceFiles[fullpath] = sourceFile
 
         return sourceFile
@@ -89,28 +91,41 @@ public final class SourceFile {
 
 extension SourceFile {
 
-    func add(import i: Import, importedFrom: SourceFile? = nil) -> SourceFile? {
+    func add(import i: Import, importedFrom: SourceFile) {
 
         switch i.path {
         case let path as BasicLit where path.token == .string:
-            guard let file = SourceFile.new(path: path.text, importedFrom: importedFrom) else {
+
+            let relpath = dirname(path: importedFrom.fullpath) + path.text
+            guard let fullpath = realpath(relpath: relpath) else {
                 addError("Failed to open '\(path.text)'", path.start)
-                return nil
+                return
             }
-            let parsingJob = Job("\(path.text) - Parsing", work: file.parseEmittingErrors)
-            let checkingJob = Job("\(path.text) - Checking", work: file.checkEmittingErrors)
-            parsingJob.addDependent(checkingJob)
-            threadPool.add(job: parsingJob)
-            i.resolvedName = pathToEntityName(path.text)
-            return file
+
+            if isDirectory(path: fullpath) {
+                guard let dependency = SourcePackage.new(path: path.text, importedFrom: self) else {
+                    preconditionFailure()
+                }
+                self.package.dependencies.append(dependency)
+                dependency.begin()
+
+            } else {
+                guard let file = SourceFile.new(path: path.text, package: package, importedFrom: importedFrom) else {
+                    preconditionFailure()
+                }
+                threadPool.add(job: file.parsingJob)
+                i.resolvedName = pathToEntityName(path.text)
+
+                return
+            }
 
         case let call as Call where (call.fun as? Ident)?.name == "git":
-            print("Found git import, not executing")
-            return nil
+            addError("Found git import, not executing", i.path.start)
+            return
 
         default:
             addError("Expected import path as string", i.path.start)
-            return nil
+            return
         }
     }
 }
@@ -131,13 +146,6 @@ extension SourceFile {
         stage = "Parsing"
         var parser = Parser(file: self)
         self.nodes = parser.parseFile()
-        let importedFiles = imports.flatMap({ $0.file })
-        for importedFile in importedFiles {
-            guard !importedFile.hasBeenParsed else {
-                continue
-            }
-            importedFile.parseEmittingErrors()
-        }
         hasBeenParsed = true
         emitErrors(for: self, at: stage)
 

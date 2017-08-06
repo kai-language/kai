@@ -681,8 +681,8 @@ extension Parser {
                 reportError("Expected identifier to bind imported or terminator", at: pos)
             }
 
-            let i = Import(directive: directive, path: path, alias: alias, importSymbolsIntoScope: importSymbolsIntoScope, file: nil)
-            i.file = file.add(import: i, importedFrom: file) // TODO: Does `Import` actually need reference to the file?
+            let i = Import(directive: directive, path: path, alias: alias, importSymbolsIntoScope: importSymbolsIntoScope, resolvedName: nil, scope: nil)
+            file.add(import: i, importedFrom: file)
             return i
         case "library":
             let path = parseExpr()

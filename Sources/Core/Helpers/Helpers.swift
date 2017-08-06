@@ -1,5 +1,6 @@
 
 import Darwin
+import Foundation
 
 // sourcery:noinit
 class Ref<T> {
@@ -51,6 +52,41 @@ public func realpath(relpath: String) -> String? {
     }
 
     return String(cString: fullpathC)
+}
+
+public func sourceFilesInDir(_ path: String, recurse: Bool = false) -> [String] {
+    guard let dir = opendir(path) else {
+        return []
+    }
+
+    var files: [String] = []
+    while let p = readdir(dir) {
+        var ent = p.pointee
+        let name = withUnsafeBytes(of: &ent.d_name) { b in
+            return String(cString: b.baseAddress!.assumingMemoryBound(to: CChar.self))
+        }
+        if name.hasPrefix(".") {
+            continue
+        }
+        if ent.d_type == DT_DIR && recurse {
+            let children = sourceFilesInDir(path + "/" + name)
+            files.append(contentsOf: children.map({ name + "/" + $0 }))
+        } else if name.hasSuffix(fileExtension) {
+            files.append(name)
+        }
+    }
+    closedir(dir)
+
+    return files
+}
+
+public func isDirectory(path: String) -> Bool {
+
+    var buf = stat()
+    if stat(path, &buf) != 0 {
+        return false
+    }
+    return buf.st_mode & S_IFDIR != 0
 }
 
 extension Int {

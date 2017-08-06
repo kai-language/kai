@@ -10,7 +10,7 @@ guard CommandLine.arguments.count > 1 else {
 startTime = gettime()
 
 let filepath = CommandLine.arguments.last!
-guard let file = SourceFile.new(path: filepath) else {
+guard let package = SourcePackage.makeInitial(for: filepath) else {
     print("ERROR: No such file or directory '\(filepath)'")
     exit(1)
 }
@@ -19,7 +19,7 @@ Options.instance = Options(arguments: CommandLine.arguments[1...])
 
 threadPool = ThreadPool(nThreads: Options.instance.jobs)
 
-file.start()
+package.begin()
 
 threadPool.waitUntilDone()
 

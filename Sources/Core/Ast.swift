@@ -780,18 +780,19 @@ class Import: Stmt {
     var alias: Ident?
     var importSymbolsIntoScope: Bool
     var resolvedName: String?
-    var file: SourceFile?
+    var scope: Scope!
 
     var start: Pos { return directive }
     var end: Pos { return alias?.end ?? path.end }
 
 // sourcery:inline:auto:Import.Init
-init(directive: Pos, path: Expr, alias: Ident?, importSymbolsIntoScope: Bool, file: SourceFile?) {
+init(directive: Pos, path: Expr, alias: Ident?, importSymbolsIntoScope: Bool, resolvedName: String?, scope: Scope!) {
     self.directive = directive
     self.path = path
     self.alias = alias
     self.importSymbolsIntoScope = importSymbolsIntoScope
-    self.file = file
+    self.resolvedName = resolvedName
+    self.scope = scope
 }
 // sourcery:end
 }

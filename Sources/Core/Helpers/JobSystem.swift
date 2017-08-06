@@ -20,16 +20,9 @@ final class WorkerThread: Thread {
                 isIdle = false
                 let job = pool.ready.removeLast()
                 pool.mutex.unlock()
-                if Options.instance.flags.contains(.emitDebugTimes) {
-                    job.startTime = gettime()
-                }
+                job.start()
                 job.work()
-                if Options.instance.flags.contains(.emitDebugTimes) {
-                    timingMutex.lock()
-                    let endTime = gettime()
-                    debugTimings.append((name: job.name, duration: endTime - job.startTime))
-                    timingMutex.unlock()
-                }
+                job.end()
                 for dependent in job.dependents {
                     pool.add(job: dependent)
                 }
@@ -77,6 +70,7 @@ public final class ThreadPool {
 final class Job {
 
     var name: String
+    var done: Bool = false
     var work: () -> Void
     var startTime = 0.0
 
@@ -88,11 +82,19 @@ final class Job {
     }
 
     func start() {
-        startTime = gettime()
+        if Options.instance.flags.contains(.emitDebugTimes) {
+            startTime = gettime()
+        }
     }
 
     func end() {
-        
+        if Options.instance.flags.contains(.emitDebugTimes) {
+            timingMutex.lock()
+            let endTime = gettime()
+            debugTimings.append((name: name, duration: endTime - startTime))
+            done = true
+            timingMutex.unlock()
+        }
     }
 
     func addDependent(_ job: Job) {

@@ -8,9 +8,7 @@ struct Checker {
 
     init(file: SourceFile) {
         self.file = file
-
-        let currentScope = Scope(parent: Scope.global, file: file)
-        context = Context(scope: currentScope, previous: nil)
+        context = Context(scope: file.scope, previous: nil)
     }
 
     // sourcery:noinit
