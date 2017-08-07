@@ -68,10 +68,14 @@ class Git {
             localPath,
             &cloneOpts
         )
+        print() // terminate any progress bars
 
         if err != 0 {
             if let error = giterr_last() {
                 let message = String(cString: error.pointee.message)
+                if message.hasSuffix("exists and is not an empty directory") {
+                    return
+                }
                 print(message)
             } else {
                 print("An unknown error has occured: \(err)")

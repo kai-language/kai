@@ -103,12 +103,11 @@ extension SourceFile {
             }
 
             if isDirectory(path: fullpath) {
-                guard let dependency = SourcePackage.new(path: path.text, importedFrom: self) else {
+                guard let dependency = SourcePackage.new(relpath: path.text, importedFrom: self) else {
                     preconditionFailure()
                 }
                 self.package.dependencies.append(dependency)
                 dependency.begin()
-
             } else {
                 guard let file = SourceFile.new(path: path.text, package: package, importedFrom: importedFrom) else {
                     preconditionFailure()
@@ -119,9 +118,60 @@ extension SourceFile {
                 return
             }
 
-        case let call as Call where (call.fun as? Ident)?.name == "git":
-            addError("Found git import, not executing", i.path.start)
-            return
+        case let call as Call where (call.fun as? Ident)?.name == "github":
+
+            guard call.args.count >= 1 else {
+                addError("Expected 1 or more arguments", call.lparen)
+                return
+            }
+
+            guard let lit = call.args[0] as? BasicLit, lit.token == .string else {
+                addError("Expected string literal representing github user/repo", call.args[0].start)
+                return
+            }
+
+            let split = lit.text.split(separator: "/")
+            guard split.count == 2 else {
+                addError("Expected string literal of the form user/repo", call.args[0].start)
+                return
+            }
+
+            let (user, repo) = (split[0], split[1])
+
+            let packageDirectory = dirname(path: importedFrom.package.fullpath) + "deps/github/" + user + "/" + repo
+
+            if !isDirectory(path: packageDirectory) {
+
+                let job = Job(repo + "/" + user + " - Cloning", work: {
+                    cloneMutex.lock()
+                    cloneQueue.removeFirst()
+                    Git().clone(repo: "https://github.com/" + user + "/" + repo + ".git", to: packageDirectory)
+                    cloneMutex.unlock()
+
+                    guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
+                        preconditionFailure()
+                    }
+                    self.package.dependencies.append(dependency)
+                    dependency.begin()
+                })
+
+                cloneMutex.lock()
+                if let last = cloneQueue.last {
+                    last.addDependent(job)
+                    cloneQueue.append(job)
+                } else {
+                    cloneQueue.append(job)
+                    threadPool.add(job: job)
+                }
+                cloneMutex.unlock()
+            } else { // Directory exists already
+
+                guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
+                    preconditionFailure()
+                }
+                self.package.dependencies.append(dependency)
+                dependency.begin()
+            }
 
         default:
             addError("Expected import path as string", i.path.start)
