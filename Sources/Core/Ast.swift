@@ -1,15 +1,16 @@
 
 import LLVM
 
+// NOTE: For code gen everything must also explicitly conform to Node.
 protocol Node: class {
     var start: Pos { get }
     var end: Pos { get }
 }
-
 protocol Expr: Node {
     var type: Type! { get }
 }
 protocol Stmt: Node {}
+protocol TopLevelStmt: Stmt {}
 protocol Decl: Stmt {}
 protocol LinknameApplicable: Stmt {
     var linkname: String? { get set }
@@ -61,7 +62,7 @@ init(names: [Ident], colon: Pos, explicitType: Expr, type: Type!) {
 // sourcery:end
 }
 
-class BadExpr: Expr {
+class BadExpr: Node, Expr {
     var start: Pos
     var end: Pos
 
@@ -75,13 +76,13 @@ init(start: Pos, end: Pos) {
 // sourcery:end
 }
 
-class Ident: Expr {
+class Ident: Node, Expr {
     var start: Pos
     var name: String
 
     var entity: Entity!
     var type: Type! {
-        return entity!.type!
+        return entity?.type
     }
 
     var end: Pos { return start + name.count }
@@ -95,7 +96,7 @@ init(start: Pos, name: String, entity: Entity!) {
 // sourcery:end
 }
 
-class Ellipsis: Expr {
+class Ellipsis: Node, Expr {
     var start: Pos
     var element: Expr?
     var type: Type!
@@ -111,7 +112,7 @@ init(start: Pos, element: Expr?, type: Type!) {
 // sourcery:end
 }
 
-class BasicLit: Expr {
+class BasicLit: Node, Expr {
     var start: Pos
     var token: Token
     var text: String
@@ -131,21 +132,23 @@ init(start: Pos, token: Token, text: String, type: Type!, value: Value!) {
 // sourcery:end
 }
 
-class Parameter: Expr {
-    var names: [(poly: Bool, Ident)]
+class Parameter: Node, Expr {
+    var dollar: Pos?
+    var name: Ident
     var explicitType: Expr
 
     var entity: Entity!
     var type: Type! {
-        return entity.type!
+        return entity.type
     }
 
-    var start: Pos { return names.first!.poly ? names.first!.1.start - 1 : names.first!.1.start }
+    var start: Pos { return dollar ?? name.start }
     var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:Parameter.Init
-init(names: [(poly: Bool, Ident)], explicitType: Expr, entity: Entity!) {
-    self.names = names
+init(dollar: Pos?, name: Ident, explicitType: Expr, entity: Entity!) {
+    self.dollar = dollar
+    self.name = name
     self.explicitType = explicitType
     self.entity = entity
 }
@@ -186,7 +189,7 @@ init(lparen: Pos?, types: [Expr], rparen: Pos?) {
 // sourcery:end
 }
 
-class FuncLit: Expr {
+class FuncLit: Node, Expr {
     var keyword: Pos
     var params: ParameterList
     var results: ResultList
@@ -194,23 +197,30 @@ class FuncLit: Expr {
     var flags: FunctionFlags
 
     var type: Type!
+    var checked: Checked!
+
+    enum Checked {
+        case regular(Scope)
+        case polymorphic(declaringScope: Scope, specializations: [FunctionSpecialization])
+    }
 
     var start: Pos { return keyword }
     var end: Pos { return body.end }
 
 // sourcery:inline:auto:FuncLit.Init
-init(keyword: Pos, params: ParameterList, results: ResultList, body: Block, flags: FunctionFlags, type: Type!) {
+init(keyword: Pos, params: ParameterList, results: ResultList, body: Block, flags: FunctionFlags, type: Type!, checked: Checked!) {
     self.keyword = keyword
     self.params = params
     self.results = results
     self.body = body
     self.flags = flags
     self.type = type
+    self.checked = checked
 }
 // sourcery:end
 }
 
-class ForeignFuncLit: Expr {
+class ForeignFuncLit: Node, Expr {
     var keyword: Pos
     var params: ParameterList
     var results: ResultList
@@ -232,7 +242,7 @@ init(keyword: Pos, params: ParameterList, results: ResultList, flags: FunctionFl
 // sourcery:end
 }
 
-class CompositeLit: Expr {
+class CompositeLit: Node, Expr {
     var explicitType: Expr
     var lbrace: Pos
     var elements: [KeyValue]
@@ -254,7 +264,7 @@ init(explicitType: Expr, lbrace: Pos, elements: [KeyValue], rbrace: Pos, type: T
 // sourcery:end
 }
 
-class Paren: Expr {
+class Paren: Node, Expr {
     var lparen: Pos
     var element: Expr
     var rparen: Pos
@@ -274,7 +284,7 @@ init(lparen: Pos, element: Expr, rparen: Pos, type: Type!) {
 // sourcery:end
 }
 
-class Selector: Expr {
+class Selector: Node, Expr {
     var rec: Expr
     var sel: Ident
 
@@ -305,7 +315,7 @@ init(rec: Expr, sel: Ident, checked: Checked!) {
 // sourcery:end
 }
 
-class Call: Expr {
+class Call: Node, Expr {
     var fun: Expr
     var lparen: Pos
     var args: [Expr]
@@ -336,7 +346,7 @@ init(fun: Expr, lparen: Pos, args: [Expr], rparen: Pos, type: Type!, checked: Ch
 // sourcery:end
 }
 
-class Unary: Expr {
+class Unary: Node, Expr {
     var start: Pos
     var op: Token
     var element: Expr
@@ -355,7 +365,7 @@ init(start: Pos, op: Token, element: Expr, type: Type!) {
 // sourcery:end
 }
 
-class Binary: Expr {
+class Binary: Node, Expr {
     var lhs: Expr
     var op: Token
     var opPos: Pos
@@ -384,7 +394,7 @@ init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr, type: Type!, irOp: OpCode.Bina
 // sourcery:end
 }
 
-class Ternary: Expr {
+class Ternary: Node, Expr {
     var cond: Expr
     var qmark: Pos
     var then: Expr?
@@ -408,7 +418,7 @@ init(cond: Expr, qmark: Pos, then: Expr?, colon: Pos, els: Expr, type: Type!) {
 // sourcery:end
 }
 
-class KeyValue: Expr {
+class KeyValue: Node, Expr {
     var key: Expr?
     var colon: Pos?
     var value: Expr
@@ -428,7 +438,7 @@ init(key: Expr?, colon: Pos?, value: Expr, type: Type!) {
 // sourcery:end
 }
 
-class PointerType: Expr {
+class PointerType: Node, Expr {
     var star: Pos
     var explicitType: Expr
 
@@ -446,7 +456,7 @@ init(star: Pos, explicitType: Expr, type: Type!) {
 // sourcery:end
 }
 
-class ArrayType: Expr {
+class ArrayType: Node, Expr {
     var lbrack: Pos
     var length: Expr
     var rbrack: Pos
@@ -468,7 +478,7 @@ init(lbrack: Pos, length: Expr, rbrack: Pos, explicitType: Expr, type: Type!) {
 // sourcery:end
 }
 
-class SliceType: Expr {
+class SliceType: Node, Expr {
     var lbrack: Pos
     var rbrack: Pos
     var explicitType: Expr
@@ -488,7 +498,7 @@ init(lbrack: Pos, rbrack: Pos, explicitType: Expr, type: Type!) {
 // sourcery:end
 }
 
-class StructType: Expr {
+class StructType: Node, Expr {
     var keyword: Pos
     var lbrace: Pos
     var fields: [StructField]
@@ -510,7 +520,7 @@ init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!)
 // sourcery:end
 }
 
-class PolyType: Expr {
+class PolyType: Node, Expr {
     var dollar: Pos
     var explicitType: Expr
 
@@ -528,7 +538,7 @@ init(dollar: Pos, explicitType: Expr, type: Type!) {
 // sourcery:end
 }
 
-class VariadicType: Expr {
+class VariadicType: Node, Expr {
     var ellipsis: Pos
     var explicitType: Expr
 
@@ -549,7 +559,7 @@ init(ellipsis: Pos, explicitType: Expr, isCvargs: Bool, type: Type!) {
 // sourcery:end
 }
 
-class FuncType: Expr {
+class FuncType: Node, Expr {
     var lparen: Pos
     var params: [Expr]
     var results: [Expr]
@@ -574,7 +584,7 @@ init(lparen: Pos, params: [Expr], results: [Expr], flags: FunctionFlags, type: T
 
 // MARK: Statements
 
-class BadStmt: Stmt {
+class BadStmt: Node, TopLevelStmt, Stmt {
     var start: Pos
     var end: Pos
 
@@ -586,7 +596,7 @@ init(start: Pos, end: Pos) {
 // sourcery:end
 }
 
-class Empty: Stmt {
+class Empty: Node, Stmt {
     var semicolon: Pos
     // if true ';' was omitted from source
     var isImplicit: Bool
@@ -602,7 +612,7 @@ init(semicolon: Pos, isImplicit: Bool) {
 // sourcery:end
 }
 
-class Label: Stmt {
+class Label: Node, Stmt {
     var label: Ident
     var colon: Pos
 
@@ -617,7 +627,7 @@ init(label: Ident, colon: Pos) {
 // sourcery:end
 }
 
-class ExprStmt: Stmt {
+class ExprStmt: Node, Stmt {
     var expr: Expr
 
     var start: Pos { return expr.start }
@@ -630,7 +640,7 @@ init(expr: Expr) {
 // sourcery:end
 }
 
-class Assign: Stmt {
+class Assign: Node, Stmt {
     var lhs: [Expr]
     var equals: Pos
     var rhs: [Expr]
@@ -647,7 +657,7 @@ init(lhs: [Expr], equals: Pos, rhs: [Expr]) {
 // sourcery:end
 }
 
-class Return: Stmt {
+class Return: Node, Stmt {
     var keyword: Pos
     var results: [Expr]
 
@@ -662,7 +672,7 @@ init(keyword: Pos, results: [Expr]) {
 // sourcery:end
 }
 
-class Branch: Stmt {
+class Branch: Node, Stmt {
     /// Keyword Token (break, continue, fallthrough)
     var token: Token
     var label: Ident?
@@ -679,7 +689,7 @@ init(token: Token, label: Ident?, start: Pos) {
 // sourcery:end
 }
 
-class Block: Stmt {
+class Block: Node, Stmt {
     var lbrace: Pos
     var stmts: [Stmt]
     var rbrace: Pos
@@ -696,17 +706,17 @@ init(lbrace: Pos, stmts: [Stmt], rbrace: Pos) {
 // sourcery:end
 }
 
-class If: Stmt {
+class If: Node, Stmt {
     var keyword: Pos
     var cond: Expr
-    var body: Node
-    var els: Node?
+    var body: Stmt
+    var els: Stmt?
 
     var start: Pos { return keyword }
     var end: Pos { return els?.end ?? body.end }
 
 // sourcery:inline:auto:If.Init
-init(keyword: Pos, cond: Expr, body: Node, els: Node?) {
+init(keyword: Pos, cond: Expr, body: Stmt, els: Stmt?) {
     self.keyword = keyword
     self.cond = cond
     self.body = body
@@ -715,7 +725,7 @@ init(keyword: Pos, cond: Expr, body: Node, els: Node?) {
 // sourcery:end
 }
 
-class CaseClause: Stmt {
+class CaseClause: Node, Stmt {
     var keyword: Pos
     var match: Expr?
     var colon: Pos
@@ -734,7 +744,7 @@ init(keyword: Pos, match: Expr?, colon: Pos, block: Block) {
 // sourcery:end
 }
 
-class Switch: Stmt {
+class Switch: Node, Stmt {
     var keyword: Pos
     var match: Expr?
     var block: Block
@@ -751,7 +761,7 @@ init(keyword: Pos, match: Expr?, block: Block) {
 // sourcery:end
 }
 
-class For: Stmt {
+class For: Node, Stmt {
     var keyword: Pos
     var initializer: Stmt?
     var cond: Expr?
@@ -774,7 +784,7 @@ init(keyword: Pos, initializer: Stmt?, cond: Expr?, post: Stmt?, body: Block) {
 
 // MARK: Declarations
 
-class Import: Stmt {
+class Import: Node, TopLevelStmt {
     var directive: Pos
     var path: Expr
     var alias: Ident?
@@ -797,24 +807,27 @@ init(directive: Pos, path: Expr, alias: Ident?, importSymbolsIntoScope: Bool, re
 // sourcery:end
 }
 
-class Library: Stmt {
+class Library: Node, TopLevelStmt {
     var directive: Pos
     var path: Expr
     var alias: Ident?
+
+    var resolvedName: String?
 
     var start: Pos { return directive }
     var end: Pos { return alias?.end ?? path.end }
 
 // sourcery:inline:auto:Library.Init
-init(directive: Pos, path: Expr, alias: Ident?) {
+init(directive: Pos, path: Expr, alias: Ident?, resolvedName: String?) {
     self.directive = directive
     self.path = path
     self.alias = alias
+    self.resolvedName = resolvedName
 }
 // sourcery:end
 }
 
-class Foreign: Decl, LinknameApplicable, CallConvApplicable {
+class Foreign: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplicable {
     var directive: Pos
     var library: Ident
     var decl: Decl
@@ -836,7 +849,7 @@ init(directive: Pos, library: Ident, decl: Decl, linkname: String?, callconv: St
 // sourcery:end
 }
 
-class DeclBlock: Decl, CallConvApplicable {
+class DeclBlock: Node, TopLevelStmt, Decl, CallConvApplicable {
     var lbrace: Pos
     var decls: [Decl]
     var rbrace: Pos
@@ -856,7 +869,7 @@ init(lbrace: Pos, decls: [Decl], rbrace: Pos, callconv: String?) {
 // sourcery:end
 }
 
-class Declaration: Decl, LinknameApplicable, CallConvApplicable {
+class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplicable {
     var names: [Ident]
     var explicitType: Expr?
     var values: [Expr]
@@ -866,22 +879,25 @@ class Declaration: Decl, LinknameApplicable, CallConvApplicable {
     var callconv: String?
     var linkname: String?
 
+    var entities: [Entity]!
+
     var start: Pos { return names.first!.start }
     var end: Pos { return values.first!.end }
 
 // sourcery:inline:auto:Declaration.Init
-init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?) {
+init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?, entities: [Entity]!) {
     self.names = names
     self.explicitType = explicitType
     self.values = values
     self.isConstant = isConstant
     self.callconv = callconv
     self.linkname = linkname
+    self.entities = entities
 }
 // sourcery:end
 }
 
-class BadDecl: Decl {
+class BadDecl: Node, Decl {
     var start: Pos
     var end: Pos
 
@@ -906,12 +922,12 @@ struct FunctionFlags: OptionSet {
 
 class FunctionSpecialization {
     let specializedTypes: [Type]
-    let strippedType: Type
+    let strippedType: ty.Function
     let generatedFunctionNode: FuncLit
     var llvm: Function?
 
 // sourcery:inline:auto:FunctionSpecialization.Init
-init(specializedTypes: [Type], strippedType: Type, generatedFunctionNode: FuncLit, llvm: Function?) {
+init(specializedTypes: [Type], strippedType: ty.Function, generatedFunctionNode: FuncLit, llvm: Function?) {
     self.specializedTypes = specializedTypes
     self.strippedType = strippedType
     self.generatedFunctionNode = generatedFunctionNode

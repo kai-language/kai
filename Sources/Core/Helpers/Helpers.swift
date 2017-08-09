@@ -80,6 +80,36 @@ public func sourceFilesInDir(_ path: String, recurse: Bool = false) -> [String] 
     return files
 }
 
+func absolutePath(for filePath: String) -> String? {
+
+    let url = URL(fileURLWithPath: filePath)
+    do {
+        guard try url.checkResourceIsReachable() else { return nil }
+    } catch { return nil }
+
+    let absoluteURL = url.absoluteString
+
+    return absoluteURL.components(separatedBy: "file://").last
+}
+
+func absolutePath(for filepath: String, relativeTo file: String) -> String? {
+
+    let fileUrl = URL(fileURLWithPath: file)
+        .deletingLastPathComponent()
+        .appendingPathComponent(filepath)
+
+    do {
+        guard try fileUrl.checkResourceIsReachable() else {
+            return nil
+        }
+    } catch {
+        return nil
+    }
+
+    let absoluteURL = fileUrl.absoluteString
+    return absoluteURL.components(separatedBy: "file://").last
+}
+
 public func isDirectory(path: String) -> Bool {
 
     var buf = stat()

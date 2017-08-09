@@ -1,11 +1,16 @@
 import LLVM
 
-protocol Type {
+protocol Type: CustomStringConvertible {
     var width: Int? { get }
 }
 
 extension Type {
-    
+    // The the type doesn't have a width, then we assume it is nil
+    var width: Int? { return nil }
+}
+
+extension Type {
+
     func lower() -> Type {
         return (self as! ty.Metatype).instanceType
     }
@@ -80,24 +85,29 @@ func canConvert(_ lhs: Type, to rhs: Type) -> Bool {
 enum ty {
 
     struct Void: Type {
-        var width: Int? = 0
+        unowned var entity: Entity = .void
+        var width: Int? { return 0 }
     }
 
     struct Boolean: Type {
-        var width: Int? = 1
+        unowned var entity: Entity = .bool
+        var width: Int? { return 1 }
     }
 
     struct Integer: Type {
-        var width: Int? = 0
+        unowned var entity: Entity = .anonymous
+        var width: Int?
         var isSigned: Bool
     }
 
     struct FloatingPoint: Type {
-        var width: Int? = nil
+        unowned var entity: Entity = .anonymous
+        var width: Int?
     }
 
     struct Pointer: Type {
-        var width: Int? = MemoryLayout<Int>.size
+        unowned var entity: Entity = .anonymous
+        var width: Int? { return MemoryLayout<Int>.size }
         var pointeeType: Type
 
         init(pointeeType: Type) {
@@ -105,8 +115,14 @@ enum ty {
         }
     }
 
+    struct Anyy: Type {
+        unowned var entity: Entity = .any
+        var width: Int? { return 64 }
+    }
+
     struct Struct: Type {
-        var width: Int? = 0
+        unowned var entity: Entity = .anonymous
+        var width: Int?
 
         var node: Node
         var fields: [Field] = []
@@ -126,7 +142,7 @@ enum ty {
             }
         }
 
-        static func make(named name: String, builder: IRBuilder, _ members: [(String, Type)]) -> Type {
+        static func make(named name: String, builder: IRBuilder, _ members: [(String, Type)]) -> BuiltinType {
 
             var width = 0
             var fields: [Struct.Field] = []
@@ -147,19 +163,24 @@ enum ty {
                 irTypes.append(fieldType)
             }
 
+            let entity = Entity.makeBuiltin(name)
+
             irType.setBody(irTypes)
 
-            let type = Struct(width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields, ir: Ref(irType))
-            return Metatype(instanceType: type)
+            var type: Type
+            type = Struct(entity: entity, width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields, ir: Ref(irType))
+            type = Metatype(instanceType: type)
+
+            entity.type = type
+            return BuiltinType(entity: entity, type: type)
         }
     }
 
     struct Function: Type {
-        var width: Int? = 0
-
+        unowned var entity: Entity = .anonymous
         var node: FuncLit?
         var params: [Type]
-        var returnType: Type
+        var returnType: Tuple
         var flags: Flags
 
         struct Flags: OptionSet {
@@ -173,27 +194,8 @@ enum ty {
         }
     }
 
-    struct Tuple: Type {
-        var width: Int?
-        var types: [Type]
-
-        static func make(_ types: [Type]) -> Type {
-
-            let width = types.map({ $0.width ?? 0 }).reduce(0, +)
-
-            let type = Tuple(width: width, types: types)
-
-            return type
-        }
-    }
-
-    struct Polymorphic: Type {
-        var width: Int? = nil
-    }
-
     struct Metatype: Type {
-        weak var entity: Entity? = nil
-        var width: Int? = nil
+        unowned var entity: Entity = .anonymous
         var instanceType: Type
 
         init(instanceType: Type) {
@@ -201,22 +203,33 @@ enum ty {
         }
     }
 
-    struct Invalid: Type {
-        static let instance = Invalid()
-        var width: Int? = nil
+    struct Polymorphic: Type {
+        unowned var entity: Entity
+        var specialized: Type?
     }
 
-    struct Anyy: Type {
-        var width: Int? = 64
+    /// - Note: Only used in Function
+    struct Tuple: Type {
+        var width: Int?
+        var types: [Type]
+
+        static func make(_ types: [Type]) -> Tuple {
+
+            let width = types.map({ $0.width ?? 0 }).reduce(0, +)
+
+            return Tuple(width: width, types: types)
+        }
+    }
+
+    struct Invalid: Type {
+        static let instance = Invalid()
     }
 
     struct CVarArg: Type {
         static let instance = CVarArg()
-        var width: Int? = nil
     }
 
     struct File: Type {
-        var width: Int? = nil
         let memberScope: Scope
 
         init(memberScope: Scope) {

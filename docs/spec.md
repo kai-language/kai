@@ -54,10 +54,7 @@
     Signature = "(" [ ParameterList ] ")" "->" ResultList .
 
     ParameterList        = Parameter { "," Parameter } [ [ "#cvargs" ".."  ] .
-    Parameter            = ParameterNameList ":" TypeOrPolyType .
-    ParameterNameList    = ParameterName { "," ParameterName } .
-    ParameterName        = ( ident | PolymorphicParameter ) .
-    PolymorphicParameter = "$" ident .
+    Parameter            = ( IdentList ":" TypeOrPolyType ) | "$" ident ":" Type .
     ResultList           = ( LabeledResults | TypeOrPolyTypeList ) .
     LabeledResults       = "(" Result { "," Result } ")" .
     Result               = ( LabeledResult | TypeOrPolyType ) .

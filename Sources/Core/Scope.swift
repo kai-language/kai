@@ -40,5 +40,11 @@ final class Scope {
         return nil
     }
 
-    static let global = Scope(members: builtins)
+    static let global: Scope = {
+        // declare all builtin types
+        for builtin in ty.builtin {
+            builtin.entity.type = ty.Metatype(instanceType: builtin.type)
+        }
+        return Scope(members: builtins)
+    }()
 }

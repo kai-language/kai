@@ -22,7 +22,7 @@ public final class SourceFile {
     var errors: [SourceError] = []
     var notes: [Int: [String]] = [:]
 
-    var nodes: [Node] = []
+    var nodes: [TopLevelStmt] = []
 
     var handle: FileHandle
     var fullpath: String
@@ -102,6 +102,7 @@ extension SourceFile {
                 return
             }
 
+            i.resolvedName = i.alias?.name ?? pathToEntityName(path.text)
             if isDirectory(path: fullpath) {
                 guard let dependency = SourcePackage.new(path: path.text, importedFrom: self) else {
                     preconditionFailure()
@@ -114,10 +115,8 @@ extension SourceFile {
                     preconditionFailure()
                 }
                 threadPool.add(job: file.parsingJob)
-                i.resolvedName = pathToEntityName(path.text)
-
-                return
             }
+            i.scope = Scope(parent: Scope.global, isFile: true)
 
         case let call as Call where (call.fun as? Ident)?.name == "git":
             addError("Found git import, not executing", i.path.start)
