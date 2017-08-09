@@ -75,6 +75,8 @@ extension ty.Metatype {
     var description: String {
         if entity !== Entity.anonymous {
             return entity.name
+        } else if let instanceType = instanceType as? ty.Tuple, instanceType.types.isEmpty  {
+            return "type" // the only possible empty tuple
         }
         return "type(\(instanceType))"
     }

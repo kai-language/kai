@@ -22,7 +22,8 @@ struct BuiltinType {
     static let i32 = BuiltinType(entity: .i32, type: ty.Integer(entity: Entity.i32, width: 32, isSigned: true))
     static let i64 = BuiltinType(entity: .i64, type: ty.Integer(entity: Entity.i64, width: 64, isSigned: true))
 
-    static let type = BuiltinType(entity: .type, type: ty.Metatype(instanceType: ty.cvargAny))
+    /// - Note: The type type only exists at compile time
+    static let type = BuiltinType(entity: .type, type: ty.Metatype(entity: Entity.type, instanceType: ty.Tuple(width: 0, types: [])))
 
     static let TypeInfo = ty.Struct.make(named: "TypeInfo", builder: stdlib.builder, [
         ("kind", ty.u8), // TODO: Make this an enumeration

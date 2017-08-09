@@ -137,10 +137,7 @@ extension Checker {
 
         if let explicitType = decl.explicitType {
             expectedType = check(expr: explicitType)
-
-            if !(decl.isConstant && canConvert(expectedType!, to: ty.type)) {
-                expectedType = lowerFromMetatype(expectedType!, atNode: explicitType)
-            }
+            expectedType = lowerFromMetatype(expectedType!, atNode: explicitType)
         }
 
         if decl.values.count == 1 && decl.names.count > 1, let call = decl.values[0] as? Call {
@@ -694,7 +691,7 @@ extension Checker {
             }
             type = pointer.pointeeType
 
-        case .address:
+        case .and:
             guard canLvalue(unary.element) else {
                 reportError("Cannot take the address of a non lvalue", at: unary.start)
                 unary.type = ty.invalid

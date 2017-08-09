@@ -60,14 +60,8 @@ extension Array where Element == Type {
 
 func canConvert(_ lhs: Type, to rhs: Type) -> Bool {
 
-    if lhs is ty.Type {
-        return rhs is ty.Metatype || (rhs as! ty.Metatype).entity === BuiltinType.type.entity
-    }
-    if let lhs = lhs as? ty.Metatype, lhs.entity === BuiltinType.type.entity {
-        return (rhs as? ty.Metatype)?.entity === BuiltinType.type.entity
-    }
-    if let rhs = rhs as? ty.Metatype, rhs.entity === BuiltinType.type.entity {
-        return (lhs as? ty.Metatype)?.entity === BuiltinType.type.entity
+    if lhs is ty.Metatype || rhs is ty.Metatype {
+        return (rhs as? ty.Metatype)?.entity === Entity.type || (lhs as? ty.Metatype)?.entity === Entity.type
     }
     if let lhs = lhs as? ty.Metatype, let rhs = rhs as? ty.Metatype {
         return canConvert(lhs.instanceType, to: rhs.instanceType)
@@ -199,6 +193,11 @@ enum ty {
         var instanceType: Type
 
         init(instanceType: Type) {
+            self.instanceType = instanceType
+        }
+
+        init(entity: Entity, instanceType: Type) {
+            self.entity = entity
             self.instanceType = instanceType
         }
     }
