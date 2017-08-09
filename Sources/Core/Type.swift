@@ -157,15 +157,10 @@ enum ty {
     struct Function: Type {
         var width: Int? = 0
 
-        var node: FuncLit
+        var node: FuncLit?
         var params: [Type]
         var returnType: Type
         var flags: Flags
-
-        var isVariadic: Bool { return flags.contains(.variadic) }
-        var isCVariadic: Bool { return flags.contains(.cVariadic) }
-        var needsSpecialization: Bool { return flags.contains(.polymorphic) }
-        var isBuiltin: Bool { return flags.contains(.builtin) }
 
         struct Flags: OptionSet {
             var rawValue: UInt8

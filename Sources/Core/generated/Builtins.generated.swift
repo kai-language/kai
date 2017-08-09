@@ -44,6 +44,9 @@ extension ty {
     ]
 }
 
+let builtinFunctions: [BuiltinFunction] = [
+]
+
 let builtinEntities: [BuiltinEntity] = [
     BuiltinEntity.trué,
     BuiltinEntity.falsé,

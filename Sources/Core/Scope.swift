@@ -1,20 +1,20 @@
+
 // sourcery: noinit
 final class Scope {
     weak var parent: Scope?
 
     var owningNode: Node?
 
-    var file: SourceFile?
-    var isFile: Bool {
-        return file != nil
-    }
+    var isFile: Bool
+    var isPackage: Bool
 
     var members: [Entity] = []
 
-    init(parent: Scope? = nil, owningNode: Node? = nil, file: SourceFile? = nil, members: [Entity] = []) {
+    init(parent: Scope? = nil, owningNode: Node? = nil, isFile: Bool = false, isPackage: Bool = false, members: [Entity] = []) {
         self.parent = parent
         self.owningNode = owningNode
-        self.file = file
+        self.isFile = isFile
+        self.isPackage = isPackage
         self.members = members
     }
 
@@ -40,6 +40,5 @@ final class Scope {
         return nil
     }
 
-    // TODO: builtins
-    static let global = Scope(members: [])
+    static let global = Scope(members: builtins)
 }

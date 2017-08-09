@@ -1,5 +1,5 @@
 
-#import "math/constants.cte"
+#import github("kai-language/stdlib")
 
 #library "libc" libc
 
@@ -31,7 +31,7 @@ max :: fn (a: $T, b: T) -> T {
   else return b
 }
 
-add :  (i64) -> i64 : fn (foo: i64) -> i64 {
+add : (i64) -> i64 : fn (foo: i64) -> i64 {
     return foo + 1
 }
 

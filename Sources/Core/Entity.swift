@@ -53,4 +53,6 @@ extension Entity {
         let entity = Entity(ident: ident, type: type, flags: .compileTime, memberScope: nil, owningScope: nil, value: nil)
         return entity
     }
+
+    static let invalid = Entity(ident: Ident(start: noPos, name: "<invalid>", entity: nil), type: nil, flags: .none, memberScope: nil, owningScope: nil, value: nil)
 }
