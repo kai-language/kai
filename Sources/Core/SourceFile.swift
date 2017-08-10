@@ -84,7 +84,7 @@ public final class SourceFile {
         sourceFile.checkingJob = Job("\(path) - Checking", work: sourceFile.checkEmittingErrors)
         sourceFile.parsingJob = Job("\(path) - Parsing", work: sourceFile.parseEmittingErrors)
 
-        sourceFile.parsingJob.addDependent(sourceFile.checkingJob)
+        sourceFile.parsingJob.addBlocking(sourceFile.checkingJob)
         knownSourceFiles[fullpath] = sourceFile
 
         return sourceFile
@@ -114,12 +114,18 @@ extension SourceFile {
                 dependency.begin()
                 i.scope = dependency.scope
 
+                for file in dependency.files {
+                    importedFrom.checkingJob.addBlockedBy(file.checkingJob)
+                }
+
             } else {
                 guard let file = SourceFile.new(path: path.text, package: package, importedFrom: importedFrom) else {
                     preconditionFailure()
                 }
                 threadPool.add(job: file.parsingJob)
                 i.scope = file.scope
+
+                importedFrom.checkingJob.addBlockedBy(file.checkingJob)
             }
 
         case let call as Call where (call.fun as? Ident)?.name == "git":
@@ -138,7 +144,7 @@ extension SourceFile {
     public func start() {
         let parsingJob = Job("\(basename(path: pathFirstImportedAs)) - Parsing", work: parseEmittingErrors)
         let checkingJob = Job("\(basename(path: pathFirstImportedAs)) - Checking", work: checkEmittingErrors)
-        parsingJob.addDependent(checkingJob)
+        parsingJob.addBlocking(checkingJob)
         threadPool.add(job: parsingJob)
     }
 

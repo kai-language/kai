@@ -15,6 +15,13 @@ final class WorkerThread: Thread {
     override func main() {
         while true {
             pool.mutex.lock()
+            // check if any jobs have become unblocked and shift them into the ready pool
+            for (index, job) in pool.blocked.enumerated().reversed() {
+                if !job.isBlocked() {
+                    pool.blocked.remove(at: index)
+                    pool.ready.append(job)
+                }
+            }
             let isJobs = !pool.ready.isEmpty
             if isJobs {
                 isIdle = false
@@ -23,7 +30,7 @@ final class WorkerThread: Thread {
                 job.start()
                 job.work()
                 job.end()
-                for dependent in job.dependents {
+                for dependent in job.blocking {
                     pool.add(job: dependent)
                 }
             } else {
@@ -40,6 +47,7 @@ public final class ThreadPool {
 
     let mutex = Mutex()
     var ready: [Job] = []
+    var blocked: [Job] = []
 
     var threads: [WorkerThread]
 
@@ -55,7 +63,11 @@ public final class ThreadPool {
 
     func add(job: Job) {
         mutex.lock()
-        ready.append(job)
+        if !job.isBlocked() {
+            ready.append(job)
+        } else {
+            blocked.append(job)
+        }
         mutex.unlock()
     }
 
@@ -74,7 +86,8 @@ final class Job {
     var work: () -> Void
     var startTime = 0.0
 
-    var dependents: [Job] = []
+    var blocking: [Job] = []
+    var blockedBy: [Job] = []
 
     init(_ name: String, work: @escaping () -> Void) {
         self.name = name
@@ -87,6 +100,11 @@ final class Job {
         }
     }
 
+    func isBlocked() -> Bool {
+        blockedBy = blockedBy.filter({ !$0.done })
+        return !blockedBy.isEmpty
+    }
+
     func end() {
         if Options.instance.flags.contains(.emitDebugTimes) {
             timingMutex.lock()
@@ -97,7 +115,11 @@ final class Job {
         }
     }
 
-    func addDependent(_ job: Job) {
-        dependents.append(job)
+    func addBlocking(_ job: Job) {
+        blocking.append(job)
+    }
+
+    func addBlockedBy(_ job: Job) {
+        blockedBy.append(job)
     }
 }
