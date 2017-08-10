@@ -765,18 +765,18 @@ class For: Node, Stmt {
     var keyword: Pos
     var initializer: Stmt?
     var cond: Expr?
-    var post: Stmt?
+    var step: Stmt?
     var body: Block
 
     var start: Pos { return keyword }
     var end: Pos { return body.end }
 
 // sourcery:inline:auto:For.Init
-init(keyword: Pos, initializer: Stmt?, cond: Expr?, post: Stmt?, body: Block) {
+init(keyword: Pos, initializer: Stmt?, cond: Expr?, step: Stmt?, body: Block) {
     self.keyword = keyword
     self.initializer = initializer
     self.cond = cond
-    self.post = post
+    self.step = step
     self.body = body
 }
 // sourcery:end

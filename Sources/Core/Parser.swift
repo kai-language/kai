@@ -645,7 +645,7 @@ extension Parser {
             reportExpected("expression", at: s2.start)
             cond = BadExpr(start: s2.start, end: s2.end)
         }
-        return For(keyword: keyword, initializer: s1, cond: cond, post: s3, body: body)
+        return For(keyword: keyword, initializer: s1, cond: cond, step: s3, body: body)
     }
 }
 
