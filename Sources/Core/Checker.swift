@@ -190,11 +190,6 @@ extension Checker {
                         type = expectedType
                     }
                 } else if let expectedType = expectedType, type != expectedType {
-                    if let expectedType = expectedType as? ty.Polymorphic {
-                        print(expectedType)
-                        print(context.scope.members.map({ (($0.type as? ty.Metatype)?.instanceType as? ty.Polymorphic)?.entity }))
-                        print(context.scope.lookup("T")?.type)
-                    }
                     reportError("Cannot convert value of type '\(type)' to specified type '\(expectedType)'", at: value.start)
                     type = expectedType
                 }
