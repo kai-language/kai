@@ -42,6 +42,12 @@ func == (lhs: Type, rhs: Type) -> Bool {
         return lhs.types == rhs.types
     case (let lhs as ty.Metatype, let rhs as ty.Metatype):
         return lhs.instanceType == rhs.instanceType
+    case (let lhs as ty.Polymorphic, let rhs as ty.Polymorphic):
+        return lhs.entity.ident.start == rhs.entity.ident.start
+    case (let lhs as ty.Polymorphic, _):
+        return lhs.specialization.val! == rhs
+    case (_, let rhs as ty.Polymorphic):
+        return rhs.specialization.val! == lhs
     default:
         return false
     }
@@ -204,7 +210,7 @@ enum ty {
 
     struct Polymorphic: Type {
         unowned var entity: Entity
-        var specialized: Type?
+        var specialization: Ref<Type?>
     }
 
     /// - Note: Only used in Function

@@ -71,7 +71,8 @@ public final class SourcePackage {
         let package = SourcePackage(files: [], fullpath: fullpath, pathImportedAs: path, importedFrom: importedFrom)
         sourceFilesInDir(fullpath).forEach {
             // Adds to package
-            _ = SourceFile.new(path: fullpath + "/" + $0, package: package)!
+            let sourceFile = SourceFile.new(path: fullpath + "/" + $0, package: package)!
+            sourceFile.scope = package.scope
         }
 
         knownSourcePackages[fullpath] = package

@@ -190,6 +190,11 @@ extension Checker {
                         type = expectedType
                     }
                 } else if let expectedType = expectedType, type != expectedType {
+                    if let expectedType = expectedType as? ty.Polymorphic {
+                        print(expectedType)
+                        print(context.scope.members.map({ (($0.type as? ty.Metatype)?.instanceType as? ty.Polymorphic)?.entity }))
+                        print(context.scope.lookup("T")?.type)
+                    }
                     reportError("Cannot convert value of type '\(type)' to specified type '\(expectedType)'", at: value.start)
                     type = expectedType
                 }
@@ -505,7 +510,7 @@ extension Checker {
         type = lowerFromMetatype(type, atNode: param.explicitType)
         let entity = Entity(ident: param.name, type: type, flags: param.isExplicitPoly ? .constant : .none, memberScope: nil, owningScope: nil, value: nil)
         if param.isExplicitPoly {
-            type = ty.Polymorphic(entity: entity, specialized: nil)
+            type = ty.Polymorphic(entity: entity, specialization: Ref(nil))
         }
         declare(entity)
         param.entity = entity
@@ -523,7 +528,7 @@ extension Checker {
             let entity = Entity(ident: ident, type: ty.invalid, flags: .implicitType, memberScope: nil, owningScope: nil, value: nil)
             declare(entity)
             var type: Type
-            type = ty.Polymorphic(entity: entity, specialized: nil)
+            type = ty.Polymorphic(entity: entity, specialization: Ref(nil))
             type = ty.Metatype(instanceType: type)
             entity.type = type
             polyType.type = type
@@ -548,6 +553,10 @@ extension Checker {
         var needsSpecialization = false
         var params: [Type] = []
         for param in fn.params.list {
+            if fn.isSpecialization && param.type != nil {
+                // The polymorphic parameters type has been set by the callee
+                continue
+            }
             needsSpecialization = needsSpecialization || (param.explicitType is PolyType) || param.isExplicitPoly
 
             var type = check(param: param)
@@ -1039,8 +1048,9 @@ extension Checker {
             where param.isExplicitPoly || param.type is ty.Polymorphic
         {
             let argType = check(expr: arg, desiredType: param.type)
+            specializationTypes.append(argType)
 
-            if param.isExplicitPoly {
+            if param.isExplicitPoly, let polyType = param.type as? ty.Polymorphic {
 
                 guard canConvert(argType, to: param.type) || implicitlyConvert(argType, to: param.type) else {
                     reportError("Cannot convert type '\(argType)' to expected type '\(param.type)'", at: arg.start)
@@ -1048,16 +1058,13 @@ extension Checker {
                 }
 
                 explicitIndices.append(index)
-                specializationTypes.append(argType)
 
-                param.entity.type = argType
-
+                polyType.specialization.val = argType
                 _ = functionScope.insert(param.entity)
                 // TODO: Should we be ignoring conflicts? Will this miss duplicate param names?
             } else if let polyType = param.type as? ty.Polymorphic {
 
-                let meta = ty.Metatype(instanceType: polyType)
-                polyType.entity.type = meta
+                polyType.specialization.val = argType
                 _ = functionScope.insert(polyType.entity)
                 // TODO: Should we be ignoring conflicts? Will this miss duplicate param names?
             }
@@ -1088,6 +1095,13 @@ extension Checker {
         // generated a new specialization
         let generated = copy(fnLitNode)
 
+        var specializationTypesCopy = specializationTypes
+        for (param, generatedParam) in zip(fnLitNode.params.list, generated.params.list)
+            where param.isExplicitPoly || param.type is ty.Polymorphic
+        {
+            generatedParam.entity.type = specializationTypesCopy.removeFirst()
+        }
+
         generated.flags.insert(.specialization)
 
         let prevScope = context.scope
@@ -1099,10 +1113,14 @@ extension Checker {
         context.scope = prevScope
         context.specializationCallNode = nil
 
-        for (arg, expectedType) in zip(strippedArgs, type.params)
-            where arg.type == nil
-        {
-            let argType = check(expr: arg, desiredType: expectedType)
+        var typesCopy = specializationTypes
+        for (arg, expectedType) in zip(strippedArgs, type.params) {
+            var argType: Type
+            if arg.type != nil {
+                argType = typesCopy.removeFirst()
+            } else {
+                argType = check(expr: arg, desiredType: expectedType)
+            }
 
             guard canConvert(argType, to: expectedType) || implicitlyConvert(argType, to: expectedType) else {
                 reportError("Cannot convert type '\(argType)' to expected type '\(expectedType)'", at: arg.start)

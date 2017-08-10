@@ -79,10 +79,12 @@ public final class SourceFile {
         }
 
         let sourceFile = SourceFile(handle: handle, fullpath: fullpath, pathImportedAs: path, importedFrom: importedFrom, package: package)
-        sourceFile.parsingJob = Job("\(path) - Parsing", work: sourceFile.parseEmittingErrors)
-        sourceFile.checkingJob = Job("\(path) - Checking", work: sourceFile.checkEmittingErrors)
-        sourceFile.parsingJob.addDependent(sourceFile.checkingJob)
         package.files.append(sourceFile)
+
+        sourceFile.checkingJob = Job("\(path) - Checking", work: sourceFile.checkEmittingErrors)
+        sourceFile.parsingJob = Job("\(path) - Parsing", work: sourceFile.parseEmittingErrors)
+
+        sourceFile.parsingJob.addDependent(sourceFile.checkingJob)
         knownSourceFiles[fullpath] = sourceFile
 
         return sourceFile
@@ -92,6 +94,7 @@ public final class SourceFile {
 extension SourceFile {
 
     func add(import i: Import, importedFrom: SourceFile) {
+        imports.append(i)
 
         switch i.path {
         case let path as BasicLit where path.token == .string:
@@ -109,14 +112,15 @@ extension SourceFile {
                 }
                 self.package.dependencies.append(dependency)
                 dependency.begin()
+                i.scope = dependency.scope
 
             } else {
                 guard let file = SourceFile.new(path: path.text, package: package, importedFrom: importedFrom) else {
                     preconditionFailure()
                 }
                 threadPool.add(job: file.parsingJob)
+                i.scope = file.scope
             }
-            i.scope = Scope(parent: Scope.global, isFile: true)
 
         case let call as Call where (call.fun as? Ident)?.name == "git":
             addError("Found git import, not executing", i.path.start)
