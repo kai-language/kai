@@ -5,20 +5,11 @@
 
 func copy(_ node: ArrayType) -> ArrayType {
     return ArrayType(
-        lbrack: 
-        node.lbrack /*Pos*//*e*/
-        ,
-        length: 
-        copy(node.length) /*Expr*//*d*/
-        ,
-        rbrack: 
-        node.rbrack /*Pos*//*e*/
-        ,
-        explicitType: 
-        copy(node.explicitType) /*Expr*//*d*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        lbrack: node.lbrack,
+        length: copy(node.length),
+        rbrack: node.rbrack,
+        explicitType: copy(node.explicitType),
+        type: node.type
     )
 }
 
@@ -28,14 +19,9 @@ func copy(_ nodes: [ArrayType]) -> [ArrayType] {
 
 func copy(_ node: Assign) -> Assign {
     return Assign(
-        lhs: 
-        copy(node.lhs) /*[Expr]*//*b*/
-        ,
-        equals: 
-        node.equals /*Pos*//*e*/
-        ,
-        rhs: 
-        copy(node.rhs) /*[Expr]*//*b*/
+        lhs: copy(node.lhs),
+        equals: node.equals,
+        rhs: copy(node.rhs)
     )
 }
 
@@ -45,11 +31,8 @@ func copy(_ nodes: [Assign]) -> [Assign] {
 
 func copy(_ node: BadDecl) -> BadDecl {
     return BadDecl(
-        start: 
-        node.start /*Pos*//*e*/
-        ,
-        end: 
-        node.end /*Pos*//*e*/
+        start: node.start,
+        end: node.end
     )
 }
 
@@ -59,11 +42,8 @@ func copy(_ nodes: [BadDecl]) -> [BadDecl] {
 
 func copy(_ node: BadExpr) -> BadExpr {
     return BadExpr(
-        start: 
-        node.start /*Pos*//*e*/
-        ,
-        end: 
-        node.end /*Pos*//*e*/
+        start: node.start,
+        end: node.end
     )
 }
 
@@ -73,11 +53,8 @@ func copy(_ nodes: [BadExpr]) -> [BadExpr] {
 
 func copy(_ node: BadStmt) -> BadStmt {
     return BadStmt(
-        start: 
-        node.start /*Pos*//*e*/
-        ,
-        end: 
-        node.end /*Pos*//*e*/
+        start: node.start,
+        end: node.end
     )
 }
 
@@ -87,20 +64,11 @@ func copy(_ nodes: [BadStmt]) -> [BadStmt] {
 
 func copy(_ node: BasicLit) -> BasicLit {
     return BasicLit(
-        start: 
-        node.start /*Pos*//*e*/
-        ,
-        token: 
-        node.token /*Token*//*e*/
-        ,
-        text: 
-        node.text /*String*//*e*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
-        ,
-        value: 
-        node.value /*Value!*//*a1*/
+        start: node.start,
+        token: node.token,
+        text: node.text,
+        type: node.type,
+        value: node.value
     )
 }
 
@@ -110,29 +78,14 @@ func copy(_ nodes: [BasicLit]) -> [BasicLit] {
 
 func copy(_ node: Binary) -> Binary {
     return Binary(
-        lhs: 
-        copy(node.lhs) /*Expr*//*d*/
-        ,
-        op: 
-        node.op /*Token*//*e*/
-        ,
-        opPos: 
-        node.opPos /*Pos*//*e*/
-        ,
-        rhs: 
-        copy(node.rhs) /*Expr*//*d*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
-        ,
-        irOp: 
-        node.irOp /*OpCode.Binary!*//*a1*/
-        ,
-        irLCast: 
-        node.irLCast /*OpCode.Cast!*//*a1*/
-        ,
-        irRCast: 
-        node.irRCast /*OpCode.Cast!*//*a1*/
+        lhs: copy(node.lhs),
+        op: node.op,
+        opPos: node.opPos,
+        rhs: copy(node.rhs),
+        type: node.type,
+        irOp: node.irOp,
+        irLCast: node.irLCast,
+        irRCast: node.irRCast
     )
 }
 
@@ -142,14 +95,9 @@ func copy(_ nodes: [Binary]) -> [Binary] {
 
 func copy(_ node: Block) -> Block {
     return Block(
-        lbrace: 
-        node.lbrace /*Pos*//*e*/
-        ,
-        stmts: 
-        copy(node.stmts) /*[Stmt]*//*b*/
-        ,
-        rbrace: 
-        node.rbrace /*Pos*//*e*/
+        lbrace: node.lbrace,
+        stmts: copy(node.stmts),
+        rbrace: node.rbrace
     )
 }
 
@@ -159,14 +107,9 @@ func copy(_ nodes: [Block]) -> [Block] {
 
 func copy(_ node: Branch) -> Branch {
     return Branch(
-        token: 
-        node.token /*Token*//*e*/
-        ,
-        label: 
-        node.label.map(copy) /*Ident?*//*c*/
-        ,
-        start: 
-        node.start /*Pos*//*e*/
+        token: node.token,
+        label: node.label.map(copy),
+        start: node.start
     )
 }
 
@@ -176,23 +119,12 @@ func copy(_ nodes: [Branch]) -> [Branch] {
 
 func copy(_ node: Call) -> Call {
     return Call(
-        fun: 
-        copy(node.fun) /*Expr*//*d*/
-        ,
-        lparen: 
-        node.lparen /*Pos*//*e*/
-        ,
-        args: 
-        copy(node.args) /*[Expr]*//*b*/
-        ,
-        rparen: 
-        node.rparen /*Pos*//*e*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
-        ,
-        checked: 
-        node.checked /*Checked!*//*a1*/
+        fun: copy(node.fun),
+        lparen: node.lparen,
+        args: copy(node.args),
+        rparen: node.rparen,
+        type: node.type,
+        checked: node.checked
     )
 }
 
@@ -202,17 +134,10 @@ func copy(_ nodes: [Call]) -> [Call] {
 
 func copy(_ node: CaseClause) -> CaseClause {
     return CaseClause(
-        keyword: 
-        node.keyword /*Pos*//*e*/
-        ,
-        match: 
-        node.match.map(copy) /*Expr?*//*c*/
-        ,
-        colon: 
-        node.colon /*Pos*//*e*/
-        ,
-        block: 
-        copy(node.block) /*Block*//*d*/
+        keyword: node.keyword,
+        match: node.match.map(copy),
+        colon: node.colon,
+        block: copy(node.block)
     )
 }
 
@@ -222,11 +147,8 @@ func copy(_ nodes: [CaseClause]) -> [CaseClause] {
 
 func copy(_ node: Comment) -> Comment {
     return Comment(
-        slash: 
-        node.slash /*Pos*//*e*/
-        ,
-        text: 
-        node.text /*String*//*e*/
+        slash: node.slash,
+        text: node.text
     )
 }
 
@@ -236,20 +158,11 @@ func copy(_ nodes: [Comment]) -> [Comment] {
 
 func copy(_ node: CompositeLit) -> CompositeLit {
     return CompositeLit(
-        explicitType: 
-        copy(node.explicitType) /*Expr*//*d*/
-        ,
-        lbrace: 
-        node.lbrace /*Pos*//*e*/
-        ,
-        elements: 
-        copy(node.elements) /*[KeyValue]*//*b*/
-        ,
-        rbrace: 
-        node.rbrace /*Pos*//*e*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        explicitType: copy(node.explicitType),
+        lbrace: node.lbrace,
+        elements: copy(node.elements),
+        rbrace: node.rbrace,
+        type: node.type
     )
 }
 
@@ -259,17 +172,10 @@ func copy(_ nodes: [CompositeLit]) -> [CompositeLit] {
 
 func copy(_ node: DeclBlock) -> DeclBlock {
     return DeclBlock(
-        lbrace: 
-        node.lbrace /*Pos*//*e*/
-        ,
-        decls: 
-        copy(node.decls) /*[Decl]*//*b*/
-        ,
-        rbrace: 
-        node.rbrace /*Pos*//*e*/
-        ,
-        callconv: 
-        node.callconv /*String?*//*e*/
+        lbrace: node.lbrace,
+        decls: copy(node.decls),
+        rbrace: node.rbrace,
+        callconv: node.callconv
     )
 }
 
@@ -279,26 +185,13 @@ func copy(_ nodes: [DeclBlock]) -> [DeclBlock] {
 
 func copy(_ node: Declaration) -> Declaration {
     return Declaration(
-        names: 
-        copy(node.names) /*[Ident]*//*b*/
-        ,
-        explicitType: 
-        node.explicitType.map(copy) /*Expr?*//*c*/
-        ,
-        values: 
-        copy(node.values) /*[Expr]*//*b*/
-        ,
-        isConstant: 
-        node.isConstant /*Bool*//*e*/
-        ,
-        callconv: 
-        node.callconv /*String?*//*e*/
-        ,
-        linkname: 
-        node.linkname /*String?*//*e*/
-        ,
-        entities: 
-        node.entities /*[Entity]!*//*a1*/
+        names: copy(node.names),
+        explicitType: node.explicitType.map(copy),
+        values: copy(node.values),
+        isConstant: node.isConstant,
+        callconv: node.callconv,
+        linkname: node.linkname,
+        entities: node.entities
     )
 }
 
@@ -308,14 +201,9 @@ func copy(_ nodes: [Declaration]) -> [Declaration] {
 
 func copy(_ node: Ellipsis) -> Ellipsis {
     return Ellipsis(
-        start: 
-        node.start /*Pos*//*e*/
-        ,
-        element: 
-        node.element.map(copy) /*Expr?*//*c*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        start: node.start,
+        element: node.element.map(copy),
+        type: node.type
     )
 }
 
@@ -325,11 +213,8 @@ func copy(_ nodes: [Ellipsis]) -> [Ellipsis] {
 
 func copy(_ node: Empty) -> Empty {
     return Empty(
-        semicolon: 
-        node.semicolon /*Pos*//*e*/
-        ,
-        isImplicit: 
-        node.isImplicit /*Bool*//*e*/
+        semicolon: node.semicolon,
+        isImplicit: node.isImplicit
     )
 }
 
@@ -339,8 +224,7 @@ func copy(_ nodes: [Empty]) -> [Empty] {
 
 func copy(_ node: ExprStmt) -> ExprStmt {
     return ExprStmt(
-        expr: 
-        copy(node.expr) /*Expr*//*d*/
+        expr: copy(node.expr)
     )
 }
 
@@ -350,20 +234,11 @@ func copy(_ nodes: [ExprStmt]) -> [ExprStmt] {
 
 func copy(_ node: For) -> For {
     return For(
-        keyword: 
-        node.keyword /*Pos*//*e*/
-        ,
-        initializer: 
-        node.initializer.map(copy) /*Stmt?*//*c*/
-        ,
-        cond: 
-        node.cond.map(copy) /*Expr?*//*c*/
-        ,
-        post: 
-        node.post.map(copy) /*Stmt?*//*c*/
-        ,
-        body: 
-        copy(node.body) /*Block*//*d*/
+        keyword: node.keyword,
+        initializer: node.initializer.map(copy),
+        cond: node.cond.map(copy),
+        step: node.step.map(copy),
+        body: copy(node.body)
     )
 }
 
@@ -373,20 +248,11 @@ func copy(_ nodes: [For]) -> [For] {
 
 func copy(_ node: Foreign) -> Foreign {
     return Foreign(
-        directive: 
-        node.directive /*Pos*//*e*/
-        ,
-        library: 
-        copy(node.library) /*Ident*//*d*/
-        ,
-        decl: 
-        copy(node.decl) /*Decl*//*d*/
-        ,
-        linkname: 
-        node.linkname /*String?*//*e*/
-        ,
-        callconv: 
-        node.callconv /*String?*//*e*/
+        directive: node.directive,
+        library: copy(node.library),
+        decl: copy(node.decl),
+        linkname: node.linkname,
+        callconv: node.callconv
     )
 }
 
@@ -396,20 +262,11 @@ func copy(_ nodes: [Foreign]) -> [Foreign] {
 
 func copy(_ node: ForeignFuncLit) -> ForeignFuncLit {
     return ForeignFuncLit(
-        keyword: 
-        node.keyword /*Pos*//*e*/
-        ,
-        params: 
-        copy(node.params) /*ParameterList*//*d*/
-        ,
-        results: 
-        copy(node.results) /*ResultList*//*d*/
-        ,
-        flags: 
-        node.flags /*FunctionFlags*//*e*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        keyword: node.keyword,
+        params: copy(node.params),
+        results: copy(node.results),
+        flags: node.flags,
+        type: node.type
     )
 }
 
@@ -419,26 +276,13 @@ func copy(_ nodes: [ForeignFuncLit]) -> [ForeignFuncLit] {
 
 func copy(_ node: FuncLit) -> FuncLit {
     return FuncLit(
-        keyword: 
-        node.keyword /*Pos*//*e*/
-        ,
-        params: 
-        copy(node.params) /*ParameterList*//*d*/
-        ,
-        results: 
-        copy(node.results) /*ResultList*//*d*/
-        ,
-        body: 
-        copy(node.body) /*Block*//*d*/
-        ,
-        flags: 
-        node.flags /*FunctionFlags*//*e*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
-        ,
-        checked: 
-        node.checked /*Checked!*//*a1*/
+        keyword: node.keyword,
+        params: copy(node.params),
+        results: copy(node.results),
+        body: copy(node.body),
+        flags: node.flags,
+        type: node.type,
+        checked: node.checked
     )
 }
 
@@ -448,20 +292,11 @@ func copy(_ nodes: [FuncLit]) -> [FuncLit] {
 
 func copy(_ node: FuncType) -> FuncType {
     return FuncType(
-        lparen: 
-        node.lparen /*Pos*//*e*/
-        ,
-        params: 
-        copy(node.params) /*[Expr]*//*b*/
-        ,
-        results: 
-        copy(node.results) /*[Expr]*//*b*/
-        ,
-        flags: 
-        node.flags /*FunctionFlags*//*e*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        lparen: node.lparen,
+        params: copy(node.params),
+        results: copy(node.results),
+        flags: node.flags,
+        type: node.type
     )
 }
 
@@ -471,14 +306,9 @@ func copy(_ nodes: [FuncType]) -> [FuncType] {
 
 func copy(_ node: Ident) -> Ident {
     return Ident(
-        start: 
-        node.start /*Pos*//*e*/
-        ,
-        name: 
-        node.name /*String*//*e*/
-        ,
-        entity: 
-        node.entity /*Entity!*//*a1*/
+        start: node.start,
+        name: node.name,
+        entity: node.entity
     )
 }
 
@@ -488,17 +318,10 @@ func copy(_ nodes: [Ident]) -> [Ident] {
 
 func copy(_ node: If) -> If {
     return If(
-        keyword: 
-        node.keyword /*Pos*//*e*/
-        ,
-        cond: 
-        copy(node.cond) /*Expr*//*d*/
-        ,
-        body: 
-        copy(node.body) /*Stmt*//*d*/
-        ,
-        els: 
-        node.els.map(copy) /*Stmt?*//*c*/
+        keyword: node.keyword,
+        cond: copy(node.cond),
+        body: copy(node.body),
+        els: node.els.map(copy)
     )
 }
 
@@ -508,23 +331,12 @@ func copy(_ nodes: [If]) -> [If] {
 
 func copy(_ node: Import) -> Import {
     return Import(
-        directive: 
-        node.directive /*Pos*//*e*/
-        ,
-        path: 
-        copy(node.path) /*Expr*//*d*/
-        ,
-        alias: 
-        node.alias.map(copy) /*Ident?*//*c*/
-        ,
-        importSymbolsIntoScope: 
-        node.importSymbolsIntoScope /*Bool*//*e*/
-        ,
-        resolvedName: 
-        node.resolvedName /*String?*//*e*/
-        ,
-        scope: 
-        copy(node.scope) /*Scope!*//*a*/
+        directive: node.directive,
+        path: copy(node.path),
+        alias: node.alias.map(copy),
+        importSymbolsIntoScope: node.importSymbolsIntoScope,
+        resolvedName: node.resolvedName,
+        scope: copy(node.scope)
     )
 }
 
@@ -534,17 +346,10 @@ func copy(_ nodes: [Import]) -> [Import] {
 
 func copy(_ node: KeyValue) -> KeyValue {
     return KeyValue(
-        key: 
-        node.key.map(copy) /*Expr?*//*c*/
-        ,
-        colon: 
-        node.colon /*Pos?*//*e*/
-        ,
-        value: 
-        copy(node.value) /*Expr*//*d*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        key: node.key.map(copy),
+        colon: node.colon,
+        value: copy(node.value),
+        type: node.type
     )
 }
 
@@ -554,11 +359,8 @@ func copy(_ nodes: [KeyValue]) -> [KeyValue] {
 
 func copy(_ node: Label) -> Label {
     return Label(
-        label: 
-        copy(node.label) /*Ident*//*d*/
-        ,
-        colon: 
-        node.colon /*Pos*//*e*/
+        label: copy(node.label),
+        colon: node.colon
     )
 }
 
@@ -568,17 +370,10 @@ func copy(_ nodes: [Label]) -> [Label] {
 
 func copy(_ node: Library) -> Library {
     return Library(
-        directive: 
-        node.directive /*Pos*//*e*/
-        ,
-        path: 
-        copy(node.path) /*Expr*//*d*/
-        ,
-        alias: 
-        node.alias.map(copy) /*Ident?*//*c*/
-        ,
-        resolvedName: 
-        node.resolvedName /*String?*//*e*/
+        directive: node.directive,
+        path: copy(node.path),
+        alias: node.alias.map(copy),
+        resolvedName: node.resolvedName
     )
 }
 
@@ -588,17 +383,10 @@ func copy(_ nodes: [Library]) -> [Library] {
 
 func copy(_ node: Parameter) -> Parameter {
     return Parameter(
-        dollar: 
-        node.dollar /*Pos?*//*e*/
-        ,
-        name: 
-        copy(node.name) /*Ident*//*d*/
-        ,
-        explicitType: 
-        copy(node.explicitType) /*Expr*//*d*/
-        ,
-        entity: 
-        node.entity /*Entity!*//*a1*/
+        dollar: node.dollar,
+        name: copy(node.name),
+        explicitType: copy(node.explicitType),
+        entity: node.entity
     )
 }
 
@@ -608,14 +396,9 @@ func copy(_ nodes: [Parameter]) -> [Parameter] {
 
 func copy(_ node: ParameterList) -> ParameterList {
     return ParameterList(
-        lparen: 
-        node.lparen /*Pos*//*e*/
-        ,
-        list: 
-        copy(node.list) /*[Parameter]*//*b*/
-        ,
-        rparen: 
-        node.rparen /*Pos*//*e*/
+        lparen: node.lparen,
+        list: copy(node.list),
+        rparen: node.rparen
     )
 }
 
@@ -625,17 +408,10 @@ func copy(_ nodes: [ParameterList]) -> [ParameterList] {
 
 func copy(_ node: Paren) -> Paren {
     return Paren(
-        lparen: 
-        node.lparen /*Pos*//*e*/
-        ,
-        element: 
-        copy(node.element) /*Expr*//*d*/
-        ,
-        rparen: 
-        node.rparen /*Pos*//*e*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        lparen: node.lparen,
+        element: copy(node.element),
+        rparen: node.rparen,
+        type: node.type
     )
 }
 
@@ -645,14 +421,9 @@ func copy(_ nodes: [Paren]) -> [Paren] {
 
 func copy(_ node: PointerType) -> PointerType {
     return PointerType(
-        star: 
-        node.star /*Pos*//*e*/
-        ,
-        explicitType: 
-        copy(node.explicitType) /*Expr*//*d*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        star: node.star,
+        explicitType: copy(node.explicitType),
+        type: node.type
     )
 }
 
@@ -662,14 +433,9 @@ func copy(_ nodes: [PointerType]) -> [PointerType] {
 
 func copy(_ node: PolyType) -> PolyType {
     return PolyType(
-        dollar: 
-        node.dollar /*Pos*//*e*/
-        ,
-        explicitType: 
-        copy(node.explicitType) /*Expr*//*d*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        dollar: node.dollar,
+        explicitType: copy(node.explicitType),
+        type: node.type
     )
 }
 
@@ -679,14 +445,9 @@ func copy(_ nodes: [PolyType]) -> [PolyType] {
 
 func copy(_ node: ResultList) -> ResultList {
     return ResultList(
-        lparen: 
-        node.lparen /*Pos?*//*e*/
-        ,
-        types: 
-        copy(node.types) /*[Expr]*//*b*/
-        ,
-        rparen: 
-        node.rparen /*Pos?*//*e*/
+        lparen: node.lparen,
+        types: copy(node.types),
+        rparen: node.rparen
     )
 }
 
@@ -696,11 +457,8 @@ func copy(_ nodes: [ResultList]) -> [ResultList] {
 
 func copy(_ node: Return) -> Return {
     return Return(
-        keyword: 
-        node.keyword /*Pos*//*e*/
-        ,
-        results: 
-        copy(node.results) /*[Expr]*//*b*/
+        keyword: node.keyword,
+        results: copy(node.results)
     )
 }
 
@@ -710,14 +468,9 @@ func copy(_ nodes: [Return]) -> [Return] {
 
 func copy(_ node: Selector) -> Selector {
     return Selector(
-        rec: 
-        copy(node.rec) /*Expr*//*d*/
-        ,
-        sel: 
-        copy(node.sel) /*Ident*//*d*/
-        ,
-        checked: 
-        node.checked /*Checked!*//*a1*/
+        rec: copy(node.rec),
+        sel: copy(node.sel),
+        checked: node.checked
     )
 }
 
@@ -727,17 +480,10 @@ func copy(_ nodes: [Selector]) -> [Selector] {
 
 func copy(_ node: SliceType) -> SliceType {
     return SliceType(
-        lbrack: 
-        node.lbrack /*Pos*//*e*/
-        ,
-        rbrack: 
-        node.rbrack /*Pos*//*e*/
-        ,
-        explicitType: 
-        copy(node.explicitType) /*Expr*//*d*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        lbrack: node.lbrack,
+        rbrack: node.rbrack,
+        explicitType: copy(node.explicitType),
+        type: node.type
     )
 }
 
@@ -747,17 +493,10 @@ func copy(_ nodes: [SliceType]) -> [SliceType] {
 
 func copy(_ node: StructField) -> StructField {
     return StructField(
-        names: 
-        copy(node.names) /*[Ident]*//*b*/
-        ,
-        colon: 
-        node.colon /*Pos*//*e*/
-        ,
-        explicitType: 
-        copy(node.explicitType) /*Expr*//*d*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        names: copy(node.names),
+        colon: node.colon,
+        explicitType: copy(node.explicitType),
+        type: node.type
     )
 }
 
@@ -767,20 +506,11 @@ func copy(_ nodes: [StructField]) -> [StructField] {
 
 func copy(_ node: StructType) -> StructType {
     return StructType(
-        keyword: 
-        node.keyword /*Pos*//*e*/
-        ,
-        lbrace: 
-        node.lbrace /*Pos*//*e*/
-        ,
-        fields: 
-        copy(node.fields) /*[StructField]*//*b*/
-        ,
-        rbrace: 
-        node.rbrace /*Pos*//*e*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        keyword: node.keyword,
+        lbrace: node.lbrace,
+        fields: copy(node.fields),
+        rbrace: node.rbrace,
+        type: node.type
     )
 }
 
@@ -790,14 +520,9 @@ func copy(_ nodes: [StructType]) -> [StructType] {
 
 func copy(_ node: Switch) -> Switch {
     return Switch(
-        keyword: 
-        node.keyword /*Pos*//*e*/
-        ,
-        match: 
-        node.match.map(copy) /*Expr?*//*c*/
-        ,
-        block: 
-        copy(node.block) /*Block*//*d*/
+        keyword: node.keyword,
+        match: node.match.map(copy),
+        block: copy(node.block)
     )
 }
 
@@ -807,23 +532,12 @@ func copy(_ nodes: [Switch]) -> [Switch] {
 
 func copy(_ node: Ternary) -> Ternary {
     return Ternary(
-        cond: 
-        copy(node.cond) /*Expr*//*d*/
-        ,
-        qmark: 
-        node.qmark /*Pos*//*e*/
-        ,
-        then: 
-        node.then.map(copy) /*Expr?*//*c*/
-        ,
-        colon: 
-        node.colon /*Pos*//*e*/
-        ,
-        els: 
-        copy(node.els) /*Expr*//*d*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        cond: copy(node.cond),
+        qmark: node.qmark,
+        then: node.then.map(copy),
+        colon: node.colon,
+        els: copy(node.els),
+        type: node.type
     )
 }
 
@@ -833,17 +547,10 @@ func copy(_ nodes: [Ternary]) -> [Ternary] {
 
 func copy(_ node: Unary) -> Unary {
     return Unary(
-        start: 
-        node.start /*Pos*//*e*/
-        ,
-        op: 
-        node.op /*Token*//*e*/
-        ,
-        element: 
-        copy(node.element) /*Expr*//*d*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        start: node.start,
+        op: node.op,
+        element: copy(node.element),
+        type: node.type
     )
 }
 
@@ -853,17 +560,10 @@ func copy(_ nodes: [Unary]) -> [Unary] {
 
 func copy(_ node: VariadicType) -> VariadicType {
     return VariadicType(
-        ellipsis: 
-        node.ellipsis /*Pos*//*e*/
-        ,
-        explicitType: 
-        copy(node.explicitType) /*Expr*//*d*/
-        ,
-        isCvargs: 
-        node.isCvargs /*Bool*//*e*/
-        ,
-        type: 
-        node.type /*Type!*//*a1*/
+        ellipsis: node.ellipsis,
+        explicitType: copy(node.explicitType),
+        isCvargs: node.isCvargs,
+        type: node.type
     )
 }
 

@@ -3,14 +3,7 @@
 
 func copy(_ node: {{ type.name }}) -> {{ type.name }} {
     return {{ type.name }}({% for var in type.storedVariables %}
-        {{ var.name }}: 
-        {% if var.isImplicitlyUnwrappedOptional and var.unwrappedTypeName == "Scope" %}copy(node.{{ var.name }}) /*{{var.typeName}}*//*a*/
-        {% elif var.isImplicitlyUnwrappedOptional %}node.{{ var.name }} /*{{var.typeName}}*//*a1*/
-        {% elif var.isArray and var.typeName != "[Entity]!" %}copy(node.{{ var.name }}) /*{{var.typeName}}*//*b*/
-        {% elif var.isOptional and var.type|implements:"Node" and var.typeName != "[Entity]!" %}node.{{ var.name }}.map(copy) /*{{var.typeName}}*//*c*/
-        {% elif var.type|implements:"Node" %}copy(node.{{ var.name }}) /*{{var.typeName}}*//*d*/
-        {% else %}node.{{ var.name }} /*{{ var.typeName }}*//*e*/
-        {% endif %}{% if not forloop.last %},{% endif %}{% endfor %}
+        {{ var.name }}: {% if var.isImplicitlyUnwrappedOptional and var.unwrappedTypeName == "Scope" %}copy(node.{{ var.name }}){% elif var.isImplicitlyUnwrappedOptional %}node.{{ var.name }}{% elif var.isArray and var.typeName != "[Entity]!" %}copy(node.{{ var.name }}){% elif var.isOptional and var.type|implements:"Node" and var.typeName != "[Entity]!" %}node.{{ var.name }}.map(copy){% elif var.type|implements:"Node" %}copy(node.{{ var.name }}){% else %}node.{{ var.name }}{% endif %}{% if not forloop.last %},{% endif %}{% endfor %}
     )
 }
 
