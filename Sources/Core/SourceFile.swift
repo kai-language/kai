@@ -37,6 +37,7 @@ public final class SourceFile {
 
     var parsingJob: Job!
     var checkingJob: Job!
+    var generationJob: Job!
 
     // Set in Checker
     var scope: Scope
@@ -83,8 +84,10 @@ public final class SourceFile {
 
         sourceFile.checkingJob = Job("\(path) - Checking", work: sourceFile.checkEmittingErrors)
         sourceFile.parsingJob = Job("\(path) - Parsing", work: sourceFile.parseEmittingErrors)
+        sourceFile.generationJob = Job("\(path) - Generating IR", work: sourceFile.generateIntermediateRepresentation)
 
         sourceFile.parsingJob.addBlocking(sourceFile.checkingJob)
+        sourceFile.checkingJob.addBlocking(sourceFile.generationJob)
         knownSourceFiles[fullpath] = sourceFile
 
         return sourceFile
@@ -178,6 +181,23 @@ extension SourceFile {
         hasBeenChecked = true
         emitErrors(for: self, at: stage)
 
+        let endTime = gettime()
+        let totalTime = endTime - startTime
+        timingMutex.lock()
+        checkStageTiming += totalTime
+        timingMutex.unlock()
+    }
+
+    public func generateIntermediateRepresentation() {
+        assert(hasBeenChecked)
+        assert(!hasBeenGenerated)
+        let startTime = gettime()
+
+        stage = "IRGeneration"
+        var irGenerator = IRGenerator(file: self)
+        irGenerator.generate()
+        hasBeenGenerated = true
+        
         let endTime = gettime()
         let totalTime = endTime - startTime
         timingMutex.lock()

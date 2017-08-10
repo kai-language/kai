@@ -1,5 +1,6 @@
 
 import Foundation
+import LLVM
 
 var currentDirectory = FileManager.default.currentDirectoryPath
 let fileExtension = ".kai"
@@ -11,7 +12,7 @@ var knownSourcePackages: [String: SourcePackage] = [:]
 public final class SourcePackage {
 
     public weak var firstImportedFrom: SourceFile?
-    public var isInitialFile: Bool {
+    public var isInitialPackage: Bool {
         return firstImportedFrom == nil
     }
 
@@ -32,6 +33,14 @@ public final class SourcePackage {
     // Set in Checker
     var scope: Scope
     public var linkedLibraries: Set<String> = []
+
+    // Set in IRGenerator
+    lazy var module: Module = {
+        return Module(name: moduleName)
+    }()
+    lazy var builder: IRBuilder = {
+        return IRBuilder(module: module)
+    }()
 
     public init(files: [SourceFile], fullpath: String, pathImportedAs: String, importedFrom: SourceFile?) {
         self.files = files
