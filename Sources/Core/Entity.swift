@@ -15,6 +15,10 @@ class Entity: CustomStringConvertible {
         return ident.name
     }
 
+    // TODO: These need to be set in the checker
+//    var callconv: String? = nil
+//    var linkname: String? = nil
+
     struct Flag: OptionSet {
         let rawValue: UInt16
         static let none         = Flag(rawValue: 0b0000_0000)

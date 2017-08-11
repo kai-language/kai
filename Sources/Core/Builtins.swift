@@ -95,7 +95,7 @@ func lookupBuiltinFunction(_ fun: Expr) -> BuiltinFunction? {
 // sourcery:noinit
 class BuiltinFunction {
     // TODO: Take IRGen too
-    typealias Generate = (BuiltinFunction, [Expr], Void) -> IRValue
+    typealias Generate = (BuiltinFunction, [Expr], inout IRGenerator) -> IRValue
     typealias CallCheck = (inout Checker, Call) -> Type
 
     var entity: Entity

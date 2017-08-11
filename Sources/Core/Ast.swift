@@ -293,12 +293,10 @@ class Selector: Node, Expr {
         switch checked! {
         case .file(let entity): return entity.type!
         case .struct(let field): return field.type
-        case .invalid: return ty.invalid
         }
     }
 
     enum Checked {
-        case invalid
         case file(Entity)
         case `struct`(ty.Struct.Field)
     }
@@ -424,16 +422,18 @@ class KeyValue: Node, Expr {
     var value: Expr
 
     var type: Type!
+    var structField: ty.Struct.Field?
 
     var start: Pos { return key?.start ?? value.start }
     var end: Pos { return value.end }
 
 // sourcery:inline:auto:KeyValue.Init
-init(key: Expr?, colon: Pos?, value: Expr, type: Type!) {
+init(key: Expr?, colon: Pos?, value: Expr, type: Type!, structField: ty.Struct.Field?) {
     self.key = key
     self.colon = colon
     self.value = value
     self.type = type
+    self.structField = structField
 }
 // sourcery:end
 }

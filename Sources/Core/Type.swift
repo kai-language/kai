@@ -128,7 +128,7 @@ enum ty {
         var fields: [Field] = []
 
         /// Used for the named type
-        var ir: Ref<IRType?>
+        var ir: Ref<LLVM.StructType?>
 
         struct Field {
             let ident: Ident

@@ -24,14 +24,14 @@ struct IRGenerator {
     var context: Context
 
     var module: Module
-    var builder: IRBuilder
+    var b: IRBuilder
 
     init(file: SourceFile) {
         self.package = file.package
         self.file = file
         self.context = Context(mangledNamePrefix: "", previous: nil)
         self.module = package.module
-        self.builder = package.builder
+        self.b = package.builder
     }
 
     // sourcery:noinit
@@ -94,7 +94,18 @@ extension IRGenerator {
     }
 
     mutating func emit(constantDecl decl: Declaration) {
-        assert(!decl.values.isEmpty)
+        if decl.values.isEmpty {
+            // this is in a decl block of some sort
+
+            for entity in decl.entities {
+                var globalValue = b.addGlobal(entity.name, type: canonicalize(entity.type!))
+                globalValue.isExternallyInitialized = true
+                globalValue.isGlobalConstant = true
+                entity.value = globalValue
+            }
+            return
+        }
+
         if decl.values.count == 1, let call = decl.values.first as? Call {
             if decl.entities.count > 1 {
                 // TODO: Test this.
@@ -114,7 +125,7 @@ extension IRGenerator {
 
         for (entity, value) in zip(decl.entities, decl.values) {
             if let type = entity.type as? ty.Metatype {
-                let irType = builder.createStruct(name: mangle(entity.name))
+                let irType = b.createStruct(name: mangle(entity.name))
 
                 switch type.instanceType {
                 case let type as ty.Struct:
@@ -132,8 +143,8 @@ extension IRGenerator {
                 return
             }
 
-            let value = emit(expr: value)
-            var globalValue = builder.addGlobal(mangle(entity.name), initializer: value)
+            let value = emit(expr: value, name: entity.name)
+            var globalValue = b.addGlobal(mangle(entity.name), initializer: value)
             globalValue.isGlobalConstant = true
             entity.value = globalValue
         }
@@ -142,19 +153,19 @@ extension IRGenerator {
     mutating func emit(variableDecl decl: Declaration) {
         if decl.values.count == 1, let call = decl.values.first as? Call {
             let retType = canonicalize(call.type)
-            let stackAggregate = builder.buildAlloca(type: retType)
+            let stackAggregate = b.buildAlloca(type: retType)
             let aggregate = emit(call: call)
-            builder.buildStore(aggregate, to: stackAggregate)
+            b.buildStore(aggregate, to: stackAggregate)
 
             for (index, entity) in decl.entities.enumerated()
                 where entity !== Entity.anonymous
             {
                 let type = canonicalize(entity.type!)
-                let stackValue = builder.buildAlloca(type: type, name: entity.name)
-                let rvaluePtr = builder.buildStructGEP(stackAggregate, index: index)
-                let rvalue = builder.buildLoad(rvaluePtr)
+                let stackValue = b.buildAlloca(type: type, name: entity.name)
+                let rvaluePtr = b.buildStructGEP(stackAggregate, index: index)
+                let rvalue = b.buildLoad(rvaluePtr)
 
-                builder.buildStore(rvalue, to: stackValue)
+                b.buildStore(rvalue, to: stackValue)
 
                 entity.value = stackValue
             }
@@ -164,7 +175,7 @@ extension IRGenerator {
         if decl.values.isEmpty {
             for entity in decl.entities {
                 let type = canonicalize(entity.type!)
-                entity.value = builder.buildAlloca(type: type)
+                entity.value = b.buildAlloca(type: type)
             }
             return
         }
@@ -173,7 +184,7 @@ extension IRGenerator {
         assert(decl.entities.count == decl.values.count)
         for (entity, value) in zip(decl.entities, decl.values) {
             if let type = entity.type as? ty.Metatype {
-                let irType = builder.createStruct(name: mangle(entity.name))
+                let irType = b.createStruct(name: mangle(entity.name))
 
                 switch type.instanceType {
                 case let type as ty.Struct:
@@ -194,21 +205,21 @@ extension IRGenerator {
             let type = canonicalize(entity.type!)
 
             if Options.instance.flags.contains(.emitIr) {
-                if let endOfAlloca = builder.insertBlock?.instructions.first(where: { !$0.isAAllocaInst }) {
-                    builder.position(endOfAlloca, block: builder.insertBlock!)
+                if let endOfAlloca = b.insertBlock?.instructions.first(where: { !$0.isAAllocaInst }) {
+                    b.position(endOfAlloca, block: b.insertBlock!)
                 }
             }
 
-            let stackValue = builder.buildAlloca(type: type, name: mangle(entity.name))
+            let stackValue = b.buildAlloca(type: type, name: mangle(entity.name))
 
             if Options.instance.flags.contains(.emitIr) {
-                builder.positionAtEnd(of: builder.insertBlock!)
+                b.positionAtEnd(of: b.insertBlock!)
             }
 
             entity.value = stackValue
 
             let value = emit(expr: value, name: entity.name)
-            builder.buildStore(value, to: stackValue)
+            b.buildStore(value, to: stackValue)
         }
     }
 
@@ -219,10 +230,16 @@ extension IRGenerator {
             emit(anyDecl: f.decl, isForeign: true)
 
         case let b as DeclBlock:
-            fatalError()
+            for decl in b.decls {
+                emit(anyDecl: decl, isForeign: isForeign)
+            }
 
         case let d as Declaration:
-            fatalError()
+            if d.isConstant {
+                emit(constantDecl: d)
+            } else {
+                emit(variableDecl: d)
+            }
 
         default:
             preconditionFailure()
@@ -254,17 +271,17 @@ extension IRGenerator {
     mutating func emit(assign: Assign) {
         if assign.rhs.count == 1, let call = assign.rhs.first as? Call {
             let retType = canonicalize(call.type)
-            let stackAggregate = builder.buildAlloca(type: retType)
+            let stackAggregate = b.buildAlloca(type: retType)
             let aggregate = emit(call: call)
-            builder.buildStore(aggregate, to: stackAggregate)
+            b.buildStore(aggregate, to: stackAggregate)
 
             for (index, lvalue) in assign.lhs.enumerated()
                 where (lvalue as? Ident)?.name != "_"
             {
                 let lvalueAddress = emit(expr: lvalue, returnAddress: true)
-                let rvaluePtr = builder.buildStructGEP(stackAggregate, index: index)
-                let rvalue = builder.buildLoad(rvaluePtr)
-                builder.buildStore(rvalue, to: lvalueAddress)
+                let rvaluePtr = b.buildStructGEP(stackAggregate, index: index)
+                let rvalue = b.buildLoad(rvaluePtr)
+                b.buildStore(rvalue, to: lvalueAddress)
             }
             return
         }
@@ -279,7 +296,7 @@ extension IRGenerator {
             where (lvalue as? Ident)?.name != "_"
         {
             let lvalueAddress = emit(expr: lvalue, returnAddress: true)
-            builder.buildStore(rvalue, to: lvalueAddress)
+            b.buildStore(rvalue, to: lvalueAddress)
         }
     }
 
@@ -292,13 +309,13 @@ extension IRGenerator {
 
         switch values.count {
         case 0:
-            builder.buildRetVoid()
+            b.buildRetVoid()
 
         case 1:
-            builder.buildRet(values[0])
+            b.buildRet(values[0])
 
         default:
-            builder.buildRetAggregate(of: values)
+            b.buildRetAggregate(of: values)
         }
 
     }
@@ -308,15 +325,15 @@ extension IRGenerator {
 
         if Options.instance.flags.contains(.emitIr) {
 
-             if let endOfAlloca = builder.insertBlock!.instructions.first(where: { !$0.isAAllocaInst }) {
-                 builder.position(endOfAlloca, block: builder.insertBlock!)
+             if let endOfAlloca = b.insertBlock!.instructions.first(where: { !$0.isAAllocaInst }) {
+                 b.position(endOfAlloca, block: b.insertBlock!)
              }
         }
 
-        let stackValue = builder.buildAlloca(type: type, name: param.entity.name)
+        let stackValue = b.buildAlloca(type: type, name: param.entity.name)
 
         if Options.instance.flags.contains(.emitIr) {
-            builder.positionAtEnd(of: builder.insertBlock!)
+            b.positionAtEnd(of: b.insertBlock!)
         }
 
         param.entity.value = stackValue
@@ -327,21 +344,21 @@ extension IRGenerator {
 
         let ln = file.position(for: iff.start).line
 
-        let thenBlock = builder.currentFunction!.appendBasicBlock(named: "if.then.ln\(ln)")
-        let elseBlock = iff.els.map({ _ in builder.currentFunction!.appendBasicBlock(named: "if.else.ln.\(ln)") })
-        let postBlock = builder.currentFunction!.appendBasicBlock(named: "if.post.ln.\(ln)")
+        let thenBlock = b.currentFunction!.appendBasicBlock(named: "if.then.ln\(ln)")
+        let elseBlock = iff.els.map({ _ in b.currentFunction!.appendBasicBlock(named: "if.else.ln.\(ln)") })
+        let postBlock = b.currentFunction!.appendBasicBlock(named: "if.post.ln.\(ln)")
 
         if let elseBlock = elseBlock {
-            builder.buildCondBr(condition: cond, then: thenBlock, else: elseBlock)
+            b.buildCondBr(condition: cond, then: thenBlock, else: elseBlock)
         } else {
-            builder.buildCondBr(condition: cond, then: thenBlock, else: postBlock)
+            b.buildCondBr(condition: cond, then: thenBlock, else: postBlock)
         }
 
-        builder.positionAtEnd(of: thenBlock)
+        b.positionAtEnd(of: thenBlock)
         emit(statement: iff.body)
 
         if let els = iff.els {
-            builder.positionAtEnd(of: elseBlock!)
+            b.positionAtEnd(of: elseBlock!)
             emit(statement: els)
 
             if elseBlock!.terminator != nil && thenBlock.terminator != nil {
@@ -351,11 +368,11 @@ extension IRGenerator {
             }
         }
 
-        builder.positionAtEnd(of: postBlock)
+        b.positionAtEnd(of: postBlock)
     }
 
     mutating func emit(for f: For) {
-        let currentFunc = builder.currentFunction!
+        let currentFunc = b.currentFunction!
 
         var loopBody: BasicBlock
         var loopPost: BasicBlock
@@ -375,11 +392,11 @@ extension IRGenerator {
             loopBody = currentFunc.appendBasicBlock(named: "for.body")
             loopPost = currentFunc.appendBasicBlock(named: "for.post")
 
-            builder.buildBr(loopCond!)
-            builder.positionAtEnd(of: loopCond!)
+            b.buildBr(loopCond!)
+            b.positionAtEnd(of: loopCond!)
 
             let cond = emit(expr: condition)
-            builder.buildCondBr(condition: cond, then: loopBody, else: loopPost)
+            b.buildCondBr(condition: cond, then: loopBody, else: loopPost)
         } else {
             if f.step != nil {
                 loopStep = currentFunc.appendBasicBlock(named: "for.step")
@@ -388,42 +405,42 @@ extension IRGenerator {
             loopBody = currentFunc.appendBasicBlock(named: "for.body")
             loopPost = currentFunc.appendBasicBlock(named: "for.post")
 
-            builder.buildBr(loopBody)
+            b.buildBr(loopBody)
         }
 
         // TODO: Break targets
 //        f.breakTarget.val = loopPost
 //        f.continueTarget.val = loopCond ?? loopStep ?? loopBody
-        builder.positionAtEnd(of: loopBody)
+        b.positionAtEnd(of: loopBody)
         defer {
-            loopPost.moveAfter(builder.currentFunction!.lastBlock!)
+            loopPost.moveAfter(b.currentFunction!.lastBlock!)
         }
 
         emit(statement: f.body)
 
-        let hasJump = builder.insertBlock?.terminator != nil
+        let hasJump = b.insertBlock?.terminator != nil
 
         if let step = f.step {
             if !hasJump {
-                builder.buildBr(loopStep!)
+                b.buildBr(loopStep!)
             }
 
-            builder.positionAtEnd(of: loopStep!)
+            b.positionAtEnd(of: loopStep!)
             emit(statement: step)
-            builder.buildBr(loopCond!)
+            b.buildBr(loopCond!)
         } else if let loopCond = loopCond {
             // `for x < 5 { /* ... */ }` || `for i := 1; x < 5; { /* ... */ }`
             if !hasJump {
-                builder.buildBr(loopCond)
+                b.buildBr(loopCond)
             }
         } else {
             // `for { /* ... */ }`
             if !hasJump {
-                builder.buildBr(loopBody)
+                b.buildBr(loopBody)
             }
         }
 
-        builder.positionAtEnd(of: loopPost)
+        b.positionAtEnd(of: loopPost)
     }
 
     mutating func emit(switch sw: Switch) {
@@ -437,57 +454,280 @@ extension IRGenerator {
     // MARK: Expressions
 
     mutating func emit(expr: Expr, returnAddress: Bool = false, name: String = "") -> IRValue {
-        fatalError()
+        switch expr {
+        case let lit as BasicLit:
+            return emit(lit: lit, returnAddress: returnAddress, name: name)
+        case let lit as CompositeLit:
+            return emit(lit: lit, returnAddress: returnAddress, name: name)
+        case let ident as Ident:
+            return emit(ident: ident, returnAddress: returnAddress)
+        case let paren as Paren:
+            return emit(expr: paren.element, returnAddress: returnAddress, name: name)
+        case let unary as Unary:
+            return emit(unary: unary)
+        case let binary as Binary:
+            return emit(binary: binary)
+        case let ternary as Ternary:
+            return emit(ternary: ternary)
+        case let fn as FuncLit:
+            return emit(funcLit: fn, name: name)
+        case let call as Call:
+            return emit(call: call)
+        case let sel as Selector:
+            return emit(selector: sel, returnAddress: returnAddress)
+        default:
+            preconditionFailure()
+        }
+    }
+
+    mutating func emit(lit: BasicLit, returnAddress: Bool, name: String) -> IRValue {
+        if lit.token == .string {
+            return b.addGlobalString(name: name, value: lit.text)
+        }
+        let type = canonicalize(lit.type)
+        switch type {
+        case let type as IntType:
+            return type.constant(lit.value as! UInt64)
+        case let type as FloatType:
+            return type.constant(lit.value as! Double)
+        default:
+            preconditionFailure()
+        }
+    }
+
+    mutating func emit(lit: CompositeLit, returnAddress: Bool, name: String) -> IRValue {
+        switch lit.type {
+        case let type as ty.Struct:
+            let irType = canonicalize(type)
+            var ir = irType.undef()
+            for el in lit.elements {
+                let val = emit(expr: el.value)
+                ir = b.buildInsertValue(aggregate: ir, element: val, index: el.structField!.index)
+            }
+            return ir
+        default:
+            preconditionFailure()
+        }
+    }
+
+    mutating func emit(ident: Ident, returnAddress: Bool) -> IRValue {
+        if returnAddress || ident.entity.type! is ty.Function {
+            return ident.entity.value!
+        }
+        return b.buildLoad(ident.entity.value!)
+    }
+
+    mutating func emit(unary: Unary) -> IRValue {
+        let val = emit(expr: unary.element, returnAddress: unary.op == .and)
+        switch unary.op {
+        case .add:
+            return val
+        case .sub:
+            return b.buildNeg(val)
+        case .lss:
+            return b.buildLoad(val)
+        case .not:
+            return b.buildNeg(val)
+        default:
+            preconditionFailure()
+        }
+    }
+
+    mutating func emit(binary: Binary) -> IRValue {
+        var lhs = emit(expr: binary.lhs)
+        var rhs = emit(expr: binary.rhs)
+        if let lcast = binary.irLCast {
+            lhs = b.buildCast(lcast, value: lhs, type: canonicalize(binary.lhs.type))
+        }
+        if let rcast = binary.irRCast {
+            rhs = b.buildCast(rcast, value: rhs, type: canonicalize(binary.rhs.type))
+        }
+
+        switch binary.irOp! {
+        case .icmp:
+            let isSigned = (binary.lhs.type as! ty.Integer).isSigned
+            var pred: IntPredicate
+            switch binary.op {
+            case .lss: pred = isSigned ? .signedLessThan : .unsignedLessThan
+            case .gtr: pred = isSigned ? .signedGreaterThan : .unsignedGreaterThan
+            case .leq: pred = isSigned ? .signedLessThanOrEqual : .unsignedLessThanOrEqual
+            case .geq: pred = isSigned ? .signedGreaterThanOrEqual : .unsignedGreaterThanOrEqual
+            case .eql: pred = .equal
+            case .neq: pred = .notEqual
+            default:   preconditionFailure()
+            }
+            return b.buildICmp(lhs, rhs, pred)
+        case .fcmp:
+            var pred: RealPredicate
+            switch binary.op {
+            case .lss: pred = .orderedLessThan
+            case .gtr: pred = .orderedGreaterThan
+            case .leq: pred = .orderedLessThanOrEqual
+            case .geq: pred = .orderedGreaterThanOrEqual
+            case .eql: pred = .orderedEqual
+            case .neq: pred = .orderedNotEqual
+            default:   preconditionFailure()
+            }
+            return b.buildFCmp(lhs, rhs, pred)
+        default:
+            return b.buildBinaryOperation(binary.irOp, lhs, rhs)
+        }
+    }
+
+    mutating func emit(ternary: Ternary) -> IRValue {
+        let cond = emit(expr: ternary.cond)
+        let then = ternary.then.map({ emit(expr: $0) })
+        let els  = emit(expr: ternary.els)
+        return b.buildSelect(cond, then: then ?? cond, else: els)
     }
 
     mutating func emit(call: Call) -> IRValue {
-        fatalError()
+        switch call.checked! {
+        case .builtinCall(let builtin):
+            return builtin.generate(builtin, call.args, &self)
+        case .call:
+            let callee = emit(expr: call.fun, returnAddress: !(call.fun.type is ty.Pointer))
+            let args = call.args.map({ emit(expr: $0) })
+            return b.buildCall(callee, args: args)
+        case .specializedCall(let specialization):
+            return specialization.llvm!
+        case .cast(let op):
+            let val = emit(expr: call.args[0])
+            return b.buildCast(op, value: val, type: canonicalize(call.type))
+        }
+    }
+
+    mutating func emit(funcLit fn: FuncLit, name: String) -> Function {
+        switch fn.checked! {
+        case .regular:
+            let function = b.addFunction(mangle(name), type: canonicalize(fn.type) as! FunctionType)
+            let prevBlock = b.insertBlock
+
+            let entryBlock = function.appendBasicBlock(named: "entry")
+            b.positionAtEnd(of: entryBlock)
+
+            for (param, var irParam) in zip(fn.params.list, function.parameters) {
+                irParam.name = param.entity.name
+                emit(parameter: param)
+
+                b.buildStore(irParam, to: param.entity.value!)
+            }
+
+            pushContext(scopeName: name)
+            emit(statement: fn.body)
+            popContext()
+
+            if let prevBlock = prevBlock {
+                b.positionAtEnd(of: prevBlock)
+            }
+
+            return function
+
+        case .polymorphic(_, let specializations):
+            for specialization in specializations {
+                let suffix = specialization.specializedTypes
+                    .reduce("", { $0 + "$" + $1.description })
+                specialization.llvm = emit(funcLit: specialization.generatedFunctionNode, name: name + suffix)
+            }
+            return specializations.last!.llvm! // dummy return value
+        }
+    }
+
+    mutating func emit(selector sel: Selector, returnAddress: Bool) -> IRValue {
+        switch sel.checked! {
+        case .file(let entity):
+            if entity.type is ty.Function {
+                return entity.value!
+            }
+            return b.buildLoad(entity.value!)
+        case .struct(let field):
+            let aggregate = emit(expr: sel.rec, returnAddress: true)
+            let fieldAddress = b.buildStructGEP(aggregate, index: field.index)
+            if returnAddress {
+                return fieldAddress
+            }
+            return b.buildLoad(fieldAddress)
+        }
     }
 }
 
+func canonicalize(_ void: ty.Void) -> VoidType {
+    return VoidType()
+}
+
+func canonicalize(_ boolean: ty.Boolean) -> IntType {
+    return IntType.int1
+}
+
+func canonicalize(_ integer: ty.Integer) -> IntType {
+    return IntType(width: integer.width!)
+}
+
+func canonicalize(_ float: ty.FloatingPoint) -> FloatType {
+    switch float.width! {
+    case 16: return FloatType.half
+    case 32: return FloatType.float
+    case 64: return FloatType.double
+    case 80: return FloatType.x86FP80
+    case 128: return FloatType.fp128
+    default: fatalError()
+    }
+}
+
+func canonicalize(_ pointer: ty.Pointer) -> LLVM.PointerType {
+    return LLVM.PointerType(pointee: canonicalize(pointer.pointeeType))
+}
+
+func canonicalize(_ fn: ty.Function) -> FunctionType {
+    var paramTypes: [IRType] = []
+
+    let requiredParams = fn.isVariadic ? fn.params[..<(fn.params.endIndex - 1)] : ArraySlice(fn.params)
+    for param in requiredParams {
+        let type = canonicalize(param)
+        paramTypes.append(type)
+    }
+    let retType = canonicalize(fn.returnType)
+    return FunctionType(argTypes: paramTypes, returnType: retType, isVarArg: fn.isCVariadic)
+}
+
+/// - Returns: A StructType iff tuple.types > 1
+func canonicalize(_ tuple: ty.Tuple) -> IRType {
+    let types = tuple.types.map(canonicalize)
+    switch types.count {
+    case 1:
+        return types[0]
+    default:
+        return LLVM.StructType(elementTypes: types, isPacked: true)
+    }
+}
+
+func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
+    return struc.ir.val!
+}
 
 func canonicalize(_ type: Type) -> IRType {
 
     switch type {
     case is ty.Void:
-        return VoidType()
+        return canonicalize(type)
     case is ty.Boolean:
-        return IntType.int1
+        return canonicalize(type)
     case let type as ty.Integer:
-        return IntType(width: type.width!)
+        return canonicalize(type)
     case let type as ty.FloatingPoint:
-        switch type.width! {
-        case 16: return FloatType.half
-        case 32: return FloatType.float
-        case 64: return FloatType.double
-        case 80: return FloatType.x86FP80
-        case 128: return FloatType.fp128
-        default: fatalError()
-        }
+        return canonicalize(type)
     case let type as ty.Pointer:
-        return LLVM.PointerType(pointee: canonicalize(type.pointeeType))
+        return canonicalize(type)
     case let type as ty.Function:
-        var paramTypes: [IRType] = []
-
-        let requiredParams = type.isVariadic ? type.params[..<(type.params.endIndex - 1)] : ArraySlice(type.params)
-        for param in requiredParams {
-            let type = canonicalize(param)
-            paramTypes.append(type)
-        }
-        let retType = canonicalize(type.returnType)
-        return FunctionType(argTypes: paramTypes, returnType: retType, isVarArg: type.isCVariadic)
+        return canonicalize(type)
     case let type as ty.Struct:
-        return type.ir.val!
+        return canonicalize(type)
     case let type as ty.Tuple:
-        let types = type.types.map(canonicalize)
-        switch types.count {
-        case 1:
-            return types[0]
-        default:
-            return LLVM.StructType(elementTypes: types, isPacked: true)
-        }
-    default:
+        return canonicalize(type)
+    case let type as ty.Polymorphic:
         fatalError()
+    default:
+        preconditionFailure()
     }
 }
 

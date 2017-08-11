@@ -475,12 +475,14 @@ extension Checker {
                         continue
                     }
 
+                    el.structField = field
                     el.type = check(expr: el.value, desiredType: field.type)
                     guard canConvert(el.type, to: field.type) || implicitlyConvert(el.type, to: field.type) else {
                         reportError("Cannot convert type '\(el.type)' to expected type '\(field.type)'", at: el.value.start)
                         continue
                     }
                 } else {
+                    el.structField = field
                     el.type = check(expr: el.value, desiredType: field.type)
                     guard canConvert(el.type, to: field.type) || implicitlyConvert(el.type, to: field.type) else {
                         reportError("Cannot convert type '\(el.type!)' to expected type '\(field.type)'", at: el.value.start)
@@ -548,10 +550,7 @@ extension Checker {
         var needsSpecialization = false
         var params: [Type] = []
         for param in fn.params.list {
-            if fn.isSpecialization && param.type != nil {
-                // The polymorphic parameters type has been set by the callee
-                continue
-            }
+
             needsSpecialization = needsSpecialization || (param.explicitType is PolyType) || param.isExplicitPoly
 
             var type = check(param: param)
@@ -564,6 +563,14 @@ extension Checker {
                 }
             }
 
+            if let polyType = type as? ty.Polymorphic, fn.isSpecialization && !param.isExplicitPoly {
+                type = polyType.specialization.val!
+            }
+
+            if fn.isSpecialization {
+                assert(!(type is ty.Polymorphic) || param.isExplicitPoly)
+            }
+
             params.append(type)
         }
 
@@ -571,6 +578,9 @@ extension Checker {
         for resultType in fn.results.types {
             var type = check(expr: resultType)
             type = lowerFromMetatype(type, atNode: resultType)
+            if let polyType = type as? ty.Polymorphic, fn.isSpecialization {
+                type = polyType.specialization.val!
+            }
             returnTypes.append(type)
         }
 
@@ -588,7 +598,7 @@ extension Checker {
         }
         context.expectedReturnType = nil
 
-        if needsSpecialization {
+        if needsSpecialization && !fn.isSpecialization {
             typeFlags.insert(.polymorphic)
             fn.type = ty.Function(entity: .anonymous, node: fn, params: params, returnType: returnType, flags: .polymorphic)
             fn.checked = .polymorphic(declaringScope: context.scope, specializations: [])
@@ -852,7 +862,6 @@ extension Checker {
         case let file as ty.File:
             guard let member = file.memberScope.lookup(selector.sel.name) else {
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
-                selector.checked = .invalid
                 return ty.invalid
             }
             selector.checked = .file(member)
@@ -861,7 +870,6 @@ extension Checker {
         case let strućt as ty.Struct:
             guard let field = strućt.fields.first(where: { $0.name == selector.sel.name }) else {
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
-                selector.checked = .invalid
                 return ty.invalid
             }
             selector.checked = .struct(field)
@@ -869,7 +877,6 @@ extension Checker {
 
         default:
             reportError("Type '\(aggregateType)', does not have a member scope", at: selector.start)
-            selector.checked = .invalid
             return ty.invalid
         }
     }
@@ -998,36 +1005,6 @@ extension Checker {
         cast.checked = .cast(op)
         return targetType
     }
-//
-//    mutating func checkPoly(call: Call, calleeType: ty.Function) -> Type {
-//        let fnLit = calleeType.node!
-//
-//        guard case .polymorphic(let declaringScope, var specializations)? = fnLit.checked else {
-//            preconditionFailure()
-//        }
-//
-//        var specializationTypes: [Type] = []
-//        var functionScope = Scope(parent: declaringScope)
-//        var indicesOfExplicitPolymorphicParams: [Int] = []
-//        for (index, (param, arg)) in zip(fnLit.params.list, call.args).enumerated()
-//            where param.isExplicitPoly || param.type is ty.Polymorphic
-//        {
-//            let argType = check(expr: arg, desiredType: param.type)
-//
-//            if param.isExplicitPoly {
-//
-//                guard canConvert(argType, to: param.type) || implicitlyConvert(argType, to: param.type) else {
-//                    reportError("Cannot convert type '\(argType)' to expected type '\(param.type)'", at: arg.start)
-//                    continue
-//                }
-//
-//                indicesOfExplicitPolymorphicParams.append(index)
-//                specializationTypes.append(argType)
-//
-//
-//            }
-//        }
-//    }
 
     mutating func check(polymorphicCall call: Call, calleeType: ty.Function) -> Type {
         let fnLitNode = calleeType.node!
@@ -1089,6 +1066,7 @@ extension Checker {
 
         // generated a new specialization
         let generated = copy(fnLitNode)
+        generated.flags.insert(.specialization)
 
         var specializationTypesCopy = specializationTypes
         for (param, generatedParam) in zip(fnLitNode.params.list, generated.params.list)
@@ -1096,8 +1074,6 @@ extension Checker {
         {
             generatedParam.entity.type = specializationTypesCopy.removeFirst()
         }
-
-        generated.flags.insert(.specialization)
 
         let prevScope = context.scope
         context.scope = functionScope

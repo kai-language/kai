@@ -113,5 +113,106 @@ extension SourcePackage {
             threadPool.add(job: file.parsingJob)
         }
     }
+
+
+    var objpath: String {
+        return buildDirectory + moduleName + ".o"
+    }
+
+    public func validateIntermediateRepresentation() {
+        do {
+            try module.verify()
+        } catch {
+            try! module.print(to: "/dev/stdout")
+            print(error)
+            exit(1)
+        }
+    }
+
+    public func compileIntermediateRepresentation() {
+        do {
+            try targetMachine.emitToFile(
+                module: module,
+                type: .object,
+                path: objpath
+            )
+        } catch {
+            print("ERROR: \(error)")
+            print("  While emitting object file to \(objpath)")
+            exit(1)
+        }
+    }
+
+    public func link() {
+        let clangPath = getClangPath()
+
+        var args = ["-o", moduleName, objpath]
+        for library in linkedLibraries {
+            if library.hasSuffix(".framework") {
+
+                let frameworkName = library.components(separatedBy: ".").first!
+
+                args.append("-framework")
+                args.append(frameworkName)
+
+                guard library == basename(path: library) else {
+                    print("ERROR: Only system frameworks are supported")
+                    exit(1)
+                }
+            } else {
+                args.append(library)
+            }
+        }
+
+        shell(path: clangPath, args: ["-o", moduleName, objpath])
+    }
+
+    public func cleanupBuildProducts() {
+        do {
+            try removeFile(at: buildDirectory)
+        } catch {
+            print("ERROR: \(error)")
+            print("  While cleaning up build directory")
+            exit(1)
+        }
+    }
+
+    public func emitIr() {
+        do {
+            try module.print(to: "/dev/stdout")
+        } catch {
+            print("ERROR: \(error)")
+            print("  While emitting IR to '/dev/stdout'")
+            exit(1)
+        }
+    }
+
+    public func emitBitcode() {
+        do {
+            try targetMachine.emitToFile(
+                module: module,
+                type: .bitCode,
+                path: "/dev/stdout"
+            )
+        } catch {
+            print("ERROR: \(error)")
+            print("  While emitting Bitcode")
+            exit(1)
+        }
+    }
+
+    public func emitAssembly() {
+        do {
+            try targetMachine.emitToFile(
+                module: module,
+                type: .assembly,
+                path: "/dev/stdout"
+            )
+        } catch {
+            print("ERROR: \(error)")
+            print("  While emitting Assembly")
+            exit(1)
+        }
+    }
 }
 

@@ -417,9 +417,9 @@ extension Parser {
         let el = parseExpr()
         if tok == .colon {
             let colon = eatToken()
-            return KeyValue(key: el, colon: colon, value: parseExpr(), type: nil)
+            return KeyValue(key: el, colon: colon, value: parseExpr(), type: nil, structField: nil)
         }
-        return KeyValue(key: nil, colon: nil, value: el, type: nil)
+        return KeyValue(key: nil, colon: nil, value: el, type: nil, structField: nil)
     }
 
     mutating func parseElementList() -> [KeyValue] {

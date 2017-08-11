@@ -349,7 +349,8 @@ func copy(_ node: KeyValue) -> KeyValue {
         key: node.key.map(copy),
         colon: node.colon,
         value: copy(node.value),
-        type: node.type
+        type: node.type,
+        structField: node.structField
     )
 }
 
