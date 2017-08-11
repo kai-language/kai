@@ -550,6 +550,10 @@ extension Checker {
         var needsSpecialization = false
         var params: [Type] = []
         for param in fn.params.list {
+            if fn.isSpecialization && param.type != nil {
+                // The polymorphic parameters type has been set by the callee
+                continue
+            }
 
             needsSpecialization = needsSpecialization || (param.explicitType is PolyType) || param.isExplicitPoly
 
