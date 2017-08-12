@@ -16,4 +16,4 @@ script:
   - echo $PATH
   - swift .build/checkouts/LLVMSwift.git-*/utils/make-pkgconfig.swift
   - swift build -Xcc -I/usr/local/opt/llvm/include -Xlinker -L/usr/local/opt/llvm/lib
-  - .build/debug/kai --emit-all samples/main.kai
+  - .build/debug -emit-times code/main.kai
