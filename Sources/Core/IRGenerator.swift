@@ -708,17 +708,16 @@ func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
 func canonicalize(_ type: Type) -> IRType {
 
     switch type {
-    case is ty.Void:
-        return VoidType()
-    case is ty.Boolean:
-        return IntType.int1
+    case let type as ty.Void:
+        return canonicalize(type)
+    case let type as ty.Boolean:
+        return canonicalize(type)
     case let type as ty.Integer:
-        return IntType(width: type.width!)
+        return canonicalize(type)
     case let type as ty.FloatingPoint:
-        return type.width == 64 ? FloatType.double : FloatType.float
+        return canonicalize(type)
     case let type as ty.Pointer:
-        let pointeeType = canonicalize(type)
-        return LLVM.PointerType(pointee: pointeeType)
+        return canonicalize(type)
     case let type as ty.Function:
         return canonicalize(type)
     case let type as ty.Struct:
