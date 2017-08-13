@@ -552,6 +552,7 @@ extension Checker {
         for param in fn.params.list {
             if fn.isSpecialization && param.type != nil {
                 // The polymorphic parameters type has been set by the callee
+                params.append(param.type)
                 continue
             }
 
