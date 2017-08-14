@@ -1,11 +1,16 @@
 import LLVM
 
-protocol Type {
+protocol Type: CustomStringConvertible {
     var width: Int? { get }
 }
 
 extension Type {
-    
+    // The the type doesn't have a width, then we assume it is nil
+    var width: Int? { return nil }
+}
+
+extension Type {
+
     func lower() -> Type {
         return (self as! ty.Metatype).instanceType
     }
@@ -37,6 +42,12 @@ func == (lhs: Type, rhs: Type) -> Bool {
         return lhs.types == rhs.types
     case (let lhs as ty.Metatype, let rhs as ty.Metatype):
         return lhs.instanceType == rhs.instanceType
+    case (let lhs as ty.Polymorphic, let rhs as ty.Polymorphic):
+        return lhs.entity.ident.start == rhs.entity.ident.start
+    case (let lhs as ty.Polymorphic, _):
+        return lhs.specialization.val! == rhs
+    case (_, let rhs as ty.Polymorphic):
+        return rhs.specialization.val! == lhs
     default:
         return false
     }
@@ -55,14 +66,8 @@ extension Array where Element == Type {
 
 func canConvert(_ lhs: Type, to rhs: Type) -> Bool {
 
-    if lhs is ty.Type {
-        return rhs is ty.Metatype || (rhs as! ty.Metatype).entity === BuiltinType.type.entity
-    }
-    if let lhs = lhs as? ty.Metatype, lhs.entity === BuiltinType.type.entity {
-        return (rhs as? ty.Metatype)?.entity === BuiltinType.type.entity
-    }
-    if let rhs = rhs as? ty.Metatype, rhs.entity === BuiltinType.type.entity {
-        return (lhs as? ty.Metatype)?.entity === BuiltinType.type.entity
+    if lhs is ty.Metatype || rhs is ty.Metatype {
+        return (rhs as? ty.Metatype)?.entity === Entity.type || (lhs as? ty.Metatype)?.entity === Entity.type
     }
     if let lhs = lhs as? ty.Metatype, let rhs = rhs as? ty.Metatype {
         return canConvert(lhs.instanceType, to: rhs.instanceType)
@@ -80,24 +85,29 @@ func canConvert(_ lhs: Type, to rhs: Type) -> Bool {
 enum ty {
 
     struct Void: Type {
-        var width: Int? = 0
+        unowned var entity: Entity = .void
+        var width: Int? { return 0 }
     }
 
     struct Boolean: Type {
-        var width: Int? = 1
+        unowned var entity: Entity = .bool
+        var width: Int? { return 1 }
     }
 
     struct Integer: Type {
-        var width: Int? = 0
+        unowned var entity: Entity = .anonymous
+        var width: Int?
         var isSigned: Bool
     }
 
     struct FloatingPoint: Type {
-        var width: Int? = nil
+        unowned var entity: Entity = .anonymous
+        var width: Int?
     }
 
     struct Pointer: Type {
-        var width: Int? = MemoryLayout<Int>.size
+        unowned var entity: Entity = .anonymous
+        var width: Int? { return MemoryLayout<Int>.size }
         var pointeeType: Type
 
         init(pointeeType: Type) {
@@ -105,14 +115,20 @@ enum ty {
         }
     }
 
+    struct Anyy: Type {
+        unowned var entity: Entity = .any
+        var width: Int? { return 64 }
+    }
+
     struct Struct: Type {
-        var width: Int? = 0
+        unowned var entity: Entity = .anonymous
+        var width: Int?
 
         var node: Node
         var fields: [Field] = []
 
         /// Used for the named type
-        var ir: Ref<IRType?>
+        var ir: Ref<LLVM.StructType?>
 
         struct Field {
             let ident: Ident
@@ -126,7 +142,7 @@ enum ty {
             }
         }
 
-        static func make(named name: String, builder: IRBuilder, _ members: [(String, Type)]) -> Type {
+        static func make(named name: String, builder: IRBuilder, _ members: [(String, Type)]) -> BuiltinType {
 
             var width = 0
             var fields: [Struct.Field] = []
@@ -147,19 +163,24 @@ enum ty {
                 irTypes.append(fieldType)
             }
 
+            let entity = Entity.makeBuiltin(name)
+
             irType.setBody(irTypes)
 
-            let type = Struct(width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields, ir: Ref(irType))
-            return Metatype(instanceType: type)
+            var type: Type
+            type = Struct(entity: entity, width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields, ir: Ref(irType))
+            type = Metatype(instanceType: type)
+
+            entity.type = type
+            return BuiltinType(entity: entity, type: type)
         }
     }
 
     struct Function: Type {
-        var width: Int? = 0
-
+        unowned var entity: Entity = .anonymous
         var node: FuncLit?
         var params: [Type]
-        var returnType: Type
+        var returnType: Tuple
         var flags: Flags
 
         struct Flags: OptionSet {
@@ -173,50 +194,47 @@ enum ty {
         }
     }
 
-    struct Tuple: Type {
-        var width: Int?
-        var types: [Type]
-
-        static func make(_ types: [Type]) -> Type {
-
-            let width = types.map({ $0.width ?? 0 }).reduce(0, +)
-
-            let type = Tuple(width: width, types: types)
-
-            return type
-        }
-    }
-
-    struct Polymorphic: Type {
-        var width: Int? = nil
-    }
-
     struct Metatype: Type {
-        weak var entity: Entity? = nil
-        var width: Int? = nil
+        unowned var entity: Entity = .anonymous
         var instanceType: Type
 
         init(instanceType: Type) {
             self.instanceType = instanceType
         }
+
+        init(entity: Entity, instanceType: Type) {
+            self.entity = entity
+            self.instanceType = instanceType
+        }
+    }
+
+    struct Polymorphic: Type {
+        unowned var entity: Entity
+        var specialization: Ref<Type?>
+    }
+
+    /// - Note: Only used in Function
+    struct Tuple: Type {
+        var width: Int?
+        var types: [Type]
+
+        static func make(_ types: [Type]) -> Tuple {
+
+            let width = types.map({ $0.width ?? 0 }).reduce(0, +)
+
+            return Tuple(width: width, types: types)
+        }
     }
 
     struct Invalid: Type {
         static let instance = Invalid()
-        var width: Int? = nil
-    }
-
-    struct Anyy: Type {
-        var width: Int? = 64
     }
 
     struct CVarArg: Type {
         static let instance = CVarArg()
-        var width: Int? = nil
     }
 
     struct File: Type {
-        var width: Int? = nil
         let memberScope: Scope
 
         init(memberScope: Scope) {

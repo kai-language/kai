@@ -15,6 +15,10 @@ class Entity: CustomStringConvertible {
         return ident.name
     }
 
+    // TODO: These need to be set in the checker
+//    var callconv: String? = nil
+//    var linkname: String? = nil
+
     struct Flag: OptionSet {
         let rawValue: UInt16
         static let none         = Flag(rawValue: 0b0000_0000)
@@ -22,7 +26,7 @@ class Entity: CustomStringConvertible {
         static let file         = Flag(rawValue: 0b0000_0010)
         static let library      = Flag(rawValue: 0b0000_0100)
         static let type         = Flag(rawValue: 0b0001_0000)
-        static let compileTime  = Flag(rawValue: 0b0010_0000)
+        static let constant     = Flag(rawValue: 0b0010_0000)
         static let implicitType = Flag(rawValue: 0b0111_0000)
         static let foreign      = Flag(rawValue: 0b1000_0000)
         static let label        = Flag(rawValue: 0b0000_0001 << 8)
@@ -47,10 +51,10 @@ init(ident: Ident, type: Type?, flags: Flag, memberScope: Scope?, owningScope: S
 
 extension Entity {
 
-    static func makeBuiltin(_ name: String, type: Type? = nil) -> Entity {
+    static func makeBuiltin(_ name: String, type: Type? = nil, flags: Flag = .none) -> Entity {
 
         let ident = Ident(start: noPos, name: name, entity: nil)
-        let entity = Entity(ident: ident, type: type, flags: .compileTime, memberScope: nil, owningScope: nil, value: nil)
+        let entity = Entity(ident: ident, type: type, flags: .constant, memberScope: nil, owningScope: nil, value: nil)
         return entity
     }
 

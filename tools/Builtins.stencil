@@ -2,7 +2,7 @@
 extension Entity {
 {% for type in types.all where type.name == "BuiltinType" %}
 {% for var in type.staticVariables %}
-    static let {{ var.name }} = BuiltinType.{{ var.name }}.entity
+    static let {{ var.name }} = Entity.makeBuiltin("{{ var.name }}", flags: .type)
 {% endfor %}
 {% endfor %}
 }

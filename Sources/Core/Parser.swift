@@ -23,12 +23,12 @@ struct Parser {
         self.syncPos = pos
     }
 
-    mutating func parseFile() -> [Node] {
+    mutating func parseFile() -> [TopLevelStmt] {
 
         consumeComments()
-        var nodes: [Node] = []
+        var nodes: [TopLevelStmt] = []
         while tok != .eof {
-            let node = parseStmt()
+            let node = parseTopLevelStmt()
             expectTerm()
             nodes.append(node)
             consumeComments()
@@ -278,7 +278,7 @@ extension Parser {
         } else if tok == .directive && lit == "cvargs" {
             next()
             let ellipsis = expect(.ellipsis)
-            let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: false, type: nil)
+            let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: true, type: nil)
             return [variadic]
         }
         var list = [parseType(allowPolyType: true)]
@@ -292,20 +292,12 @@ extension Parser {
             } else if tok == .directive && lit == "cvargs" {
                 next()
                 let ellipsis = expect(.ellipsis)
-                let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: false, type: nil)
+                let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: true, type: nil)
                 return [variadic]
             }
             list.append(parseType(allowPolyType: true))
         }
         return list
-    }
-
-    mutating func parseTypeOrPolyType() -> Expr {
-        if tok == .dollar {
-            let dollar = eatToken()
-            return PolyType(dollar: dollar, explicitType: parseType(), type: nil)
-        }
-        return parseType()
     }
 
     mutating func parseStructType() -> Expr {
@@ -347,7 +339,7 @@ extension Parser {
         expect(.retArrow)
         let results = parseResultList()
         let body = parseBlock()
-        return FuncLit(keyword: keyword, params: signature, results: results, body: body, flags: .none, type: nil)
+        return FuncLit(keyword: keyword, params: signature, results: results, body: body, flags: .none, type: nil, checked: nil)
     }
 
     mutating func parseSignature() -> ParameterList {
@@ -361,37 +353,26 @@ extension Parser {
     }
 
     mutating func parseParameterList() -> [Parameter] {
-        var list = [parseParameter()]
+        var list = parseParameters()
         while tok == .comma {
             next()
-            list.append(parseParameter())
+            list.append(contentsOf: parseParameters())
         }
         return list
     }
 
-    mutating func parseParameter() -> Parameter {
-        let names = parseParameterNames()
-        // TODO: Explicit Poly Parameters
+    mutating func parseParameters() -> [Parameter] {
+        if tok == .dollar {
+            let dollar = eatToken()
+            let name = parseIdent()
+            expect(.colon)
+            let type = parseType(allowPolyType: false)
+            return [Parameter(dollar: dollar, name: name, explicitType: type, entity: nil)]
+        }
+        let names = parseIdentList()
         expect(.colon)
-        let type = parseType()
-        return Parameter(names: names, explicitType: type, entity: nil)
-    }
-
-    mutating func parseParameterNames() -> [(poly: Bool, Ident)] {
-        var poly = tok == .dollar
-        if poly {
-            next()
-        }
-        var list = [(poly, parseIdent())]
-        while tok == .comma {
-            next()
-            poly = tok == .dollar
-            if poly {
-                next()
-            }
-            list.append((poly, parseIdent()))
-        }
-        return list
+        let type = parseType(allowPolyType: true)
+        return names.map({ Parameter(dollar: nil, name: $0, explicitType: type, entity: nil) })
     }
 
     mutating func parseResultList() -> ResultList {
@@ -418,13 +399,13 @@ extension Parser {
     }
 
     mutating func parseResult() -> Expr {
-        var type = parseTypeOrPolyType()
+        var type = parseType(allowPolyType: true)
         if tok == .colon {
             if !(type is Ident) {
                 reportExpected("identifier", at: type.start)
             }
             next()
-            type = parseTypeOrPolyType()
+            type = parseType(allowPolyType: true)
         }
         return type
     }
@@ -436,9 +417,9 @@ extension Parser {
         let el = parseExpr()
         if tok == .colon {
             let colon = eatToken()
-            return KeyValue(key: el, colon: colon, value: parseExpr(), type: nil)
+            return KeyValue(key: el, colon: colon, value: parseExpr(), type: nil, structField: nil)
         }
-        return KeyValue(key: nil, colon: nil, value: el, type: nil)
+        return KeyValue(key: nil, colon: nil, value: el, type: nil, structField: nil)
     }
 
     mutating func parseElementList() -> [KeyValue] {
@@ -468,6 +449,15 @@ extension Parser {
 // - MARK: Declarations And Statements
 
 extension Parser {
+
+    mutating func parseTopLevelStmt() -> TopLevelStmt {
+        let stmt = parseStmt()
+        guard let tlStmt = stmt as? TopLevelStmt else {
+            reportError("Expected a top level statement", at: stmt.start)
+            return BadStmt(start: stmt.start, end: stmt.end)
+        }
+        return tlStmt
+    }
 
     mutating func parseStmt() -> Stmt {
         switch tok {
@@ -536,24 +526,24 @@ extension Parser {
             if tok == .assign {
                 next()
                 let values = parseExprList()
-                return Declaration(names: names, explicitType: nil, values: values, isConstant: false, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: nil, values: values, isConstant: false, callconv: nil, linkname: nil, entities: nil)
             } else if tok == .colon {
                 next()
                 let values = parseExprList()
-                return Declaration(names: names, explicitType: nil, values: values, isConstant: true, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: nil, values: values, isConstant: true, callconv: nil, linkname: nil, entities: nil)
             }
             let type = parseType()
             switch tok {
             case .assign:
                 next()
                 let values = parseExprList()
-                return Declaration(names: names, explicitType: type, values: values, isConstant: false, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: type, values: values, isConstant: false, callconv: nil, linkname: nil, entities: nil)
             case .colon:
                 next()
                 let values = parseExprList()
-                return Declaration(names: names, explicitType: type, values: values, isConstant: true, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: type, values: values, isConstant: true, callconv: nil, linkname: nil, entities: nil)
             default:
-                return Declaration(names: names, explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil, entities: nil)
             }
         default:
             break
@@ -655,7 +645,7 @@ extension Parser {
             reportExpected("expression", at: s2.start)
             cond = BadExpr(start: s2.start, end: s2.end)
         }
-        return For(keyword: keyword, initializer: s1, cond: cond, post: s3, body: body)
+        return For(keyword: keyword, initializer: s1, cond: cond, step: s3, body: body)
     }
 }
 
@@ -690,7 +680,7 @@ extension Parser {
             if tok == .ident {
                 alias = parseIdent()
             }
-            return Library(directive: directive, path: path, alias: alias)
+            return Library(directive: directive, path: path, alias: alias, resolvedName: nil)
         case "foreign":
             let library = parseIdent()
             switch tok {
@@ -772,10 +762,10 @@ extension Parser {
         } else if tok == .colon {
             next()
             let type = parseType()
-            return Declaration(names: [name], explicitType: type, values: [], isConstant: true, callconv: nil, linkname: nil)
+            return Declaration(names: [name], explicitType: type, values: [], isConstant: true, callconv: nil, linkname: nil, entities: nil)
         } else {
             let type = parseType()
-            return Declaration(names: [name], explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil)
+            return Declaration(names: [name], explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil, entities: nil)
         }
     }
 

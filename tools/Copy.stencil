@@ -1,0 +1,74 @@
+
+{% for type in types.implementing.Node|!protocol %}
+
+func copy(_ node: {{ type.name }}) -> {{ type.name }} {
+    return {{ type.name }}({% for var in type.storedVariables %}
+        {{ var.name }}: {% if var.isImplicitlyUnwrappedOptional and var.unwrappedTypeName == "Scope" %}copy(node.{{ var.name }}){% elif var.isImplicitlyUnwrappedOptional %}node.{{ var.name }}{% elif var.isArray and var.typeName != "[Entity]!" %}copy(node.{{ var.name }}){% elif var.isOptional and var.type|implements:"Node" and var.typeName != "[Entity]!" %}node.{{ var.name }}.map(copy){% elif var.type|implements:"Node" %}copy(node.{{ var.name }}){% else %}node.{{ var.name }}{% endif %}{% if not forloop.last %},{% endif %}{% endfor %}
+    )
+}
+
+func copy(_ nodes: [{{ type.name }}]) -> [{{ type.name }}] {
+    return nodes.map(copy)
+}
+{% endfor %}
+
+func copy(_ node: Expr) -> Expr {
+    switch node {
+    {% for type in types.implementing.Expr|!protocol %}
+    case let node as {{ type.name }}: return copy(node)
+    {% endfor %}
+    default: fatalError()
+    }
+}
+
+func copy(_ nodes: [Expr]) -> [Expr] {
+    return nodes.map(copy)
+}
+
+func copy(_ node: Stmt) -> Stmt {
+    switch node {
+    {% for type in types.implementing.Stmt|!protocol %}
+    case let node as {{ type.name }}: return copy(node)
+    {% endfor %}
+    default: fatalError()
+    }
+}
+
+func copy(_ nodes: [Stmt]) -> [Stmt] {
+    return nodes.map(copy)
+}
+
+func copy(_ node: Decl) -> Decl {
+    switch node {
+    {% for type in types.implementing.Decl|!protocol %}
+    case let node as {{ type.name }}: return copy(node)
+    {% endfor %}
+    default: fatalError()
+    }
+}
+
+func copy(_ nodes: [Decl]) -> [Decl] {
+    return nodes.map(copy)
+}
+
+func copy(_ scope: Scope) -> Scope {
+    return Scope(
+        parent: scope.parent,
+        owningNode: scope.owningNode,
+        isFile: scope.isFile,
+        isPackage: scope.isPackage,
+        members: scope.members.map(copy)
+    )
+}
+
+func copy(_ entity: Entity) -> Entity {
+    return Entity(
+        ident: entity.ident,
+        type: entity.type,
+        flags: entity.flags,
+        memberScope: entity.memberScope,
+        owningScope: entity.owningScope,
+        value: entity.value
+    )
+}
+

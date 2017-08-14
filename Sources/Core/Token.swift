@@ -12,9 +12,6 @@ enum Token: UInt8 {
     case float
     case string
 
-    // Operators
-    case address // &
-
     case add     // +
     case sub     // -
     case mul     // *
@@ -108,11 +105,11 @@ struct Pos: Comparable {
     }
 
     static func ==(lhs: Pos, rhs: Pos) -> Bool {
-        return lhs.offset == rhs.offset && rhs.fileno == rhs.offset
+        return lhs.offset == rhs.offset && rhs.fileno == rhs.fileno
     }
 
     static func <(lhs: Pos, rhs: Pos) -> Bool {
-        return lhs.offset < rhs.offset && rhs.fileno == rhs.offset
+        return lhs.offset < rhs.offset && rhs.fileno == rhs.fileno
     }
 
     static let filenomask: UInt64 = 0xFF00000000000000
@@ -144,7 +141,6 @@ extension Token: CustomStringConvertible {
         case .int:       return "<int>"
         case .float:     return "<float>"
         case .string:    return "<string>"
-        case .address:   return "&"
         case .add:       return "+"
         case .sub:       return "-"
         case .mul:       return "*"

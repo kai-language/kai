@@ -2,30 +2,34 @@
 import LLVM
 
 struct BuiltinType {
-
     var entity: Entity
     var type: Type
 
-    init(name: String, type: Type) {
-
+    init(entity: Entity, type: Type) {
+        self.entity = entity
         self.type = type
-        self.entity = Entity.makeBuiltin(name, type: ty.Metatype(instanceType: type))
-        entity.flags.insert(.type)
     }
+    static let void = BuiltinType(entity: .void, type: ty.Void() )
+    static let any  = BuiltinType(entity: .any,  type: ty.Anyy())
 
-    static let void = BuiltinType(name: "void", type: ty.Void())
-    static let type = BuiltinType(name: "type", type: ty.Void())
-    static let any  = BuiltinType(name: "any",  type: ty.Anyy())
+    static let bool = BuiltinType(entity: .bool,    type: ty.Boolean())
+    static let rawptr = BuiltinType(entity: .rawptr, type: ty.Pointer(pointeeType: ty.u8))
+    static let string = BuiltinType(entity: .string, type: ty.rawptr) // FIXME: String type
 
-    static let bool = BuiltinType(name: "bool",     type: ty.Boolean())
-    static let rawptr = BuiltinType(name: "rawptr", type: ty.Pointer(pointeeType: ty.u8))
-    static let string = BuiltinType(name: "string", type: ty.rawptr)
+    static let f32 = BuiltinType(entity: .f32, type: ty.FloatingPoint(entity: .f32, width: 32))
+    static let f64 = BuiltinType(entity: .f64, type: ty.FloatingPoint(entity: .f64, width: 64))
+    static let u8  = BuiltinType(entity: .u8,  type: ty.Integer(entity: Entity.u8, width: 8,  isSigned: false))
+    static let i32 = BuiltinType(entity: .i32, type: ty.Integer(entity: Entity.i32, width: 32, isSigned: true))
+    static let i64 = BuiltinType(entity: .i64, type: ty.Integer(entity: Entity.i64, width: 64, isSigned: true))
 
-    static let f32 = BuiltinType(name: "f32", type: ty.FloatingPoint())
-    static let f64 = BuiltinType(name: "f64", type: ty.FloatingPoint())
-    static let u8  = BuiltinType(name: "u8",  type: ty.Integer(width: 8,  isSigned: false))
-    static let i32 = BuiltinType(name: "i32", type: ty.Integer(width: 32, isSigned: true))
-    static let i64 = BuiltinType(name: "i64", type: ty.Integer(width: 64, isSigned: true))
+    /// - Note: The type type only exists at compile time
+    static let type = BuiltinType(entity: .type, type: ty.Metatype(entity: Entity.type, instanceType: ty.Tuple(width: 0, types: [])))
+
+    static let TypeInfo = ty.Struct.make(named: "TypeInfo", builder: stdlib.builder, [
+        ("kind", ty.u8), // TODO: Make this an enumeration
+        ("name", ty.string),
+        ("width", ty.i64),
+    ])
 }
 
 extension Entity {
@@ -41,12 +45,6 @@ extension ty {
     static let invalid  = ty.Invalid.instance
     static let cvargAny = ty.CVarArg.instance
 }
-
-let typeInfoTy = ty.Struct.make(named: "TypeInfo", builder: stdlib.builder, [
-    ("kind", ty.u8), // TODO: Make this an enumeration
-    ("name", ty.string),
-    ("width", ty.i64),
-])
 
 
 // sourcery:noinit
@@ -86,9 +84,9 @@ class BuiltinEntity {
     static let falsé = BuiltinEntity(name: "false", type: ty.bool, gen: { $0.addGlobal("false", initializer: false.asLLVM()) })
 }
 
-let polymorphicT = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
-let polymorphicU = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
-let polymorphicV = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
+//let polymorphicT = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
+//let polymorphicU = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
+//let polymorphicV = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
 
 func lookupBuiltinFunction(_ fun: Expr) -> BuiltinFunction? {
     return builtinFunctions.first(where: { $0.entity.name == (fun as? Ident)?.name })
@@ -97,7 +95,7 @@ func lookupBuiltinFunction(_ fun: Expr) -> BuiltinFunction? {
 // sourcery:noinit
 class BuiltinFunction {
     // TODO: Take IRGen too
-    typealias Generate = (BuiltinFunction, [Expr], Void) -> IRValue
+    typealias Generate = (BuiltinFunction, [Expr], inout IRGenerator) -> IRValue
     typealias CallCheck = (inout Checker, Call) -> Type
 
     var entity: Entity
@@ -117,7 +115,7 @@ class BuiltinFunction {
     /// - Note: OutTypes must be metatypes and will be made instance instanceTypes
     static func make(_ name: String, in inTypes: [Type], out outTypes: [Type], isVariadic: Bool = false, gen: @escaping Generate, onCallCheck: CallCheck? = nil) -> BuiltinFunction {
         let returnType = ty.Tuple.make(outTypes.map(ty.Metatype.init))
-        let type = ty.Function(width: nil, node: nil, params: inTypes, returnType: returnType, flags: .none)
+        let type = ty.Function(entity: .anonymous, node: nil, params: inTypes, returnType: returnType, flags: .none)
 
         let ident = Ident(start: noPos, name: name, entity: nil)
         let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil)
@@ -126,3 +124,40 @@ class BuiltinFunction {
     }
 }
 
+/*
+var typeInfoValues: [Type: IRValue] = [:]
+func typeinfoGen(builtinFunction: BuiltinFunction, parameters: [Node], generator: inout IRGenerator) -> IRValue {
+
+    let typeInfoType = Type.typeInfo.asMetatype.instanceType
+    let type = parameters[0].exprType.asMetatype.instanceType
+
+    if let global = typeInfoValues[type] {
+        return global
+    }
+
+    let aggregateType = (canonicalize(typeInfoType)) as! StructType
+
+    let typeKind = unsafeBitCast(type.kind, to: Int8.self)
+    let name = builder.buildGlobalStringPtr(type.description)
+    let width = type.width ?? 0
+
+    let values: [IRValue] = [typeKind, name, width]
+    assert(values.count == typeInfoType.asStruct.fields.count)
+
+    let global = builder.addGlobal("TI(\(type.description))", initializer: aggregateType.constant(values: values))
+
+    typeInfoValues[type] = global
+    return global
+}
+*/
+/*
+func bitcastGen(builtinFunction: BuiltinFunction, parameters: [Node], generator: inout IRGenerator) -> IRValue {
+    assert(parameters.count == 2)
+
+    let input = generator.emitExpr(node: parameters[0], returnAddress: true)
+    var outputType = canonicalize(parameters[1].exprType.asMetatype.instanceType)
+    outputType = PointerType(pointee: outputType)
+    let pointer = builder.buildBitCast(input, type: outputType)
+    return builder.buildLoad(pointer)
+}
+*/

@@ -21,8 +21,8 @@ extension Entity {
         return flags.contains(.type) 
     }
 
-    var isCompileTime: Bool {
-        return flags.contains(.compileTime) 
+    var isConstant: Bool {
+        return flags.contains(.constant) 
     }
 
     var isImplicitType: Bool {

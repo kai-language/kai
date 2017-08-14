@@ -22,7 +22,7 @@ public final class SourceFile {
     var errors: [SourceError] = []
     var notes: [Int: [String]] = [:]
 
-    var nodes: [Node] = []
+    var nodes: [TopLevelStmt] = []
 
     var handle: FileHandle
     var fullpath: String
@@ -37,6 +37,7 @@ public final class SourceFile {
 
     var parsingJob: Job!
     var checkingJob: Job!
+    var generationJob: Job!
 
     // Set in Checker
     var scope: Scope
@@ -79,10 +80,14 @@ public final class SourceFile {
         }
 
         let sourceFile = SourceFile(handle: handle, fullpath: fullpath, pathImportedAs: path, importedFrom: importedFrom, package: package)
-        sourceFile.parsingJob = Job("\(path) - Parsing", work: sourceFile.parseEmittingErrors)
-        sourceFile.checkingJob = Job("\(path) - Checking", work: sourceFile.checkEmittingErrors)
-        sourceFile.parsingJob.addDependent(sourceFile.checkingJob)
         package.files.append(sourceFile)
+
+        sourceFile.checkingJob = Job("\(path) - Checking", work: sourceFile.checkEmittingErrors)
+        sourceFile.parsingJob = Job("\(path) - Parsing", work: sourceFile.parseEmittingErrors)
+        sourceFile.generationJob = Job("\(path) - Generating IR", work: sourceFile.generateIntermediateRepresentation)
+
+        sourceFile.parsingJob.addBlocking(sourceFile.checkingJob)
+        sourceFile.checkingJob.addBlocking(sourceFile.generationJob)
         knownSourceFiles[fullpath] = sourceFile
 
         return sourceFile
@@ -92,6 +97,7 @@ public final class SourceFile {
 extension SourceFile {
 
     func add(import i: Import, importedFrom: SourceFile) {
+        imports.append(i)
 
         switch i.path {
         case let path as BasicLit where path.token == .string:
@@ -102,20 +108,27 @@ extension SourceFile {
                 return
             }
 
+            i.resolvedName = i.alias?.name ?? pathToEntityName(path.text)
             if isDirectory(path: fullpath) {
                 guard let dependency = SourcePackage.new(relpath: path.text, importedFrom: self) else {
                     preconditionFailure()
                 }
                 self.package.dependencies.append(dependency)
                 dependency.begin()
+
+                i.scope = dependency.scope
+
+                for file in dependency.files {
+                    importedFrom.checkingJob.addBlockedBy(file.checkingJob)
+                }
             } else {
                 guard let file = SourceFile.new(path: path.text, package: package, importedFrom: importedFrom) else {
                     preconditionFailure()
                 }
                 threadPool.add(job: file.parsingJob)
-                i.resolvedName = pathToEntityName(path.text)
+                i.scope = file.scope
 
-                return
+                importedFrom.checkingJob.addBlockedBy(file.checkingJob)
             }
 
         case let call as Call where (call.fun as? Ident)?.name == "github":
@@ -185,7 +198,7 @@ extension SourceFile {
     public func start() {
         let parsingJob = Job("\(basename(path: pathFirstImportedAs)) - Parsing", work: parseEmittingErrors)
         let checkingJob = Job("\(basename(path: pathFirstImportedAs)) - Checking", work: checkEmittingErrors)
-        parsingJob.addDependent(checkingJob)
+        parsingJob.addBlocking(checkingJob)
         threadPool.add(job: parsingJob)
     }
 
@@ -219,6 +232,23 @@ extension SourceFile {
         hasBeenChecked = true
         emitErrors(for: self, at: stage)
 
+        let endTime = gettime()
+        let totalTime = endTime - startTime
+        timingMutex.lock()
+        checkStageTiming += totalTime
+        timingMutex.unlock()
+    }
+
+    public func generateIntermediateRepresentation() {
+        assert(hasBeenChecked)
+        assert(!hasBeenGenerated)
+        let startTime = gettime()
+
+        stage = "IRGeneration"
+        var irGenerator = IRGenerator(file: self)
+        irGenerator.generate()
+        hasBeenGenerated = true
+        
         let endTime = gettime()
         let totalTime = endTime - startTime
         timingMutex.lock()

@@ -10,7 +10,11 @@ xcode)
 sourcery)
     ./tools/genAccessors.sh
 ;;
-
+release)
+    MACOSX_DEPLOYMENT_TARGET=10.12
+    swift build -Xswiftc -DDEBUG -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx10.12" -c release
+    cp .build/release/kai /usr/local/bin/
+;;
 *)
     MACOSX_DEPLOYMENT_TARGET=10.12
     swift build -Xswiftc -DDEBUG -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx10.12"

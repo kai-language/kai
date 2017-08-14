@@ -1,6 +1,36 @@
 
 import Darwin
 import Foundation
+import LLVM
+
+var targetMachine: TargetMachine!
+
+/// Ensures everything is preparred for compilation
+public func performCompilationPreflightChecks(with options: Options, initialFile file: SourceFile) {
+    do {
+        targetMachine = try TargetMachine()
+        try ensureBuildDirectoryExists()
+    } catch {
+        print("ERROR: \(error)")
+        print("  While performing preflight checks")
+        exit(1)
+    }
+}
+
+public func ensureBuildDirectoryExists() throws {
+    let fm = FileManager.default
+
+    var isDir: ObjCBool = false
+    if fm.fileExists(atPath: buildDirectory, isDirectory: &isDir) {
+        if !isDir.boolValue {
+            throw "cannot write to output directory \(buildDirectory)"
+        }
+    } else {
+        try fm.createDirectory(atPath: buildDirectory, withIntermediateDirectories: false, attributes: nil)
+    }
+}
+
+extension String: Swift.Error {}
 
 // sourcery:noinit
 class Ref<T> {
@@ -80,6 +110,36 @@ public func sourceFilesInDir(_ path: String, recurse: Bool = false) -> [String] 
     return files
 }
 
+func absolutePath(for filePath: String) -> String? {
+
+    let url = URL(fileURLWithPath: filePath)
+    do {
+        guard try url.checkResourceIsReachable() else { return nil }
+    } catch { return nil }
+
+    let absoluteURL = url.absoluteString
+
+    return absoluteURL.components(separatedBy: "file://").last
+}
+
+func absolutePath(for filepath: String, relativeTo file: String) -> String? {
+
+    let fileUrl = URL(fileURLWithPath: file)
+        .deletingLastPathComponent()
+        .appendingPathComponent(filepath)
+
+    do {
+        guard try fileUrl.checkResourceIsReachable() else {
+            return nil
+        }
+    } catch {
+        return nil
+    }
+
+    let absoluteURL = fileUrl.absoluteString
+    return absoluteURL.components(separatedBy: "file://").last
+}
+
 public func isDirectory(path: String) -> Bool {
 
     var buf = stat()
@@ -87,6 +147,13 @@ public func isDirectory(path: String) -> Bool {
         return false
     }
     return buf.st_mode & S_IFDIR != 0
+}
+
+func removeFile(at path: String) throws {
+
+    let fm = FileManager.default
+
+    try fm.removeItem(atPath: path)
 }
 
 extension Int {
