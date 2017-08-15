@@ -48,8 +48,10 @@ public final class SourcePackage {
         self.pathFirstImportedAs = pathImportedAs
         self.firstImportedFrom = importedFrom
         if let importedFrom = importedFrom {
-            let commonPrefix = importedFrom.fullpath.commonPrefix(with: fullpath)
-            moduleName = String(fullpath[commonPrefix.endIndex...])
+//            let commonPrefix = importedFrom.fullpath.commonPrefix(with: fullpath)
+//            moduleName = String(fullpath[commonPrefix.endIndex...])
+            let index = importedFrom.fullpath.commonPathPrefix(with: fullpath)
+            moduleName = String(fullpath[index...])
         } else {
             moduleName = basename(path: fullpath)
         }
@@ -103,6 +105,28 @@ public final class SourcePackage {
         knownSourcePackages[fullpath] = package
         return package
     }
+
+    public static func exportPackages() {
+        for (_, package) in knownSourcePackages {
+            guard !package.isInitialPackage else {
+                continue
+            }
+
+            package.compileIntermediateRepresentation()
+        }
+    }
+
+    public static func gatherLinkerFlags() -> Set<String> {
+        var libs: Set<String> = []
+
+        for (_, package) in knownSourcePackages {
+            for lib in package.linkedLibraries {
+                libs.insert(lib)
+            }
+        }
+
+        return libs
+    }
 }
 
 extension SourcePackage {
@@ -114,8 +138,7 @@ extension SourcePackage {
         }
     }
 
-
-    var objpath: String {
+    public var objpath: String {
         return buildDirectory + moduleName + ".o"
     }
 
@@ -216,3 +239,26 @@ extension SourcePackage {
     }
 }
 
+extension String {
+    func commonPathPrefix(with rhs: String) -> String.Index {
+        let lhs = self
+        let count = lhs.count > rhs.count ? lhs.count : rhs.count
+
+        var lastPath = 0
+        for i in 0..<Int(count) {
+            let a = lhs[lhs.index(lhs.startIndex, offsetBy: i)]
+            let b = rhs[rhs.index(rhs.startIndex, offsetBy: i)]
+
+            guard a == b else {
+                if lastPath > 0 { lastPath += 1 } // don't include the final `/`
+                return lhs.index(lhs.startIndex, offsetBy: lastPath)
+            }
+
+            if a == "/" {
+                lastPath = i
+            }
+        }
+
+        return lhs.index(lhs.startIndex, offsetBy: count)
+    }
+}

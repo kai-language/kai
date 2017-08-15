@@ -5,6 +5,17 @@ import LLVM
 
 var targetMachine: TargetMachine!
 
+public func initTargetMachine() {
+    // TODO: configurable targets
+    do {
+        targetMachine = try TargetMachine()
+    } catch {
+        print("ERROR: \(error)")
+        print("  While preparing target")
+        exit(1)
+    }
+}
+
 /// Ensures everything is preparred for compilation
 public func performCompilationPreflightChecks(with options: Options, initialFile file: SourceFile) {
     do {

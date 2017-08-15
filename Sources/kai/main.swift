@@ -23,6 +23,10 @@ package.begin()
 
 threadPool.waitUntilDone()
 
+initTargetMachine()
+SourcePackage.exportPackages()
+let libs = SourcePackage.gatherLinkerFlags()
+
 if Options.instance.flags.contains(.emitTimes) {
     let endTime = gettime()
     let total = endTime - startTime
