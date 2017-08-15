@@ -27,12 +27,16 @@ final class WorkerThread: Thread {
                 isIdle = false
                 let job = pool.ready.removeLast()
                 pool.mutex.unlock()
+
                 job.start()
                 job.work()
                 job.end()
+
+                pool.mutex.lock()
                 for dependent in job.blocking {
                     pool.add(job: dependent)
                 }
+                pool.mutex.unlock()
             } else {
                 isIdle = true
                 pool.mutex.unlock()

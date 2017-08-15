@@ -14,6 +14,8 @@ public struct Options {
             switch arg {
             case "-no-cleanup":
                 flags.insert(.noCleanup)
+            case "-emit-ast":
+                flags.insert(.emitAst)
             case "-emit-times":
                 flags.insert(.emitTimes)
             case "-emit-debug-times":
@@ -52,5 +54,6 @@ public struct Options {
 
         public static let emitTimes      = Flags(rawValue: 0b0001 << 8)
         public static let emitDebugTimes = Flags(rawValue: 0b0010 << 8)
+        public static let emitAst        = Flags(rawValue: 0b0100 << 8)
     }
 }

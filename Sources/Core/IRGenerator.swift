@@ -708,9 +708,9 @@ func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
 func canonicalize(_ type: Type) -> IRType {
 
     switch type {
-    case is ty.Void:
+    case let type as ty.Void:
         return canonicalize(type)
-    case is ty.Boolean:
+    case let type as ty.Boolean:
         return canonicalize(type)
     case let type as ty.Integer:
         return canonicalize(type)
