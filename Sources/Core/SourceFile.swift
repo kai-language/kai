@@ -143,14 +143,6 @@ extension SourceFile {
 }
 
 extension SourceFile {
-
-    public func start() {
-        let parsingJob = Job("\(basename(path: pathFirstImportedAs)) - Parsing", work: parseEmittingErrors)
-        let checkingJob = Job("\(basename(path: pathFirstImportedAs)) - Checking", work: checkEmittingErrors)
-        parsingJob.addBlocking(checkingJob)
-        threadPool.add(job: parsingJob)
-    }
-
     public func parseEmittingErrors() {
         assert(!hasBeenParsed)
         let startTime = gettime()
@@ -201,7 +193,7 @@ extension SourceFile {
         let endTime = gettime()
         let totalTime = endTime - startTime
         timingMutex.lock()
-        checkStageTiming += totalTime
+        irgenStageTiming += totalTime
         timingMutex.unlock()
     }
 }

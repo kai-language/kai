@@ -23,9 +23,11 @@ package.begin()
 
 threadPool.waitUntilDone()
 
-initTargetMachine()
-SourcePackage.exportPackages()
-let libs = SourcePackage.gatherLinkerFlags()
+SourcePackage.exportAll()
+
+if Options.instance.flags.contains(.emitIr) {
+    SourcePackage.emitAllIr()
+}
 
 if Options.instance.flags.contains(.emitTimes) {
     let endTime = gettime()
@@ -36,6 +38,7 @@ if Options.instance.flags.contains(.emitTimes) {
 if Options.instance.flags.contains(.emitTimes) {
     print("Parsing took \(parseStageTiming.humanReadableTime)")
     print("Checking took \(checkStageTiming.humanReadableTime)")
+    print("IRGeneration took \(irgenStageTiming.humanReadableTime)")
 }
 
 if Options.instance.flags.contains(.emitDebugTimes) {

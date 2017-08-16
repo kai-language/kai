@@ -48,8 +48,6 @@ public final class SourcePackage {
         self.pathFirstImportedAs = pathImportedAs
         self.firstImportedFrom = importedFrom
         if let importedFrom = importedFrom {
-//            let commonPrefix = importedFrom.fullpath.commonPrefix(with: fullpath)
-//            moduleName = String(fullpath[commonPrefix.endIndex...])
             let index = importedFrom.fullpath.commonPathPrefix(with: fullpath)
             moduleName = String(fullpath[index...])
         } else {
@@ -106,13 +104,18 @@ public final class SourcePackage {
         return package
     }
 
-    public static func exportPackages() {
-        for (_, package) in knownSourcePackages {
-            guard !package.isInitialPackage else {
-                continue
-            }
+    public static func exportAll() {
+        initTargetMachine()
+        validateAll()
 
+        for (_, package) in knownSourcePackages {
             package.compileIntermediateRepresentation()
+        }
+    }
+
+    public static func validateAll() {
+        for (_, package) in knownSourcePackages {
+            package.validateIntermediateRepresentation()
         }
     }
 
@@ -127,12 +130,19 @@ public final class SourcePackage {
 
         return libs
     }
+
+    public static func emitAllIr() {
+        for (_, package) in knownSourcePackages {
+            package.emitIr()
+        }
+
+        print()
+    }
 }
 
 extension SourcePackage {
 
     public func begin() {
-
         for file in files {
             threadPool.add(job: file.parsingJob)
         }

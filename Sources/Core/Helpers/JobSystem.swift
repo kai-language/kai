@@ -32,11 +32,9 @@ final class WorkerThread: Thread {
                 job.work()
                 job.end()
 
-                pool.mutex.lock()
                 for dependent in job.blocking {
                     pool.add(job: dependent)
                 }
-                pool.mutex.unlock()
             } else {
                 isIdle = true
                 pool.mutex.unlock()
@@ -76,9 +74,21 @@ public final class ThreadPool {
     }
 
     public func waitUntilDone() {
-        while !ready.isEmpty || !threads.reduce(true, { $0 && $1.isIdle }) {
+        while true {
+            mutex.lock()
+            if ready.isEmpty && threads.reduce(true, { $0 && $1.isIdle }) {
+                defer {
+                    mutex.unlock()
+                }
+
+                break
+            }
+            mutex.unlock()
             usleep(1)
         }
+
+        // FIXME(Brett): remove
+        print()
     }
 }
 
@@ -114,9 +124,10 @@ final class Job {
             timingMutex.lock()
             let endTime = gettime()
             debugTimings.append((name: name, duration: endTime - startTime))
-            done = true
             timingMutex.unlock()
         }
+
+        done = true
     }
 
     func addBlocking(_ job: Job) {
