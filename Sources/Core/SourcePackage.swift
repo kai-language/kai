@@ -36,7 +36,15 @@ public final class SourcePackage {
 
     // Set in IRGenerator
     lazy var module: Module = {
-        return Module(name: moduleName)
+        var context: Context? = nil
+
+        // LLVM contexts aren't thread safe. So, each thread gets its own. The
+        // initial package gets `global`.
+        if !isInitialPackage {
+            context = Context()
+        }
+
+        return Module(name: moduleName, context: context)
     }()
     lazy var builder: IRBuilder = {
         return IRBuilder(module: module)
