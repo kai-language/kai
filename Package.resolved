@@ -2,20 +2,11 @@
   "object": {
     "pins": [
       {
-        "package": "CLibGit2",
-        "repositoryURL": "https://github.com/BrettRToomey/CLibGit2.git",
-        "state": {
-          "branch": "master",
-          "revision": "14f8e54929276ccf7c9f93130035bd860192d726",
-          "version": null
-        }
-      },
-      {
         "package": "LLVM",
         "repositoryURL": "https://github.com/vdka/LLVMSwift.git",
         "state": {
           "branch": "master",
-          "revision": "d3155b8d2c03ff2e465b4ec55057cf251f903839",
+          "revision": "11a5e938276cc2fbd982f1aca1881b69298f1ae0",
           "version": null
         }
       },
