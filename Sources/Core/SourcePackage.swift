@@ -6,6 +6,9 @@ var currentDirectory = FileManager.default.currentDirectoryPath
 let fileExtension = ".kai"
 var buildDirectory = currentDirectory + "/" + fileExtension + "/"
 
+var cloneMutex = Mutex()
+var cloneQueue: [Job] = []
+
 var knownSourcePackages: [String: SourcePackage] = [:]
 
 // sourcery:noinit
@@ -65,17 +68,23 @@ public final class SourcePackage {
     }
 
     /// - Returns: nil iff the file could not be located or opened for reading
-    public static func new(path: String, importedFrom: SourceFile? = nil) -> SourcePackage? {
+    public static func new(relpath: String, importedFrom: SourceFile? = nil) -> SourcePackage? {
 
-        var pathRelativeToInitialFile = path
+        var pathRelativeToInitialFile = relpath
 
         if let importedFrom = importedFrom {
-            pathRelativeToInitialFile = dirname(path: importedFrom.fullpath) + path
+            pathRelativeToInitialFile = dirname(path: importedFrom.fullpath) + relpath
         }
 
         guard let fullpath = realpath(relpath: pathRelativeToInitialFile) else {
             return nil
         }
+
+        return SourcePackage.new(fullpath: fullpath, importedFrom: importedFrom)
+    }
+
+    /// - Returns: nil iff the file could not be located or opened for reading
+    public static func new(fullpath: String, importedFrom: SourceFile? = nil) -> SourcePackage? {
 
         guard isDirectory(path: fullpath) else {
             return nil
@@ -85,7 +94,7 @@ public final class SourcePackage {
             return existing
         }
 
-        let package = SourcePackage(files: [], fullpath: fullpath, pathImportedAs: path, importedFrom: importedFrom)
+        let package = SourcePackage(files: [], fullpath: fullpath, pathImportedAs: fullpath, importedFrom: importedFrom)
         sourceFilesInDir(fullpath).forEach {
             // Adds to package
             let sourceFile = SourceFile.new(path: fullpath + "/" + $0, package: package)!
