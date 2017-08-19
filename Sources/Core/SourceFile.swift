@@ -170,7 +170,7 @@ extension SourceFile {
 
                 cloneMutex.lock()
                 if let last = cloneQueue.last {
-                    last.addDependent(job)
+                    last.addBlocking(job)
                     cloneQueue.append(job)
                 } else {
                     cloneQueue.append(job)
