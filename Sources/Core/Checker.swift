@@ -126,6 +126,13 @@ extension Checker {
             for stmt in block.stmts {
                 check(stmt: stmt)
             }
+        case let ret as Return:
+            //TODO(Brett, vdka): ensure return is in a proc. and the type matches
+            // proc's signature.
+            for res in ret.results {
+                check(expr: res)
+            }
+
         default:
             return
         }

@@ -143,10 +143,15 @@ extension IRGenerator {
                 return
             }
 
-            let value = emit(expr: value, name: entity.name)
-            var globalValue = b.addGlobal(mangle(entity.name), initializer: value)
-            globalValue.isGlobalConstant = true
-            entity.value = globalValue
+            var value = emit(expr: value, name: entity.name)
+            // functions are already global
+            if !value.isAFunction {
+                var globalValue = b.addGlobal(mangle(entity.name), initializer: value)
+                globalValue.isGlobalConstant = true
+                value = globalValue
+            }
+
+            entity.value = value
         }
     }
 
@@ -247,9 +252,10 @@ extension IRGenerator {
     }
 
     mutating func emit(statement stmt: Stmt) {
-
         switch stmt {
         case is Empty: return
+        case let ret as Return:
+            emit(return: ret)
         case let stmt as ExprStmt:
             // return address so that we don't bother with the load
             _ = emit(expr: stmt.expr, returnAddress: true)
