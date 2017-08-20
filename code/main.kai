@@ -113,8 +113,6 @@ main :: fn () -> void {
 
     printf("%d, %d, %s\n", typeinfo(u8).kind, typeinfo(u8).width, typeinfo(u8).name)
     */
-
-    printf("tau is: %f\n", math.tau)
 }
 
 /*

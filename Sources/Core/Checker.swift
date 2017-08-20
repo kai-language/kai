@@ -911,7 +911,11 @@ extension Checker {
             return field.type
 
         default:
-            reportError("Type '\(aggregateType)', does not have a member scope", at: selector.start)
+            // Don't spam diagnostics if the type is already invalid
+            if !(aggregateType is ty.Invalid) {
+                reportError("Type '\(aggregateType)', does not have a member scope", at: selector.start)
+            }
+
             return ty.invalid
         }
     }
