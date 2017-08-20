@@ -122,6 +122,8 @@ extension Checker {
             check(decl: decl)
         case let d as Decl:
             check(anyDecl: d, isForeign: false)
+        case let assign as Assign:
+            check(assign: assign)
         case let block as Block:
             for stmt in block.stmts {
                 check(stmt: stmt)
@@ -288,6 +290,21 @@ extension Checker {
 
         default:
             fatalError()
+        }
+    }
+
+    mutating func check(assign: Assign) {
+        for (lhs, rhs) in zip(assign.lhs, assign.rhs) {
+            let lhsType = check(expr: lhs)
+            let rhsType = check(expr: rhs)
+
+            if !canConvert(lhsType, to: rhsType) && !implicitlyConvert(lhsType, to: rhsType) {
+                reportError("Cannot assign value of type '\(rhsType)' to type \(lhsType)", at: rhs.start)
+            }
+        }
+
+        if assign.lhs.count != assign.rhs.count {
+            reportError("Assignment count missmatch \(assign.lhs.count) = \(assign.rhs.count)", at: assign.start)
         }
     }
 
