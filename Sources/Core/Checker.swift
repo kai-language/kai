@@ -160,6 +160,7 @@ extension Checker {
             check(for: fór)
 
         default:
+            print("Warning: statement '\(stmt)' passed through without getting checked")
             return
         }
     }
