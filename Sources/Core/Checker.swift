@@ -17,7 +17,7 @@ struct Checker {
         var scope: Scope
         var previous: Context?
 
-        var expectedReturnType: Type? = nil
+        var expectedReturnType: ty.Tuple? = nil
         var specializationCallNode: Call? = nil
 
         var nextCase: CaseClause?
@@ -127,7 +127,7 @@ extension Checker {
                 check(stmt: stmt)
             }
         case let ret as Return:
-            let expectedReturn = context.expectedReturnType as! ty.Tuple
+            let expectedReturn = context.expectedReturnType!
 
             var isVoidReturn = false
             if expectedReturn.types.count == 1 && expectedReturn.types[0] is ty.Void {
