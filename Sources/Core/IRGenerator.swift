@@ -265,6 +265,8 @@ extension IRGenerator {
             emit(variableDecl: decl)
         case let d as Decl:
             emit(anyDecl: d, isForeign: false)
+        case let assign as Assign:
+            emit(assign: assign)
         case let block as Block:
             for stmt in block.stmts {
                 emit(statement: stmt)
@@ -272,6 +274,7 @@ extension IRGenerator {
         case let fór as For:
             emit(for: fór)
         default:
+            print("Warning: statement didn't codegen: \(stmt)")
             return
         }
     }
