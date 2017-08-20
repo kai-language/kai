@@ -156,6 +156,9 @@ extension Checker {
                 return
             }
 
+        case let fór as For:
+            check(for: fór)
+
         default:
             return
         }
@@ -528,6 +531,30 @@ extension Checker {
             lit.type = ty.invalid
             return ty.invalid
         }
+    }
+
+    mutating func check(for fór: For) {
+        pushContext()
+        defer {
+            popContext()
+        }
+
+        if let initializer = fór.initializer {
+            check(stmt: initializer)
+        }
+
+        if let cond = fór.cond {
+            let type = check(expr: cond, desiredType: ty.bool)
+            if !canConvert(type, to: ty.bool) && !implicitlyConvert(type, to: ty.bool) {
+                reportError("Cannot convert '\(type)' to expected type 'bool'", at: cond.start)
+            }
+        }
+
+        if let step = fór.step {
+            check(stmt: step)
+        }
+
+        check(stmt: fór.body)
     }
 
     @discardableResult

@@ -8,7 +8,7 @@
 
     sprintf :: (*u8, string, #cvargs ..any) -> i32
 }
-
+/*
 sum :: fn (a: $T, b: $U) -> T {
 
   total : T = a
@@ -24,7 +24,7 @@ min :: fn ($U: type, a: U, b: U) -> U {
 max :: fn (a: $T, b: T) -> T {
   if a > b return a
   else return b
-}
+}*/
 
 add : (i64) -> i64 : fn (foo: i64) -> i64 {
     return foo + 1
@@ -35,53 +35,50 @@ sub :: fn (foo: i64) -> i64 {
 }
 
 forExample :: fn () -> void {
-
     for i := 0; i < 5; i += 1 {
         printf("%d\n", i)
     }
-
-    return
 }
-
+/*
 swap :: fn (a: $T, b: T) -> T, T {
     return b, a
-}
+}*/
 
-Foo :: struct {
+/*Foo :: struct {
     a, b: f64
 }
 
 Bar :: struct {
     foo: Foo
-}
+}*/
 
 main :: fn () -> void {
-
+/*
     this := sum(1, 2.5)
     printf("total: %d\n", this)
     that := sum(1, 5.5)
     printf("total: %d\n", that)
-
+*/
     a : f64 = 5.0
-    b : i64 = 3
+    b : i64 = 3 /*
     c := min(f64, a, 4)
     d := max(b, 4)
     e := min(i64, b, d)
     j := max(a, 4)
+    */
+    //f := f64(b)
 
-    f := f64(b)
-
-    g : (i64) -> i64 = add
+    /*g : (i64) -> i64 = add
 
     h := g(8)
 
     g = sub
 
-    h = g(8)
+    h = g(8)*/
 
     forExample()
-    addrA := &a
-    valA := <addrA
+    //addrA := &a
+    //valA := <addrA
 
     x, y := 1, 2
 
@@ -89,22 +86,22 @@ main :: fn () -> void {
 
     x, y = y, x
 
-    x, y = swap(x, y)
+    //x, y = swap(x, y)
 
     printf("%d, %d\n", x, y)
 
-    x1, y1 := swap(x, y)
+    /*x1, y1 := swap(x, y)
 
-    printf("%d, %d\n", x1, y1)
+    printf("%d, %d\n", x1, y1) */
 
     k := 4.0
 
-    foo := Foo { b: k, a: 3.6 }
+    //foo := Foo { b: k, a: 3.6 }
 
-    bar := Bar { Foo { 3.9, 4.3 } }
+    //bar := Bar { Foo { 3.9, 4.3 } }
 
-    printf("%f, %f\n", foo.a, foo.b)
-    printf("%f, %f\n", bar.foo.a, bar.foo.b)
+    //printf("%f, %f\n", foo.a, foo.b)
+    //printf("%f, %f\n", bar.foo.a, bar.foo.b)
 
     /*
     // NOTE: On the following 2 calls the kind value *must* be last due to what will otherwise be a misaligned stack pointer

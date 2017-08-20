@@ -269,6 +269,8 @@ extension IRGenerator {
             for stmt in block.stmts {
                 emit(statement: stmt)
             }
+        case let fór as For:
+            emit(for: fór)
         default:
             return
         }
@@ -622,6 +624,10 @@ extension IRGenerator {
             pushContext(scopeName: name)
             emit(statement: fn.body)
             popContext()
+
+            if b.insertBlock?.terminator == nil, fn.results.types.first!.type!.lower() == ty.void {
+                b.buildRetVoid()
+            }
 
             if let prevBlock = prevBlock {
                 b.positionAtEnd(of: prevBlock)
