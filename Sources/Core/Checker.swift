@@ -127,10 +127,33 @@ extension Checker {
                 check(stmt: stmt)
             }
         case let ret as Return:
-            //TODO(Brett, vdka): ensure return is in a proc. and the type matches
-            // proc's signature.
-            for res in ret.results {
-                check(expr: res)
+            let expectedReturn = context.expectedReturnType as! ty.Tuple
+
+            var isVoidReturn = false
+            if expectedReturn.types.count == 1 && expectedReturn.types[0] is ty.Void {
+                isVoidReturn = true
+            }
+
+            for (value, expected) in zip(ret.results, expectedReturn.types) {
+                let type = check(expr: value, desiredType: expected)
+                if type != expected {
+                    if isVoidReturn {
+                        reportError("Void function should not return a value", at: value.start)
+                        return
+                    } else {
+                        reportError("Cannot convert type '\(type)' to expected type '\(expected)'", at: value.start)
+                    }
+                }
+            }
+
+            if ret.results.count < expectedReturn.types.count {
+                reportError("Not enough arguments to return", at: ret.start)
+                return
+            }
+
+            if ret.results.count > expectedReturn.types.count {
+                reportError("Too many arguments to return", at: ret.start)
+                return
             }
 
         default:
