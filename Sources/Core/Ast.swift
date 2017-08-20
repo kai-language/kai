@@ -290,13 +290,17 @@ class Selector: Node, Expr {
 
     var checked: Checked!
     var type: Type! {
-        switch checked! {
+        guard let checked = checked else { return ty.invalid }
+
+        switch checked {
+        case .invalid: return ty.invalid
         case .file(let entity): return entity.type!
         case .struct(let field): return field.type
         }
     }
 
     enum Checked {
+        case invalid
         case file(Entity)
         case `struct`(ty.Struct.Field)
     }

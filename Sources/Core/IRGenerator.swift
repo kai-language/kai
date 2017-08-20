@@ -641,6 +641,7 @@ extension IRGenerator {
 
     mutating func emit(selector sel: Selector, returnAddress: Bool) -> IRValue {
         switch sel.checked! {
+        case .invalid: fatalError()
         case .file(let entity):
             if entity.type is ty.Function {
                 return entity.value!
