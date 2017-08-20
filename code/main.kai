@@ -66,7 +66,7 @@ main :: fn () -> void {
     e := min(i64, b, d)
     j := max(a, 4)
     */
-    //f := f64(b)
+    f := f64(b)
 
     /*g : (i64) -> i64 = add
 

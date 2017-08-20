@@ -156,7 +156,7 @@ extension IRGenerator {
     }
 
     mutating func emit(variableDecl decl: Declaration) {
-        if decl.values.count == 1, let call = decl.values.first as? Call {
+        if decl.values.count == 1, let call = decl.values.first as? Call, decl.entities.count > 1 {
             let retType = canonicalize(call.type)
             let stackAggregate = b.buildAlloca(type: retType)
             let aggregate = emit(call: call)
@@ -167,6 +167,7 @@ extension IRGenerator {
             {
                 let type = canonicalize(entity.type!)
                 let stackValue = b.buildAlloca(type: type, name: entity.name)
+
                 let rvaluePtr = b.buildStructGEP(stackAggregate, index: index)
                 let rvalue = b.buildLoad(rvaluePtr)
 
