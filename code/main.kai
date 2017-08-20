@@ -44,13 +44,13 @@ swap :: fn (a: $T, b: T) -> T, T {
     return b, a
 }*/
 
-/*Foo :: struct {
+Foo :: struct {
     a, b: f64
 }
 
 Bar :: struct {
     foo: Foo
-}*/
+}
 
 main :: fn () -> void {
 /*
@@ -96,12 +96,12 @@ main :: fn () -> void {
 
     k := 4.0
 
-    //foo := Foo { b: k, a: 3.6 }
+    foo := Foo { b: k, a: 3.6 }
 
-    //bar := Bar { Foo { 3.9, 4.3 } }
+    bar := Bar { Foo { 3.9, 4.3 } }
 
-    //printf("%f, %f\n", foo.a, foo.b)
-    //printf("%f, %f\n", bar.foo.a, bar.foo.b)
+    printf("%f, %f\n", foo.a, foo.b)
+    printf("%f, %f\n", bar.foo.a, bar.foo.b)
 
     /*
     // NOTE: On the following 2 calls the kind value *must* be last due to what will otherwise be a misaligned stack pointer
