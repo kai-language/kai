@@ -224,6 +224,10 @@ extension SourceFile {
         hasBeenChecked = true
         emitErrors(for: self, at: stage)
 
+        if errors.count > 0 {
+            checkingJob.dequeueBlocking(generationJob)
+        }
+
         let endTime = gettime()
         let totalTime = endTime - startTime
         timingMutex.lock()

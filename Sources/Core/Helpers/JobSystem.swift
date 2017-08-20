@@ -137,4 +137,22 @@ final class Job {
     func addBlockedBy(_ job: Job) {
         blockedBy.append(job)
     }
+
+    func dequeueBlocking(_ item: Job) {
+        for (index, job) in blocking.enumerated() {
+            guard job !== item else {
+                blocking.remove(at: index)
+                break
+            }
+        }
+    }
+
+    func dequeueBlockedBy(_ item: Job) {
+        for (index, job) in blockedBy.enumerated() {
+            guard job !== item else {
+                blockedBy.remove(at: index)
+                break
+            }
+        }
+    }
 }
