@@ -146,7 +146,7 @@ extension Checker {
                 }
             }
 
-            if ret.results.count < expectedReturn.types.count {
+            if ret.results.count < expectedReturn.types.count, !(expectedReturn.types.first is ty.Void) {
                 reportError("Not enough arguments to return", at: ret.start)
                 return
             }
