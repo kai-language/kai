@@ -570,10 +570,10 @@ func digitVal(_ ch: Unicode.Scalar) -> Int {
         return Int(ch.value - UnicodeScalar("0")!.value)
     }
     if "a" <= ch && ch <= "f" {
-        return Int(ch.value - UnicodeScalar("a")!.value)
+        return Int(ch.value - UnicodeScalar("a")!.value) + 10
     }
     if "A" <= ch && ch <= "F" {
-        return Int(ch.value - UnicodeScalar("A")!.value)
+        return Int(ch.value - UnicodeScalar("A")!.value) + 10
     }
     return 16 // larger than is permitted
 }
