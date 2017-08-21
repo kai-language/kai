@@ -153,6 +153,7 @@ extension SourceFile {
 
             let packageDirectory = dirname(path: importedFrom.package.fullpath) + "deps/github/" + user + "/" + repo
 
+            i.resolvedName = pathToEntityName(packageDirectory)
             if !isDirectory(path: packageDirectory) {
 
                 let job = Job(repo + "/" + user + " - Cloning", work: {
@@ -166,6 +167,8 @@ extension SourceFile {
                     }
                     self.package.dependencies.append(dependency)
                     dependency.begin()
+
+                    i.scope = dependency.scope
                 })
 
                 cloneMutex.lock()
@@ -184,6 +187,8 @@ extension SourceFile {
                 }
                 self.package.dependencies.append(dependency)
                 dependency.begin()
+
+                i.scope = dependency.scope
             }
 
         default:
