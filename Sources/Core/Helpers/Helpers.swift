@@ -17,7 +17,7 @@ public func initTargetMachine() {
 }
 
 /// Ensures everything is preparred for compilation
-public func performCompilationPreflightChecks(with options: Options, initialFile file: SourceFile) {
+public func performCompilationPreflightChecks(with options: Options, initialPackage package: SourcePackage) {
     do {
         targetMachine = try TargetMachine()
         try ensureBuildDirectoryExists()

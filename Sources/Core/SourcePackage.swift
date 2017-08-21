@@ -180,7 +180,16 @@ extension SourcePackage {
     }
 
     public func compileIntermediateRepresentation() {
+        let fm = FileManager.default
         do {
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: dirname(path: objpath), isDirectory: &isDir) {
+                if !isDir.boolValue {
+                    throw "cannot write to output directory \(basename(path: objpath))"
+                }
+            } else {
+                try fm.createDirectory(atPath: dirname(path: objpath), withIntermediateDirectories: true, attributes: nil)
+            }
             try targetMachine.emitToFile(
                 module: module,
                 type: .object,

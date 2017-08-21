@@ -17,6 +17,8 @@ guard let package = SourcePackage.makeInitial(for: filepath) else {
 
 Options.instance = Options(arguments: CommandLine.arguments[1...])
 
+performCompilationPreflightChecks(with: Options.instance, initialPackage: package)
+
 threadPool = ThreadPool(nThreads: Options.instance.jobs)
 
 package.begin()
