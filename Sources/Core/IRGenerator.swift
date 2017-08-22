@@ -574,7 +574,7 @@ extension IRGenerator {
 
         switch binary.irOp! {
         case .icmp:
-            let isSigned = (binary.lhs.type as! ty.Integer).isSigned
+            let isSigned = (binary.lhs.type as? ty.Integer)?.isSigned ?? true // if type isn't an int it's a ptr
             var pred: IntPredicate
             switch binary.op {
             case .lss: pred = isSigned ? .signedLessThan : .unsignedLessThan

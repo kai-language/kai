@@ -861,7 +861,7 @@ extension Checker {
         var (lCast, rCast): (OpCode.Cast?, OpCode.Cast?) = (nil, nil)
 
         // Handle extending or truncating
-        if lhsType == rhsType {
+        if lhsType == rhsType && !(lhsType is ty.Pointer) && !(rhsType is ty.Pointer){
             resultType = lhsType
         } else if let lhsType = lhsType as? ty.Integer, rhsType is ty.FloatingPoint {
             lCast = lhsType.isSigned ? .siToFP : .uiToFP
@@ -895,12 +895,25 @@ extension Checker {
         } else if let lhsType = lhsType as? ty.Pointer, rhsType is ty.Integer {
             // Can only increment/decrement a pointer
             guard binary.op == .add || binary.op == .sub else {
+                reportError("Invalid operation '\(binary.op)' between types '\(lhsType) and \(rhsType)'", at: binary.opPos)
                 binary.type = ty.invalid
                 return ty.invalid
             }
 
             resultType = lhsType
             isPointerArithmetic = true
+        } else if let lhsType = lhsType as? ty.Pointer, let rhsType = rhsType as? ty.Pointer {
+            switch binary.op {
+            // allowed for ptr <op> ptr
+            case .leq, .lss, .geq, .gtr, .eql, .neq:
+                resultType = ty.bool
+                isPointerArithmetic = true
+
+            default:
+                reportError("Invalid operation '\(binary.op)' between types '\(lhsType) and \(rhsType)'", at: binary.opPos)
+                binary.type = ty.invalid
+                return ty.invalid
+            }
         } else {
             reportError("Invalid operation '\(binary.op)' between types '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
             binary.type = ty.invalid
@@ -909,12 +922,12 @@ extension Checker {
 
         assert((lhsType == rhsType) || lCast != nil || rCast != nil || isPointerArithmetic, "We must have 2 same types or a way to acheive them by here")
 
-        let isIntegerOp = lhsType is ty.Integer || rhsType is ty.Integer
+        let isIntegerOp = lhsType is ty.Integer || rhsType is ty.Integer || lhsType is ty.Pointer
 
         var type = resultType
         switch binary.op {
         case .lss, .leq, .gtr, .geq:
-            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint) else {
+            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint) || isPointerArithmetic else {
                 reportError("Cannot compare '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
                 binary.type = ty.invalid
                 return ty.invalid
@@ -923,7 +936,7 @@ extension Checker {
             type = ty.bool
 
         case .eql, .neq:
-            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint || lhsType is ty.Boolean) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint || rhsType is ty.Boolean) else {
+            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint || lhsType is ty.Boolean) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint || rhsType is ty.Boolean) || isPointerArithmetic else {
                 reportError("Cannot compare '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
                 binary.type = ty.invalid
                 return ty.invalid
