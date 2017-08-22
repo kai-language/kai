@@ -555,6 +555,8 @@ extension IRGenerator {
             return b.buildLoad(val)
         case .not:
             return b.buildNeg(val)
+        case .and:
+            return val
         default:
             preconditionFailure()
         }
@@ -597,6 +599,16 @@ extension IRGenerator {
             }
             return b.buildFCmp(lhs, rhs, pred)
         default:
+            if binary.isPointerArithmetic {
+                switch binary.op {
+                case .add, .sub:
+                    if binary.op == .sub {
+                        rhs = b.buildNeg(rhs)
+                    }
+                    return b.buildGEP(lhs, indices: [rhs])
+                default: preconditionFailure()
+                }
+            }
             return b.buildBinaryOperation(binary.irOp, lhs, rhs)
         }
     }

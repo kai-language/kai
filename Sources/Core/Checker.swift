@@ -855,6 +855,8 @@ extension Checker {
         let resultType: Type
         let op: OpCode.Binary
 
+        var isPointerArithmetic = false
+
         // Used to communicate any implicit casts to perform for this operation
         var (lCast, rCast): (OpCode.Cast?, OpCode.Cast?) = (nil, nil)
 
@@ -890,13 +892,16 @@ extension Checker {
                 resultType = lhsType
                 rCast = rhsType.isSigned ? OpCode.Cast.sext : OpCode.Cast.zext
             }
+        } else if let lhsType = lhsType as? ty.Pointer, rhsType is ty.Integer {
+            resultType = lhsType
+            isPointerArithmetic = true
         } else {
             reportError("Invalid operation '\(binary.op)' between types '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
             binary.type = ty.invalid
             return ty.invalid
         }
 
-        assert((lhsType == rhsType) || lCast != nil || rCast != nil, "We must have 2 same types or a way to acheive them by here")
+        assert((lhsType == rhsType) || lCast != nil || rCast != nil || isPointerArithmetic, "We must have 2 same types or a way to acheive them by here")
 
         let isIntegerOp = lhsType is ty.Integer || rhsType is ty.Integer
 
@@ -947,6 +952,7 @@ extension Checker {
         binary.irOp = op
         binary.irLCast = lCast
         binary.irRCast = rCast
+        binary.isPointerArithmetic = isPointerArithmetic
         return type
     }
 

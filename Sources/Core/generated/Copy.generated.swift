@@ -85,7 +85,8 @@ func copy(_ node: Binary) -> Binary {
         type: node.type,
         irOp: node.irOp,
         irLCast: node.irLCast,
-        irRCast: node.irRCast
+        irRCast: node.irRCast,
+        isPointerArithmetic: node.isPointerArithmetic
     )
 }
 

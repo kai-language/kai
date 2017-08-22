@@ -378,12 +378,13 @@ class Binary: Node, Expr {
     var irOp: OpCode.Binary!
     var irLCast: OpCode.Cast!
     var irRCast: OpCode.Cast!
+    var isPointerArithmetic: Bool!
 
     var start: Pos { return lhs.start }
     var end: Pos { return rhs.end }
 
 // sourcery:inline:auto:Binary.Init
-init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr, type: Type!, irOp: OpCode.Binary!, irLCast: OpCode.Cast!, irRCast: OpCode.Cast!) {
+init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr, type: Type!, irOp: OpCode.Binary!, irLCast: OpCode.Cast!, irRCast: OpCode.Cast!, isPointerArithmetic: Bool!) {
     self.lhs = lhs
     self.op = op
     self.opPos = opPos
@@ -392,6 +393,7 @@ init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr, type: Type!, irOp: OpCode.Bina
     self.irOp = irOp
     self.irLCast = irLCast
     self.irRCast = irRCast
+    self.isPointerArithmetic = isPointerArithmetic
 }
 // sourcery:end
 }

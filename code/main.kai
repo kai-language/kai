@@ -8,7 +8,7 @@
 
     sprintf :: (*u8, string, #cvargs ..any) -> i32
 }
-/*
+
 sum :: fn (a: $T, b: $U) -> T {
 
   total : T = a
@@ -24,7 +24,7 @@ min :: fn ($U: type, a: U, b: U) -> U {
 max :: fn (a: $T, b: T) -> T {
   if a > b return a
   else return b
-}*/
+}
 
 add : (i64) -> i64 : fn (foo: i64) -> i64 {
     return foo + 1
@@ -39,10 +39,10 @@ forExample :: fn () -> void {
         printf("%d\n", i)
     }
 }
-/*
+
 swap :: fn (a: $T, b: T) -> T, T {
     return b, a
-}*/
+}
 
 Foo :: struct {
     a, b: f64

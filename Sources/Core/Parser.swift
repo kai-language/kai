@@ -162,7 +162,7 @@ extension Parser {
             }
             next()
             let rhs = parseBinaryExpr(oprec + 1)
-            lhs = Binary(lhs: lhs, op: op, opPos: pos, rhs: rhs, type: nil, irOp: nil, irLCast: nil, irRCast: nil)
+            lhs = Binary(lhs: lhs, op: op, opPos: pos, rhs: rhs, type: nil, irOp: nil, irLCast: nil, irRCast: nil, isPointerArithmetic: nil)
         }
     }
 
@@ -512,7 +512,7 @@ extension Parser {
             if rhs.count > 1 || x.count > 1 {
                 reportError("Assignment macros only permit a single values", at: rhs[0].start)
             }
-            let operation = Binary(lhs: x[0], op: operatorFor(assignMacro: tok), opPos: pos, rhs: rhs[0], type: nil, irOp: nil, irLCast: nil, irRCast: nil)
+            let operation = Binary(lhs: x[0], op: operatorFor(assignMacro: tok), opPos: pos, rhs: rhs[0], type: nil, irOp: nil, irLCast: nil, irRCast: nil, isPointerArithmetic: nil)
             return Assign(lhs: x, equals: pos, rhs: [operation])
         case .colon: // could be label or decl
             let colon = eatToken()
@@ -817,7 +817,7 @@ extension Parser {
     func operatorFor(assignMacro: Token) -> Token {
         assert(Token(rawValue: Token.assignAdd.rawValue - 10)! == .add)
 
-        return Token(rawValue: Token.assignAdd.rawValue - 10)!
+        return Token(rawValue: assignMacro.rawValue - 10)!
     }
 
     static let lowestPrecedence  = 0
