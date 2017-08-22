@@ -14,6 +14,12 @@ enum stdlib {
 
         return builder
     }()
+
+    static var memcpy: Function = {
+        return builder.addFunction("llvm.memcpy.p0i8.p0i8.i64", type: FunctionType(
+            argTypes: [LLVM.PointerType.toVoid, LLVM.PointerType.toVoid, IntType.int64, IntType.int32, IntType.int1], returnType: VoidType()
+        ))
+    }()
 }
 
 // sourcery:noinit
@@ -645,7 +651,7 @@ extension IRGenerator {
                     .reduce("", { $0 + "$" + $1.description })
                 specialization.llvm = emit(funcLit: specialization.generatedFunctionNode, name: name + suffix)
             }
-            return specializations.last!.llvm! // dummy return value
+            return stdlib.memcpy // dummy return value
         }
     }
 

@@ -294,17 +294,32 @@ extension Checker {
     }
 
     mutating func check(assign: Assign) {
-        for (lhs, rhs) in zip(assign.lhs, assign.rhs) {
-            let lhsType = check(expr: lhs)
-            let rhsType = check(expr: rhs)
 
-            if !canConvert(lhsType, to: rhsType) && !implicitlyConvert(lhsType, to: rhsType) {
-                reportError("Cannot assign value of type '\(rhsType)' to type \(lhsType)", at: rhs.start)
+        if assign.rhs.count == 1 && assign.lhs.count > 1, let call = assign.rhs[0] as? Call {
+            let tuple = check(callOrCast: call) as! ty.Tuple
+            let types = tuple.types
+
+            for (lhs, type) in zip(assign.lhs, types) {
+                let expectedType = check(expr: lhs)
+
+                if !canConvert(type, to: expectedType) && !implicitlyConvert(type, to: expectedType) {
+                    reportError("Cannot assign value of type '\(type)' to type '\(expectedType)'", at: call.start)
+                }
             }
-        }
+        } else {
 
-        if assign.lhs.count != assign.rhs.count {
-            reportError("Assignment count missmatch \(assign.lhs.count) = \(assign.rhs.count)", at: assign.start)
+            for (lhs, rhs) in zip(assign.lhs, assign.rhs) {
+                let lhsType = check(expr: lhs)
+                let rhsType = check(expr: rhs)
+
+                if !canConvert(rhsType, to: lhsType) && !implicitlyConvert(rhsType, to: lhsType) {
+                    reportError("Cannot assign value of type '\(rhsType)' to type \(lhsType)", at: rhs.start)
+                }
+            }
+
+            if assign.lhs.count != assign.rhs.count {
+                reportError("Assignment count missmatch \(assign.lhs.count) = \(assign.rhs.count)", at: assign.start)
+            }
         }
     }
 
@@ -1147,6 +1162,7 @@ extension Checker {
             }
 
             call.type = specialization.strippedType.returnType
+            call.checked = .specializedCall(specialization)
             return specialization.strippedType.returnType
         }
 
@@ -1189,6 +1205,7 @@ extension Checker {
 
         // TODO: Tuple splat?
         call.type = type.returnType
+        call.checked = .specializedCall(specialization)
 
         // update the specializations list on the original FnLit
         specializations.append(specialization)
