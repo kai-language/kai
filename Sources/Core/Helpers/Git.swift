@@ -1,5 +1,6 @@
 import CLibGit2
 
+// sourcery:noinit
 class Progress {
     var progress: git_transfer_progress?
     var completedSteps: Int
@@ -14,6 +15,7 @@ class Progress {
     }
 }
 
+// sourcery:noinit
 class Git {
     init() {
         git_libgit2_init()
