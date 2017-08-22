@@ -6,6 +6,7 @@ struct BuiltinType {
     var type: Type
 
     init(entity: Entity, type: Type) {
+        entity.flags.insert(.builtin)
         self.entity = entity
         self.type = type
     }
@@ -68,7 +69,7 @@ class BuiltinEntity {
 
     init(name: String, type: Type, gen: @escaping (IRBuilder) -> IRValue) {
         let ident = Ident(start: noPos, name: name, entity: nil)
-        let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil)
+        let entity = Entity(ident: ident, type: type, flags: .builtin, memberScope: nil, owningScope: nil, value: nil)
         self.entity = entity
         self.type = type
         self.gen = {
@@ -80,8 +81,8 @@ class BuiltinEntity {
         }
     }
 
-    static let trué = BuiltinEntity(name: "true", type: ty.bool, gen: { $0.addGlobal("true", initializer: true.asLLVM()) })
-    static let falsé = BuiltinEntity(name: "false", type: ty.bool, gen: { $0.addGlobal("false", initializer: false.asLLVM()) })
+    static let trué = BuiltinEntity(name: "true", type: ty.bool, gen: { _ in true.asLLVM() })
+    static let falsé = BuiltinEntity(name: "false", type: ty.bool, gen: { _ in false.asLLVM() })
 }
 
 //let polymorphicT = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
@@ -106,6 +107,7 @@ class BuiltinFunction {
     var onCallCheck: CallCheck?
 
     init(entity: Entity, generate: @escaping Generate, onCallCheck: CallCheck?) {
+        entity.flags.insert(.builtin)
         self.entity = entity
         self.type = entity.type!
         self.generate = generate

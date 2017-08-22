@@ -1008,6 +1008,7 @@ extension Checker {
         if calleeType is ty.Metatype {
             return check(cast: call, to: calleeType.lower())
         }
+        call.checked = .call
 
         if let pointer = calleeType as? ty.Pointer, pointer.pointeeType is ty.Function {
             calleeType = pointer.pointeeType

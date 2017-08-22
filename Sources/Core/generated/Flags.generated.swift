@@ -37,8 +37,8 @@ extension Entity {
         return flags.contains(.label) 
     }
 
-    var isBuiltinFunc: Bool {
-        return flags.contains(.builtinFunc) 
+    var isBuiltin: Bool {
+        return flags.contains(.builtin) 
     }
 }
 
@@ -123,6 +123,10 @@ extension Options {
 
     var isEmitDebugTimes: Bool {
         return flags.contains(.emitDebugTimes) 
+    }
+
+    var isEmitAst: Bool {
+        return flags.contains(.emitAst) 
     }
 }
 

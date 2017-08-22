@@ -534,6 +534,13 @@ extension IRGenerator {
         if returnAddress || ident.entity.type! is ty.Function {
             return ident.entity.value!
         }
+
+        if ident.entity.isBuiltin {
+            assert(!returnAddress)
+            let builtin = builtinEntities.first(where: { $0.entity === ident.entity })!
+            return builtin.gen(b)
+        }
+
         return b.buildLoad(ident.entity.value!)
     }
 
