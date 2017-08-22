@@ -280,6 +280,8 @@ extension IRGenerator {
             }
         case let fór as For:
             emit(for: fór)
+        case let íf as If:
+            emit(if: íf)
         default:
             print("Warning: statement didn't codegen: \(stmt)")
             return
@@ -370,6 +372,9 @@ extension IRGenerator {
 
         b.positionAtEnd(of: thenBlock)
         emit(statement: iff.body)
+        if !b.insertBlock!.lastInstruction!.isATerminatorInst {
+            b.buildBr(postBlock)
+        }
 
         if let els = iff.els {
             b.positionAtEnd(of: elseBlock!)
@@ -377,8 +382,9 @@ extension IRGenerator {
 
             if elseBlock!.terminator != nil && thenBlock.terminator != nil {
                 postBlock.removeFromParent()
-
                 return
+            } else if !b.insertBlock!.lastInstruction!.isATerminatorInst {
+                b.buildBr(postBlock)
             }
         }
 

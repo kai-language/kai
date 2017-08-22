@@ -161,6 +161,9 @@ extension Checker {
         case let fór as For:
             check(for: fór)
 
+        case let íf as If:
+            check(if: íf)
+
         default:
             print("Warning: statement '\(stmt)' passed through without getting checked")
             return
@@ -590,6 +593,23 @@ extension Checker {
         }
 
         check(stmt: fór.body)
+    }
+
+    mutating func check(if iff: If) {
+        pushContext()
+        defer {
+            popContext()
+        }
+
+        let condType = check(expr: iff.cond, desiredType: ty.bool)
+        if !canConvert(condType, to: ty.bool) && !implicitlyConvert(condType, to: ty.bool) {
+            reportError("Cannot convert '\(condType)' to expected type 'bool'", at: iff.cond.start)
+        }
+
+        check(stmt: iff.body)
+        if let els = iff.els {
+            check(stmt: els)
+        }
     }
 
     @discardableResult
@@ -1293,6 +1313,9 @@ func canLvalue(_ expr: Expr) -> Bool {
     case let ident as Ident:
         if ident.name == "_" {
             return true
+        }
+        if ident === BuiltinEntity.trué || ident === BuiltinEntity.falsé {
+            return false
         }
         return !(ident.entity.isFile || ident.entity.isLibrary)
     default:
