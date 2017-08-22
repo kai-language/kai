@@ -893,6 +893,12 @@ extension Checker {
                 rCast = rhsType.isSigned ? OpCode.Cast.sext : OpCode.Cast.zext
             }
         } else if let lhsType = lhsType as? ty.Pointer, rhsType is ty.Integer {
+            // Can only add to/sub from a pointer
+            guard binary.op == .add || binary.op == .sub else {
+                binary.type = ty.invalid
+                return ty.invalid
+            }
+
             resultType = lhsType
             isPointerArithmetic = true
         } else {
