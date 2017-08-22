@@ -608,7 +608,8 @@ extension IRGenerator {
             let args = call.args.map({ emit(expr: $0) })
             return b.buildCall(callee, args: args)
         case .specializedCall(let specialization):
-            return specialization.llvm!
+            let args = call.args.map({ emit(expr: $0) })
+            return b.buildCall(specialization.llvm!, args: args)
         case .cast(let op):
             let val = emit(expr: call.args[0])
             return b.buildCast(op, value: val, type: canonicalize(call.type))
