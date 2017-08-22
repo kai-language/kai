@@ -22,6 +22,8 @@ func rememberError(_ message: String, at position: Position) {
 }
  */
 
+public var wasErrors: Bool = false
+
 struct SourceError {
     var pos: Pos
     var msg: String
@@ -31,8 +33,9 @@ func emitErrors(for file: SourceFile, at stage: String) {
     guard !file.errors.isEmpty else {
         return
     }
+    wasErrors = true
 
-    let filteredErrors = file.errors.enumerated().filter { !$0.element.msg.contains("<invalid>") }
+    let filteredErrors = file.errors.enumerated().filter { !$0.element.msg.contains("< invalid >") }
 
     print("There were \(filteredErrors.count) errors during \(stage)\nexiting")
 

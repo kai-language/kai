@@ -24,6 +24,10 @@ package.begin()
 
 threadPool.waitUntilDone()
 
+if wasErrors {
+    exit(1)
+}
+
 package.validateIR()
 
 performEmissionPreflightChecks()
