@@ -86,9 +86,6 @@ public final class ThreadPool {
             mutex.unlock()
             usleep(1)
         }
-
-        // FIXME(Brett): remove
-        print()
     }
 }
 
