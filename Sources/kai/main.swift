@@ -15,9 +15,8 @@ guard let package = SourcePackage.makeInitial(for: filepath) else {
     exit(1)
 }
 
-Options.instance = Options(arguments: CommandLine.arguments[1...])
-
-performCompilationPreflightChecks(with: Options.instance, initialPackage: package)
+let opts = Options(arguments: CommandLine.arguments[1...])
+Options.instance = opts // Note: You must set this, it is used internally
 
 threadPool = ThreadPool(nThreads: Options.instance.jobs)
 
@@ -25,25 +24,41 @@ package.begin()
 
 threadPool.waitUntilDone()
 
-SourcePackage.exportAll()
+package.validateIR()
 
-if Options.instance.flags.contains(.emitIr) {
-    SourcePackage.emitAllIr()
+performEmissionPreflightChecks()
+if opts.flags.intersection([.emitIr, .emitBitcode, .emitAssembly]).isEmpty {
+
+    package.emitObjects()
+    package.linkObjects()
+    package.cleanupBuildProducts()
+} else {
+    if opts.flags.contains(.emitIr) {
+        package.emitIntermediateRepresentation()
+    }
+
+    if opts.flags.contains(.emitBitcode) {
+        package.emitBitcode()
+    }
+
+    if opts.flags.contains(.emitAssembly) {
+        package.emitAssembly()
+    }
 }
 
-if Options.instance.flags.contains(.emitTimes) {
+if opts.flags.contains(.emitTimes) {
     let endTime = gettime()
     let total = endTime - startTime
     print("Total time was \(total.humanReadableTime)")
 }
 
-if Options.instance.flags.contains(.emitTimes) {
+if opts.flags.contains(.emitTimes) {
     print("Parsing took \(parseStageTiming.humanReadableTime)")
     print("Checking took \(checkStageTiming.humanReadableTime)")
     print("IRGeneration took \(irgenStageTiming.humanReadableTime)")
 }
 
-if Options.instance.flags.contains(.emitDebugTimes) {
+if opts.flags.contains(.emitDebugTimes) {
     for (name, duration) in debugTimings.sorted(by: { $0.name < $1.name }) {
         print("\(name) took \(duration.humanReadableTime)")
     }

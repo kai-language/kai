@@ -5,22 +5,12 @@ import LLVM
 
 var targetMachine: TargetMachine!
 
-public func initTargetMachine() {
-    // TODO: configurable targets
-    do {
-        targetMachine = try TargetMachine()
-    } catch {
-        print("ERROR: \(error)")
-        print("  While preparing target")
-        exit(1)
-    }
-}
-
 /// Ensures everything is preparred for compilation
-public func performCompilationPreflightChecks(with options: Options, initialPackage package: SourcePackage) {
+public func performEmissionPreflightChecks() {
+
     do {
         targetMachine = try TargetMachine()
-        try ensureBuildDirectoryExists()
+        try ensureBuildDirectoriesExist()
     } catch {
         print("ERROR: \(error)")
         print("  While performing preflight checks")
@@ -28,7 +18,7 @@ public func performCompilationPreflightChecks(with options: Options, initialPack
     }
 }
 
-public func ensureBuildDirectoryExists() throws {
+public func ensureBuildDirectoriesExist() throws {
     let fm = FileManager.default
 
     var isDir: ObjCBool = false
@@ -38,6 +28,17 @@ public func ensureBuildDirectoryExists() throws {
         }
     } else {
         try fm.createDirectory(atPath: buildDirectory, withIntermediateDirectories: false, attributes: nil)
+    }
+
+    for package in knownSourcePackages.values.filter({ !$0.isInitialPackage }) {
+        var isDir: ObjCBool = false
+        if fm.fileExists(atPath: dirname(path: package.emitPath), isDirectory: &isDir) {
+            if !isDir.boolValue {
+                throw "cannot write to output directory \(basename(path: package.emitPath))"
+            }
+        } else {
+            try fm.createDirectory(atPath: dirname(path: package.emitPath), withIntermediateDirectories: true, attributes: nil)
+        }
     }
 }
 

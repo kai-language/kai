@@ -60,9 +60,9 @@ public final class SourcePackage {
         self.firstImportedFrom = importedFrom
         if let importedFrom = importedFrom {
             let index = importedFrom.fullpath.commonPathPrefix(with: fullpath)
-            moduleName = String(fullpath[index...])
+            moduleName = dropExtension(path: String(fullpath[index...]))
         } else {
-            moduleName = basename(path: fullpath)
+            moduleName = dropExtension(path: basename(path: fullpath))
         }
         self.scope = Scope(parent: Scope.global, isPackage: true)
     }
@@ -121,21 +121,6 @@ public final class SourcePackage {
         return package
     }
 
-    public static func exportAll() {
-        initTargetMachine()
-        validateAll()
-
-        for (_, package) in knownSourcePackages {
-            package.compileIntermediateRepresentation()
-        }
-    }
-
-    public static func validateAll() {
-        for (_, package) in knownSourcePackages {
-            package.validateIntermediateRepresentation()
-        }
-    }
-
     public static func gatherLinkerFlags() -> Set<String> {
         var libs: Set<String> = []
 
@@ -147,14 +132,6 @@ public final class SourcePackage {
 
         return libs
     }
-
-    public static func emitAllIr() {
-        for (_, package) in knownSourcePackages {
-            package.emitIr()
-        }
-
-        print()
-    }
 }
 
 extension SourcePackage {
@@ -165,11 +142,19 @@ extension SourcePackage {
         }
     }
 
-    public var objpath: String {
-        return buildDirectory + moduleName + ".o"
+    public var emitPath: String {
+        return buildDirectory + moduleName
     }
 
-    public func validateIntermediateRepresentation() {
+    public var objpath: String {
+        return emitPath + ".o"
+    }
+
+    public func validateIR() {
+        for dependency in dependencies {
+            dependency.validateIR()
+        }
+
         do {
             try module.verify()
         } catch {
@@ -179,17 +164,12 @@ extension SourcePackage {
         }
     }
 
-    public func compileIntermediateRepresentation() {
-        let fm = FileManager.default
+    public func emitObjects() {
+        for dep in dependencies {
+            dep.emitObjects()
+        }
+
         do {
-            var isDir: ObjCBool = false
-            if fm.fileExists(atPath: dirname(path: objpath), isDirectory: &isDir) {
-                if !isDir.boolValue {
-                    throw "cannot write to output directory \(basename(path: objpath))"
-                }
-            } else {
-                try fm.createDirectory(atPath: dirname(path: objpath), withIntermediateDirectories: true, attributes: nil)
-            }
             try targetMachine.emitToFile(
                 module: module,
                 type: .object,
@@ -197,16 +177,69 @@ extension SourcePackage {
             )
         } catch {
             print("ERROR: \(error)")
-            print("  While emitting object file to \(objpath)")
+            print("  While emitting object file to \(emitPath)")
             exit(1)
         }
     }
 
-    public func link() {
+    public func emitIntermediateRepresentation() {
+        for dep in dependencies {
+            dep.emitIntermediateRepresentation()
+        }
+
+        do {
+            try module.print(to: emitPath + ".ll")
+        } catch {
+            print("ERROR: \(error)")
+            print("  While emitting IR to '\(emitPath + ".ll")'")
+            exit(1)
+        }
+    }
+
+    public func emitBitcode() {
+        for dep in dependencies {
+            dep.emitBitcode()
+        }
+
+        do {
+            try targetMachine.emitToFile(
+                module: module,
+                type: .bitCode,
+                path: emitPath + ".bc"
+            )
+        } catch {
+            print("ERROR: \(error)")
+            print("  While emitting Bitcode to '\(emitPath + ".bc")'")
+            exit(1)
+        }
+    }
+
+    public func emitAssembly() {
+        for dep in dependencies {
+            dep.emitAssembly()
+        }
+
+        do {
+            try targetMachine.emitToFile(
+                module: module,
+                type: .assembly,
+                path: emitPath + ".s"
+            )
+        } catch {
+            print("ERROR: \(error)")
+            print("  While emitting Assembly to '\(emitPath + ".s")'")
+            exit(1)
+        }
+    }
+
+    public func linkObjects() {
         let clangPath = getClangPath()
 
-        var args = ["-o", moduleName, objpath]
-        for library in linkedLibraries {
+        let objFilePaths = knownSourcePackages.values.map({ $0.objpath })
+        var args = ["-o", moduleName] + objFilePaths
+
+        let allLinkedLibraries = knownSourcePackages.values.reduce(Set(), { $0.union($1.linkedLibraries) })
+        for library in allLinkedLibraries {
             if library.hasSuffix(".framework") {
 
                 let frameworkName = library.components(separatedBy: ".").first!
@@ -223,7 +256,7 @@ extension SourcePackage {
             }
         }
 
-        shell(path: clangPath, args: ["-o", moduleName, objpath])
+        shell(path: clangPath, args: args)
     }
 
     public func cleanupBuildProducts() {
@@ -232,44 +265,6 @@ extension SourcePackage {
         } catch {
             print("ERROR: \(error)")
             print("  While cleaning up build directory")
-            exit(1)
-        }
-    }
-
-    public func emitIr() {
-        do {
-            try module.print(to: "/dev/stdout")
-        } catch {
-            print("ERROR: \(error)")
-            print("  While emitting IR to '/dev/stdout'")
-            exit(1)
-        }
-    }
-
-    public func emitBitcode() {
-        do {
-            try targetMachine.emitToFile(
-                module: module,
-                type: .bitCode,
-                path: "/dev/stdout"
-            )
-        } catch {
-            print("ERROR: \(error)")
-            print("  While emitting Bitcode")
-            exit(1)
-        }
-    }
-
-    public func emitAssembly() {
-        do {
-            try targetMachine.emitToFile(
-                module: module,
-                type: .assembly,
-                path: "/dev/stdout"
-            )
-        } catch {
-            print("ERROR: \(error)")
-            print("  While emitting Assembly")
             exit(1)
         }
     }
