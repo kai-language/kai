@@ -328,21 +328,17 @@ extension IRGenerator {
         switch values.count {
         case 0:
             b.buildRetVoid()
-
         case 1:
             b.buildRet(values[0])
-
         default:
             b.buildRetAggregate(of: values)
         }
-
     }
 
     mutating func emit(parameter param: Parameter) {
         let type = canonicalize(param.entity.type!)
 
         if Options.instance.flags.contains(.emitIr) {
-
              if let endOfAlloca = b.insertBlock!.instructions.first(where: { !$0.isAAllocaInst }) {
                  b.position(endOfAlloca, block: b.insertBlock!)
              }
@@ -748,7 +744,7 @@ func canonicalize(_ type: Type) -> IRType {
         return canonicalize(type)
     case let type as ty.Tuple:
         return canonicalize(type)
-    case let type as ty.Polymorphic:
+    case is ty.Polymorphic:
         fatalError()
     default:
         preconditionFailure()
