@@ -259,7 +259,7 @@ struct Scanner {
             return true
         case "x"?:
             next()
-            (n, base, max) = (4, 16, 255)
+            (n, base, max) = (2, 16, 255)
         case "u"?:
             next()
             (n, base, max) = (4, 16, 0x0010FFFF) // Unicode max rune.
@@ -297,7 +297,7 @@ struct Scanner {
     }
 
     mutating func scanString() -> String {
-        let start = offset
+        let start = offset - 1 // include opening quote
 
         while true {
             guard let ch = ch else {
@@ -313,7 +313,7 @@ struct Scanner {
             }
         }
 
-        return String(bytes: data[start..<offset - 1], encoding: .utf8)!
+        return String(bytes: data[start..<offset], encoding: .utf8)!
     }
 
     mutating func skipWhitespace() {

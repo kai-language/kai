@@ -100,17 +100,18 @@ extension SourceFile {
         imports.append(i)
 
         switch i.path {
-        case let path as BasicLit where path.token == .string:
-
-            let relpath = dirname(path: importedFrom.fullpath) + path.text
+        case let lit as BasicLit where lit.token == .string:
+            let path = lit.value as! String
+            
+            let relpath = dirname(path: importedFrom.fullpath) + path
             guard let fullpath = realpath(relpath: relpath) else {
-                addError("Failed to open '\(path.text)'", path.start)
+                addError("Failed to open '\(path)'", lit.start)
                 return
             }
 
-            i.resolvedName = i.alias?.name ?? pathToEntityName(path.text)
+            i.resolvedName = i.alias?.name ?? pathToEntityName(path)
             if isDirectory(path: fullpath) {
-                guard let dependency = SourcePackage.new(relpath: path.text, importedFrom: self) else {
+                guard let dependency = SourcePackage.new(relpath: path, importedFrom: self) else {
                     preconditionFailure()
                 }
                 self.package.dependencies.append(dependency)
@@ -122,7 +123,7 @@ extension SourceFile {
                     importedFrom.checkingJob.addBlockedBy(file.checkingJob)
                 }
             } else {
-                guard let file = SourceFile.new(path: path.text, package: package, importedFrom: importedFrom) else {
+                guard let file = SourceFile.new(path: path, package: package, importedFrom: importedFrom) else {
                     preconditionFailure()
                 }
                 threadPool.add(job: file.parsingJob)
@@ -142,10 +143,11 @@ extension SourceFile {
                 addError("Expected string literal representing github user/repo", call.args[0].start)
                 return
             }
+            let userRepo = lit.value as! String
 
-            let split = lit.text.split(separator: "/")
+            let split = userRepo.split(separator: "/")
             guard split.count == 2 else {
-                addError("Expected string literal of the form user/repo", call.args[0].start)
+                addError("Expected string literal of the form user/repo", lit.start)
                 return
             }
 

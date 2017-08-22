@@ -51,7 +51,7 @@ extension Parser {
         } else {
             reportExpected("string literal", at: pos)
         }
-        return BasicLit(start: start, token: .string, text: val, type: nil, value: nil)
+        return BasicLit(start: start, token: .string, text: val, type: nil, value: unquote(val))
     }
 
     mutating func parseIdent() -> Ident {
@@ -208,7 +208,11 @@ extension Parser {
         switch tok {
         case .ident:
             return parseIdent()
-        case .int, .string, .float:
+        case .string:
+            let val = BasicLit(start: pos, token: tok, text: lit, type: nil, value: unquote(lit))
+            next()
+            return val
+        case .int, .float:
             let val = BasicLit(start: pos, token: tok, text: lit, type: nil, value: nil)
             next()
             return val
@@ -835,6 +839,65 @@ extension Parser {
         default:
             return Parser.lowestPrecedence
         }
+    }
+
+    func unquote(_ s: String) -> String {
+        var s = s
+
+        s = String(s.dropFirst().dropLast())
+
+        var index = s.startIndex
+        while index < s.endIndex {
+            guard s[index] == "\\" else {
+                index = s.index(after: index)
+                continue
+            }
+            s.remove(at: index)
+            var char: Character
+            switch s[index] {
+            case "a":  char = "\u{0007}" // alert or bell
+            case "b":  char = "\u{0008}" // backspace
+            case "f":  char = "\u{000c}" // form feed
+            case "n":  char = "\u{000a}" // line feed or newline
+            case "r":  char = "\u{000d}" // carriage return
+            case "t":  char = "\u{0009}" // horizontal tab
+            case "v":  char = "\u{000b}" // vertical tab
+            case "\\": char = "\u{005c}" // backslash
+            case "\"": char = "\u{0022}" // double quote
+            default:
+                let startIndex = index
+                var n = 0
+                switch s[index] {
+                case "x":
+                    n = 2
+                case "u":
+                    n = 4
+                case "U":
+                    n = 8
+                default:
+                    fatalError("Scanner prevents reaching this point.")
+                }
+
+                var val: UInt32 = 0
+                for _ in 0 ..< n {
+                    index = s.index(after: index)
+                    assert(s[index].unicodeScalars.count == 1)
+                    let x = digitVal(s[index].unicodeScalars.first!)
+                    val = val << 4 | UInt32(x)
+                }
+
+                index = s.index(after: index)
+                let scalar = Unicode.Scalar(val)!
+                let character = Character(scalar)
+                s.replaceSubrange(startIndex ..< index, with: [character])
+                index = s.index(after: startIndex)
+
+                continue
+            }
+            s.replaceSubrange(index ..< s.index(after: index), with: [char])
+        }
+
+        return s
     }
 }
 

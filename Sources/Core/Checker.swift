@@ -342,16 +342,18 @@ extension Checker {
 
     mutating func check(library l: Library) {
 
-        guard let path = l.path as? BasicLit, path.token == .string else {
+        guard let lit = l.path as? BasicLit, lit.token == .string else {
             reportError("Library path must be a string literal value", at: l.path.start)
             return
         }
 
-        l.resolvedName = l.alias?.name ?? pathToEntityName(path.text)
+        let path = lit.value as! String
+
+        l.resolvedName = l.alias?.name ?? pathToEntityName(path)
 
         // TODO: Use the Value system to resolve any string value.
         guard let name = l.resolvedName else {
-            reportError("Cannot infer an import name for '\(l.path)'", at: l.path.start)
+            reportError("Cannot infer an import name for '\(path)'", at: l.path.start)
             file.attachNote("You will need to manually specify one")
             return
         }
@@ -359,10 +361,10 @@ extension Checker {
         let entity = Entity(ident: ident, type: nil, flags: .library, memberScope: nil, owningScope: nil, value: nil)
         declare(entity)
 
-        if path.text != "libc" && path.text != "llvm" {
+        if path != "libc" && path != "llvm" {
 
-            guard let linkpath = resolveLibraryPath(path.text, for: file.fullpath) else {
-                reportError("Failed to resolve path for '\(path)'", at: path.start)
+            guard let linkpath = resolveLibraryPath(path, for: file.fullpath) else {
+                reportError("Failed to resolve path for '\(path)'", at: l.path.start)
                 return
             }
             file.package.linkedLibraries.insert(linkpath)
@@ -495,7 +497,7 @@ extension Checker {
             lit.value = Double(lit.text)!
             lit.type = ty.f64
         case .string:
-            lit.value = lit.text
+            // NOTE: unquoted in the Parser.
             lit.type = ty.string
         default:
             lit.type = ty.invalid

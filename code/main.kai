@@ -1,5 +1,5 @@
 
-//#import github("kai-language/stdlib") 
+#import github("kai-language/stdlib") 
 
 #library "libc" libc
 
