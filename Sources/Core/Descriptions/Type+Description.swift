@@ -62,6 +62,12 @@ extension ty.Struct {
     }
 }
 
+extension ty.Array {
+    var description: String {
+        return "array"
+    }
+}
+
 extension ty.Function {
     var description: String {
         if entity !== Entity.anonymous {

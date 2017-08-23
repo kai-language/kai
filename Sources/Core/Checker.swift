@@ -441,6 +441,22 @@ extension Checker {
             let type = ty.Pointer(pointeeType: pointee)
             pointer.type = ty.Metatype(instanceType: type)
 
+        case let array as ArrayType:
+            var element = check(expr: array.explicitType)
+            element = lowerFromMetatype(element, atNode: array)
+            // TODO: extract compile-time constant from expression `array.length`
+            _ = check(expr: array.length)
+            guard
+                let lit = array.length as? BasicLit,
+                let length = lit.value as? UInt64
+            else {
+                reportError("Currently, only array literals are allowed for array length", at: array.length.start)
+                return ty.invalid
+            }
+
+            let type = ty.Array(length: Int(length), elementType: element)
+            array.type = ty.Metatype(instanceType: type)
+
         case let strućt as StructType:
             check(struct: strućt)
 
@@ -561,6 +577,22 @@ extension Checker {
                     }
                 }
             }
+            lit.type = type
+            return type
+
+        case let type as ty.Array:
+            if lit.elements.count != type.length {
+                reportError("Element count (\(lit.elements.count)) does not match array length (\(type.length))", at: lit.start)
+            }
+
+            for el in lit.elements {
+                el.type = check(expr: el.value, desiredType: type.elementType)
+                guard canConvert(el.type, to: type.elementType) || implicitlyConvert(el.type, to: type.elementType) else {
+                    reportError("Cannot conver element of type '\(el.type)' to expected type '\(el.type)'", at: el.value.start)
+                    continue
+                }
+            }
+
             lit.type = type
             return type
 

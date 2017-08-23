@@ -522,6 +522,16 @@ extension IRGenerator {
                 ir = b.buildInsertValue(aggregate: ir, element: val, index: el.structField!.index)
             }
             return ir
+
+        case let type as ty.Array:
+            let irType = canonicalize(type)
+            var ir = irType.undef()
+            for (index, el) in lit.elements.enumerated() {
+                let val = emit(expr: el.value)
+                ir = b.buildInsertValue(aggregate: ir, element: val, index: index)
+            }
+            return ir
+
         default:
             preconditionFailure()
         }
@@ -720,6 +730,10 @@ func canonicalize(_ pointer: ty.Pointer) -> LLVM.PointerType {
     return LLVM.PointerType(pointee: canonicalize(pointer.pointeeType))
 }
 
+func canonicalize(_ array: ty.Array) -> LLVM.ArrayType {
+    return LLVM.ArrayType(elementType: canonicalize(array.elementType), count: array.length)
+}
+
 func canonicalize(_ fn: ty.Function) -> FunctionType {
     var paramTypes: [IRType] = []
 
@@ -759,6 +773,8 @@ func canonicalize(_ type: Type) -> IRType {
     case let type as ty.FloatingPoint:
         return canonicalize(type)
     case let type as ty.Pointer:
+        return canonicalize(type)
+    case let type as ty.Array:
         return canonicalize(type)
     case let type as ty.Function:
         return canonicalize(type)

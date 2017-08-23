@@ -115,6 +115,18 @@ enum ty {
         }
     }
 
+    struct Array: Type {
+        unowned var entity: Entity = .anonymous
+        var width: Int? { return (elementType.width ?? 1) * length }
+        var length: Int
+        var elementType: Type
+
+        init(length: Int, elementType: Type) {
+            self.length = length
+            self.elementType = elementType
+        }
+    }
+
     struct Anyy: Type {
         unowned var entity: Entity = .any
         var width: Int? { return 64 }
