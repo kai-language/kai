@@ -875,7 +875,8 @@ extension Parser {
                 case "U":
                     n = 8
                 default:
-                    fatalError("Scanner prevents reaching this point.")
+                    assert(!file.errors.isEmpty, "Unknown escape sequences should be caught in the scanner")
+                    return s
                 }
 
                 var val: UInt32 = 0
