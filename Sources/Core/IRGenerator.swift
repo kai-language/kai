@@ -356,36 +356,33 @@ extension IRGenerator {
     }
 
     mutating func emit(if iff: If) {
-        let cond = emit(expr: iff.cond)
-
         let ln = file.position(for: iff.start).line
 
         let thenBlock = b.currentFunction!.appendBasicBlock(named: "if.then.ln\(ln)")
         let elseBlock = iff.els.map({ _ in b.currentFunction!.appendBasicBlock(named: "if.else.ln.\(ln)") })
         let postBlock = b.currentFunction!.appendBasicBlock(named: "if.post.ln.\(ln)")
 
-        if let elseBlock = elseBlock {
-            b.buildCondBr(condition: cond, then: thenBlock, else: elseBlock)
-        } else {
-            b.buildCondBr(condition: cond, then: thenBlock, else: postBlock)
-        }
+        let cond = emit(expr: iff.cond)
+        b.buildCondBr(condition: cond, then: thenBlock, else: elseBlock ?? postBlock)
 
         b.positionAtEnd(of: thenBlock)
         emit(statement: iff.body)
-        if !b.insertBlock!.lastInstruction!.isATerminatorInst {
-            b.buildBr(postBlock)
-        }
 
         if let els = iff.els {
             b.positionAtEnd(of: elseBlock!)
             emit(statement: els)
 
-            if elseBlock!.terminator != nil && thenBlock.terminator != nil {
-                postBlock.removeFromParent()
-                return
-            } else if !b.insertBlock!.lastInstruction!.isATerminatorInst {
+            if elseBlock!.terminator == nil {
                 b.buildBr(postBlock)
+            } else if thenBlock.terminator != nil {
+                // The if statement is terminating and the post block is unneeded.
+                postBlock.removeFromParent()
             }
+        }
+
+        if thenBlock.terminator == nil {
+            b.positionAtEnd(of: thenBlock)
+            b.buildBr(postBlock)
         }
 
         b.positionAtEnd(of: postBlock)
