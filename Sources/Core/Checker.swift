@@ -1066,7 +1066,7 @@ extension Checker {
         let recType = check(expr: sub.rec)
         let indexType = check(expr: sub.index, desiredType: ty.i64)
 
-        if !canConvert(indexType, to: ty.i64) && !implicitlyConvert(indexType, to: ty.i64) {
+        if !canConvert(indexType, to: ty.i64) && !implicitlyConvert(indexType, to: ty.i64) && !(indexType is ty.Integer){
             reportError("Cannot subscript with non-integer type", at: sub.index.start)
         }
 
