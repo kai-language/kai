@@ -196,6 +196,14 @@ extension SourcePackage {
         }
     }
 
+    public func dumpIntermediateRepresentation() {
+        for dep in dependencies {
+            dep.dumpIntermediateRepresentation()
+        }
+        module.dump()
+        print()
+    }
+
     public func emitBitcode() {
         for dep in dependencies {
             dep.emitBitcode()

@@ -50,6 +50,10 @@ if opts.flags.intersection([.emitIr, .emitBitcode, .emitAssembly]).isEmpty {
     }
 }
 
+if opts.flags.contains(.dumpIr) {
+    package.dumpIntermediateRepresentation()
+}
+
 if opts.flags.contains(.emitTimes) {
     let endTime = gettime()
     let total = endTime - startTime

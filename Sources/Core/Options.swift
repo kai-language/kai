@@ -20,6 +20,8 @@ public struct Options {
                 flags.insert(.emitTimes)
             case "-emit-debug-times":
                 flags.insert(.emitDebugTimes)
+            case "-dump-ir":
+                flags.insert(.dumpIr)
             case "-emit-ir":
                 flags.insert(.emitIr)
             case "-emit-bitcode":
@@ -48,6 +50,8 @@ public struct Options {
 
         public static let noCleanup    = Flags(rawValue: 0b0001)
 
+        /// dumpIr will dump the IR to stdout
+        public static let dumpIr       = Flags(rawValue: 0b0001 << 4)
         public static let emitIr       = Flags(rawValue: 0b0010 << 4)
         public static let emitBitcode  = Flags(rawValue: 0b0100 << 4)
         public static let emitAssembly = Flags(rawValue: 0b1000 << 4)
