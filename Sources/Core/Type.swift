@@ -78,6 +78,9 @@ func canConvert(_ lhs: Type, to rhs: Type) -> Bool {
     if let rhs = rhs as? ty.Tuple, rhs.types.count == 1 {
         return canConvert(rhs.types[0], to: lhs)
     }
+    if let lhs = lhs as? ty.Array, let rhs = rhs as? ty.Pointer {
+        return canConvert(lhs.elementType, to: rhs.pointeeType)
+    }
     return lhs == rhs
 }
 

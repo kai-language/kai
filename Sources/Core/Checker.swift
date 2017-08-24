@@ -1078,10 +1078,11 @@ extension Checker {
             sub.checked = .array
             type = array.elementType
 
-            // TODO: support compile time constants
+            // TODO: support compile time constants. Compile time constant support
+            // will allows us to guard against negative indices as well
             if let lit = sub.index as? BasicLit, let value = lit.value as? UInt64 {
-                if value >= array.length || value < 0 {
-                    reportError("Index \(value) is out of array's bounds (\(array.length))", at: sub.index.start)
+                if value >= array.length {
+                    reportError("Index \(value) is past the end of the array (\(array.length) elements)", at: sub.index.start)
                 }
             }
 
@@ -1220,6 +1221,10 @@ extension Checker {
             op = argType.isSigned ? .siToFP : .uiToFP
         } else if argType is ty.FloatingPoint, let targetType = targetType as? ty.Integer { // TODO: Cast from float to int of different size
             op = targetType.isSigned ? .fpToSI : .fpToUI
+        } else if argType is ty.Array, targetType is ty.Pointer {
+            // If the user performs a reinterpret cast, we don't care if the
+            // underlying types match/are the same width
+            op = .bitCast
         } else {
             reportError("Cannot cast between unrelated types '\(argType)' and '\(targetType)'", at: cast.start)
         }
