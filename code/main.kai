@@ -77,8 +77,8 @@ main :: fn () -> void {
     h = g(8)*/
 
     forExample()
-    //addrA := &a
-    //valA := <addrA
+    addrA := &a
+    valA := <addrA
 
     x, y := 1, 2
 
