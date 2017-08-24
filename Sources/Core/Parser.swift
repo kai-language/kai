@@ -188,6 +188,11 @@ extension Parser {
             case .period:
                 next()
                 x = Selector(rec: x, sel: parseIdent(), checked: nil)
+            case .lbrack:
+                next()
+                let index = parseExpr()
+                expect(.rbrack)
+                x = Subscript(rec: x, index: index, type: nil, checked: nil)
             case .lparen:
                 let lparen = eatToken()
                 var args: [Expr] = []

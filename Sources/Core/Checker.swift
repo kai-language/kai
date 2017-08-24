@@ -474,6 +474,9 @@ extension Checker {
         case let selector as Selector:
             check(selector: selector)
 
+        case let subsćript as Subscript:
+            check(subscript: subsćript)
+
         case let call as Call:
             check(callOrCast: call)
 
@@ -1059,6 +1062,40 @@ extension Checker {
     }
 
     @discardableResult
+    mutating func check(subscript sub: Subscript) -> Type {
+        let recType = check(expr: sub.rec)
+        let indexType = check(expr: sub.index, desiredType: ty.i64)
+
+        if !canConvert(indexType, to: ty.i64) && !implicitlyConvert(indexType, to: ty.i64) {
+            reportError("Cannot subscript with non-integer type", at: sub.index.start)
+        }
+
+        let type: Type
+
+        switch recType {
+        case let array as ty.Array:
+            sub.type = array.elementType
+            sub.checked = .array
+            type = array.elementType
+
+        case let pointer as ty.Pointer:
+            sub.type = pointer.pointeeType
+            sub.checked = .pointer
+            type = pointer.pointeeType
+
+        default:
+            if !(recType is ty.Invalid) {
+                reportError("Unable to subscript type \(recType)", at: sub.start)
+            }
+
+            return ty.invalid
+        }
+
+
+        return type
+    }
+
+    @discardableResult
     mutating func check(callOrCast call: Call) -> Type {
         var calleeType = check(expr: call.fun)
         if calleeType is ty.Metatype {
@@ -1375,6 +1412,8 @@ func canLvalue(_ expr: Expr) -> Bool {
             return false
         }
         return !(ident.entity.isFile || ident.entity.isLibrary)
+    case is Subscript:
+        return true
     default:
         return false
     }

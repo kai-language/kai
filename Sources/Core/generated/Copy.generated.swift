@@ -520,6 +520,19 @@ func copy(_ nodes: [StructType]) -> [StructType] {
     return nodes.map(copy)
 }
 
+func copy(_ node: Subscript) -> Subscript {
+    return Subscript(
+        rec: copy(node.rec),
+        index: copy(node.index),
+        type: node.type,
+        checked: node.checked
+    )
+}
+
+func copy(_ nodes: [Subscript]) -> [Subscript] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: Switch) -> Switch {
     return Switch(
         keyword: node.keyword,
@@ -594,6 +607,7 @@ func copy(_ node: Expr) -> Expr {
     case let node as Selector: return copy(node)
     case let node as SliceType: return copy(node)
     case let node as StructType: return copy(node)
+    case let node as Subscript: return copy(node)
     case let node as Ternary: return copy(node)
     case let node as Unary: return copy(node)
     case let node as VariadicType: return copy(node)

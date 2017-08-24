@@ -492,6 +492,8 @@ extension IRGenerator {
             return emit(call: call)
         case let sel as Selector:
             return emit(selector: sel, returnAddress: returnAddress)
+        case let sub as Subscript:
+            return emit(subscript: sub, returnAddress: returnAddress)
         default:
             preconditionFailure()
         }
@@ -700,6 +702,28 @@ extension IRGenerator {
             }
             return b.buildLoad(fieldAddress)
         }
+    }
+
+    mutating func emit(subscript sub: Subscript, returnAddress: Bool) -> IRValue {
+        // Pointers need to have the address loaded and arrays must use their address
+        let shouldReturnAddress = sub.checked == .array
+        let aggregate = emit(expr: sub.rec, returnAddress: shouldReturnAddress)
+        let index = emit(expr: sub.index)
+
+        let indicies: [IRValue]
+
+        switch sub.checked! {
+        case .array:
+            indicies = [0, index]
+        case .pointer:
+            indicies = [index]
+        }
+
+        let val = b.buildInBoundsGEP(aggregate, indices: indicies)
+        if returnAddress {
+            return val
+        }
+        return b.buildLoad(val)
     }
 }
 

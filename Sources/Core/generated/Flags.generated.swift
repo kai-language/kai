@@ -105,6 +105,10 @@ extension Options {
         return flags.contains(.noCleanup) 
     }
 
+    var isDumpIr: Bool {
+        return flags.contains(.dumpIr) 
+    }
+
     var isEmitIr: Bool {
         return flags.contains(.emitIr) 
     }

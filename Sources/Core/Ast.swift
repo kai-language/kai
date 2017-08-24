@@ -317,6 +317,31 @@ init(rec: Expr, sel: Ident, checked: Checked!) {
 // sourcery:end
 }
 
+class Subscript: Expr, Node {
+    var rec: Expr
+    var index: Expr
+
+    var type: Type! 
+    var checked: Checked!
+
+    enum Checked {
+        case array
+        case pointer
+    }
+
+    var start: Pos { return rec.start }
+    var end: Pos { return index.end }
+
+// sourcery:inline:auto:Subscript.Init
+init(rec: Expr, index: Expr, type: Type!, checked: Checked!) {
+    self.rec = rec
+    self.index = index
+    self.type = type
+    self.checked = checked
+}
+// sourcery:end
+}
+
 class Call: Node, Expr {
     var fun: Expr
     var lparen: Pos
