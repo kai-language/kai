@@ -166,7 +166,6 @@ extension Checker {
 
         default:
             print("Warning: statement '\(stmt)' passed through without getting checked")
-            return
         }
     }
 
@@ -479,7 +478,7 @@ extension Checker {
             check(callOrCast: call)
 
         default:
-            break
+            print("Warning: expression '\(expr)' passed through without getting checked")
         }
 
         // TODO: Untyped types

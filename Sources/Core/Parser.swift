@@ -223,6 +223,16 @@ extension Parser {
             let expr = parseExpr()
             let rparen = expect(.rparen)
             return Paren(lparen: lparen, element: expr, rparen: rparen, type: nil)
+        case .directive:
+            let name = lit
+            let directive = eatToken()
+            switch name {
+            case "asm":
+                fatalError("Inline assembly is not yet supported")
+            default:
+                reportError("Unknown directive '\(name)'", at: directive)
+                return BadExpr(start: directive, end: directive)
+            }
         default:
             return parseType()
         }
