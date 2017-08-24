@@ -1078,6 +1078,13 @@ extension Checker {
             sub.checked = .array
             type = array.elementType
 
+            // TODO: support compile time constants
+            if let lit = sub.index as? BasicLit, let value = lit.value as? UInt64 {
+                if value >= array.length || value < 0 {
+                    reportError("Index \(value) is out of array's bounds (\(array.length))", at: sub.index.start)
+                }
+            }
+
         case let pointer as ty.Pointer:
             sub.type = pointer.pointeeType
             sub.checked = .pointer
