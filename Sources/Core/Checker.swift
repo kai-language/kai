@@ -587,7 +587,7 @@ extension Checker {
             for el in lit.elements {
                 el.type = check(expr: el.value, desiredType: type.elementType)
                 guard canConvert(el.type, to: type.elementType) || implicitlyConvert(el.type, to: type.elementType) else {
-                    reportError("Cannot conver element of type '\(el.type)' to expected type '\(el.type)'", at: el.value.start)
+                    reportError("Cannot convert element of type '\(el.type.description)' to expected type '\(type.elementType)'", at: el.value.start)
                     continue
                 }
             }
