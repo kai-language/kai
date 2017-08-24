@@ -702,6 +702,7 @@ extension Parser {
             return Library(directive: directive, path: path, alias: alias, resolvedName: nil)
         case "foreign":
             let library = parseIdent()
+            allowNewline()
             switch tok {
             case .lbrace:
                 let block = parseDeclBlock(foreign: true)
@@ -712,7 +713,7 @@ extension Parser {
             }
         case "linkname":
             let linkname = parseStringLit()
-
+            allowNewline()
             var x: Stmt
             if tok == .directive {
                  x = parseDirective(foreign: foreign)
@@ -727,6 +728,7 @@ extension Parser {
             return decl
         case "callconv":
             let conv = parseStringLit()
+            allowNewline()
             var x: Stmt
             if tok == .directive {
                 x = parseDirective(foreign: foreign)
@@ -989,6 +991,12 @@ extension Parser {
                 reportExpected("';'", at: pos, function: function, line: line)
                 recover()
             }
+        }
+    }
+
+    mutating func allowNewline() {
+        if tok == .semicolon && lit == "\n" {
+            next()
         }
     }
 
