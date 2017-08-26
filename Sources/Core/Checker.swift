@@ -743,11 +743,12 @@ extension Checker {
             reportError("#discardable on void returning function is superflous", at: fn.start)
         }
 
+        let prevReturnType = context.expectedReturnType
         context.expectedReturnType = returnType
         if !needsSpecialization {
             check(stmt: fn.body)
         }
-        context.expectedReturnType = nil
+        context.expectedReturnType = prevReturnType
 
         if needsSpecialization && !fn.isSpecialization {
             typeFlags.insert(.polymorphic)
