@@ -282,7 +282,10 @@ extension Parser {
 
     mutating func parseFuncType() -> Expr {
         let lparen = eatToken()
-        let params = parseParameterTypeList()
+        var params: [Expr] = []
+        if tok != .rparen {
+            params = parseParameterTypeList()
+        }
         expect(.rparen)
         expect(.retArrow)
         let results = parseTypeList(allowPolyType: true)
