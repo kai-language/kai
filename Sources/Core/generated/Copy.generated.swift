@@ -176,6 +176,8 @@ func copy(_ node: DeclBlock) -> DeclBlock {
         lbrace: node.lbrace,
         decls: copy(node.decls),
         rbrace: node.rbrace,
+        isForeign: node.isForeign,
+        linkprefix: node.linkprefix,
         callconv: node.callconv
     )
 }
@@ -650,9 +652,7 @@ func copy(_ nodes: [Stmt]) -> [Stmt] {
 func copy(_ node: Decl) -> Decl {
     switch node {
     case let node as BadDecl: return copy(node)
-    case let node as DeclBlock: return copy(node)
     case let node as Declaration: return copy(node)
-    case let node as Foreign: return copy(node)
     default: fatalError()
     }
 }

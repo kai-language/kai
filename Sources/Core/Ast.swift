@@ -858,7 +858,7 @@ init(directive: Pos, path: Expr, alias: Ident?, resolvedName: String?) {
 // sourcery:end
 }
 
-class Foreign: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplicable {
+class Foreign: Node, TopLevelStmt, LinknameApplicable, CallConvApplicable {
     var directive: Pos
     var library: Ident
     var decl: Decl
@@ -880,21 +880,26 @@ init(directive: Pos, library: Ident, decl: Decl, linkname: String?, callconv: St
 // sourcery:end
 }
 
-class DeclBlock: Node, TopLevelStmt, Decl, CallConvApplicable {
+class DeclBlock: Node, TopLevelStmt, CallConvApplicable {
     var lbrace: Pos
-    var decls: [Decl]
+    var decls: [Declaration]
     var rbrace: Pos
 
+    var isForeign: Bool
+
+    var linkprefix: String?
     var callconv: String?
 
     var start: Pos { return lbrace }
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:DeclBlock.Init
-init(lbrace: Pos, decls: [Decl], rbrace: Pos, callconv: String?) {
+init(lbrace: Pos, decls: [Declaration], rbrace: Pos, isForeign: Bool, linkprefix: String?, callconv: String?) {
     self.lbrace = lbrace
     self.decls = decls
     self.rbrace = rbrace
+    self.isForeign = isForeign
+    self.linkprefix = linkprefix
     self.callconv = callconv
 }
 // sourcery:end

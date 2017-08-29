@@ -708,8 +708,9 @@ extension Parser {
             allowNewline()
             switch tok {
             case .lbrace:
-                let block = parseDeclBlock(foreign: true)
-                return Foreign(directive: directive, library: library, decl: block, linkname: nil, callconv: nil)
+                return parseDeclBlock(foreign: true)
+            case .directive:
+                return parseDirective(foreign: true)
             default:
                 let decl = parseDecl(foreign: true)
                 return Foreign(directive: directive, library: library, decl: decl, linkname: nil, callconv: nil)
@@ -727,7 +728,7 @@ extension Parser {
                 reportExpected("declaration", at: x.start)
                 break
             }
-            decl.linkname = linkname.text
+            decl.linkname = linkname.value as! String!
             return decl
         case "callconv":
             let conv = parseStringLit()
@@ -740,17 +741,26 @@ extension Parser {
             } else {
                 x = parseDecl(foreign: foreign)
             }
+
             switch x {
             case let block as DeclBlock:
                 // TODO: Take normal block and convert to declblock
-                block.callconv = conv.text
+                block.callconv = conv.value as! String!
             case let decl as CallConvApplicable:
-                decl.callconv = conv.text
+                decl.callconv = conv.value as! String!
             default:
                 reportExpected("individual or block of declarations", at: x.start)
                 return BadStmt(start: directive, end: x.end)
             }
             return x
+        case "linkprefix":
+            // link prefix is only permitted on decl blocks and must be the last directive
+            let linkprefix = parseStringLit()
+            allowNewline()
+            let block = parseDeclBlock(foreign: foreign)
+            block.linkprefix = linkprefix.value as! String!
+            return block
+
         default:
             reportError("Unknown directive '\(name)'", at: directive)
         }
@@ -759,9 +769,9 @@ extension Parser {
 
     mutating func parseDeclBlock(foreign: Bool) -> DeclBlock {
         let lbrace = eatToken()
-        let decls = parseDeclList(foreign: foreign)
+        let decls = parseDeclList(foreign: foreign).flatMap({ $0 as? Declaration })
         let rbrace = expect(.rbrace)
-        return DeclBlock(lbrace: lbrace, decls: decls, rbrace: rbrace, callconv: nil)
+        return DeclBlock(lbrace: lbrace, decls: decls, rbrace: rbrace, isForeign: foreign, linkprefix: nil, callconv: nil)
     }
 
     mutating func parseDecl(foreign: Bool) -> Decl {
