@@ -18,6 +18,9 @@ struct Checker {
         var previous: Context?
 
         var expectedReturnType: ty.Tuple? = nil
+        var nearestExpectedReturnType: ty.Tuple? {
+            return expectedReturnType ?? previous?.nearestExpectedReturnType
+        }
         var specializationCallNode: Call? = nil
 
         var nextCase: CaseClause?
@@ -129,7 +132,7 @@ extension Checker {
                 check(stmt: stmt)
             }
         case let ret as Return:
-            let expectedReturn = context.expectedReturnType!
+            let expectedReturn = context.nearestExpectedReturnType!
 
             var isVoidReturn = false
             if expectedReturn.types.count == 1 && expectedReturn.types[0] is ty.Void {
@@ -1202,6 +1205,11 @@ extension Checker {
             return targetType
         }
 
+        var targetType = targetType
+        if let poly = targetType as? ty.Polymorphic, let val = poly.specialization.val {
+            targetType = val
+        }
+
         cast.type = targetType
 
         // FIXME: Because of desired type here, the following check may fire when an implicit check is performed
@@ -1305,13 +1313,14 @@ extension Checker {
         }
 
         let prevScope = context.scope
+        let prevNode  = context.specializationCallNode
         context.scope = functionScope
         context.specializationCallNode = call
 
         let type = check(funcLit: generated)
 
         context.scope = prevScope
-        context.specializationCallNode = nil
+        context.specializationCallNode = prevNode
 
         var typesCopy = specializationTypes
         for (arg, expectedType) in zip(strippedArgs, type.params) {

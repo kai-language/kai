@@ -53,19 +53,19 @@ Bar :: struct {
 }
 
 main :: fn () -> void {
-/*
+
     this := sum(1, 2.5)
     printf("total: %d\n", this)
     that := sum(1, 5.5)
     printf("total: %d\n", that)
-*/
+
     a : f64 = 5.0
-    b : i64 = 3 /*
-    c := min(f64, a, 4)
+    b : i64 = 3 
+    /* c := min(f64, a, 4)
     d := max(b, 4)
     e := min(i64, b, d)
-    j := max(a, 4)
-    */
+    j := max(a, 4) */
+    
     f := f64(b)
 
     /*g : (i64) -> i64 = add
