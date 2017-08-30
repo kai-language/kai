@@ -109,10 +109,10 @@ extension Parser {
     }
 
     mutating func parseDeclList(foreign: Bool) -> [Decl] {
-        var list = [parseDecl(foreign: foreign)]
+        var list = [parseDeclForBlock(foreign: foreign)]
         expectTerm()
         while tok != .case && tok != .rbrace && tok != .eof {
-            list.append(parseDecl(foreign: foreign))
+            list.append(parseDeclForBlock(foreign: foreign))
             expectTerm()
         }
         return list
@@ -282,7 +282,10 @@ extension Parser {
 
     mutating func parseFuncType() -> Expr {
         let lparen = eatToken()
-        let params = parseParameterTypeList()
+        var params: [Expr] = []
+        if tok != .rparen {
+            params = parseParameterTypeList()
+        }
         expect(.rparen)
         expect(.retArrow)
         let results = parseTypeList(allowPolyType: true)
@@ -498,7 +501,7 @@ extension Parser {
         case .for:
             return parseForStmt()
         case .directive:
-            return parseDirective()
+            return parseLeadingDirective()
         case .rbrace:
             return Empty(semicolon: pos, isImplicit: true)
         default:
@@ -673,7 +676,7 @@ extension Parser {
 
 extension Parser {
 
-    mutating func parseDirective(foreign: Bool = false) -> Stmt {
+    mutating func parseLeadingDirective(foreign: Bool = false) -> Stmt {
         let name = lit
         let directive = eatToken()
         switch name {
@@ -705,67 +708,88 @@ extension Parser {
             allowNewline()
             switch tok {
             case .lbrace:
-                let block = parseDeclBlock(foreign: true)
-                return Foreign(directive: directive, library: library, decl: block, linkname: nil, callconv: nil)
+                return parseDeclBlock(foreign: true)
+            case .directive:
+                return parseLeadingDirective(foreign: true)
             default:
-                let decl = parseDecl(foreign: true)
+                let decl = parseDeclForBlock(foreign: true)
                 return Foreign(directive: directive, library: library, decl: decl, linkname: nil, callconv: nil)
             }
-        case "linkname":
-            let linkname = parseStringLit()
-            allowNewline()
-            var x: Stmt
-            if tok == .directive {
-                 x = parseDirective(foreign: foreign)
-            } else {
-                x = parseDecl(foreign: foreign)
-            }
-            guard let decl = x as? LinknameApplicable else {
-                reportExpected("declaration", at: x.start)
-                break
-            }
-            decl.linkname = linkname.text
-            return decl
         case "callconv":
             let conv = parseStringLit()
             allowNewline()
             var x: Stmt
             if tok == .directive {
-                x = parseDirective(foreign: foreign)
+                x = parseLeadingDirective(foreign: foreign)
             } else if tok == .lbrace {
                 x = parseDeclBlock(foreign: foreign)
             } else {
-                x = parseDecl(foreign: foreign)
+                x = parseDeclForBlock(foreign: foreign)
             }
+
             switch x {
             case let block as DeclBlock:
                 // TODO: Take normal block and convert to declblock
-                block.callconv = conv.text
+                block.callconv = conv.value as! String!
             case let decl as CallConvApplicable:
-                decl.callconv = conv.text
+                decl.callconv = conv.value as! String!
             default:
                 reportExpected("individual or block of declarations", at: x.start)
                 return BadStmt(start: directive, end: x.end)
             }
             return x
+        case "linkprefix":
+            // link prefix is only permitted on decl blocks and must be the last directive
+            let linkprefix = parseStringLit()
+            allowNewline()
+            let block = parseDeclBlock(foreign: foreign)
+            block.linkprefix = linkprefix.value as! String!
+            return block
+
         default:
-            reportError("Unknown directive '\(name)'", at: directive)
+            reportError("Unknown leading directive '\(name)'", at: directive)
         }
         return BadStmt(start: directive, end: pos)
     }
 
-    mutating func parseDeclBlock(foreign: Bool) -> DeclBlock {
-        let lbrace = eatToken()
-        let decls = parseDeclList(foreign: foreign)
-        let rbrace = expect(.rbrace)
-        return DeclBlock(lbrace: lbrace, decls: decls, rbrace: rbrace, callconv: nil)
+    @discardableResult
+    mutating func parseTrailingDirectives(for decl: Stmt) -> Stmt {
+        guard tok == .directive else {
+            return decl
+        }
+        let name = lit
+        let directive = eatToken()
+        switch name {
+        case "linkname":
+            let linkname = parseStringLit()
+            guard let d = decl as? Declaration else {
+                reportExpected("declaration", at: decl.start)
+                return decl
+            }
+            if d.linkname != nil {
+                reportError("Duplicate linkname", at: directive)
+            }
+            d.linkname = linkname.value as! String!
+            return d
+        default:
+            reportError("Unknown trailing directive '\(name)'", at: directive)
+            return decl
+        }
     }
 
-    mutating func parseDecl(foreign: Bool) -> Decl {
+    mutating func parseDeclBlock(foreign: Bool) -> DeclBlock {
+        let lbrace = eatToken()
+        let decls = parseDeclList(foreign: foreign).flatMap({ $0 as? Declaration })
+        let rbrace = expect(.rbrace)
+        return DeclBlock(lbrace: lbrace, decls: decls, rbrace: rbrace, isForeign: foreign, linkprefix: nil, callconv: nil)
+    }
+
+    mutating func parseDeclForBlock(foreign: Bool) -> Decl {
         if tok == .directive {
-            let x = parseDirective(foreign: foreign)
+            let x = parseLeadingDirective(foreign: foreign)
             guard let decl = x as? Decl else {
                 reportExpected("declaration", at: x.start)
+                parseTrailingDirectives(for: x)
                 return BadDecl(start: x.start, end: x.end)
             }
             return decl
@@ -783,10 +807,12 @@ extension Parser {
         } else if tok == .colon {
             next()
             let type = parseType()
-            return Declaration(names: [name], explicitType: type, values: [], isConstant: true, callconv: nil, linkname: nil, entities: nil)
+            let decl = Declaration(names: [name], explicitType: type, values: [], isConstant: true, callconv: nil, linkname: nil, entities: nil)
+            return parseTrailingDirectives(for: decl) as! Decl
         } else {
             let type = parseType()
-            return Declaration(names: [name], explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil, entities: nil)
+            let decl = Declaration(names: [name], explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil, entities: nil)
+            return parseTrailingDirectives(for: decl) as! Decl
         }
     }
 

@@ -87,9 +87,9 @@ extension IRGenerator {
              is Library:
             return
         case let f as Foreign:
-            emit(anyDecl: f, isForeign: true)
+            emit(foreign: f)
         case let d as DeclBlock: // #callconv "c" { ... }
-            emit(anyDecl: d, isForeign: false)
+            emit(declBlock: d)
         case let d as Declaration where d.isConstant:
             emit(constantDecl: d)
         case let d as Declaration where !d.isConstant:
@@ -99,15 +99,34 @@ extension IRGenerator {
         }
     }
 
+    mutating func emit(declBlock b: DeclBlock) {
+        for decl in b.decls {
+            emit(declaration: decl)
+        }
+    }
+
     mutating func emit(constantDecl decl: Declaration) {
         if decl.values.isEmpty {
             // this is in a decl block of some sort
 
             for entity in decl.entities {
-                var globalValue = b.addGlobal(entity.name, type: canonicalize(entity.type!))
-                globalValue.isExternallyInitialized = true
-                globalValue.isGlobalConstant = true
-                entity.value = globalValue
+                if let fn = entity.type as? ty.Function {
+                    let function = b.addFunction(decl.linkname ?? entity.name, type: canonicalize(fn))
+                    switch decl.callconv {
+                    case nil:
+                        break
+                    case "c"?:
+                        function.callingConvention = .c
+                    default:
+                        fatalError("Unimplemented or unsupported calling convention \(decl.callconv!)")
+                    }
+                    entity.value = function
+                } else {
+                    var globalValue = b.addGlobal(decl.linkname ?? entity.name, type: canonicalize(entity.type!))
+                    globalValue.isExternallyInitialized = true
+                    globalValue.isGlobalConstant = true
+                    entity.value = globalValue
+                }
             }
             return
         }
@@ -235,26 +254,16 @@ extension IRGenerator {
         }
     }
 
-    mutating func emit(anyDecl: Decl, isForeign: Bool) {
+    mutating func emit(foreign: Foreign) {
+        emit(declaration: foreign.decl as! Declaration)
+    }
 
-        switch anyDecl {
-        case let f as Foreign:
-            emit(anyDecl: f.decl, isForeign: true)
+    mutating func emit(declaration: Declaration) {
 
-        case let b as DeclBlock:
-            for decl in b.decls {
-                emit(anyDecl: decl, isForeign: isForeign)
-            }
-
-        case let d as Declaration:
-            if d.isConstant {
-                emit(constantDecl: d)
-            } else {
-                emit(variableDecl: d)
-            }
-
-        default:
-            preconditionFailure()
+        if declaration.isConstant {
+            emit(constantDecl: declaration)
+        } else {
+            emit(variableDecl: declaration)
         }
     }
 
@@ -270,8 +279,10 @@ extension IRGenerator {
             emit(constantDecl: decl)
         case let decl as Declaration where !decl.isConstant:
             emit(variableDecl: decl)
-        case let d as Decl:
-            emit(anyDecl: d, isForeign: false)
+        case let b as DeclBlock:
+            emit(declBlock: b)
+        case let f as Foreign:
+            emit(foreign: f)
         case let assign as Assign:
             emit(assign: assign)
         case let block as Block:

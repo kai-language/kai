@@ -88,7 +88,7 @@ extension Checker {
         case let f as Foreign:
             check(foreign: f)
         case let d as DeclBlock: // #callconv "c" { ... }
-            check(anyDecl: d, isForeign: false)
+            check(declBlock: d)
         case let d as Declaration:
             check(decl: d)
         default:
@@ -123,8 +123,6 @@ extension Checker {
             }
         case let decl as Declaration:
             check(decl: decl)
-        case let d as Decl:
-            check(anyDecl: d, isForeign: false)
         case let assign as Assign:
             check(assign: assign)
         case let block as Block:
@@ -252,50 +250,44 @@ extension Checker {
         }
     }
 
-    mutating func check(anyDecl: Decl, isForeign: Bool) {
-
-        switch anyDecl {
-        case let f as Foreign:
-            check(foreign: f)
-
-        case let b as DeclBlock:
-            for decl in b.decls {
-                check(anyDecl: decl, isForeign: isForeign)
+    mutating func check(declBlock b: DeclBlock) {
+        for decl in b.decls {
+            guard decl.names.count == 1 else {
+                reportError("Grouped declarations must be singular", at: decl.names[1].start)
+                continue
             }
-
-        case let d as Declaration:
-            guard isForeign else {
-                check(decl: d)
-                // I think the only way we can get here is will a callconv block
-                //  we therefore should only allow functions
-                // TODO: ^
-                return
+            decl.callconv = decl.callconv ?? b.callconv
+            decl.linkname = decl.linkname ?? (b.linkprefix ?? "") + decl.names[0].name
+            if b.isForeign {
+                check(foreignDecl: decl)
+            } else {
+                check(decl: decl)
             }
-
-            let ident = d.names[0]
-            if ident.name == "_" {
-                reportError("The dispose identifer is not a permitted name in foreign declarations", at: ident.start)
-                return
-            }
-
-            // only 2 forms allowed by the parser `i: ty` or `i :: ty`
-            //  these represent a foreign variable and a foreign constant respectively.
-            // In both cases these are no values, just an explicitType is set. No values.
-            var type = check(expr: d.explicitType!)
-            type = lowerFromMetatype(type, atNode: d.explicitType!)
-            if d.isConstant {
-                if let pointer = type as? ty.Pointer, pointer.pointeeType is ty.Function {
-                    type = pointer.pointeeType
-                }
-            }
-
-            let entity = Entity(ident: ident, type: type, flags: d.isConstant ? [.constant, .foreign] : .foreign, memberScope: nil, owningScope: nil, value: nil)
-            declare(entity)
-            d.entities = [entity]
-
-        default:
-            fatalError()
         }
+    }
+
+    mutating func check(foreignDecl d: Declaration) {
+
+        let ident = d.names[0]
+        if ident.name == "_" {
+            reportError("The dispose identifer is not a permitted name in foreign declarations", at: ident.start)
+            return
+        }
+
+        // only 2 forms allowed by the parser `i: ty` or `i :: ty`
+        //  these represent a foreign variable and a foreign constant respectively.
+        // In both cases these are no values, just an explicitType is set. No values.
+        var type = check(expr: d.explicitType!)
+        type = lowerFromMetatype(type, atNode: d.explicitType!)
+        if d.isConstant {
+            if let pointer = type as? ty.Pointer, pointer.pointeeType is ty.Function {
+                type = pointer.pointeeType
+            }
+        }
+
+        let entity = Entity(ident: ident, type: type, flags: d.isConstant ? [.constant, .foreign] : .foreign, memberScope: nil, owningScope: nil, value: nil)
+        declare(entity)
+        d.entities = [entity]
     }
 
     mutating func check(assign: Assign) {
@@ -404,7 +396,7 @@ extension Checker {
         }
         f.library.entity = entity
 
-        check(anyDecl: f.decl, isForeign: true)
+        check(foreignDecl: f.decl as! Declaration)
     }
 }
 
