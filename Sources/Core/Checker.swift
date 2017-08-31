@@ -18,6 +18,9 @@ struct Checker {
         var previous: Context?
 
         var expectedReturnType: ty.Tuple? = nil
+        var nearestExpectedReturnType: ty.Tuple? {
+            return expectedReturnType ?? previous?.expectedReturnType
+        }
         var specializationCallNode: Call? = nil
 
         var nextCase: CaseClause?
@@ -84,7 +87,7 @@ extension Checker {
             check(library: l)
         case let f as Foreign:
             check(foreign: f)
-        case let d as DeclBlock: // #callconv "c" { ... }
+        case let d as DeclBlock:
             check(declBlock: d)
         case let d as Declaration:
             check(decl: d)
@@ -127,7 +130,7 @@ extension Checker {
                 check(stmt: stmt)
             }
         case let ret as Return:
-            let expectedReturn = context.expectedReturnType!
+            let expectedReturn = context.nearestExpectedReturnType!
 
             var isVoidReturn = false
             if expectedReturn.types.count == 1 && expectedReturn.types[0] is ty.Void {
@@ -1134,7 +1137,7 @@ extension Checker {
 
         if call.args.count < calleeFn.params.count {
             guard calleeFn.isVariadic, call.args.count + 1 == calleeFn.params.count else {
-                reportError("Not enough arguments in call to '\(call.fun)", at: call.start)
+                reportError("Not enough arguments in call to '\(call.fun)'", at: call.start)
                 return calleeFn.returnType
             }
         }
