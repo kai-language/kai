@@ -679,8 +679,8 @@ extension Parser {
     mutating func parseLeadingDirective(foreign: Bool = false) -> Stmt {
         let name = lit
         let directive = eatToken()
-        switch name {
-        case "import":
+        switch LeadingDirective(rawValue: name) {
+        case .import?:
             let path = parseExpr()
             var alias: Ident?
             var importSymbolsIntoScope = false
@@ -696,14 +696,14 @@ extension Parser {
             let i = Import(directive: directive, path: path, alias: alias, importSymbolsIntoScope: importSymbolsIntoScope, resolvedName: nil, scope: nil)
             file.add(import: i, importedFrom: file)
             return i
-        case "library":
+        case .library?:
             let path = parseExpr()
             var alias: Ident?
             if tok == .ident {
                 alias = parseIdent()
             }
             return Library(directive: directive, path: path, alias: alias, resolvedName: nil)
-        case "foreign":
+        case .foreign?:
             let library = parseIdent()
             allowNewline()
             switch tok {
@@ -715,7 +715,7 @@ extension Parser {
                 let decl = parseDeclForBlock(foreign: true)
                 return Foreign(directive: directive, library: library, decl: decl, linkname: nil, callconv: nil)
             }
-        case "callconv":
+        case .callconv?:
             let conv = parseStringLit()
             allowNewline()
             var x: Stmt
@@ -738,7 +738,7 @@ extension Parser {
                 return BadStmt(start: directive, end: x.end)
             }
             return x
-        case "linkprefix":
+        case .linkprefix?:
             // link prefix is only permitted on decl blocks and must be the last directive
             let linkprefix = parseStringLit()
             allowNewline()
@@ -747,7 +747,11 @@ extension Parser {
             return block
 
         default:
-            reportError("Unknown leading directive '\(name)'", at: directive)
+            if TrailingDirective(rawValue: name) != nil {
+                reportError("'\(name)' is a trailing directive", at: directive)
+            } else {
+                reportError("Unknown leading directive '\(name)'", at: directive)
+            }
         }
         return BadStmt(start: directive, end: pos)
     }
@@ -759,8 +763,8 @@ extension Parser {
         }
         let name = lit
         let directive = eatToken()
-        switch name {
-        case "linkname":
+        switch TrailingDirective(rawValue: name) {
+        case .linkname?:
             let linkname = parseStringLit()
             guard let d = decl as? Declaration else {
                 reportExpected("declaration", at: decl.start)
@@ -772,7 +776,11 @@ extension Parser {
             d.linkname = linkname.value as! String!
             return d
         default:
-            reportError("Unknown trailing directive '\(name)'", at: directive)
+            if LeadingDirective(rawValue: name) != nil {
+                reportError("'\(name)' is a leading directive", at: directive)
+            } else {
+                reportError("Unknown trailing directive '\(name)'", at: directive)
+            }
             return decl
         }
     }
