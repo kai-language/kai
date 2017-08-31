@@ -439,6 +439,10 @@ struct Scanner {
             insertSemi = true
             (tok, lit) = scanNumber(seenDecimalPoint: false)
         default:
+            if ch == "{" && insertSemiBeforeLbrace {
+                self.insertSemiBeforeLbrace = false
+                return (start, .semicolon, "{")
+            }
             next() // always make progress
             switch ch {
             case "\n":
@@ -483,10 +487,6 @@ struct Scanner {
                 insertSemi = true
                 tok = .rbrack
             case "{":
-                if insertSemiBeforeLbrace {
-                    self.insertSemiBeforeLbrace = false
-                    return (start, .semicolon, "{")
-                }
                 tok = .lbrace
             case "}":
                 insertSemi = true

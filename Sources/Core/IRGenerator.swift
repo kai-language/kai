@@ -163,7 +163,8 @@ extension IRGenerator {
                     type.ir.val = irType
 
                 default:
-                    preconditionFailure()
+                    // Type alias
+                    break
                 }
                 return
             }
@@ -512,7 +513,7 @@ extension IRGenerator {
 
     mutating func emit(lit: BasicLit, returnAddress: Bool, name: String) -> IRValue {
         if lit.token == .string {
-            return b.addGlobalString(name: name, value: lit.value as! String)
+            return b.buildGlobalStringPtr(lit.value as! String)
         }
         let type = canonicalize(lit.type)
         switch type {

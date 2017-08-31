@@ -29,7 +29,6 @@ struct Parser {
         var nodes: [TopLevelStmt] = []
         while tok != .eof {
             let node = parseTopLevelStmt()
-            expectTerm()
             nodes.append(node)
             consumeComments()
         }
@@ -100,27 +99,27 @@ extension Parser {
 
     mutating func parseStmtList() -> [Stmt] {
         var list = [parseStmt()]
-        expectTerm()
         while tok != .case && tok != .rbrace && tok != .eof {
             list.append(parseStmt())
-            expectTerm()
         }
         return list
     }
 
     mutating func parseDeclList(foreign: Bool) -> [Decl] {
         var list = [parseDeclForBlock(foreign: foreign)]
-        expectTerm()
         while tok != .case && tok != .rbrace && tok != .eof {
             list.append(parseDeclForBlock(foreign: foreign))
-            expectTerm()
         }
         return list
     }
 
+    /// - Note: Does not consume semicolon
     mutating func parseBlock() -> Block {
         let lbrace = eatToken()
-        let stmts = parseStmtList()
+        var stmts: [Stmt] = []
+        if tok != .rbrace {
+            stmts = parseStmtList()
+        }
         let rbrace = expect(.rbrace)
         return Block(lbrace: lbrace, stmts: stmts, rbrace: rbrace)
     }
@@ -249,7 +248,7 @@ extension Parser {
 
 extension Parser {
 
-    mutating func parseType(allowPolyType: Bool = false) -> Expr {
+    mutating func parseType(allowPolyType: Bool = false, allowVariadic: Bool = false) -> Expr {
         switch tok {
         case .ident:
             return parseIdent()
@@ -271,6 +270,15 @@ extension Parser {
             return PolyType(dollar: dollar, explicitType: type, type: nil)
         case .struct:
             return parseStructType()
+        case .ellipsis where allowVariadic:
+            let ellipsis = eatToken()
+            let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: false, type: nil)
+            return variadic
+        case .directive where lit == "cvargs" && allowVariadic:
+            next()
+            let ellipsis = expect(.ellipsis)
+            let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: true, type: nil)
+            return variadic
         default:
             // we have an error
             let start = pos
@@ -355,11 +363,15 @@ extension Parser {
 
     // MARK: Function Literals
 
-    mutating func parseFuncLit() -> FuncLit {
+    mutating func parseFuncLit(asType: Bool = false) -> Expr {
         let keyword = eatToken()
         let signature = parseSignature()
         expect(.retArrow)
         let results = parseResultList()
+        guard !asType else {
+            let params = signature.list.flatMap({ $0.explicitType })
+            return FuncType(lparen: keyword, params: params, results: results.types, flags: .none, type: nil)
+        }
         let body = parseBlock()
         return FuncLit(keyword: keyword, params: signature, results: results, body: body, flags: .none, type: nil, checked: nil)
     }
@@ -393,7 +405,7 @@ extension Parser {
         }
         let names = parseIdentList()
         expect(.colon)
-        let type = parseType(allowPolyType: true)
+        let type = parseType(allowPolyType: true, allowVariadic: true)
         return names.map({ Parameter(dollar: nil, name: $0, explicitType: type, entity: nil) })
     }
 
@@ -486,13 +498,16 @@ extension Parser {
         case .ident, .int, .float, .string, .fn, .lparen, // operands
              .lbrack, .struct, .union, .enum,             // composite types
              .add, .sub, .mul, .and, .xor, .not:          // unary operators
-             return parseSimpleStmt()
+             let s = parseSimpleStmt()
+            expectTerm()
+            return s
         case .break, .continue, .goto, .fallthrough:
             return parseBranch()
         case .return:
             return parseReturn()
         case .lbrace:
             let block = parseBlock()
+            expectTerm()
             return block
         case .if:
             return parseIfStmt()
@@ -585,6 +600,7 @@ extension Parser {
         if tok != .semicolon && tok != .rbrace {
             x = parseExprList()
         }
+        expectTerm()
         return Return(keyword: keyword, results: x)
     }
 
@@ -595,16 +611,20 @@ extension Parser {
         if tok != .fallthrough && tok == .ident {
             label = parseIdent()
         }
+        expectTerm()
         return Branch(token: token, label: label, start: start)
     }
 
     mutating func parseIfStmt() -> If {
         let keyword = eatToken()
         let cond = parseExpr()
-        // TODO: Disambiguate composite lit
+        if tok == .semicolon {
+            // dummy terminator to prevent confusion with composite lits
+            next()
+        }
+        // Note: parseStmt will expectTerm
         let body = parseStmt()
         var els_: Stmt?
-        expectTerm()
         if tok == .else {
             next()
             els_ = parseStmt()
@@ -624,6 +644,7 @@ extension Parser {
             list.append(parseCaseClause())
         }
         let rbrace = expect(.rbrace)
+        expectTerm()
         let body = Block(lbrace: lbrace, stmts: list, rbrace: rbrace)
         return Switch(keyword: keyword, match: match, block: body)
     }
@@ -646,7 +667,9 @@ extension Parser {
         if tok != .lbrace && tok != .semicolon {
             s2 = parseSimpleStmt()
         }
-        if tok == .semicolon {
+        // Note: Scanner inserts a semicolon with '{' as the lit
+        //  This prevents interpreting the last stmt as a composite lit
+        if tok == .semicolon, lit != "{" {
             next()
             s1 = s2
             s2 = nil
@@ -654,12 +677,13 @@ extension Parser {
                 s2 = parseSimpleStmt()
             }
             expectTerm()
-            if tok != .lbrace {
+            if tok != .lbrace && !(tok == .semicolon && lit == "{") {
                 s3 = parseSimpleStmt()
             }
         }
         expectTerm() // Scanner inserts a terminator
         let body = parseBlock()
+        expectTerm()
         var cond: Expr?
         if let s2 = s2 as? ExprStmt {
             cond = s2.expr
@@ -692,6 +716,7 @@ extension Parser {
             } else if tok != .semicolon {
                 reportError("Expected identifier to bind imported or terminator", at: pos)
             }
+            expectTerm()
 
             let i = Import(directive: directive, path: path, alias: alias, importSymbolsIntoScope: importSymbolsIntoScope, resolvedName: nil, scope: nil)
             file.add(import: i, importedFrom: file)
@@ -702,19 +727,22 @@ extension Parser {
             if tok == .ident {
                 alias = parseIdent()
             }
+            expectTerm()
             return Library(directive: directive, path: path, alias: alias, resolvedName: nil)
         case .foreign?:
             let library = parseIdent()
             allowNewline()
+            var x: Stmt
             switch tok {
             case .lbrace:
-                return parseDeclBlock(foreign: true)
+                x = parseDeclBlock(foreign: true)
             case .directive:
-                return parseLeadingDirective(foreign: true)
+                x = parseLeadingDirective(foreign: true)
             default:
                 let decl = parseDeclForBlock(foreign: true)
-                return Foreign(directive: directive, library: library, decl: decl, linkname: nil, callconv: nil)
+                x = Foreign(directive: directive, library: library, decl: decl, linkname: nil, callconv: nil)
             }
+            return x
         case .callconv?:
             let conv = parseStringLit()
             allowNewline()
@@ -735,6 +763,7 @@ extension Parser {
                 decl.callconv = conv.value as! String!
             default:
                 reportExpected("individual or block of declarations", at: x.start)
+                recover()
                 return BadStmt(start: directive, end: x.end)
             }
             return x
@@ -753,12 +782,15 @@ extension Parser {
                 reportError("Unknown leading directive '\(name)'", at: directive)
             }
         }
-        return BadStmt(start: directive, end: pos)
+        let end = self.pos
+        recover()
+        return BadStmt(start: directive, end: end)
     }
 
     @discardableResult
     mutating func parseTrailingDirectives(for decl: Stmt) -> Stmt {
         guard tok == .directive else {
+            expectTerm()
             return decl
         }
         let name = lit
@@ -774,6 +806,7 @@ extension Parser {
                 reportError("Duplicate linkname", at: directive)
             }
             d.linkname = linkname.value as! String!
+            expectTerm()
             return d
         default:
             if LeadingDirective(rawValue: name) != nil {
@@ -781,6 +814,7 @@ extension Parser {
             } else {
                 reportError("Unknown trailing directive '\(name)'", at: directive)
             }
+            expectTerm()
             return decl
         }
     }
@@ -789,6 +823,7 @@ extension Parser {
         let lbrace = eatToken()
         let decls = parseDeclList(foreign: foreign).flatMap({ $0 as? Declaration })
         let rbrace = expect(.rbrace)
+        expectTerm()
         return DeclBlock(lbrace: lbrace, decls: decls, rbrace: rbrace, isForeign: foreign, linkprefix: nil, callconv: nil)
     }
 
@@ -798,6 +833,7 @@ extension Parser {
             guard let decl = x as? Decl else {
                 reportExpected("declaration", at: x.start)
                 parseTrailingDirectives(for: x)
+                recover()
                 return BadDecl(start: x.start, end: x.end)
             }
             return decl
@@ -814,7 +850,12 @@ extension Parser {
             return BadDecl(start: name.start, end: end)
         } else if tok == .colon {
             next()
-            let type = parseType()
+            var type: Expr
+            if tok == .fn {
+                type = parseFuncLit(asType: true)
+            } else {
+                type = parseType()
+            }
             let decl = Declaration(names: [name], explicitType: type, values: [], isConstant: true, callconv: nil, linkname: nil, entities: nil)
             return parseTrailingDirectives(for: decl) as! Decl
         } else {
