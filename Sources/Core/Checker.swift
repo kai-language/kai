@@ -1172,17 +1172,16 @@ extension Checker {
             }
         }
 
-        var returnType = calleeFn.returnType
-
-        call.type = returnType
         if let builtin = builtin {
             call.checked = .builtinCall(builtin)
         } else {
             call.checked = .call
         }
 
-        // if there is a single return value then don't wrap it in a tuple
-        return returnType.types.count == 1 ? returnType.types[0] : returnType
+        // splat!
+        let returnType = calleeFn.returnType.types.count == 1 ? calleeFn.returnType.types[0] : calleeFn.returnType
+        call.type = returnType
+        return returnType
     }
 
     mutating func check(cast: Call, to targetType: Type) -> Type {
