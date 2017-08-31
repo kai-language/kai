@@ -77,6 +77,24 @@ extension ty.Function {
     }
 }
 
+extension ty.UntypedNil {
+    var description: String {
+        return "nil"
+    }
+}
+
+extension ty.UntypedInteger {
+    var description: String {
+        return "integer"
+    }
+}
+
+extension ty.UntypedFloatingPoint {
+    var description: String {
+        return "float"
+    }
+}
+
 extension ty.Metatype {
     var description: String {
         if entity !== Entity.anonymous {

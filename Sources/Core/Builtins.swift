@@ -23,6 +23,10 @@ struct BuiltinType {
     static let i32 = BuiltinType(entity: .i32, type: ty.Integer(entity: Entity.i32, width: 32, isSigned: true))
     static let i64 = BuiltinType(entity: .i64, type: ty.Integer(entity: Entity.i64, width: 64, isSigned: true))
 
+    static let untypedInteger = BuiltinType(entity: .anonymous, type: ty.UntypedInteger())
+    static let untypedFloat   = BuiltinType(entity: .anonymous, type: ty.UntypedFloatingPoint())
+    static let untypedNil     = BuiltinType(entity: .untypedNil, type: ty.UntypedNil())
+
     /// - Note: The type type only exists at compile time
     static let type = BuiltinType(entity: .type, type: ty.Metatype(entity: Entity.type, instanceType: ty.Tuple(width: 0, types: [])))
 

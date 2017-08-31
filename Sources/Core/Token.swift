@@ -86,6 +86,8 @@ enum Token: UInt8 {
     case union
     case `enum`
     case `struct`
+
+    case `nil`
 }
 
 struct Pos: Comparable {
@@ -190,6 +192,7 @@ extension Token: CustomStringConvertible {
         case .union:     return "union"
         case .enum:      return "enum"
         case .struct:    return "struct"
+        case .nil:       return "nil"
         case .assignAdd: fallthrough
         case .assignSub: fallthrough
         case .assignMul: fallthrough

@@ -484,6 +484,8 @@ extension IRGenerator {
 
     mutating func emit(expr: Expr, returnAddress: Bool = false, name: String = "") -> IRValue {
         switch expr {
+        case is Nil:
+            return canonicalize(expr.type as! ty.Pointer).null()
         case let lit as BasicLit:
             return emit(lit: lit, returnAddress: returnAddress, name: name)
         case let lit as CompositeLit:
@@ -818,6 +820,12 @@ func canonicalize(_ type: Type) -> IRType {
         return canonicalize(type)
     case let type as ty.Tuple:
         return canonicalize(type)
+    case is ty.UntypedNil:
+        fatalError("Untyped nil should be constrained to target type")
+    case is ty.UntypedInteger:
+        return IntType(width: 256)
+    case is ty.UntypedFloatingPoint:
+        return FloatType.double
     case is ty.Polymorphic:
         fatalError()
     default:

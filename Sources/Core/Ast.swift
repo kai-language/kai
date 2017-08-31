@@ -76,6 +76,22 @@ init(start: Pos, end: Pos) {
 // sourcery:end
 }
 
+class Nil: Node, Expr {
+    var start: Pos
+    var end: Pos {
+        return start + 3
+    }
+
+    var type: Type!
+
+// sourcery:inline:auto:Nil.Init
+init(start: Pos, type: Type!) {
+    self.start = start
+    self.type = type
+}
+// sourcery:end
+}
+
 class Ident: Node, Expr {
     var start: Pos
     var name: String

@@ -408,6 +408,18 @@ extension Checker {
     mutating func check(expr: Expr, desiredType: Type? = nil) -> Type {
 
         switch expr {
+        case let expr as Nil:
+            guard let desiredType = desiredType else {
+                reportError("'nil' requires a contextual type", at: expr.start)
+                return ty.invalid
+            }
+            guard desiredType is ty.Pointer else {
+                reportError("'nil' is not convertable to '\(desiredType)'", at: expr.start)
+                return ty.invalid
+            }
+            expr.type = desiredType
+            return desiredType
+
         case let ident as Ident:
             check(ident: ident)
 
@@ -880,7 +892,7 @@ extension Checker {
     @discardableResult
     mutating func check(binary: Binary, desiredType: Type?) -> Type {
         let lhsType = check(expr: binary.lhs)
-        let rhsType = check(expr: binary.rhs)
+        let rhsType = check(expr: binary.rhs, desiredType: lhsType)
 
         let resultType: Type
         let op: OpCode.Binary
@@ -1366,6 +1378,10 @@ extension Checker {
             // No actual conversion need be done.
             return true
         }
+
+//        if targetType is ty.Pointer, let type = type as? ty.Metatype, type.instanceType is ty.UntypedNil {
+//            return true
+//        }
 
         return false
     }

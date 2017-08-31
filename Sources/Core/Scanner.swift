@@ -354,6 +354,8 @@ struct Scanner {
             return .enum
         case "struct":
             return .struct
+        case "nil":
+            return .nil
         default:
             return nil
         }

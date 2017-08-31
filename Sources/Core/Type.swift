@@ -209,6 +209,16 @@ enum ty {
         }
     }
 
+    struct UntypedNil: Type {
+        var width: Int? { return MemoryLayout<Int>.size }
+    }
+    struct UntypedInteger: Type, CustomStringConvertible {
+        var width: Int? { return 256 }
+    }
+    struct UntypedFloatingPoint: Type {
+        var width: Int? { return 64 }
+    }
+
     struct Metatype: Type {
         unowned var entity: Entity = .anonymous
         var instanceType: Type

@@ -15,6 +15,7 @@ extension Entity {
     static let i64 = Entity.makeBuiltin("i64", flags: .type)
     static let type = Entity.makeBuiltin("type", flags: .type)
     static let TypeInfo = Entity.makeBuiltin("TypeInfo", flags: .type)
+    static let untypedNil = Entity.makeBuiltin("nil", flags: .type)
 }
 
 extension ty {
@@ -28,6 +29,9 @@ extension ty {
     static let u8 = BuiltinType.u8.type
     static let i32 = BuiltinType.i32.type
     static let i64 = BuiltinType.i64.type
+    static let untypedInteger = BuiltinType.untypedInteger.type
+    static let untypedFloat = BuiltinType.untypedFloat.type
+    static let untypedNil = BuiltinType.untypedNil.type
     static let type = BuiltinType.type.type
     static let TypeInfo = BuiltinType.TypeInfo.type
 
@@ -42,6 +46,9 @@ extension ty {
         BuiltinType.u8,
         BuiltinType.i32,
         BuiltinType.i64,
+        BuiltinType.untypedInteger,
+        BuiltinType.untypedFloat,
+        BuiltinType.untypedNil,
         BuiltinType.type,
         BuiltinType.TypeInfo,
     ]
@@ -68,6 +75,9 @@ let builtins: [Entity] = [
     BuiltinType.u8.entity,
     BuiltinType.i32.entity,
     BuiltinType.i64.entity,
+    BuiltinType.untypedInteger.entity,
+    BuiltinType.untypedFloat.entity,
+    BuiltinType.untypedNil.entity,
     BuiltinType.type.entity,
     BuiltinType.TypeInfo.entity,
 ]

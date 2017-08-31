@@ -210,6 +210,9 @@ extension Parser {
 
     mutating func parseOperand() -> Expr {
         switch tok {
+        case .nil:
+            let start = eatToken()
+            return Nil(start: start, type: nil)
         case .ident:
             return parseIdent()
         case .string:

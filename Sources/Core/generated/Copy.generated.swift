@@ -385,6 +385,17 @@ func copy(_ nodes: [Library]) -> [Library] {
     return nodes.map(copy)
 }
 
+func copy(_ node: Nil) -> Nil {
+    return Nil(
+        start: node.start,
+        type: node.type
+    )
+}
+
+func copy(_ nodes: [Nil]) -> [Nil] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: Parameter) -> Parameter {
     return Parameter(
         dollar: node.dollar,
@@ -602,6 +613,7 @@ func copy(_ node: Expr) -> Expr {
     case let node as FuncType: return copy(node)
     case let node as Ident: return copy(node)
     case let node as KeyValue: return copy(node)
+    case let node as Nil: return copy(node)
     case let node as Parameter: return copy(node)
     case let node as Paren: return copy(node)
     case let node as PointerType: return copy(node)
