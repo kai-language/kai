@@ -257,10 +257,25 @@ extension Parser {
             return parseIdent()
         case .lbrack:
             let lbrack = eatToken()
-            let length = parseExpr()
+
+            let length: Expr?
+            if tok != .ellipsis {
+                length = parseExpr()
+            } else {
+                length = nil
+                next()
+            }
+
             let rbrack = expect(.rbrack)
             let type = parseType()
-            return ArrayType(lbrack: lbrack, length: length, rbrack: rbrack, explicitType: type, type: nil)
+
+            if let length = length {
+                return ArrayType(lbrack: lbrack, length: length, rbrack: rbrack, explicitType: type, type: nil)
+            } else {
+                return DynamicArrayType(
+                    lbrack: lbrack, rbrack: rbrack, explicitType: type, type: nil)
+            }
+
         case .mul:
             let star = eatToken()
             let type = parseType()

@@ -312,6 +312,7 @@ class Selector: Node, Expr {
         case .invalid: return ty.invalid
         case .file(let entity): return entity.type!
         case .struct(let field): return field.type
+        case .array: return ty.i64
         }
     }
 
@@ -319,6 +320,12 @@ class Selector: Node, Expr {
         case invalid
         case file(Entity)
         case `struct`(ty.Struct.Field)
+        case array(ArrayMember)
+
+        enum ArrayMember: Int {
+            case length = 1
+            case capacity
+        }
     }
 
     var start: Pos { return rec.start }
@@ -342,6 +349,7 @@ class Subscript: Expr, Node {
 
     enum Checked {
         case array
+        case dynamicArray
         case pointer
     }
 
@@ -518,6 +526,26 @@ class ArrayType: Node, Expr {
 init(lbrack: Pos, length: Expr, rbrack: Pos, explicitType: Expr, type: Type!) {
     self.lbrack = lbrack
     self.length = length
+    self.rbrack = rbrack
+    self.explicitType = explicitType
+    self.type = type
+}
+// sourcery:end
+}
+
+class DynamicArrayType: Node, Expr {
+    var lbrack: Pos
+    var rbrack: Pos
+    var explicitType: Expr
+
+    var type: Type!
+    
+    var start: Pos { return lbrack }
+    var end: Pos { return explicitType.end }
+
+// sourcery:inline:auto:DynamicArrayType.Init
+init(lbrack: Pos, rbrack: Pos, explicitType: Expr, type: Type!) {
+    self.lbrack = lbrack
     self.rbrack = rbrack
     self.explicitType = explicitType
     self.type = type

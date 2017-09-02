@@ -463,6 +463,13 @@ extension Checker {
             let type = ty.Array(length: Int(length), elementType: element)
             array.type = ty.Metatype(instanceType: type)
 
+        case let array as DynamicArrayType:
+            var element = check(expr: array.explicitType)
+            element = lowerFromMetatype(element, atNode: array)
+
+            let type = ty.DynamicArray(elementType: element, initialLength: nil, initialCapacity: nil)
+            array.type = ty.Metatype(instanceType: type)
+
         case let strućt as StructType:
             check(struct: strućt)
 
@@ -601,6 +608,22 @@ extension Checker {
                     continue
                 }
             }
+
+            lit.type = type
+            return type
+
+        case var type as ty.DynamicArray:
+            for el in lit.elements {
+                el.type = check(expr: el.value, desiredType: type.elementType)
+                guard canConvert(el.type, to: type.elementType) || implicitlyConvert(el.type, to: type.elementType) else {
+                    reportError("Cannot convert element of type '\(el.type.description)' to expected type '\(type.elementType)'", at: el.value.start)
+                    continue
+                }
+            }
+
+            let length = lit.elements.count
+            type.initialLength = length
+            type.initialCapacity = length
 
             lit.type = type
             return type
@@ -1059,6 +1082,21 @@ extension Checker {
             selector.checked = .struct(field)
             return field.type
 
+        case is ty.DynamicArray:
+            let member: Selector.Checked.ArrayMember
+
+            switch selector.sel.name {
+            case "len", "length":
+                member = .length
+            case "cap", "capacity":
+                member = .capacity
+            default:
+                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                return ty.invalid
+            }
+            selector.checked = .array(member)
+            return ty.i64
+
         default:
             // Don't spam diagnostics if the type is already invalid
             if !(aggregateType is ty.Invalid) {
@@ -1093,6 +1131,11 @@ extension Checker {
                     reportError("Index \(value) is past the end of the array (\(array.length) elements)", at: sub.index.start)
                 }
             }
+
+        case let array as ty.DynamicArray:
+            sub.type = array.elementType
+            sub.checked = .dynamicArray
+            type = array.elementType
 
         case let pointer as ty.Pointer:
             sub.type = pointer.pointeeType

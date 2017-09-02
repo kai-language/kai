@@ -64,7 +64,13 @@ extension ty.Struct {
 
 extension ty.Array {
     var description: String {
-        return "array"
+        return "[\(length)]" + elementType.description
+    }
+}
+
+extension ty.DynamicArray {
+    var description: String {
+        return "[..]" + elementType.description
     }
 }
 

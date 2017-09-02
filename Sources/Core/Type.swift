@@ -130,6 +130,21 @@ enum ty {
         }
     }
 
+    struct DynamicArray: Type {
+        unowned var entity: Entity = .anonymous
+        // TODO: calculate correct `struct` size
+        var width: Int? { return MemoryLayout<Int>.size }
+        var elementType: Type
+        var initialLength: Int!
+        var initialCapacity: Int!
+
+        init(elementType: Type, initialLength: Int!, initialCapacity: Int!) {
+            self.elementType = elementType
+            self.initialLength = initialLength
+            self.initialCapacity = initialCapacity
+        }
+    }
+
     struct Anyy: Type {
         unowned var entity: Entity = .any
         var width: Int? { return 64 }

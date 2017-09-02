@@ -202,6 +202,19 @@ func copy(_ nodes: [Declaration]) -> [Declaration] {
     return nodes.map(copy)
 }
 
+func copy(_ node: DynamicArrayType) -> DynamicArrayType {
+    return DynamicArrayType(
+        lbrack: node.lbrack,
+        rbrack: node.rbrack,
+        explicitType: copy(node.explicitType),
+        type: node.type
+    )
+}
+
+func copy(_ nodes: [DynamicArrayType]) -> [DynamicArrayType] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: Ellipsis) -> Ellipsis {
     return Ellipsis(
         start: node.start,
@@ -607,6 +620,7 @@ func copy(_ node: Expr) -> Expr {
     case let node as Binary: return copy(node)
     case let node as Call: return copy(node)
     case let node as CompositeLit: return copy(node)
+    case let node as DynamicArrayType: return copy(node)
     case let node as Ellipsis: return copy(node)
     case let node as ForeignFuncLit: return copy(node)
     case let node as FuncLit: return copy(node)

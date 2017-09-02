@@ -548,6 +548,39 @@ extension IRGenerator {
             }
             return ir
 
+        case let type as ty.DynamicArray:
+            let irType = canonicalize(type)
+            var ir = irType.undef()
+            let elements = lit.elements.map {
+                emit(expr: $0.value)
+            }
+
+            let elementType = canonicalize(type.elementType)
+            var litGlobal = b.addGlobal("array.lit", initializer: LLVM.ArrayType.constant(elements, type: elementType))
+            litGlobal.isGlobalConstant = true
+            let litPtr = b.buildBitCast(b.buildGEP(litGlobal, indices: [0, 0]), type: LLVM.PointerType.toVoid)
+            let malloc = b.buildMalloc(elementType, count: type.initialCapacity)
+            let newBuff = b.buildBitCast(malloc, type: LLVM.PointerType.toVoid)
+
+            let memcpy: Function
+            if let function = module.function(named: "llvm.memcpy.p0i8.p0i8.i64") {
+                memcpy = function
+            } else {
+                let memcpyType = FunctionType(
+                    argTypes: [LLVM.PointerType.toVoid, LLVM.PointerType.toVoid, IntType.int64, IntType.int32, IntType.int1], returnType: VoidType()
+                )
+                memcpy = b.addFunction("llvm.memcpy.p0i8.p0i8.i64", type: memcpyType)
+            }
+
+            let bytesCount = (type.initialLength * (type.elementType.width ?? 8).round(upToNearest: 8)) / 8
+            _ = b.buildCall(memcpy, args: [newBuff, litPtr, bytesCount, IntType.int32.constant((type.elementType.width ?? 8).round(upToNearest: 8) / 8), IntType.int1.constant(0)])
+
+            ir = b.buildInsertValue(aggregate: ir, element: b.buildBitCast(newBuff, type: LLVM.PointerType(pointee: elementType)), index: 0)
+            ir = b.buildInsertValue(aggregate: ir, element: IntType.int64.constant(type.initialLength), index: 1)
+            ir = b.buildInsertValue(aggregate: ir, element: IntType.int64.constant(type.initialCapacity), index: 2)
+
+            return ir
+
         default:
             preconditionFailure()
         }
@@ -715,21 +748,37 @@ extension IRGenerator {
                 return fieldAddress
             }
             return b.buildLoad(fieldAddress)
+        case .array(let member):
+            let aggregate = emit(expr: sel.rec, returnAddress: true)
+            let index = member.rawValue
+            let fieldAddress = b.buildStructGEP(aggregate, index: index)
+            if returnAddress {
+                return fieldAddress
+            }
+            return b.buildLoad(fieldAddress)
         }
     }
 
     mutating func emit(subscript sub: Subscript, returnAddress: Bool) -> IRValue {
-        // Pointers need to have the address loaded and arrays must use their address
-        let shouldReturnAddress = sub.checked == .array
-        let aggregate = emit(expr: sub.rec, returnAddress: shouldReturnAddress)
+        let aggregate: IRValue
         let index = emit(expr: sub.index)
 
         let indicies: [IRValue]
 
+        // NOTE: Pointers need to have the address loaded and arrays must use their address
         switch sub.checked! {
         case .array:
+            aggregate = emit(expr: sub.rec, returnAddress: true)
             indicies = [0, index]
+
+        case .dynamicArray:
+            let structPtr = emit(expr: sub.rec, returnAddress: true)
+            let arrayPtr = b.buildStructGEP(structPtr, index: 0)
+            aggregate = b.buildLoad(arrayPtr)
+            indicies = [index]
+
         case .pointer:
+            aggregate = emit(expr: sub.rec)
             indicies = [index]
         }
 
@@ -770,6 +819,14 @@ func canonicalize(_ pointer: ty.Pointer) -> LLVM.PointerType {
 
 func canonicalize(_ array: ty.Array) -> LLVM.ArrayType {
     return LLVM.ArrayType(elementType: canonicalize(array.elementType), count: array.length)
+}
+
+func canonicalize(_ array: ty.DynamicArray) -> LLVM.StructType {
+    let element = LLVM.PointerType(pointee: canonicalize(array.elementType))
+    // Memory size is in bytes but LLVM types are in bits
+    let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8)
+    // { Element type, Length, Capacity }
+    return LLVM.StructType(elementTypes: [element, systemWidthType, systemWidthType])
 }
 
 func canonicalize(_ fn: ty.Function) -> FunctionType {
@@ -813,6 +870,8 @@ func canonicalize(_ type: Type) -> IRType {
     case let type as ty.Pointer:
         return canonicalize(type)
     case let type as ty.Array:
+        return canonicalize(type)
+    case let type as ty.DynamicArray:
         return canonicalize(type)
     case let type as ty.Function:
         return canonicalize(type)
