@@ -1082,20 +1082,22 @@ extension Checker {
             selector.checked = .struct(field)
             return field.type
 
-        case is ty.DynamicArray:
+        case let array as ty.DynamicArray:
             let member: Selector.Checked.ArrayMember
 
             switch selector.sel.name {
-            case "len", "length":
+            case "raw":
+                member = .raw
+            case "len":
                 member = .length
-            case "cap", "capacity":
+            case "cap":
                 member = .capacity
             default:
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
                 return ty.invalid
             }
-            selector.checked = .array(member)
-            return ty.i64
+            selector.checked = .array(member, array.elementType)
+            return member == .raw ? ty.Pointer(pointeeType: array.elementType) : ty.i64
 
         default:
             // Don't spam diagnostics if the type is already invalid

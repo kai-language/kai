@@ -312,7 +312,12 @@ class Selector: Node, Expr {
         case .invalid: return ty.invalid
         case .file(let entity): return entity.type!
         case .struct(let field): return field.type
-        case .array: return ty.i64
+        case .array(let member, let elementType):
+            guard member == .raw else {
+                return ty.i64
+            }
+
+            return ty.Pointer(pointeeType: elementType)
         }
     }
 
@@ -320,10 +325,11 @@ class Selector: Node, Expr {
         case invalid
         case file(Entity)
         case `struct`(ty.Struct.Field)
-        case array(ArrayMember)
+        case array(ArrayMember, Type)
 
         enum ArrayMember: Int {
-            case length = 1
+            case raw
+            case length
             case capacity
         }
     }

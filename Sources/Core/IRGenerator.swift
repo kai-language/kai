@@ -748,7 +748,7 @@ extension IRGenerator {
                 return fieldAddress
             }
             return b.buildLoad(fieldAddress)
-        case .array(let member):
+        case .array(let member, _):
             let aggregate = emit(expr: sel.rec, returnAddress: true)
             let index = member.rawValue
             let fieldAddress = b.buildStructGEP(aggregate, index: index)
