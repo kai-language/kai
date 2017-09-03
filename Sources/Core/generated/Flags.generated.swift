@@ -3,6 +3,13 @@
 
 
 
+extension BasicLit {
+
+    var isStackAllocate: Bool {
+        return flags.contains(.stackAllocate) 
+    }
+}
+
 extension Entity {
 
     var isUsed: Bool {

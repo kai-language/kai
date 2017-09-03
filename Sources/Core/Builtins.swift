@@ -15,7 +15,7 @@ struct BuiltinType {
 
     static let bool = BuiltinType(entity: .bool,    type: ty.Boolean())
     static let rawptr = BuiltinType(entity: .rawptr, type: ty.Pointer(pointeeType: ty.u8))
-    static let string = BuiltinType(entity: .string, type: ty.rawptr) // FIXME: String type
+    static let string = BuiltinType(entity: .string, type: ty.KaiString())
 
     static let f32 = BuiltinType(entity: .f32, type: ty.FloatingPoint(entity: .f32, width: 32))
     static let f64 = BuiltinType(entity: .f64, type: ty.FloatingPoint(entity: .f64, width: 64))
@@ -127,6 +127,25 @@ class BuiltinFunction {
         let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil)
 
         return BuiltinFunction(entity: entity, generate: gen, onCallCheck: onCallCheck)
+    }
+}
+
+extension IRBuilder {
+    @discardableResult
+    func buildMemcpy(_ dest: IRValue, _ source: IRValue, count: IRValue, alias: Int = 1) -> IRValue {
+        let memcpy: Function
+        if let function = module.function(named: "llvm.memcpy.p0i8.p0i8.i64") {
+            memcpy = function
+        } else {
+            let memcpyType = FunctionType(
+                argTypes: [LLVM.PointerType.toVoid, LLVM.PointerType.toVoid, IntType.int64, IntType.int32, IntType.int1], returnType: VoidType()
+            )
+            memcpy = addFunction("llvm.memcpy.p0i8.p0i8.i64", type: memcpyType)
+        }
+
+        return buildCall(memcpy,
+            args: [dest, source, count, IntType.int32.constant(alias), IntType.int1.constant(0)]
+        )
     }
 }
 

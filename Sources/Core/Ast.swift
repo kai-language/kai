@@ -132,16 +132,18 @@ class BasicLit: Node, Expr {
     var start: Pos
     var token: Token
     var text: String
+    var flags: LiteralFlags
     var type: Type!
     var value: Value!
 
     var end: Pos { return start + text.count }
 
 // sourcery:inline:auto:BasicLit.Init
-init(start: Pos, token: Token, text: String, type: Type!, value: Value!) {
+init(start: Pos, token: Token, text: String, flags: LiteralFlags, type: Type!, value: Value!) {
     self.start = start
     self.token = token
     self.text = text
+    self.flags = flags
     self.type = type
     self.value = value
 }
@@ -995,6 +997,12 @@ init(start: Pos, end: Pos) {
 // sourcery:end
 }
 
+struct LiteralFlags: OptionSet {
+    var rawValue: UInt8
+
+    static let none             = LiteralFlags(rawValue: 0b0000)
+    static let stackAllocate    = LiteralFlags(rawValue: 0b0001)
+}
 
 struct FunctionFlags: OptionSet {
     var rawValue: UInt8

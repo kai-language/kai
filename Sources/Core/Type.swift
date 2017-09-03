@@ -26,7 +26,8 @@ func == (lhs: Type, rhs: Type) -> Bool {
     case (is ty.Void, is ty.Void),
          (is ty.Anyy, is ty.Anyy),
          (is ty.CVarArg, is ty.CVarArg),
-         (is ty.Boolean, is ty.Boolean):
+         (is ty.Boolean, is ty.Boolean),
+         (is ty.KaiString, is ty.KaiString):
         return true
     case (let lhs as ty.Integer, let rhs as ty.Integer):
         return lhs.isSigned == rhs.isSigned && lhs.width == rhs.width
@@ -34,6 +35,10 @@ func == (lhs: Type, rhs: Type) -> Bool {
         return lhs.width == rhs.width
     case (let lhs as ty.Pointer, let rhs as ty.Pointer):
         return lhs.pointeeType == rhs.pointeeType
+    case (let lhs as ty.Array, let rhs as ty.Array):
+        return lhs.elementType == rhs.elementType && lhs.length == rhs.length
+    case (let lhs as ty.DynamicArray, let rhs as ty.DynamicArray):
+        return lhs.elementType == rhs.elementType
     case (let lhs as ty.Struct, let rhs as ty.Struct):
         return lhs.node.start == rhs.node.start
     case (let lhs as ty.Function, let rhs as ty.Function):
@@ -108,6 +113,11 @@ enum ty {
         var width: Int?
     }
 
+    struct KaiString: Type {
+        unowned var entity: Entity = .anonymous
+        var width: Int? { return 64 * 3 } // pointer, length, capacity
+    }
+
     struct Pointer: Type {
         unowned var entity: Entity = .anonymous
         var width: Int? { return MemoryLayout<Int>.size }
@@ -167,7 +177,7 @@ enum ty {
             var index: Int
             var offset: Int
 
-            var name: String {
+            var name: Swift.String {
                 return ident.name
             }
         }

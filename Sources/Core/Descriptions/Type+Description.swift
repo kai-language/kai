@@ -35,6 +35,15 @@ extension ty.FloatingPoint {
     }
 }
 
+extension ty.KaiString {
+    var description: String {
+        if entity !== Entity.anonymous {
+            return entity.name
+        }
+        return "< string >"
+    }
+}
+
 extension ty.Pointer {
     var description: String {
         if entity !== Entity.anonymous {

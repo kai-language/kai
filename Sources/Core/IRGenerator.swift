@@ -515,8 +515,36 @@ extension IRGenerator {
 
     mutating func emit(lit: BasicLit, returnAddress: Bool, name: String) -> IRValue {
         if lit.token == .string {
-            return b.buildGlobalStringPtr(lit.value as! String)
+            let value = lit.value as! String
+            let bytes = value.utf8.count
+            let constant = b.buildGlobalStringPtr(value)
+
+            let alloc: IRValue
+            if lit.flags.contains(.stackAllocate) {
+                let stackAlloc = b.buildAlloca(type: LLVM.ArrayType(elementType: IntType.int8, count: bytes))
+                alloc = b.buildGEP(stackAlloc, indices: [0, 0])
+            } else {
+                alloc = b.buildMalloc(IntType.int8, count: value.utf8.count)
+            }
+
+            let newBuff = b.buildBitCast(alloc, type: LLVM.PointerType.toVoid)
+            let constantPtr = b.buildBitCast(constant, type: LLVM.PointerType.toVoid)
+            b.buildMemcpy(newBuff, constantPtr, count: bytes)
+
+            guard lit.type is ty.KaiString else {
+                return newBuff
+            }
+
+            let irType = canonicalize(lit.type)
+            var ir = irType.undef()
+
+            ir = b.buildInsertValue(aggregate: ir, element: newBuff, index: 0)
+            ir = b.buildInsertValue(aggregate: ir, element: bytes, index: 1) // len
+            ir = b.buildInsertValue(aggregate: ir, element: bytes, index: 2) // cap
+
+            return ir
         }
+
         let type = canonicalize(lit.type)
         switch type {
         case let type as IntType:
@@ -562,18 +590,8 @@ extension IRGenerator {
             let malloc = b.buildMalloc(elementType, count: type.initialCapacity)
             let newBuff = b.buildBitCast(malloc, type: LLVM.PointerType.toVoid)
 
-            let memcpy: Function
-            if let function = module.function(named: "llvm.memcpy.p0i8.p0i8.i64") {
-                memcpy = function
-            } else {
-                let memcpyType = FunctionType(
-                    argTypes: [LLVM.PointerType.toVoid, LLVM.PointerType.toVoid, IntType.int64, IntType.int32, IntType.int1], returnType: VoidType()
-                )
-                memcpy = b.addFunction("llvm.memcpy.p0i8.p0i8.i64", type: memcpyType)
-            }
-
             let bytesCount = (type.initialLength * (type.elementType.width ?? 8).round(upToNearest: 8)) / 8
-            _ = b.buildCall(memcpy, args: [newBuff, litPtr, bytesCount, IntType.int32.constant((type.elementType.width ?? 8).round(upToNearest: 8) / 8), IntType.int1.constant(0)])
+            b.buildMemcpy(newBuff, litPtr, count: bytesCount, alias: type.elementType.width ?? 1)
 
             ir = b.buildInsertValue(aggregate: ir, element: b.buildBitCast(newBuff, type: LLVM.PointerType(pointee: elementType)), index: 0)
             ir = b.buildInsertValue(aggregate: ir, element: IntType.int64.constant(type.initialLength), index: 1)
@@ -813,6 +831,13 @@ func canonicalize(_ float: ty.FloatingPoint) -> FloatType {
     }
 }
 
+func canonicalize(_ string: ty.KaiString) -> LLVM.StructType {
+    let cStringType = LLVM.PointerType(pointee: IntType.int8)
+    // Memory size is in bytes but LLVM types are in bits
+    let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8)
+    return LLVM.StructType(elementTypes: [cStringType, systemWidthType, systemWidthType])
+}
+
 func canonicalize(_ pointer: ty.Pointer) -> LLVM.PointerType {
     return LLVM.PointerType(pointee: canonicalize(pointer.pointeeType))
 }
@@ -866,6 +891,8 @@ func canonicalize(_ type: Type) -> IRType {
     case let type as ty.Integer:
         return canonicalize(type)
     case let type as ty.FloatingPoint:
+        return canonicalize(type)
+    case let type as ty.KaiString:
         return canonicalize(type)
     case let type as ty.Pointer:
         return canonicalize(type)

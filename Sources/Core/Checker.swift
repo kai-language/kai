@@ -548,7 +548,16 @@ extension Checker {
             lit.type = ty.f64
         case .string:
             // NOTE: unquoted in the Parser.
-            lit.type = ty.string
+            if let desiredType = desiredType, let ptr = desiredType as? ty.Pointer, ptr.pointeeType == ty.u8 {
+                // C-style string
+                lit.type = ty.rawptr
+            } else if desiredType is ty.CVarArg {
+                // if a literal is in a C vararg call, prefer the native C types
+                // over Kai types
+                lit.type = ty.rawptr
+            } else {
+                lit.type = ty.string
+            }
         default:
             lit.type = ty.invalid
         }
@@ -1099,6 +1108,23 @@ extension Checker {
             selector.checked = .array(member, array.elementType)
             return member == .raw ? ty.Pointer(pointeeType: array.elementType) : ty.i64
 
+        case is ty.KaiString:
+            let member: Selector.Checked.ArrayMember
+
+            switch selector.sel.name {
+            case "raw":
+                member = .raw
+            case "len":
+                member = .length
+            case "cap":
+                member = .capacity
+            default:
+                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                return ty.invalid
+            }
+            selector.checked = .array(member, ty.u8)
+            return member == .raw ? ty.Pointer(pointeeType: ty.u8) : ty.i64
+
         default:
             // Don't spam diagnostics if the type is already invalid
             if !(aggregateType is ty.Invalid) {
@@ -1143,6 +1169,11 @@ extension Checker {
             sub.type = pointer.pointeeType
             sub.checked = .pointer
             type = pointer.pointeeType
+
+        case is ty.KaiString:
+            sub.type = ty.u8
+            sub.checked = .dynamicArray
+            type = ty.u8
 
         default:
             if !(recType is ty.Invalid) {
