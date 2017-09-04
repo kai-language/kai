@@ -1145,38 +1145,40 @@ extension Checker {
             return field.type
 
         case let array as ty.DynamicArray:
-            let member: Selector.Checked.ArrayMember
-
             switch selector.sel.name {
             case "raw":
-                member = .raw
+                selector.checked = .array(.raw)
+                selector.type = ty.Pointer(pointeeType: array.elementType)
             case "len":
-                member = .length
+                selector.checked = .array(.length)
+                selector.type = ty.i64
             case "cap":
-                member = .capacity
+                selector.checked = .array(.capacity)
+                selector.type = ty.i64
             default:
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
-                return ty.invalid
+                selector.checked = .invalid
+                selector.type = ty.invalid
             }
-            selector.checked = .array(member, array.elementType)
-            return member == .raw ? ty.Pointer(pointeeType: array.elementType) : ty.i64
+            return selector.type
 
         case is ty.KaiString:
-            let member: Selector.Checked.ArrayMember
-
             switch selector.sel.name {
             case "raw":
-                member = .raw
+                selector.checked = .array(.raw)
+                selector.type = ty.Pointer(pointeeType: ty.u8)
             case "len":
-                member = .length
+                selector.checked = .array(.length)
+                selector.type = ty.i64
             case "cap":
-                member = .capacity
+                selector.checked = .array(.capacity)
+                selector.type = ty.i64
             default:
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
-                return ty.invalid
+                selector.checked = .invalid
+                selector.type = ty.invalid
             }
-            selector.checked = .array(member, ty.u8)
-            return member == .raw ? ty.Pointer(pointeeType: ty.u8) : ty.i64
+            return selector.type
 
         default:
             // Don't spam diagnostics if the type is already invalid
@@ -1605,6 +1607,17 @@ func canLvalue(_ expr: Expr) -> Bool {
             return false
         }
         return !(ident.entity.isFile || ident.entity.isLibrary)
+    case let sel as Selector:
+        switch sel.checked! {
+        case .file:
+            return true
+        case .array:
+            return true
+        case .struct:
+            return true
+        case .invalid:
+            return true
+        }
     case is Subscript:
         return true
     default:

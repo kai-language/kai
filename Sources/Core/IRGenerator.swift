@@ -194,7 +194,9 @@ extension IRGenerator {
                 let type = canonicalize(entity.type!)
 
                 if entity.owningScope.isFile {
-                    entity.value = b.addGlobal(mangle(entity.name), type: type)
+                    var global = b.addGlobal(mangle(entity.name), type: type)
+                    global.isExternallyInitialized = entity.isForeign
+                    entity.value = global
                 } else {
                     let stackValue = b.buildAlloca(type: type, name: entity.name)
                     let rvaluePtr = b.buildStructGEP(stackAggregate, index: index)
@@ -212,7 +214,9 @@ extension IRGenerator {
             for entity in decl.entities {
                 let type = canonicalize(entity.type!)
                 if entity.owningScope.isFile {
-                    entity.value = b.addGlobal(mangle(entity.name), type: type)
+                    var global = b.addGlobal(mangle(entity.name), type: type)
+                    global.isExternallyInitialized = entity.isForeign
+                    entity.value = global
                 } else {
                     entity.value = b.buildAlloca(type: type)
                 }
@@ -252,7 +256,9 @@ extension IRGenerator {
 
             let value = emit(expr: value, name: entity.name)
             if entity.owningScope.isFile {
-                entity.value = b.addGlobal(mangle(entity.name), initializer: value)
+                var global = b.addGlobal(mangle(entity.name), type: type)
+                global.isExternallyInitialized = entity.isForeign
+                entity.value = global
             } else {
                 let stackValue = b.buildAlloca(type: type, name: mangle(entity.name))
                 
@@ -824,7 +830,7 @@ extension IRGenerator {
                 return b.buildCast(cast, value: val, type: canonicalize(sel.type))
             }
             return val
-        case .array(let member, _):
+        case .array(let member):
             let aggregate = emit(expr: sel.rec, returnAddress: true)
             let index = member.rawValue
             let fieldAddress = b.buildStructGEP(aggregate, index: index)

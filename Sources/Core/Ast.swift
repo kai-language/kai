@@ -301,7 +301,7 @@ class Selector: Node, Expr {
         case invalid
         case file(Entity)
         case `struct`(ty.Struct.Field)
-        case array(ArrayMember, Type)
+        case array(ArrayMember)
 
         enum ArrayMember: Int {
             case raw
