@@ -189,9 +189,10 @@ extension Checker {
                     entities.append(Entity.anonymous)
                     continue
                 }
-                let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil)
+                let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil)
                 if decl.isConstant {
                     entity.flags.insert(.constant)
+                    // TODO: Assign constants from calls
                 }
                 if type is ty.Metatype {
                     entity.flags.insert(.type)
@@ -205,10 +206,8 @@ extension Checker {
 
             let type = expectedType!
             for ident in decl.names {
-                let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil)
-                if decl.isConstant {
-                    entity.flags.insert(.constant)
-                }
+                let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+                assert(!decl.isConstant)
                 if type is ty.Metatype {
                     entity.flags.insert(.type)
                 }
@@ -233,9 +232,10 @@ extension Checker {
                     type = expectedType
                 }
 
-                let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil)
+                let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil)
                 if decl.isConstant {
                     entity.flags.insert(.constant)
+                    entity.constant = constant(from: value)
                 }
                 if type is ty.Metatype {
                     entity.flags.insert(.type)
@@ -285,7 +285,7 @@ extension Checker {
             }
         }
 
-        let entity = Entity(ident: ident, type: type, flags: d.isConstant ? [.constant, .foreign] : .foreign, memberScope: nil, owningScope: nil, value: nil)
+        let entity = Entity(ident: ident, type: type, flags: d.isConstant ? [.constant, .foreign] : .foreign, memberScope: nil, owningScope: nil, value: nil, constant: nil)
         declare(entity)
         d.entities = [entity]
     }
@@ -324,19 +324,18 @@ extension Checker {
 
         var entity: Entity?
         if let alias = i.alias {
-            entity = Entity(ident: alias, type: nil, flags: .file, memberScope: nil, owningScope: nil, value: nil)
+            entity = Entity(ident: alias, type: nil, flags: .file, memberScope: nil, owningScope: nil, value: nil, constant: nil)
         } else if !i.importSymbolsIntoScope {
             guard let name = i.resolvedName else {
                 reportError("Cannot infer an import name for '\(i.path)'", at: i.path.start)
                 file.attachNote("You will need to manually specify one")
                 return
             }
-            let ident = Ident(start: noPos, name: name, entity: nil)
-            entity = Entity(ident: ident, type: nil, flags: .file, memberScope: nil, owningScope: nil, value: nil)
+            let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
+            entity = Entity(ident: ident, type: nil, flags: .file, memberScope: nil, owningScope: nil, value: nil, constant: nil)
         }
 
         // TODO: Ensure the import has been fully checked
-
         if i.importSymbolsIntoScope {
             for member in i.scope.members {
                 guard !member.flags.contains(.file) else {
@@ -359,7 +358,7 @@ extension Checker {
             return
         }
 
-        let path = lit.value as! String
+        let path = lit.constant as! String
 
         l.resolvedName = l.alias?.name ?? pathToEntityName(path)
 
@@ -369,8 +368,8 @@ extension Checker {
             file.attachNote("You will need to manually specify one")
             return
         }
-        let ident = l.alias ?? Ident(start: noPos, name: name, entity: nil)
-        let entity = Entity(ident: ident, type: nil, flags: .library, memberScope: nil, owningScope: nil, value: nil)
+        let ident = l.alias ?? Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
+        let entity = Entity(ident: ident, type: nil, flags: .library, memberScope: nil, owningScope: nil, value: nil, constant: nil)
         declare(entity)
 
         if path != "libc" && path != "llvm" {
@@ -409,6 +408,10 @@ extension Checker {
 
         switch expr {
         case let expr as Nil:
+            // let this fall through until later
+            expr.type = desiredType ?? ty.invalid
+            return desiredType ?? ty.untypedNil
+            /*
             guard let desiredType = desiredType else {
                 reportError("'nil' requires a contextual type", at: expr.start)
                 return ty.invalid
@@ -419,9 +422,10 @@ extension Checker {
             }
             expr.type = desiredType
             return desiredType
+            */
 
         case let ident as Ident:
-            check(ident: ident)
+            check(ident: ident, desiredType: desiredType)
 
         case let lit as BasicLit:
             check(basicLit: lit, desiredType: desiredType)
@@ -454,7 +458,7 @@ extension Checker {
             _ = check(expr: array.length)
             guard
                 let lit = array.length as? BasicLit,
-                let length = lit.value as? UInt64
+                let length = lit.constant as? UInt64
             else {
                 reportError("Currently, only array literals are allowed for array length", at: array.length.start)
                 return ty.invalid
@@ -486,7 +490,7 @@ extension Checker {
             check(ternary: ternary, desiredType: desiredType)
 
         case let selector as Selector:
-            check(selector: selector)
+            check(selector: selector, desiredType: desiredType)
 
         case let subsćript as Subscript:
             check(subscript: subsćript)
@@ -504,19 +508,31 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(ident: Ident) -> Type {
+    mutating func check(ident: Ident, desiredType: Type? = nil) -> Type {
         guard let entity = context.scope.lookup(ident.name) else {
             reportError("Use of undefined identifier '\(ident)'", at: ident.start)
             ident.entity = Entity.invalid
+            ident.type = ty.invalid
             return ty.invalid
         }
-        ident.entity = entity
         guard !entity.flags.contains(.library) else {
             reportError("Cannot use library as expression", at: ident.start)
             ident.entity = Entity.invalid
+            ident.type = ty.invalid
             return ty.invalid
         }
         ident.entity = entity
+        if entity.isConstant {
+            ident.constant = entity.constant
+        }
+        if let desiredType = desiredType, entity.type! is ty.UntypedInteger || entity.type! is ty.UntypedFloatingPoint {
+            if let cast = constrainUntyped(entity.type!, to: desiredType) {
+                ident.cast = cast
+                ident.type = desiredType
+                return desiredType
+            }
+        }
+        ident.type = entity.type!
         return entity.type!
     }
 
@@ -527,25 +543,25 @@ extension Checker {
         case .int:
             switch lit.text.prefix(2) {
             case "0x":
-                let text = String(lit.text.suffix(1))
-                lit.value = UInt64(text, radix: 16)!
+                let text = String(lit.text.dropFirst(2))
+                lit.constant = UInt64(text, radix: 16)!
             case "0o":
-                let text = String(lit.text.suffix(1))
-                lit.value = UInt64(text, radix: 8)!
+                let text = String(lit.text.dropFirst(2))
+                lit.constant = UInt64(text, radix: 8)!
             case "0b":
-                let text = String(lit.text.suffix(1))
-                lit.value = UInt64(text, radix: 2)!
+                let text = String(lit.text.dropFirst(2))
+                lit.constant = UInt64(text, radix: 2)!
             default:
-                lit.value = UInt64(lit.text, radix: 10)!
+                lit.constant = UInt64(lit.text, radix: 10)!
             }
             if let desiredType = desiredType, desiredType is ty.Integer || desiredType is ty.FloatingPoint {
                 lit.type = desiredType
             } else {
-                lit.type = ty.i64
+                lit.type = ty.untypedInteger
             }
         case .float:
-            lit.value = Double(lit.text)!
-            lit.type = ty.f64
+            lit.constant = Double(lit.text)!
+            lit.type = ty.untypedFloat
         case .string:
             // NOTE: unquoted in the Parser.
             if let desiredType = desiredType, let ptr = desiredType as? ty.Pointer, ptr.pointeeType == ty.u8 {
@@ -690,7 +706,7 @@ extension Checker {
 
         var type = check(expr: param.explicitType)
         type = lowerFromMetatype(type, atNode: param.explicitType)
-        let entity = Entity(ident: param.name, type: type, flags: param.isExplicitPoly ? .constant : .none, memberScope: nil, owningScope: nil, value: nil)
+        let entity = Entity(ident: param.name, type: type, flags: param.isExplicitPoly ? .constant : .none, memberScope: nil, owningScope: nil, value: nil, constant: nil)
         if param.isExplicitPoly {
             type = ty.Polymorphic(entity: entity, specialization: Ref(nil))
         }
@@ -707,7 +723,7 @@ extension Checker {
         }
         switch polyType.explicitType {
         case let ident as Ident:
-            let entity = Entity(ident: ident, type: ty.invalid, flags: .implicitType, memberScope: nil, owningScope: nil, value: nil)
+            let entity = Entity(ident: ident, type: ty.invalid, flags: .implicitType, memberScope: nil, owningScope: nil, value: nil, constant: nil)
             declare(entity)
             var type: Type
             type = ty.Polymorphic(entity: entity, specialization: Ref(nil))
@@ -882,7 +898,7 @@ extension Checker {
 
         switch unary.op {
         case .add, .sub:
-            guard type is ty.Integer || type is ty.FloatingPoint else {
+            guard type is ty.Integer || type is ty.FloatingPoint || type is ty.UntypedInteger || type is ty.UntypedFloatingPoint else {
                 reportError("Invalid operation '\(unary.op)' on type '\(type)'", at: unary.start)
                 unary.type = ty.invalid
                 return ty.invalid
@@ -923,8 +939,8 @@ extension Checker {
 
     @discardableResult
     mutating func check(binary: Binary, desiredType: Type?) -> Type {
-        let lhsType = check(expr: binary.lhs)
-        let rhsType = check(expr: binary.rhs, desiredType: lhsType)
+        var lhsType = check(expr: binary.lhs)
+        var rhsType = check(expr: binary.rhs)
 
         let resultType: Type
         let op: OpCode.Binary
@@ -933,6 +949,29 @@ extension Checker {
 
         // Used to communicate any implicit casts to perform for this operation
         var (lCast, rCast): (OpCode.Cast?, OpCode.Cast?) = (nil, nil)
+
+        // Handle constraining untyped's etc..
+        if lhsType is ty.UntypedNil || lhsType is ty.UntypedInteger || lhsType is ty.UntypedFloatingPoint {
+            guard let cast = constrainUntyped(lhsType, to: rhsType) else {
+                reportError("Invalid operation '\(binary.op)' between untyped '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
+                return ty.invalid
+            }
+            if lhsType is ty.UntypedNil {
+                (binary.lhs as! Nil).type = rhsType
+            }
+            lhsType = rhsType
+            lCast = cast
+        } else if rhsType is ty.UntypedNil || rhsType is ty.UntypedInteger || rhsType is ty.UntypedFloatingPoint {
+            guard let cast = constrainUntyped(rhsType, to: lhsType) else {
+                reportError("Invalid operation '\(binary.op)' between '\(lhsType)' and untyped '\(rhsType)'", at: binary.opPos)
+                return ty.invalid
+            }
+            if rhsType is ty.UntypedNil {
+                (binary.rhs as! Nil).type = lhsType
+            }
+            rhsType = lhsType
+            rCast = cast
+        }
 
         // Handle extending or truncating
         if lhsType == rhsType && !(lhsType is ty.Pointer) && !(rhsType is ty.Pointer){
@@ -1071,24 +1110,38 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(selector: Selector) -> Type {
+    mutating func check(selector: Selector, desiredType: Type? = nil) -> Type {
         let aggregateType = check(expr: selector.rec)
 
         switch aggregateType {
         case let file as ty.File:
             guard let member = file.memberScope.lookup(selector.sel.name) else {
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                selector.type = ty.invalid
                 return ty.invalid
             }
             selector.checked = .file(member)
+            if member.isConstant {
+                selector.constant = member.constant
+            }
+            if let desiredType = desiredType, member.type! is ty.UntypedInteger || member.type! is ty.UntypedFloatingPoint {
+                if let cast = constrainUntyped(member.type!, to: desiredType) {
+                    selector.cast = cast
+                    selector.type = desiredType
+                    return desiredType
+                }
+            }
+            selector.type = member.type
             return member.type!
 
         case let strućt as ty.Struct:
             guard let field = strućt.fields.first(where: { $0.name == selector.sel.name }) else {
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                selector.type = ty.invalid
                 return ty.invalid
             }
             selector.checked = .struct(field)
+            selector.type = field.type
             return field.type
 
         case let array as ty.DynamicArray:
@@ -1131,6 +1184,7 @@ extension Checker {
                 reportError("Type '\(aggregateType)', does not have a member scope", at: selector.start)
             }
 
+            selector.type = ty.invalid
             return ty.invalid
         }
     }
@@ -1154,7 +1208,7 @@ extension Checker {
 
             // TODO: support compile time constants. Compile time constant support
             // will allows us to guard against negative indices as well
-            if let lit = sub.index as? BasicLit, let value = lit.value as? UInt64 {
+            if let lit = sub.index as? BasicLit, let value = lit.constant as? UInt64 {
                 if value >= array.length {
                     reportError("Index \(value) is past the end of the array (\(array.length) elements)", at: sub.index.start)
                 }
@@ -1313,6 +1367,10 @@ extension Checker {
             // If the user performs a reinterpret cast, we don't care if the
             // underlying types match/are the same width
             op = .bitCast
+        } else if argType is ty.Function && targetType is ty.Pointer {
+            op = .bitCast
+        } else if argType is ty.Pointer && targetType is ty.Pointer {
+            op = .bitCast
         } else {
             reportError("Cannot cast between unrelated types '\(argType)' and '\(targetType)'", at: cast.start)
         }
@@ -1455,11 +1513,41 @@ extension Checker {
             return true
         }
 
-//        if targetType is ty.Pointer, let type = type as? ty.Metatype, type.instanceType is ty.UntypedNil {
-//            return true
-//        }
+        if targetType is ty.Pointer, let type = type as? ty.Metatype, type.instanceType is ty.UntypedNil {
+            return true
+        }
 
         return false
+    }
+
+    func constrainUntyped(_ type: Type, to targetType: Type) -> OpCode.Cast? {
+        switch (type, targetType) {
+        case (is ty.UntypedNil, is ty.Pointer):
+            return .bitCast
+        case (let type as ty.UntypedInteger, let targetType as ty.Integer) where  targetType.isSigned:
+            return type.width! < targetType.width! ? OpCode.Cast.sext : .trunc
+        case (let type as ty.UntypedInteger, let targetType as ty.Integer) where !targetType.isSigned:
+            return type.width! < targetType.width! ? OpCode.Cast.zext : .trunc
+        case (is ty.UntypedFloatingPoint, let targetType as ty.Integer):
+            return targetType.isSigned ? OpCode.Cast.fpToSI : .fpToUI
+        case (let type as ty.UntypedFloatingPoint, let targetType as ty.FloatingPoint):
+            return type.width! < targetType.width! ? OpCode.Cast.fpext : .fpTrunc
+        default:
+            return nil
+        }
+    }
+
+    func constant(from expr: Expr) -> Value? {
+        switch expr {
+        case let lit as BasicLit:
+            return lit.constant
+        case let ident as Ident:
+            return ident.constant
+        case let sel as Selector:
+            return sel.constant
+        default:
+            return nil
+        }
     }
 }
 

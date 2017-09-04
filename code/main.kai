@@ -1,129 +1,242 @@
 
-#import github("kai-language/stdlib") 
+#library "libc"
+#import "glfw.kai"
 
-#library "libc" libc
+#foreign libc {
+    printf :: (fmt: string, args: #cvargs ..any) -> i32
 
-#foreign libc #callconv "c" {
-    printf :: (string, #cvargs ..any) -> i32
-
-    sprintf :: (*u8, string, #cvargs ..any) -> i32
+    exit :: (exitcode: i32) -> void
 }
 
-sum :: fn (a: $T, b: $U) -> T {
 
-  total : T = a
-  total = total + T(b)
-  return total
+panic :: fn(msg: string) -> void {
+    printf(msg)
+    exit(1)
 }
 
-min :: fn ($U: type, a: U, b: U) -> U {
-  if a < b return a
-  else return b
+// OpenGL constants, only the ones we need
+FALSE                :: 0x0000
+TRIANGLE_STRIP       :: 0x0005
+DEPTH_BUFFER_BIT     :: 0x0100
+DEPTH_TEST           :: 0x0B71
+UNSIGNED_SHORT       :: 0x1403
+FLOAT                :: 0x1406
+COLOR_BUFFER_BIT     :: 0x4000
+ARRAY_BUFFER         :: 0x8892
+ELEMENT_ARRAY_BUFFER :: 0x8893
+STATIC_DRAW          :: 0x88E4
+VERTEX_SHADER        :: 0x8B31
+FRAGMENT_SHADER      :: 0x8B30
+
+// For more, look up http://docs.gl, where you can sort by version
+Enable:                   (cap: u32) -> void
+
+ClearColor:               (r, g, b, a: f32) -> void
+Clear:                    (mask: u32) -> void
+
+GenVertexArrays:          (count: i32, buffers: *u32) -> void
+BindVertexArray:          (buffer: u32) -> void
+DeleteVertexArrays:       (n: i32, arrays: *u32) -> void
+
+GenBuffers:               (count: i32, buffers: *u32) -> void
+BindBuffer:               (target: i32, buffer: u32) -> void
+BufferData:               (target: i32, size: i32, data: rawptr, usage: i32) -> void
+DeleteBuffers:            (n: i32, buffers: *u32) -> void
+
+EnableVertexAttribArray:  (index: u32) -> void
+VertexAttribPointer:      (index: u32, size, type: i32, normalized: i32, stride: u32, pointer: rawptr) -> void
+
+CreateShader:             (shaderType: i32) -> u32
+ShaderSource:             (shader: u32, count: u32, str: **u8, length: *i32) -> void
+CompileShader:            (shader: u32) -> void
+DeleteShader:             (shader:  u32) -> void
+
+CreateProgram:            () -> u32
+AttachShader:             (program, shader: u32) -> void
+LinkProgram:              (program: u32) -> void
+DeleteProgram:            (program: u32) -> void
+
+UseProgram:               (program: u32) -> void
+GetUniformLocation:       (program: u32, name: *u8) -> void
+Uniform1f:                (loc: i32, v0: f32) -> void
+UniformMatrix4fv:         (loc: i32, count: u32, transpose: i32, value: *f32) -> void
+
+DrawElements:             (mode: i32, count: u32, type: i32, indices: rawptr) -> void
+
+getGlFunctions :: fn(_getProcAddress: rawptr) -> void {
+    getProcAddress := ((*u8) -> rawptr)(_getProcAddress)
+    rawptr(Enable) = getProcAddress("glEnable\x00")
+
+    rawptr(ClearColor) = getProcAddress("glClearColor\x00")
+    rawptr(Clear) = getProcAddress("glClear\x00")
+
+    rawptr(GenBuffers) = getProcAddress("glGenBuffers\x00")
+    rawptr(GenVertexArrays) = getProcAddress("glGenVertexArrays\x00")
+    rawptr(DeleteVertexArrays) = getProcAddress("glDeleteVertexArrays\x00")
+
+    rawptr(BindBuffer) = getProcAddress("glBindBuffer\x00")
+    rawptr(BindVertexArray) = getProcAddress("glBindVertexArray\x00")
+    rawptr(BufferData) = getProcAddress("glBufferData\x00")
+    rawptr(DeleteBuffers) = getProcAddress("glDeleteBuffers\x00")
+
+    rawptr(EnableVertexAttribArray) = getProcAddress("glEnableVertexAttribArray\x00")
+    rawptr(VertexAttribPointer) = getProcAddress("glVertexAttribPointer\x00")
+
+    rawptr(CreateShader) = getProcAddress("glCreateShader\x00")
+    rawptr(ShaderSource) = getProcAddress("glShaderSource\x00")
+    rawptr(CompileShader) = getProcAddress("glCompileShader\x00")
+    rawptr(DeleteShader) = getProcAddress("glDeleteShader\x00")
+
+    rawptr(CreateProgram) = getProcAddress("glCreateProgram\x00")
+    rawptr(AttachShader) = getProcAddress("glAttachShader\x00")
+    rawptr(LinkProgram) = getProcAddress("glLinkProgram\x00")
+    rawptr(DeleteProgram) = getProcAddress("glDeleteProgram\x00")
+
+    rawptr(UseProgram) = getProcAddress("glUseProgram\x00")
+    rawptr(GetUniformLocation) = getProcAddress("glGetUniformLocation\x00")
+    rawptr(Uniform1f) = getProcAddress("glUniform1f\x00")
+    rawptr(UniformMatrix4fv) = getProcAddress("glUniformMatrix4fv\x00")
+
+    rawptr(DrawElements) = getProcAddress("glDrawElements\x00")
 }
 
-max :: fn (a: $T, b: T) -> T {
-  if a > b return a
-  else return b
-}
+//glfwErrorCallback :: fn(error: i32, desc: *u8) -> void {
+//    printf("Error code %d:\n\t%s\n", error, desc)
+//}
 
-add : (i64) -> i64 : fn (foo: i64) -> i64 {
-    return foo + 1
-}
+initGlfw :: fn() -> *glfw.Window, bool {
+    //glfw.SetErrorCallback(&glfwErrorCallback)
 
-sub :: fn (foo: i64) -> i64 {
-    return foo - 1
-}
-
-forExample :: fn () -> void {
-    for i := 0; i < 5; i += 1 {
-        printf("%d\n", i)
+    if glfw.Init() == 0 {
+        return nil, false
     }
+
+    glfw.WindowHint(glfw.SAMPLES, 4)
+    glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, 3)
+    glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, 3)
+    glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
+    glfw.WindowHint(glfw.OPENGL_FORWARD_COMPAT, 1)
+
+    window := glfw.CreateWindow(1280, 720, "Kai GLFW example", nil, nil)
+    if window == nil {
+        panic("Asdfklasjdf")
+        return nil, false
+    }
+
+    glfw.MakeContextCurrent(window)
+
+    return window, true
 }
 
-swap :: fn (a: $T, b: T) -> T, T {
-    return b, a
+loadShaders :: fn() -> u32 {
+    vertex_shader_source := `
+        #version 330 core
+
+        layout(location = 0) in vec3 vertexPosition;
+
+        uniform float time;
+        uniform mat4 MVP;
+
+        out vec3 pos;
+
+        void main() {
+            gl_Position = MVP*vec4(vertexPosition, 1.0);
+            pos = vertexPosition;
+        }
+    `
+    fragment_shader_source := `
+        #version 330 core
+
+        in vec3 pos;
+        uniform float time;
+        out vec4 color;
+
+        void main() {
+            color = vec4(0.5 + 0.5*pos, 1.0);
+        }
+    `
+
+    vertex_shader_length := i32(len(vertex_shader_source))
+    fragment_shader_length := i32(len(fragment_shader_source))
+
+    vertex_shader_id := CreateShader(VERTEX_SHADER)
+    fragment_shader_id := CreateShader(FRAGMENT_SHADER)
+
+    ShaderSource(vertex_shader_id, 1, (**u8)(&vertex_shader_source), &vertex_shader_length)
+    ShaderSource(fragment_shader_id, 1, (**u8)(&fragment_shader_source), &fragment_shader_length)
+
+    CompileShader(vertex_shader_id)
+    CompileShader(fragment_shader_id)
+
+    program := CreateProgram()
+    AttachShader(program, vertex_shader_id)
+    AttachShader(program, fragment_shader_id)
+    LinkProgram(program)
+
+    DeleteShader(vertex_shader_id)
+    DeleteShader(fragment_shader_id)
+
+    return program
 }
 
-Foo :: struct {
-    a, b: f64
-}
+createBuffers :: fn() -> u32, u32, u32 {
+    vao: u32
+    GenVertexArrays(1, &vao)
+    BindVertexArray(vao)
 
-Bar :: struct {
-    foo: Foo
+/*
+    // a 2x2x2 cube, using triangle strips and indices
+    cubeVertices := [..]f32 {
+        -1.0, -1.0,  1.0,
+         1.0, -1.0,  1.0,
+        -1.0,  1.0,  1.0,
+         1.0,  1.0,  1.0,
+        -1.0, -1.0, -1.0,
+         1.0, -1.0, -1.0,
+        -1.0,  1.0, -1.0,
+         1.0,  1.0, -1.0,
+    }
+
+    cubeIndices := [..]u16{
+        // TRIANGLE_STRIP, 14 indices = 12 triangles
+        0, 1, 2, 3, 7, 1, 5, 4, 7, 6, 2, 4, 0, 1
+    }
+*/
+
+    vbo: u32
+    GenBuffers(1, &vbo)
+    //BindBuffer(ARRAY_BUFFER, vbo)
+    //BufferData(ARRAY_BUFFER, size_of(cubeVertices), &cubeVertices[0], STATIC_DRAW)
+
+    EnableVertexAttribArray(0)
+    VertexAttribPointer(0, 3, FLOAT, FALSE, 0, nil)
+
+    ebo: u32
+    GenBuffers(1, &ebo)
+    //BindBuffer(ELEMENT_ARRAY_BUFFER, ebo)
+    //BufferData(ELEMENT_ARRAY_BUFFER, size_of(cubeIndices), &cubeIndices[0], STATIC_DRAW)
+
+    return vao, vbo, ebo
 }
 
 main :: fn () -> void {
 
-    this := sum(1, 2.5)
-    printf("total: %d\n", this)
-    that := sum(1, 5.5)
-    printf("total: %d\n", that)
+    window, success := initGlfw()
+    if !success
+        panic("Error with window creation!\n")
 
-    a : f64 = 5.0
-    b : i64 = 3 
-    /* c := min(f64, a, 4)
-    d := max(b, 4)
-    e := min(i64, b, d)
-    j := max(a, 4) */
-    
-    f := f64(b)
+    getGlFunctions(rawptr(glfw.GetProcAddress))
 
-    /*g : (i64) -> i64 = add
+    program := loadShaders()
 
-    h := g(8)
+    vao, vbo, ebo := createBuffers()
 
-    g = sub
 
-    h = g(8)*/
-
-    forExample()
-    addrA := &a
-    valA := <addrA
-
-    x, y := 1, 2
-
-    x, y = 3, 4
-
-    x, y = y, x
-
-    //x, y = swap(x, y)
-
-    printf("%d, %d\n", x, y)
-
-    /*x1, y1 := swap(x, y)
-
-    printf("%d, %d\n", x1, y1) */
-
-    k := 4.0
-
-    foo := Foo { b: k, a: 3.6 }
-
-    bar := Bar { Foo { 3.9, 4.3 } }
-
-    printf("%f, %f\n", foo.a, foo.b)
-    printf("%f, %f\n", bar.foo.a, bar.foo.b)
-
-    /*
-    // NOTE: On the following 2 calls the kind value *must* be last due to what will otherwise be a misaligned stack pointer
-    printf("%s's is of kind %d and is %d bits wide\n" , typeinfo(i64).name, typeinfo(i64).kind, typeinfo(i64).width)
-    printf("%s's is of kind %d and is %d bits wide\n", typeinfo(string).name, typeinfo(string).kind, typeinfo(string).width)
-
-    printf("%d, %d, %s\n", typeinfo(u8).kind, typeinfo(u8).width, typeinfo(u8).name)
-    */
+    for glfw.WindowShouldClose(window) == glfw.FALSE {
+        glfw.PollEvents()
+        glfw.SwapBuffers(window)
+    }
+    glfw.Terminate()
+    printf("Exiting!\n")
 }
-
-/*
-Baz :: union {
-    i: i32
-    f: f32
-    s: string
-    b: struct { a, b: f32; }
-}
-
-baz := Baz { i: 0x40486bf8 }
-
-printf("i = %d\n", baz.i) // 10785300000
-printf("f = %f\n", baz.f) // FIXME: 0.000000
-printf("s = %p\n", baz.s) // 0x40490fd0
-*/
 

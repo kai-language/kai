@@ -50,7 +50,7 @@ extension Parser {
         } else {
             reportExpected("string literal", at: pos)
         }
-        return BasicLit(start: start, token: .string, text: val, flags: .none, type: nil, value: unquote(val))
+        return BasicLit(start: start, token: .string, text: val, flags: .none, type: nil, constant: unquote(val))
     }
 
     mutating func parseIdent() -> Ident {
@@ -61,7 +61,7 @@ extension Parser {
         } else {
             reportExpected("ident", at: pos)
         }
-        return Ident(start: pos, name: name, entity: nil)
+        return Ident(start: pos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
     }
 }
 
@@ -186,7 +186,7 @@ extension Parser {
                 x = parseTernaryExpr(x)
             case .period:
                 next()
-                x = Selector(rec: x, sel: parseIdent(), checked: nil)
+                x = Selector(rec: x, sel: parseIdent(), checked: nil, type: nil, cast: nil, constant: nil)
             case .lbrack:
                 next()
                 let index = parseExpr()
@@ -216,20 +216,17 @@ extension Parser {
         case .ident:
             return parseIdent()
         case .string:
-            let val = BasicLit(start: pos, token: tok, text: lit, flags: .none, type: nil, value: unquote(lit))
+            let val = BasicLit(start: pos, token: tok, text: lit, flags: .none, type: nil, constant: unquote(lit))
             next()
             return val
         case .int, .float:
-            let val = BasicLit(start: pos, token: tok, text: lit, flags: .none, type: nil, value: nil)
+            let val = BasicLit(start: pos, token: tok, text: lit, flags: .none, type: nil, constant: nil)
             next()
             return val
         case .fn:
             return parseFuncLit()
         case .lparen:
-            let lparen = eatToken()
-            let expr = parseExpr()
-            let rparen = expect(.rparen)
-            return Paren(lparen: lparen, element: expr, rparen: rparen, type: nil)
+            return parseFuncType(allowParenthesizedExpr: true)
         case .directive:
             let name = lit
             let directive = eatToken()
@@ -238,7 +235,7 @@ extension Parser {
                 fatalError("Inline assembly is not yet supported")
             case "stack":
                 let operand = parseOperand()
-                guard let lit = operand as? BasicLit, lit.value != nil else {
+                guard let lit = operand as? BasicLit, lit.constant != nil else {
                     reportError("The directive `stack` does not support '\(operand)'", at: operand.start)
                     return BadExpr(start: operand.start, end: operand.end)
                 }
@@ -264,7 +261,12 @@ extension Parser {
     mutating func parseType(allowPolyType: Bool = false, allowVariadic: Bool = false) -> Expr {
         switch tok {
         case .ident:
-            return parseIdent()
+            let x = parseIdent()
+            if tok == .period {
+                next()
+                return Selector(rec: x, sel: parseIdent(), checked: nil, type: nil, cast: nil, constant: nil)
+            }
+            return x
         case .lbrack:
             let lbrack = eatToken()
 
@@ -291,7 +293,7 @@ extension Parser {
             let type = parseType()
             return PointerType(star: star, explicitType: type, type: nil)
         case .lparen:
-            return parseFuncType()
+            return parseFuncType(allowParenthesizedExpr: false)
         case .dollar:
             let dollar = eatToken()
             let type = parseType(allowPolyType: false)
@@ -316,16 +318,77 @@ extension Parser {
         }
     }
 
-    mutating func parseFuncType() -> Expr {
+    mutating func parseFuncType(allowParenthesizedExpr: Bool) -> Expr {
         let lparen = eatToken()
-        var params: [Expr] = []
-        if tok != .rparen {
-            params = parseParameterTypeList()
+        if tok == .rparen {
+            next()
+            expect(.retArrow)
+            let results = parseResultList()
+            return FuncType(lparen: lparen, params: [], results: results.types, flags: .none, type: nil)
+        }
+
+        var parametersShouldBeNamed: Bool = false
+        var types: [Expr] = []
+        let firstExpr = parseExpr()
+        if tok == .rparen {
+            // covers "(" Expr ")" and "(" Type ")" "->" ResultList
+            let rparen = eatToken()
+            if tok != .retArrow && allowParenthesizedExpr {
+                return Paren(lparen: lparen, element: firstExpr, rparen: rparen, type: nil)
+            }
+            expect(.retArrow)
+            let results = parseResultList()
+            return FuncType(lparen: lparen, params: [firstExpr], results: results.types, flags: .none, type: nil)
+        }
+
+        // Determine if FuncType includes named parameters
+        if firstExpr is Ident && tok == .comma {
+            next()
+            let rest = parseExprList()
+            if rest.reduce(true, { $0 && $1 is Ident }), tok == .colon {
+                next()
+                // If all expressions are idents followed by a colon, they are argument labels
+                let type = parseType(allowPolyType: true, allowVariadic: false)
+                types.append(contentsOf: repeatElement(type, count: rest.count + 1)) // +1 for firstExpr
+                parametersShouldBeNamed = true
+            }
+        } else if firstExpr is Ident && tok == .colon {
+            next()
+            let type = parseType(allowPolyType: true, allowVariadic: true)
+            types.append(type)
+            parametersShouldBeNamed = true
+            if type is VariadicType || tok == .rparen {
+                expect(.rparen)
+                expect(.retArrow)
+                let results = parseResultList()
+                return FuncType(lparen: lparen, params: types, results: results.types, flags: .none, type: nil)
+            }
+        } else {
+            types.append(firstExpr)
+        }
+
+        while tok == .comma {
+            next()
+            if parametersShouldBeNamed {
+                let idents = parseIdentList()
+                expect(.colon)
+                let type = parseType(allowPolyType: true, allowVariadic: idents.count == 1)
+                types.append(contentsOf: repeatElement(type, count: idents.count))
+                if type is VariadicType || tok == .rparen {
+                    break
+                }
+            } else {
+                let type = parseType(allowPolyType: true, allowVariadic: true)
+                types.append(type)
+                if type is VariadicType || tok == .rparen {
+                    break
+                }
+            }
         }
         expect(.rparen)
         expect(.retArrow)
-        let results = parseTypeList(allowPolyType: true)
-        return FuncType(lparen: lparen, params: params, results: results, flags: .none, type: nil)
+        let results = parseResultList()
+        return FuncType(lparen: lparen, params: types, results: results.types, flags: .none, type: nil)
     }
 
     mutating func parseParameterTypeList() -> [Expr] {
@@ -391,15 +454,11 @@ extension Parser {
 
     // MARK: Function Literals
 
-    mutating func parseFuncLit(asType: Bool = false) -> Expr {
+    mutating func parseFuncLit() -> Expr {
         let keyword = eatToken()
         let signature = parseSignature()
         expect(.retArrow)
         let results = parseResultList()
-        guard !asType else {
-            let params = signature.list.flatMap({ $0.explicitType })
-            return FuncType(lparen: keyword, params: params, results: results.types, flags: .none, type: nil)
-        }
         let body = parseBlock()
         return FuncLit(keyword: keyword, params: signature, results: results, body: body, flags: .none, type: nil, checked: nil)
     }
@@ -786,9 +845,9 @@ extension Parser {
             switch x {
             case let block as DeclBlock:
                 // TODO: Take normal block and convert to declblock
-                block.callconv = conv.value as! String!
+                block.callconv = conv.constant as! String!
             case let decl as CallConvApplicable:
-                decl.callconv = conv.value as! String!
+                decl.callconv = conv.constant as! String!
             default:
                 reportExpected("individual or block of declarations", at: x.start)
                 recover()
@@ -800,7 +859,7 @@ extension Parser {
             let linkprefix = parseStringLit()
             allowNewline()
             let block = parseDeclBlock(foreign: foreign)
-            block.linkprefix = linkprefix.value as! String!
+            block.linkprefix = linkprefix.constant as! String!
             return block
 
         default:
@@ -833,7 +892,7 @@ extension Parser {
             if d.linkname != nil {
                 reportError("Duplicate linkname", at: directive)
             }
-            d.linkname = linkname.value as! String!
+            d.linkname = linkname.constant as! String!
             expectTerm()
             return d
         default:
@@ -878,12 +937,7 @@ extension Parser {
             return BadDecl(start: name.start, end: end)
         } else if tok == .colon {
             next()
-            var type: Expr
-            if tok == .fn {
-                type = parseFuncLit(asType: true)
-            } else {
-                type = parseType()
-            }
+            let type = parseType()
             let decl = Declaration(names: [name], explicitType: type, values: [], isConstant: true, callconv: nil, linkname: nil, entities: nil)
             return parseTrailingDirectives(for: decl) as! Decl
         } else {
@@ -891,17 +945,6 @@ extension Parser {
             let decl = Declaration(names: [name], explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil, entities: nil)
             return parseTrailingDirectives(for: decl) as! Decl
         }
-    }
-
-    mutating func parseForeignFuncLit() -> ForeignFuncLit {
-        let keyword = eatToken()
-        let params = parseSignature()
-        expect(.retArrow)
-        let results = parseResultList()
-        if tok == .lbrace {
-            reportError("Foreign function declarations need not have a body", at: pos)
-        }
-        return ForeignFuncLit(keyword: keyword, params: params, results: results, flags: .none, type: nil)
     }
 }
 

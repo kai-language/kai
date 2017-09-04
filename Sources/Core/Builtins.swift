@@ -19,9 +19,14 @@ struct BuiltinType {
 
     static let f32 = BuiltinType(entity: .f32, type: ty.FloatingPoint(entity: .f32, width: 32))
     static let f64 = BuiltinType(entity: .f64, type: ty.FloatingPoint(entity: .f64, width: 64))
-    static let u8  = BuiltinType(entity: .u8,  type: ty.Integer(entity: Entity.u8, width: 8,  isSigned: false))
+    static let i8  = BuiltinType(entity: .i8,  type: ty.Integer(entity: Entity.i8,  width: 8,  isSigned: true))
+    static let u8  = BuiltinType(entity: .u8,  type: ty.Integer(entity: Entity.u8,  width: 8,  isSigned: false))
+    static let i16 = BuiltinType(entity: .i16, type: ty.Integer(entity: Entity.i16, width: 16, isSigned: true))
+    static let u16 = BuiltinType(entity: .u16, type: ty.Integer(entity: Entity.u16, width: 16, isSigned: false))
     static let i32 = BuiltinType(entity: .i32, type: ty.Integer(entity: Entity.i32, width: 32, isSigned: true))
+    static let u32 = BuiltinType(entity: .u32, type: ty.Integer(entity: Entity.u32, width: 32, isSigned: false))
     static let i64 = BuiltinType(entity: .i64, type: ty.Integer(entity: Entity.i64, width: 64, isSigned: true))
+    static let u64 = BuiltinType(entity: .u64, type: ty.Integer(entity: Entity.u64, width: 64, isSigned: false))
 
     static let untypedInteger = BuiltinType(entity: .anonymous, type: ty.UntypedInteger())
     static let untypedFloat   = BuiltinType(entity: .anonymous, type: ty.UntypedFloatingPoint())
@@ -72,8 +77,8 @@ class BuiltinEntity {
     }
 
     init(name: String, type: Type, gen: @escaping (IRBuilder) -> IRValue) {
-        let ident = Ident(start: noPos, name: name, entity: nil)
-        let entity = Entity(ident: ident, type: type, flags: .builtin, memberScope: nil, owningScope: nil, value: nil)
+        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
+        let entity = Entity(ident: ident, type: type, flags: .builtin, memberScope: nil, owningScope: nil, value: nil, constant: nil)
         self.entity = entity
         self.type = type
         self.gen = {
@@ -123,8 +128,8 @@ class BuiltinFunction {
         let returnType = ty.Tuple.make(outTypes.map(ty.Metatype.init))
         let type = ty.Function(entity: .anonymous, node: nil, params: inTypes, returnType: returnType, flags: .none)
 
-        let ident = Ident(start: noPos, name: name, entity: nil)
-        let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil)
+        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
+        let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil)
 
         return BuiltinFunction(entity: entity, generate: gen, onCallCheck: onCallCheck)
     }

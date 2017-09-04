@@ -68,7 +68,8 @@ func copy(_ entity: Entity) -> Entity {
         flags: entity.flags,
         memberScope: entity.memberScope,
         owningScope: entity.owningScope,
-        value: entity.value
+        value: entity.value,
+        constant: entity.constant
     )
 }
 

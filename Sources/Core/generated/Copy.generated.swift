@@ -69,7 +69,7 @@ func copy(_ node: BasicLit) -> BasicLit {
         text: node.text,
         flags: node.flags,
         type: node.type,
-        value: node.value
+        constant: node.constant
     )
 }
 
@@ -277,20 +277,6 @@ func copy(_ nodes: [Foreign]) -> [Foreign] {
     return nodes.map(copy)
 }
 
-func copy(_ node: ForeignFuncLit) -> ForeignFuncLit {
-    return ForeignFuncLit(
-        keyword: node.keyword,
-        params: copy(node.params),
-        results: copy(node.results),
-        flags: node.flags,
-        type: node.type
-    )
-}
-
-func copy(_ nodes: [ForeignFuncLit]) -> [ForeignFuncLit] {
-    return nodes.map(copy)
-}
-
 func copy(_ node: FuncLit) -> FuncLit {
     return FuncLit(
         keyword: node.keyword,
@@ -325,7 +311,10 @@ func copy(_ node: Ident) -> Ident {
     return Ident(
         start: node.start,
         name: node.name,
-        entity: node.entity
+        entity: node.entity,
+        type: node.type,
+        cast: node.cast,
+        constant: node.constant
     )
 }
 
@@ -499,7 +488,10 @@ func copy(_ node: Selector) -> Selector {
     return Selector(
         rec: copy(node.rec),
         sel: copy(node.sel),
-        checked: node.checked
+        checked: node.checked,
+        type: node.type,
+        cast: node.cast,
+        constant: node.constant
     )
 }
 
@@ -623,13 +615,11 @@ func copy(_ node: Expr) -> Expr {
     case let node as CompositeLit: return copy(node)
     case let node as DynamicArrayType: return copy(node)
     case let node as Ellipsis: return copy(node)
-    case let node as ForeignFuncLit: return copy(node)
     case let node as FuncLit: return copy(node)
     case let node as FuncType: return copy(node)
     case let node as Ident: return copy(node)
     case let node as KeyValue: return copy(node)
     case let node as Nil: return copy(node)
-    case let node as Parameter: return copy(node)
     case let node as Paren: return copy(node)
     case let node as PointerType: return copy(node)
     case let node as PolyType: return copy(node)
@@ -705,7 +695,8 @@ func copy(_ entity: Entity) -> Entity {
         flags: entity.flags,
         memberScope: entity.memberScope,
         owningScope: entity.owningScope,
-        value: entity.value
+        value: entity.value,
+        constant: entity.constant
     )
 }
 

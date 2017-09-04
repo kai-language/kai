@@ -7,7 +7,7 @@ protocol Node: class {
     var end: Pos { get }
 }
 protocol Expr: Node {
-    var type: Type! { get }
+    var type: Type! { get set }
 }
 protocol Stmt: Node {}
 protocol TopLevelStmt: Stmt {}
@@ -66,7 +66,12 @@ class BadExpr: Node, Expr {
     var start: Pos
     var end: Pos
 
-    var type: Type! { return ty.invalid }
+    var type: Type! {
+        get {
+            return ty.invalid
+        }
+        set {}
+    }
 
 // sourcery:inline:auto:BadExpr.Init
 init(start: Pos, end: Pos) {
@@ -97,17 +102,20 @@ class Ident: Node, Expr {
     var name: String
 
     var entity: Entity!
-    var type: Type! {
-        return entity?.type
-    }
+    var type: Type!
+    var cast: OpCode.Cast?
+    var constant: Value?
 
     var end: Pos { return start + name.count }
 
 // sourcery:inline:auto:Ident.Init
-init(start: Pos, name: String, entity: Entity!) {
+init(start: Pos, name: String, entity: Entity!, type: Type!, cast: OpCode.Cast?, constant: Value?) {
     self.start = start
     self.name = name
     self.entity = entity
+    self.type = type
+    self.cast = cast
+    self.constant = constant
 }
 // sourcery:end
 }
@@ -134,23 +142,23 @@ class BasicLit: Node, Expr {
     var text: String
     var flags: LiteralFlags
     var type: Type!
-    var value: Value!
+    var constant: Value!
 
     var end: Pos { return start + text.count }
 
 // sourcery:inline:auto:BasicLit.Init
-init(start: Pos, token: Token, text: String, flags: LiteralFlags, type: Type!, value: Value!) {
+init(start: Pos, token: Token, text: String, flags: LiteralFlags, type: Type!, constant: Value!) {
     self.start = start
     self.token = token
     self.text = text
     self.flags = flags
     self.type = type
-    self.value = value
+    self.constant = constant
 }
 // sourcery:end
 }
 
-class Parameter: Node, Expr {
+class Parameter: Node {
     var dollar: Pos?
     var name: Ident
     var explicitType: Expr
@@ -238,28 +246,6 @@ init(keyword: Pos, params: ParameterList, results: ResultList, body: Block, flag
 // sourcery:end
 }
 
-class ForeignFuncLit: Node, Expr {
-    var keyword: Pos
-    var params: ParameterList
-    var results: ResultList
-    var flags: FunctionFlags
-
-    var type: Type!
-
-    var start: Pos { return keyword }
-    var end: Pos { return results.end }
-
-// sourcery:inline:auto:ForeignFuncLit.Init
-init(keyword: Pos, params: ParameterList, results: ResultList, flags: FunctionFlags, type: Type!) {
-    self.keyword = keyword
-    self.params = params
-    self.results = results
-    self.flags = flags
-    self.type = type
-}
-// sourcery:end
-}
-
 class CompositeLit: Node, Expr {
     var explicitType: Expr
     var lbrace: Pos
@@ -307,21 +293,9 @@ class Selector: Node, Expr {
     var sel: Ident
 
     var checked: Checked!
-    var type: Type! {
-        guard let checked = checked else { return ty.invalid }
-
-        switch checked {
-        case .invalid: return ty.invalid
-        case .file(let entity): return entity.type!
-        case .struct(let field): return field.type
-        case .array(let member, let elementType):
-            guard member == .raw else {
-                return ty.i64
-            }
-
-            return ty.Pointer(pointeeType: elementType)
-        }
-    }
+    var type: Type!
+    var cast: OpCode.Cast?
+    var constant: Value?
 
     enum Checked {
         case invalid
@@ -340,10 +314,13 @@ class Selector: Node, Expr {
     var end: Pos { return sel.end }
 
 // sourcery:inline:auto:Selector.Init
-init(rec: Expr, sel: Ident, checked: Checked!) {
+init(rec: Expr, sel: Ident, checked: Checked!, type: Type!, cast: OpCode.Cast?, constant: Value?) {
     self.rec = rec
     self.sel = sel
     self.checked = checked
+    self.type = type
+    self.cast = cast
+    self.constant = constant
 }
 // sourcery:end
 }

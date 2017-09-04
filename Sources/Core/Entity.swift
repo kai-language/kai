@@ -10,6 +10,7 @@ class Entity: CustomStringConvertible {
     var owningScope: Scope!
 
     var value: IRValue?
+    var constant: Value?
 
     var name: String {
         return ident.name
@@ -38,13 +39,14 @@ class Entity: CustomStringConvertible {
     }
 
 // sourcery:inline:auto:Entity.Init
-init(ident: Ident, type: Type?, flags: Flag, memberScope: Scope?, owningScope: Scope!, value: IRValue?) {
+init(ident: Ident, type: Type?, flags: Flag, memberScope: Scope?, owningScope: Scope!, value: IRValue?, constant: Value?) {
     self.ident = ident
     self.type = type
     self.flags = flags
     self.memberScope = memberScope
     self.owningScope = owningScope
     self.value = value
+    self.constant = constant
 }
 // sourcery:end
 }
@@ -53,10 +55,10 @@ extension Entity {
 
     static func makeBuiltin(_ name: String, type: Type? = nil, flags: Flag = .none) -> Entity {
 
-        let ident = Ident(start: noPos, name: name, entity: nil)
-        let entity = Entity(ident: ident, type: type, flags: .constant, memberScope: nil, owningScope: nil, value: nil)
+        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
+        let entity = Entity(ident: ident, type: type, flags: .constant, memberScope: nil, owningScope: nil, value: nil, constant: nil)
         return entity
     }
 
-    static let invalid = Entity(ident: Ident(start: noPos, name: "<invalid>", entity: nil), type: nil, flags: .none, memberScope: nil, owningScope: nil, value: nil)
+    static let invalid = Entity.makeBuiltin("< invalid >")
 }

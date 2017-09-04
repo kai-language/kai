@@ -10,9 +10,14 @@ extension Entity {
     static let string = Entity.makeBuiltin("string", flags: .type)
     static let f32 = Entity.makeBuiltin("f32", flags: .type)
     static let f64 = Entity.makeBuiltin("f64", flags: .type)
+    static let i8 = Entity.makeBuiltin("i8", flags: .type)
     static let u8 = Entity.makeBuiltin("u8", flags: .type)
+    static let i16 = Entity.makeBuiltin("i16", flags: .type)
+    static let u16 = Entity.makeBuiltin("u16", flags: .type)
     static let i32 = Entity.makeBuiltin("i32", flags: .type)
+    static let u32 = Entity.makeBuiltin("u32", flags: .type)
     static let i64 = Entity.makeBuiltin("i64", flags: .type)
+    static let u64 = Entity.makeBuiltin("u64", flags: .type)
     static let type = Entity.makeBuiltin("type", flags: .type)
     static let TypeInfo = Entity.makeBuiltin("TypeInfo", flags: .type)
     static let untypedNil = Entity.makeBuiltin("nil", flags: .type)
@@ -26,9 +31,14 @@ extension ty {
     static let string = BuiltinType.string.type
     static let f32 = BuiltinType.f32.type
     static let f64 = BuiltinType.f64.type
+    static let i8 = BuiltinType.i8.type
     static let u8 = BuiltinType.u8.type
+    static let i16 = BuiltinType.i16.type
+    static let u16 = BuiltinType.u16.type
     static let i32 = BuiltinType.i32.type
+    static let u32 = BuiltinType.u32.type
     static let i64 = BuiltinType.i64.type
+    static let u64 = BuiltinType.u64.type
     static let untypedInteger = BuiltinType.untypedInteger.type
     static let untypedFloat = BuiltinType.untypedFloat.type
     static let untypedNil = BuiltinType.untypedNil.type
@@ -43,9 +53,14 @@ extension ty {
         BuiltinType.string,
         BuiltinType.f32,
         BuiltinType.f64,
+        BuiltinType.i8,
         BuiltinType.u8,
+        BuiltinType.i16,
+        BuiltinType.u16,
         BuiltinType.i32,
+        BuiltinType.u32,
         BuiltinType.i64,
+        BuiltinType.u64,
         BuiltinType.untypedInteger,
         BuiltinType.untypedFloat,
         BuiltinType.untypedNil,
@@ -72,9 +87,14 @@ let builtins: [Entity] = [
     BuiltinType.string.entity,
     BuiltinType.f32.entity,
     BuiltinType.f64.entity,
+    BuiltinType.i8.entity,
     BuiltinType.u8.entity,
+    BuiltinType.i16.entity,
+    BuiltinType.u16.entity,
     BuiltinType.i32.entity,
+    BuiltinType.u32.entity,
     BuiltinType.i64.entity,
+    BuiltinType.u64.entity,
     BuiltinType.untypedInteger.entity,
     BuiltinType.untypedFloat.entity,
     BuiltinType.untypedNil.entity,

@@ -101,7 +101,7 @@ extension SourceFile {
 
         switch i.path {
         case let lit as BasicLit where lit.token == .string:
-            let path = lit.value as! String
+            let path = lit.constant as! String
             
             let relpath = dirname(path: importedFrom.fullpath) + path
             guard let fullpath = realpath(relpath: relpath) else {
@@ -143,7 +143,7 @@ extension SourceFile {
                 addError("Expected string literal representing github user/repo", call.args[0].start)
                 return
             }
-            let userRepo = lit.value as! String
+            let userRepo = lit.constant as! String
 
             let split = userRepo.split(separator: "/")
             guard split.count == 2 else {

@@ -188,7 +188,7 @@ enum ty {
             var fields: [Struct.Field] = []
             for (index, (name, type)) in members.enumerated() {
 
-                let ident = Ident(start: noPos, name: name, entity: nil)
+                let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
 
                 let field = Struct.Field(ident: ident, type: type, index: index, offset: width)
                 fields.append(field)
@@ -238,7 +238,7 @@ enum ty {
         var width: Int? { return MemoryLayout<Int>.size }
     }
     struct UntypedInteger: Type, CustomStringConvertible {
-        var width: Int? { return 256 }
+        var width: Int? { return 64 } // NOTE: Bump up to larger size for more precision.
     }
     struct UntypedFloatingPoint: Type {
         var width: Int? { return 64 }

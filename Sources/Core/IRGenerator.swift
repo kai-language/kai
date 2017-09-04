@@ -192,14 +192,18 @@ extension IRGenerator {
                 where entity !== Entity.anonymous
             {
                 let type = canonicalize(entity.type!)
-                let stackValue = b.buildAlloca(type: type, name: entity.name)
 
-                let rvaluePtr = b.buildStructGEP(stackAggregate, index: index)
-                let rvalue = b.buildLoad(rvaluePtr)
+                if entity.owningScope.isFile {
+                    entity.value = b.addGlobal(mangle(entity.name), type: type)
+                } else {
+                    let stackValue = b.buildAlloca(type: type, name: entity.name)
+                    let rvaluePtr = b.buildStructGEP(stackAggregate, index: index)
+                    let rvalue = b.buildLoad(rvaluePtr)
 
-                b.buildStore(rvalue, to: stackValue)
+                    b.buildStore(rvalue, to: stackValue)
 
-                entity.value = stackValue
+                    entity.value = stackValue
+                }
             }
             return
         }
@@ -207,7 +211,11 @@ extension IRGenerator {
         if decl.values.isEmpty {
             for entity in decl.entities {
                 let type = canonicalize(entity.type!)
-                entity.value = b.buildAlloca(type: type)
+                if entity.owningScope.isFile {
+                    entity.value = b.addGlobal(mangle(entity.name), type: type)
+                } else {
+                    entity.value = b.buildAlloca(type: type)
+                }
             }
             return
         }
@@ -242,16 +250,20 @@ extension IRGenerator {
                 }
             }
 
-            let stackValue = b.buildAlloca(type: type, name: mangle(entity.name))
-
-            if Options.instance.flags.contains(.emitIr) {
-                b.positionAtEnd(of: b.insertBlock!)
-            }
-
-            entity.value = stackValue
-
             let value = emit(expr: value, name: entity.name)
-            b.buildStore(value, to: stackValue)
+            if entity.owningScope.isFile {
+                entity.value = b.addGlobal(mangle(entity.name), initializer: value)
+            } else {
+                let stackValue = b.buildAlloca(type: type, name: mangle(entity.name))
+                
+                if Options.instance.flags.contains(.emitIr) {
+                    b.positionAtEnd(of: b.insertBlock!)
+                }
+                
+                entity.value = stackValue
+
+                b.buildStore(value, to: stackValue)
+            }
         }
     }
 
@@ -302,6 +314,15 @@ extension IRGenerator {
 
     mutating func emit(assign: Assign) {
         if assign.rhs.count == 1, let call = assign.rhs.first as? Call {
+
+            if assign.lhs.count == 1 {
+                let rvaluePtr = emit(call: call)
+                let lvalueAddress = emit(expr: assign.lhs[0], returnAddress: true)
+                let rvalue = b.buildLoad(rvaluePtr)
+                b.buildStore(rvalue, to: lvalueAddress)
+                return
+            }
+
             let retType = canonicalize(call.type)
             let stackAggregate = b.buildAlloca(type: retType)
             let aggregate = emit(call: call)
@@ -515,7 +536,7 @@ extension IRGenerator {
 
     mutating func emit(lit: BasicLit, returnAddress: Bool, name: String) -> IRValue {
         if lit.token == .string {
-            let value = lit.value as! String
+            let value = lit.constant as! String
             let bytes = value.utf8.count
             let constant = b.buildGlobalStringPtr(value)
 
@@ -548,9 +569,10 @@ extension IRGenerator {
         let type = canonicalize(lit.type)
         switch type {
         case let type as IntType:
-            return type.constant(lit.value as! UInt64)
+            let val = type.constant(lit.constant as! UInt64)
+            return val
         case let type as FloatType:
-            return type.constant(lit.value as! Double)
+            return type.constant(lit.constant as! Double)
         default:
             preconditionFailure()
         }
@@ -608,6 +630,20 @@ extension IRGenerator {
         if returnAddress || ident.entity.type! is ty.Function {
             return ident.entity.value!
         }
+        if ident.entity.isConstant {
+            switch ident.type {
+            case let type as ty.Integer:
+                return canonicalize(type).constant(ident.constant as! UInt64)
+            case let type as ty.UntypedInteger:
+                return canonicalize(type).constant(ident.constant as! UInt64)
+            case let type as ty.FloatingPoint:
+                return canonicalize(type).constant(ident.constant as! Double)
+            case let type as ty.UntypedFloatingPoint:
+                return canonicalize(type).constant(ident.constant as! Double)
+            default:
+                break
+            }
+        }
 
         if ident.entity.isBuiltin {
             assert(!returnAddress)
@@ -628,7 +664,7 @@ extension IRGenerator {
         case .lss:
             return b.buildLoad(val)
         case .not:
-            return b.buildNeg(val)
+            return b.buildNot(val)
         case .and:
             return val
         default:
@@ -640,10 +676,10 @@ extension IRGenerator {
         var lhs = emit(expr: binary.lhs)
         var rhs = emit(expr: binary.rhs)
         if let lcast = binary.irLCast {
-            lhs = b.buildCast(lcast, value: lhs, type: canonicalize(binary.lhs.type))
+            lhs = b.buildCast(lcast, value: lhs, type: canonicalize(binary.rhs.type))
         }
         if let rcast = binary.irRCast {
-            rhs = b.buildCast(rcast, value: rhs, type: canonicalize(binary.rhs.type))
+            rhs = b.buildCast(rcast, value: rhs, type: canonicalize(binary.lhs.type))
         }
 
         switch binary.irOp! {
@@ -758,14 +794,36 @@ extension IRGenerator {
             if entity.type is ty.Function {
                 return entity.value!
             }
-            return b.buildLoad(entity.value!)
+            if entity.isConstant {
+                switch sel.type {
+                case let type as ty.Integer:
+                    return canonicalize(type).constant(sel.constant as! UInt64)
+                case let type as ty.UntypedInteger:
+                    return canonicalize(type).constant(sel.constant as! UInt64)
+                case let type as ty.FloatingPoint:
+                    return canonicalize(type).constant(sel.constant as! Double)
+                case let type as ty.UntypedFloatingPoint:
+                    return canonicalize(type).constant(sel.constant as! Double)
+                default:
+                    break
+                }
+            }
+            let val = b.buildLoad(entity.value!)
+            if let cast = sel.cast {
+                return b.buildCast(cast, value: val, type: canonicalize(sel.type))
+            }
+            return val
         case .struct(let field):
             let aggregate = emit(expr: sel.rec, returnAddress: true)
             let fieldAddress = b.buildStructGEP(aggregate, index: field.index)
             if returnAddress {
                 return fieldAddress
             }
-            return b.buildLoad(fieldAddress)
+            let val = b.buildLoad(fieldAddress)
+            if let cast = sel.cast {
+                return b.buildCast(cast, value: val, type: canonicalize(sel.type))
+            }
+            return val
         case .array(let member, _):
             let aggregate = emit(expr: sel.rec, returnAddress: true)
             let index = member.rawValue
@@ -773,7 +831,11 @@ extension IRGenerator {
             if returnAddress {
                 return fieldAddress
             }
-            return b.buildLoad(fieldAddress)
+            let val = b.buildLoad(fieldAddress)
+            if let cast = sel.cast {
+                return b.buildCast(cast, value: val, type: canonicalize(sel.type))
+            }
+            return val
         }
     }
 
@@ -881,6 +943,14 @@ func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
     return struc.ir.val!
 }
 
+func canonicalize(_ integer: ty.UntypedInteger) -> IntType {
+    return IntType(width: integer.width!)
+}
+
+func canonicalize(_ float: ty.UntypedFloatingPoint) -> FloatType {
+    return FloatType.double
+}
+
 func canonicalize(_ type: Type) -> IRType {
 
     switch type {
@@ -906,12 +976,12 @@ func canonicalize(_ type: Type) -> IRType {
         return canonicalize(type)
     case let type as ty.Tuple:
         return canonicalize(type)
+    case let type as ty.UntypedInteger:
+        return canonicalize(type)
+    case let type as ty.UntypedFloatingPoint:
+        return canonicalize(type)
     case is ty.UntypedNil:
         fatalError("Untyped nil should be constrained to target type")
-    case is ty.UntypedInteger:
-        return IntType(width: 256)
-    case is ty.UntypedFloatingPoint:
-        return FloatType.double
     case is ty.Polymorphic:
         fatalError()
     default:
