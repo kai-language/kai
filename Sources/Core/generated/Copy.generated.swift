@@ -67,7 +67,6 @@ func copy(_ node: BasicLit) -> BasicLit {
         start: node.start,
         token: node.token,
         text: node.text,
-        flags: node.flags,
         type: node.type,
         constant: node.constant
     )

@@ -50,7 +50,7 @@ extension Parser {
         } else {
             reportExpected("string literal", at: pos)
         }
-        return BasicLit(start: start, token: .string, text: val, flags: .none, type: nil, constant: unquote(val))
+        return BasicLit(start: start, token: .string, text: val, type: nil, constant: unquote(val))
     }
 
     mutating func parseIdent() -> Ident {
@@ -216,11 +216,11 @@ extension Parser {
         case .ident:
             return parseIdent()
         case .string:
-            let val = BasicLit(start: pos, token: tok, text: lit, flags: .none, type: nil, constant: unquote(lit))
+            let val = BasicLit(start: pos, token: tok, text: lit, type: nil, constant: unquote(lit))
             next()
             return val
         case .int, .float:
-            let val = BasicLit(start: pos, token: tok, text: lit, flags: .none, type: nil, constant: nil)
+            let val = BasicLit(start: pos, token: tok, text: lit, type: nil, constant: nil)
             next()
             return val
         case .fn:
@@ -233,16 +233,6 @@ extension Parser {
             switch name {
             case "asm":
                 fatalError("Inline assembly is not yet supported")
-            case "stack":
-                let operand = parseOperand()
-                guard let lit = operand as? BasicLit, lit.constant != nil else {
-                    reportError("The directive `stack` does not support '\(operand)'", at: operand.start)
-                    return BadExpr(start: operand.start, end: operand.end)
-                }
-
-                lit.flags.insert(.stackAllocate)
-
-                return operand
             default:
                 reportError("Unknown directive '\(name)'", at: directive)
                 return BadExpr(start: directive, end: directive)
