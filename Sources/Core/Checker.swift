@@ -563,17 +563,8 @@ extension Checker {
             lit.constant = Double(lit.text)!
             lit.type = ty.untypedFloat
         case .string:
-            // NOTE: unquoted in the Parser.
-            if let desiredType = desiredType, let ptr = desiredType as? ty.Pointer, ptr.pointeeType == ty.u8 {
-                // C-style string
-                lit.type = ty.rawptr
-            } else if desiredType is ty.CVarArg {
-                // if a literal is in a C vararg call, prefer the native C types
-                // over Kai types
-                lit.type = ty.rawptr
-            } else {
-                lit.type = ty.string
-            }
+            lit.type = ty.string
+            
         default:
             lit.type = ty.invalid
         }

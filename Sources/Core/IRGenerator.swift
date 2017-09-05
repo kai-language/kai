@@ -546,28 +546,31 @@ extension IRGenerator {
             let bytes = value.utf8.count
             let constant = b.buildGlobalStringPtr(value)
 
-            let alloc: IRValue
-            if lit.flags.contains(.stackAllocate) {
-                let stackAlloc = b.buildAlloca(type: LLVM.ArrayType(elementType: IntType.int8, count: bytes))
-                alloc = b.buildGEP(stackAlloc, indices: [0, 0])
-            } else {
-                alloc = b.buildMalloc(IntType.int8, count: value.utf8.count)
-            }
-
-            let newBuff = b.buildBitCast(alloc, type: LLVM.PointerType.toVoid)
+            let stackAlloc = b.buildAlloca(type: LLVM.ArrayType(elementType: IntType.int8, count: bytes))
+            let stackAllocPtr = b.buildGEP(stackAlloc, indices: [0, 0])
+            let newBuff = b.buildBitCast(stackAllocPtr, type: LLVM.PointerType.toVoid)
             let constantPtr = b.buildBitCast(constant, type: LLVM.PointerType.toVoid)
             b.buildMemcpy(newBuff, constantPtr, count: bytes)
-
-            guard lit.type is ty.KaiString else {
-                return newBuff
-            }
 
             let irType = canonicalize(lit.type)
             var ir = irType.undef()
 
             ir = b.buildInsertValue(aggregate: ir, element: newBuff, index: 0)
             ir = b.buildInsertValue(aggregate: ir, element: bytes, index: 1) // len
-            ir = b.buildInsertValue(aggregate: ir, element: bytes, index: 2) // cap
+            // NOTE: since the raw buffer is stack allocated, we need to set the
+            // capacity to `0`. Then, any call that needs to realloc can instead
+            // malloc a new buffer.
+            ir = b.buildInsertValue(aggregate: ir, element: 0, index: 2) // cap
+
+            if returnAddress {
+                // NOTE: typically, a literal is stored in a declaration. But in
+                // the cases where a literal's address is needed there won't be
+                // an lvalue to store it in. In these cases, we will store it in
+                // an anonymous variable on the stack.
+                let stringAlloca = b.buildAlloca(type: canonicalize(ty.string))
+                _ = b.buildStore(ir, to: stringAlloca)
+                return stringAlloca
+            }
 
             return ir
         }
