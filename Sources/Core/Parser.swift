@@ -413,6 +413,11 @@ extension Parser {
 
     mutating func parseStructType() -> Expr {
         let keyword = eatToken()
+
+        if tok == .lparen {
+            return parsePolymorphicStructType()
+        }
+
         let lbrace = expect(.lbrace)
         var fields: [StructField] = []
         if tok != .rbrace {
@@ -423,6 +428,45 @@ extension Parser {
         }
         let rbrace = expect(.rbrace)
         return StructType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace, type: nil)
+    }
+
+    mutating func parsePolymorphicStructType() -> Expr {
+        let params = parsePolyStructSignature()
+        let lbrace = expect(.lbrace)
+        var fields: [StructField] = []
+        if tok != .rbrace {
+            fields = parseStructFieldList()
+        }
+        if tok == .semicolon {
+            next()
+        }
+        let rbrace = expect(.rbrace)
+        return PolyStructType(lbrace: lbrace, polyTypes: params, fields: fields, rbrace: rbrace, type: nil)
+    }
+
+    mutating func parsePolyStructSignature() ->  PolyParameterList {
+        let lparen = expect(.lparen)
+        var list: [PolyType] = []
+        if tok != .rparen {
+            list = parsePolyStructParameterList()
+        }
+        let rparen = expect(.rparen)
+        return PolyParameterList(lparen: lparen, list: list, rparen: rparen)
+    }
+
+    mutating func parsePolyStructParameterList() -> [PolyType] {
+        var list: [PolyType] = [parsePolyType()]
+        while tok == .comma {
+            next()
+            list.append(parsePolyType())
+        }
+        return list
+    }
+
+    mutating func parsePolyType() -> PolyType {
+        let dollar = expect(.dollar)
+        let explicitType = parseIdent()
+        return PolyType(dollar: dollar, explicitType: explicitType, type: nil)
     }
 
     mutating func parseStructFieldList() -> [StructField] {

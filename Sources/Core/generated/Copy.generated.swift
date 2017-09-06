@@ -448,6 +448,32 @@ func copy(_ nodes: [PointerType]) -> [PointerType] {
     return nodes.map(copy)
 }
 
+func copy(_ node: PolyParameterList) -> PolyParameterList {
+    return PolyParameterList(
+        lparen: node.lparen,
+        list: copy(node.list),
+        rparen: node.rparen
+    )
+}
+
+func copy(_ nodes: [PolyParameterList]) -> [PolyParameterList] {
+    return nodes.map(copy)
+}
+
+func copy(_ node: PolyStructType) -> PolyStructType {
+    return PolyStructType(
+        lbrace: node.lbrace,
+        polyTypes: copy(node.polyTypes),
+        fields: copy(node.fields),
+        rbrace: node.rbrace,
+        type: node.type
+    )
+}
+
+func copy(_ nodes: [PolyStructType]) -> [PolyStructType] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: PolyType) -> PolyType {
     return PolyType(
         dollar: node.dollar,
@@ -621,6 +647,7 @@ func copy(_ node: Expr) -> Expr {
     case let node as Nil: return copy(node)
     case let node as Paren: return copy(node)
     case let node as PointerType: return copy(node)
+    case let node as PolyStructType: return copy(node)
     case let node as PolyType: return copy(node)
     case let node as Selector: return copy(node)
     case let node as SliceType: return copy(node)

@@ -477,6 +477,9 @@ extension Checker {
         case let strućt as StructType:
             check(struct: strućt)
 
+        case let polyStruct as PolyStructType:
+            check(polyStruct: polyStruct)
+
         case let paren as Paren:
             paren.type = check(expr: paren.element, desiredType: desiredType)
 
@@ -877,9 +880,38 @@ extension Checker {
             }
         }
         var type: Type
-        type = ty.Struct(entity: .anonymous, width: width, node: strućt, fields: fields, ir: Ref(nil))
+        type = ty.Struct(entity: .anonymous, width: width, node: strućt, fields: fields, isPolymorphic: false, ir: Ref(nil))
         type = ty.Metatype(instanceType: type)
         strućt.type = type
+        return type
+    }
+
+    @discardableResult
+    mutating func check(polyStruct: PolyStructType) -> Type {
+        var width = 0
+        var index = 0
+        var fields: [ty.Struct.Field] = []
+
+        for x in polyStruct.polyTypes.list {
+            _ = check(polyType: x)
+        }
+
+        for x in polyStruct.fields {
+            let type = check(field: x)
+            for name in x.names {
+
+                let field = ty.Struct.Field(ident: name, type: type, index: index, offset: width)
+                fields.append(field)
+
+                // FIXME: This will align fields to bytes, maybe not best default?
+                width = (width + (x.type.width ?? 0)).round(upToNearest: 8)
+                index += 1
+            }
+        }
+        var type: Type
+        type = ty.Struct(entity: .anonymous, width: width, node: polyStruct, fields: fields, isPolymorphic: true, ir: Ref(nil))
+        type = ty.Metatype(instanceType: type)
+        polyStruct.type = type
         return type
     }
 
@@ -1238,7 +1270,13 @@ extension Checker {
     mutating func check(callOrCast call: Call) -> Type {
         var calleeType = check(expr: call.fun)
         if calleeType is ty.Metatype {
-            return check(cast: call, to: calleeType.lower())
+            let lowered = calleeType.lower()
+            // NOTE: this may cause issues when trying to cast with polymorphic
+            // structs. That shouldn't be possible, right?
+            if let strućt = lowered as? ty.Struct, strućt.isPolymorphic {
+                return check(polymorphicCall: call, calleeType: strućt)
+            }
+            return check(cast: call, to: lowered)
         }
         call.checked = .call
 
@@ -1479,6 +1517,10 @@ extension Checker {
 
         // TODO: Tuple splat?
         return type.returnType
+    }
+
+    mutating func check(polymorphicCall call: Call, calleeType: ty.Struct) -> Type {
+        fatalError("TODO")
     }
 }
 

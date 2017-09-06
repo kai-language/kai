@@ -166,6 +166,7 @@ enum ty {
 
         var node: Node
         var fields: [Field] = []
+        var isPolymorphic: Bool
 
         /// Used for the named type
         var ir: Ref<LLVM.StructType?>
@@ -208,7 +209,7 @@ enum ty {
             irType.setBody(irTypes)
 
             var type: Type
-            type = Struct(entity: entity, width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields, ir: Ref(irType))
+            type = Struct(entity: entity, width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields, isPolymorphic: false, ir: Ref(irType))
             type = Metatype(instanceType: type)
 
             entity.type = type

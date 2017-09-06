@@ -196,6 +196,23 @@ init(lparen: Pos, list: [Parameter], rparen: Pos) {
 // sourcery:end
 }
 
+class PolyParameterList: Node {
+    var lparen: Pos
+    var list: [PolyType]
+    var rparen: Pos
+
+    var start: Pos { return lparen }
+    var end: Pos { return rparen }
+
+// sourcery:inline:auto:PolyParameterList.Init
+init(lparen: Pos, list: [PolyType], rparen: Pos) {
+    self.lparen = lparen
+    self.list = list
+    self.rparen = rparen
+}
+// sourcery:end
+}
+
 class ResultList: Node {
     var lparen: Pos?
     var types: [Expr]
@@ -563,6 +580,12 @@ class StructType: Node, Expr {
     var rbrace: Pos
 
     var type: Type!
+    var checked: Checked!
+
+    enum Checked {
+        case regular(Scope)
+        case polymorphic(declaringScope: Scope, specializations: [StructSpecialization])
+    }
 
     var start: Pos { return keyword }
     var end: Pos { return rbrace }
@@ -571,6 +594,28 @@ class StructType: Node, Expr {
 init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!) {
     self.keyword = keyword
     self.lbrace = lbrace
+    self.fields = fields
+    self.rbrace = rbrace
+    self.type = type
+}
+// sourcery:end
+}
+
+class PolyStructType: Node, Expr {
+    var lbrace: Pos
+    var polyTypes: PolyParameterList
+    var fields: [StructField]
+    var rbrace: Pos
+
+    var type: Type!
+
+    var start: Pos { return polyTypes.start }
+    var end: Pos { return rbrace }
+
+// sourcery:inline:auto:PolyStructType.Init
+init(lbrace: Pos, polyTypes: PolyParameterList, fields: [StructField], rbrace: Pos, type: Type!) {
+    self.lbrace = lbrace
+    self.polyTypes = polyTypes
     self.fields = fields
     self.rbrace = rbrace
     self.type = type
@@ -997,3 +1042,18 @@ init(specializedTypes: [Type], strippedType: ty.Function, generatedFunctionNode:
 }
 // sourcery:end
 }
+
+class StructSpecialization {
+    let specializedTypes: [Type]
+    let strippedType: ty.Struct
+    let generatedStructNode: StructType
+
+// sourcery:inline:auto:StructSpecialization.Init
+init(specializedTypes: [Type], strippedType: ty.Struct, generatedStructNode: StructType) {
+    self.specializedTypes = specializedTypes
+    self.strippedType = strippedType
+    self.generatedStructNode = generatedStructNode
+}
+// sourcery:end
+}
+
