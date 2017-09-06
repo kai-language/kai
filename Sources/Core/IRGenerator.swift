@@ -90,10 +90,8 @@ extension IRGenerator {
             emit(foreign: f)
         case let d as DeclBlock: // #callconv "c" { ... }
             emit(declBlock: d)
-        case let d as Declaration where d.isConstant:
-            emit(constantDecl: d)
-        case let d as Declaration where !d.isConstant:
-            emit(variableDecl: d)
+        case let d as Declaration:
+            emit(declaration: d)
         default:
             fatalError()
         }
@@ -195,7 +193,7 @@ extension IRGenerator {
 
                 if entity.owningScope.isFile {
                     var global = b.addGlobal(mangle(entity.name), type: type)
-                    global.isExternallyInitialized = entity.isForeign
+                    global.initializer = type.undef()
                     entity.value = global
                 } else {
                     let stackValue = b.buildAlloca(type: type, name: entity.name)
@@ -215,7 +213,7 @@ extension IRGenerator {
                 let type = canonicalize(entity.type!)
                 if entity.owningScope.isFile {
                     var global = b.addGlobal(mangle(entity.name), type: type)
-                    global.isExternallyInitialized = entity.isForeign
+                    global.initializer = type.undef()
                     entity.value = global
                 } else {
                     entity.value = b.buildAlloca(type: type)
@@ -257,16 +255,20 @@ extension IRGenerator {
             let value = emit(expr: value, name: entity.name)
             if entity.owningScope.isFile {
                 var global = b.addGlobal(mangle(entity.name), type: type)
-                global.isExternallyInitialized = entity.isForeign
+                global.initializer = type.undef()
                 entity.value = global
-            } else {
-                let stackValue = b.buildAlloca(type: type, name: mangle(entity.name))
-                
+
                 if Options.instance.flags.contains(.emitIr) {
                     b.positionAtEnd(of: b.insertBlock!)
                 }
+            } else {
+                let stackValue = b.buildAlloca(type: type, name: mangle(entity.name))
                 
                 entity.value = stackValue
+
+                if Options.instance.flags.contains(.emitIr) {
+                    b.positionAtEnd(of: b.insertBlock!)
+                }
 
                 b.buildStore(value, to: stackValue)
             }
@@ -581,6 +583,10 @@ extension IRGenerator {
             let val = type.constant(lit.constant as! UInt64)
             return val
         case let type as FloatType:
+            if lit.token == .int {
+                let val = Double(lit.constant as! UInt64)
+                return type.constant(val)
+            }
             return type.constant(lit.constant as! Double)
         default:
             preconditionFailure()
