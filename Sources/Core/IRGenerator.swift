@@ -369,8 +369,6 @@ extension IRGenerator {
         }
 
         switch values.count {
-        case 0:
-            b.buildRetVoid()
         case 1:
             b.buildRet(values[0])
         default:
