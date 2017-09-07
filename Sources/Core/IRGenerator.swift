@@ -531,6 +531,8 @@ extension IRGenerator {
             return emit(funcLit: fn, name: name)
         case let call as Call:
             return emit(call: call)
+        case let cast as Cast:
+            return emit(cast: cast)
         case let sel as Selector:
             return emit(selector: sel, returnAddress: returnAddress)
         case let sub as Subscript:
@@ -754,10 +756,12 @@ extension IRGenerator {
         case .specializedCall(let specialization):
             let args = call.args.map({ emit(expr: $0) })
             return b.buildCall(specialization.llvm!, args: args)
-        case .cast(let op):
-            let val = emit(expr: call.args[0], returnAddress: call.args[0].type is ty.Array)
-            return b.buildCast(op, value: val, type: canonicalize(call.type))
         }
+    }
+
+    mutating func emit(cast: Cast) -> IRValue {
+        let val = emit(expr: cast.expr, returnAddress: cast.expr.type is ty.Array)
+        return b.buildCast(cast.op, value: val, type: canonicalize(cast.type))
     }
 
     mutating func emit(funcLit fn: FuncLit, name: String) -> Function {

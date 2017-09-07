@@ -324,6 +324,10 @@ struct Scanner {
 
     mutating func lookupKeyword(_ identifier: String) -> Token? {
         switch identifier {
+        case "cast":
+            return .cast
+        case "bitcast":
+            return .bitcast
         case "goto":
             return .goto
         case "break":

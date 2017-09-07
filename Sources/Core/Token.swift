@@ -67,6 +67,9 @@ enum Token: UInt8 {
     case semicolon  // ;
 
     // Keywords
+    case cast
+    case bitcast
+
     case goto
     case `break`
     case `continue`
@@ -177,6 +180,8 @@ extension Token: CustomStringConvertible {
         case .period:    return "."
         case .colon:     return ":"
         case .semicolon: return ";"
+        case .cast:      return "cast"
+        case .bitcast:   return "bitcast"
         case .goto:      return "goto"
         case .break:     return "break"
         case .continue:  return "continue"

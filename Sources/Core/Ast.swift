@@ -349,6 +349,30 @@ init(rec: Expr, index: Expr, type: Type!, checked: Checked!) {
 // sourcery:end
 }
 
+class Cast: Node, Expr {
+    var keyword: Pos
+    var kind: Token
+    var explicitType: Expr
+    var expr: Expr
+
+    var type: Type!
+    var op: OpCode.Cast!
+
+    var start: Pos { return keyword }
+    var end: Pos { return expr.end }
+
+// sourcery:inline:auto:Cast.Init
+init(keyword: Pos, kind: Token, explicitType: Expr, expr: Expr, type: Type!, op: OpCode.Cast!) {
+    self.keyword = keyword
+    self.kind = kind
+    self.explicitType = explicitType
+    self.expr = expr
+    self.type = type
+    self.op = op
+}
+// sourcery:end
+}
+
 class Call: Node, Expr {
     var fun: Expr
     var lparen: Pos
@@ -365,7 +389,6 @@ class Call: Node, Expr {
         case call
         case specializedCall(FunctionSpecialization)
         case builtinCall(BuiltinFunction)
-        case cast(OpCode.Cast)
     }
 
 // sourcery:inline:auto:Call.Init
