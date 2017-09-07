@@ -561,10 +561,13 @@ extension Checker {
             }
         case .float:
             lit.constant = Double(lit.text)!
-            lit.type = ty.untypedFloat
+            if let desiredType = desiredType, desiredType is ty.FloatingPoint {
+                lit.type = desiredType
+            } else {
+                lit.type = ty.untypedFloat
+            }
         case .string:
             lit.type = ty.string
-            
         default:
             lit.type = ty.invalid
         }
