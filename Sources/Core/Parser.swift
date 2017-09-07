@@ -1180,13 +1180,15 @@ extension Parser {
         }
     }
 
-    func atComma(in context: String, _ follow: Token, function: StaticString = #function, line: UInt = #line) -> Bool {
+    mutating func atComma(in context: String, _ follow: Token, function: StaticString = #function, line: UInt = #line) -> Bool {
         if tok == .comma {
             return true
         }
         if tok != follow {
             var msg = "Missing ','"
             if tok == .semicolon && lit == "\n" {
+                next()
+                if tok == follow { return false }
                 msg += " before newline"
             }
             reportExpected(msg + " in " + context, at: pos, function: function, line: line)

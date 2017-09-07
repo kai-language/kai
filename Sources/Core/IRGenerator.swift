@@ -615,18 +615,23 @@ extension IRGenerator {
             }
 
             let elementType = canonicalize(type.elementType)
-            var litGlobal = b.addGlobal("array.lit", initializer: LLVM.ArrayType.constant(elements, type: elementType))
-            litGlobal.isGlobalConstant = true
-            let litPtr = b.buildBitCast(b.buildGEP(litGlobal, indices: [0, 0]), type: LLVM.PointerType.toVoid)
-            let malloc = b.buildMalloc(elementType, count: type.initialCapacity)
-            let newBuff = b.buildBitCast(malloc, type: LLVM.PointerType.toVoid)
+            var constant = b.addGlobal("array.lit", initializer: LLVM.ArrayType.constant(elements, type: elementType))
+            constant.isGlobalConstant = true
 
-            let bytesCount = (type.initialLength * (type.elementType.width ?? 8).round(upToNearest: 8)) / 8
-            b.buildMemcpy(newBuff, litPtr, count: bytesCount, alias: type.elementType.width ?? 1)
+            let stackAlloc = b.buildAlloca(type: LLVM.ArrayType(elementType: elementType, count: type.initialLength))
+            let stackAllocPtr = b.buildGEP(stackAlloc, indices: [0, 0])
+            let newBuff = b.buildBitCast(stackAllocPtr, type: LLVM.PointerType.toVoid)
+            let constantPtr = b.buildBitCast(constant, type: LLVM.PointerType.toVoid)
+            let bytes = (type.initialLength * (type.elementType.width ?? 8)).round(upToNearest: 8) / 8
+            b.buildMemcpy(newBuff, constantPtr, count: bytes)
 
-            ir = b.buildInsertValue(aggregate: ir, element: b.buildBitCast(newBuff, type: LLVM.PointerType(pointee: elementType)), index: 0)
-            ir = b.buildInsertValue(aggregate: ir, element: IntType.int64.constant(type.initialLength), index: 1)
-            ir = b.buildInsertValue(aggregate: ir, element: IntType.int64.constant(type.initialCapacity), index: 2)
+            let newBuffCast = b.buildBitCast(newBuff, type: LLVM.PointerType(pointee: elementType))
+            ir = b.buildInsertValue(aggregate: ir, element: newBuffCast, index: 0)
+            ir = b.buildInsertValue(aggregate: ir, element: bytes, index: 1) // len
+            // NOTE: since the raw buffer is stack allocated, we need to set the
+            // capacity to `0`. Then, any call that needs to realloc can instead
+            // malloc a new buffer.
+            ir = b.buildInsertValue(aggregate: ir, element: 0, index: 2) // cap
 
             return ir
 
