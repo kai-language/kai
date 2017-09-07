@@ -225,6 +225,8 @@ extension Parser {
             return val
         case .fn:
             return parseFuncLit()
+        case .cast, .bitcast:
+            return parseCast()
         case .lparen:
             return parseFuncType(allowParenthesizedExpr: true)
         case .directive:
@@ -240,6 +242,16 @@ extension Parser {
         default:
             return parseType()
         }
+    }
+
+    mutating func parseCast() -> Cast {
+        let kind = tok
+        let keyword = eatToken()
+        expect(.lparen)
+        let explicitType = parseType()
+        expect(.rparen)
+        let expr = parseExpr()
+        return Cast(keyword: keyword, kind: kind, explicitType: explicitType, expr: expr, type: nil, op: nil)
     }
 }
 
@@ -341,6 +353,9 @@ extension Parser {
                 let type = parseType(allowPolyType: true, allowVariadic: false)
                 types.append(contentsOf: repeatElement(type, count: rest.count + 1)) // +1 for firstExpr
                 parametersShouldBeNamed = true
+            } else {
+                types.append(firstExpr)
+                types.append(contentsOf: rest)
             }
         } else if firstExpr is Ident && tok == .colon {
             next()

@@ -90,10 +90,8 @@ extension IRGenerator {
             emit(foreign: f)
         case let d as DeclBlock: // #callconv "c" { ... }
             emit(declBlock: d)
-        case let d as Declaration where d.isConstant:
-            emit(constantDecl: d)
-        case let d as Declaration where !d.isConstant:
-            emit(variableDecl: d)
+        case let d as Declaration:
+            emit(declaration: d)
         default:
             fatalError()
         }
@@ -195,7 +193,7 @@ extension IRGenerator {
 
                 if entity.owningScope.isFile {
                     var global = b.addGlobal(mangle(entity.name), type: type)
-                    global.isExternallyInitialized = entity.isForeign
+                    global.initializer = type.undef()
                     entity.value = global
                 } else {
                     let stackValue = b.buildAlloca(type: type, name: entity.name)
@@ -215,7 +213,7 @@ extension IRGenerator {
                 let type = canonicalize(entity.type!)
                 if entity.owningScope.isFile {
                     var global = b.addGlobal(mangle(entity.name), type: type)
-                    global.isExternallyInitialized = entity.isForeign
+                    global.initializer = type.undef()
                     entity.value = global
                 } else {
                     entity.value = b.buildAlloca(type: type)
@@ -257,16 +255,20 @@ extension IRGenerator {
             let value = emit(expr: value, name: entity.name)
             if entity.owningScope.isFile {
                 var global = b.addGlobal(mangle(entity.name), type: type)
-                global.isExternallyInitialized = entity.isForeign
+                global.initializer = type.undef()
                 entity.value = global
-            } else {
-                let stackValue = b.buildAlloca(type: type, name: mangle(entity.name))
-                
+
                 if Options.instance.flags.contains(.emitIr) {
                     b.positionAtEnd(of: b.insertBlock!)
                 }
+            } else {
+                let stackValue = b.buildAlloca(type: type, name: mangle(entity.name))
                 
                 entity.value = stackValue
+
+                if Options.instance.flags.contains(.emitIr) {
+                    b.positionAtEnd(of: b.insertBlock!)
+                }
 
                 b.buildStore(value, to: stackValue)
             }
@@ -367,8 +369,6 @@ extension IRGenerator {
         }
 
         switch values.count {
-        case 0:
-            b.buildRetVoid()
         case 1:
             b.buildRet(values[0])
         default:
@@ -531,6 +531,8 @@ extension IRGenerator {
             return emit(funcLit: fn, name: name)
         case let call as Call:
             return emit(call: call)
+        case let cast as Cast:
+            return emit(cast: cast)
         case let sel as Selector:
             return emit(selector: sel, returnAddress: returnAddress)
         case let sub as Subscript:
@@ -581,6 +583,10 @@ extension IRGenerator {
             let val = type.constant(lit.constant as! UInt64)
             return val
         case let type as FloatType:
+            if lit.token == .int {
+                let val = Double(lit.constant as! UInt64)
+                return type.constant(val)
+            }
             return type.constant(lit.constant as! Double)
         default:
             preconditionFailure()
@@ -755,10 +761,12 @@ extension IRGenerator {
         case .specializedCall(let specialization):
             let args = call.args.map({ emit(expr: $0) })
             return b.buildCall(specialization.llvm!, args: args)
-        case .cast(let op):
-            let val = emit(expr: call.args[0], returnAddress: call.args[0].type is ty.Array)
-            return b.buildCast(op, value: val, type: canonicalize(call.type))
         }
+    }
+
+    mutating func emit(cast: Cast) -> IRValue {
+        let val = emit(expr: cast.expr, returnAddress: cast.expr.type is ty.Array)
+        return b.buildCast(cast.op, value: val, type: canonicalize(cast.type))
     }
 
     mutating func emit(funcLit fn: FuncLit, name: String) -> Function {

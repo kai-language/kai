@@ -146,6 +146,21 @@ func copy(_ nodes: [CaseClause]) -> [CaseClause] {
     return nodes.map(copy)
 }
 
+func copy(_ node: Cast) -> Cast {
+    return Cast(
+        keyword: node.keyword,
+        kind: node.kind,
+        explicitType: copy(node.explicitType),
+        expr: copy(node.expr),
+        type: node.type,
+        op: node.op
+    )
+}
+
+func copy(_ nodes: [Cast]) -> [Cast] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: Comment) -> Comment {
     return Comment(
         slash: node.slash,
@@ -637,6 +652,7 @@ func copy(_ node: Expr) -> Expr {
     case let node as BasicLit: return copy(node)
     case let node as Binary: return copy(node)
     case let node as Call: return copy(node)
+    case let node as Cast: return copy(node)
     case let node as CompositeLit: return copy(node)
     case let node as DynamicArrayType: return copy(node)
     case let node as Ellipsis: return copy(node)

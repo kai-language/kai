@@ -181,7 +181,7 @@ extension Checker {
 
         if decl.values.count == 1 && decl.names.count > 1, let call = decl.values[0] as? Call {
             // Declares more than 1 new entity with the RHS being a call returning multiple values.
-            let tuple = check(callOrCast: call) as! ty.Tuple
+            let tuple = check(call: call) as! ty.Tuple
             let types = tuple.types
 
             for (ident, type) in zip(decl.names, types) {
@@ -293,7 +293,7 @@ extension Checker {
     mutating func check(assign: Assign) {
 
         if assign.rhs.count == 1 && assign.lhs.count > 1, let call = assign.rhs[0] as? Call {
-            let tuple = check(callOrCast: call) as! ty.Tuple
+            let tuple = check(call: call) as! ty.Tuple
             let types = tuple.types
 
             for (lhs, type) in zip(assign.lhs, types) {
@@ -499,7 +499,10 @@ extension Checker {
             check(subscript: subsćript)
 
         case let call as Call:
-            check(callOrCast: call)
+            check(call: call)
+
+        case let cast as Cast:
+            check(cast: cast)
 
         default:
             print("Warning: expression '\(expr)' passed through without getting checked")
@@ -564,10 +567,13 @@ extension Checker {
             }
         case .float:
             lit.constant = Double(lit.text)!
-            lit.type = ty.untypedFloat
+            if let desiredType = desiredType, desiredType is ty.FloatingPoint {
+                lit.type = desiredType
+            } else {
+                lit.type = ty.untypedFloat
+            }
         case .string:
             lit.type = ty.string
-            
         default:
             lit.type = ty.invalid
         }
@@ -1262,13 +1268,13 @@ extension Checker {
             return ty.invalid
         }
 
-
         return type
     }
 
     @discardableResult
-    mutating func check(callOrCast call: Call) -> Type {
+    mutating func check(call: Call) -> Type {
         var calleeType = check(expr: call.fun)
+
         if calleeType is ty.Metatype {
             let lowered = calleeType.lower()
             // NOTE: this may cause issues when trying to cast with polymorphic
@@ -1276,7 +1282,7 @@ extension Checker {
             if let strućt = lowered as? ty.Struct, strućt.isPolymorphic {
                 return check(polymorphicCall: call, calleeType: strućt)
             }
-            return check(cast: call, to: lowered)
+            fatalError("TODO")
         }
         call.checked = .call
 
@@ -1358,55 +1364,60 @@ extension Checker {
         return returnType
     }
 
-    mutating func check(cast: Call, to targetType: Type) -> Type {
-        guard cast.args.count == 1, let arg = cast.args.first else {
-            if cast.args.count == 0 {
-                reportError("Missing argument for cast to \(targetType)", at: cast.start)
-            } else { // args.count > 1
-                reportError("Too many arguments for cast to \(targetType)", at: cast.start)
-            }
-            cast.type = targetType
-            return targetType
-        }
+    @discardableResult
+    mutating func check(cast: Cast) -> Type {
+        var targetType = check(expr: cast.explicitType)
+        targetType = lowerFromMetatype(targetType, atNode: cast.explicitType)
 
-        var targetType = targetType
         if let poly = targetType as? ty.Polymorphic, let val = poly.specialization.val {
             targetType = val
         }
 
+        // pretend it works for all future statements
         cast.type = targetType
 
-        // FIXME: Because of desired type here, the following check may fire when an implicit check is performed
-        let argType = check(expr: arg, desiredType: targetType)
-        var op: OpCode.Cast = .bitCast
+        let exprType = check(expr: cast.expr, desiredType: targetType)
 
-        if argType == targetType {
+        if exprType == targetType {
             reportError("Unnecissary cast to same type", at: cast.start)
-            cast.type = targetType
+            cast.op = .bitCast
             return targetType
         }
 
-        if let argType = argType as? ty.Integer, let targetType = targetType as? ty.Integer { // 2 integers
-            op = (argType.width! > targetType.width!) ? .trunc : (targetType.isSigned ? .sext : .zext)
-        } else if let argType = argType as? ty.FloatingPoint, let targetType = targetType as? ty.FloatingPoint { // 2 floats
-            op = (argType.width! > targetType.width!) ? .fpTrunc : .fpext
-        } else if let argType = argType as? ty.Integer, targetType is ty.FloatingPoint { // TODO: Cast from int to float of different size
-            op = argType.isSigned ? .siToFP : .uiToFP
-        } else if argType is ty.FloatingPoint, let targetType = targetType as? ty.Integer { // TODO: Cast from float to int of different size
-            op = targetType.isSigned ? .fpToSI : .fpToUI
-        } else if argType is ty.Array, targetType is ty.Pointer {
-            // If the user performs a reinterpret cast, we don't care if the
-            // underlying types match/are the same width
-            op = .bitCast
-        } else if argType is ty.Function && targetType is ty.Pointer {
-            op = .bitCast
-        } else if argType is ty.Pointer && targetType is ty.Pointer {
-            op = .bitCast
-        } else {
-            reportError("Cannot cast between unrelated types '\(argType)' and '\(targetType)'", at: cast.start)
+        switch cast.kind {
+        case .cast:
+            if let argType = exprType as? ty.Integer, let targetType = targetType as? ty.Integer { // 2 integers
+                cast.op = (argType.width! > targetType.width!) ? .trunc : (targetType.isSigned ? .sext : .zext)
+            } else if let argType = exprType as? ty.FloatingPoint, let targetType = targetType as? ty.FloatingPoint { // 2 floats
+                cast.op = (argType.width! > targetType.width!) ? .fpTrunc : .fpext
+            } else if let argType = exprType as? ty.Integer, targetType is ty.FloatingPoint { // TODO: Cast from int to float of different size
+                cast.op = argType.isSigned ? .siToFP : .uiToFP
+            } else if exprType is ty.FloatingPoint, let targetType = targetType as? ty.Integer { // TODO: Cast from float to int of different size
+                cast.op = targetType.isSigned ? .fpToSI : .fpToUI
+            } else if exprType is ty.Array, targetType is ty.Pointer {
+                // If the user performs a reinterpret cast, we don't care if the
+                // underlying types match/are the same width
+                cast.op = .bitCast
+            } else if exprType is ty.Function && targetType is ty.Pointer {
+                cast.op = .bitCast
+            } else if exprType is ty.Pointer && targetType is ty.Pointer {
+                cast.op = .bitCast
+            } else {
+                cast.op = .bitCast
+                reportError("Cannot cast between unrelated types '\(exprType)' and '\(targetType)'", at: cast.start)
+            }
+
+        case .bitcast:
+            cast.op = .bitCast
+            guard exprType.width == targetType.width else {
+                reportError("Can only bitcast between 2 types of the same size", at: cast.keyword)
+                return targetType
+            }
+
+        default:
+            fatalError()
         }
-        cast.type = targetType
-        cast.checked = .cast(op)
+
         return targetType
     }
 
