@@ -353,6 +353,9 @@ extension Parser {
                 let type = parseType(allowPolyType: true, allowVariadic: false)
                 types.append(contentsOf: repeatElement(type, count: rest.count + 1)) // +1 for firstExpr
                 parametersShouldBeNamed = true
+            } else {
+                types.append(firstExpr)
+                types.append(contentsOf: rest)
             }
         } else if firstExpr is Ident && tok == .colon {
             next()
