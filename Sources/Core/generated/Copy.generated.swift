@@ -369,9 +369,10 @@ func copy(_ nodes: [If]) -> [If] {
 func copy(_ node: Import) -> Import {
     return Import(
         directive: node.directive,
-        path: copy(node.path),
         alias: node.alias.map(copy),
+        path: copy(node.path),
         importSymbolsIntoScope: node.importSymbolsIntoScope,
+        exportSymbolsOutOfScope: node.exportSymbolsOutOfScope,
         resolvedName: node.resolvedName,
         scope: copy(node.scope)
     )
@@ -588,7 +589,8 @@ func copy(_ node: StructType) -> StructType {
         lbrace: node.lbrace,
         fields: copy(node.fields),
         rbrace: node.rbrace,
-        type: node.type
+        type: node.type,
+        checked: node.checked
     )
 }
 
@@ -648,6 +650,17 @@ func copy(_ node: Unary) -> Unary {
 }
 
 func copy(_ nodes: [Unary]) -> [Unary] {
+    return nodes.map(copy)
+}
+
+func copy(_ node: Using) -> Using {
+    return Using(
+        keyword: node.keyword,
+        expr: copy(node.expr)
+    )
+}
+
+func copy(_ nodes: [Using]) -> [Using] {
     return nodes.map(copy)
 }
 
@@ -720,6 +733,7 @@ func copy(_ node: Stmt) -> Stmt {
     case let node as Library: return copy(node)
     case let node as Return: return copy(node)
     case let node as Switch: return copy(node)
+    case let node as Using: return copy(node)
     default: fatalError()
     }
 }

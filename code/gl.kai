@@ -1,5 +1,5 @@
 
-#import "glconstants.kai"
+#import "glconstants.kai" _
 
 // Swapping argument orders:
 //     (\*)*(i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|rawptr|i32|ui32) ([\w_]+)
@@ -38,7 +38,7 @@ CullFace:               (mode: u32) -> void
 FrontFace:              (mode: u32) -> void
 Hi32:                   (target: u32, mode: u32) -> void
 LineWidth:              (width: f32) -> void
-Poi32Size:              (size: f32) -> void
+PointSize:              (size: f32) -> void
 PolygonMode:            (face: u32, mode: u32) -> void
 Scissor:                (x: i32, y: i32, width: i32, height: i32) -> void
 TexParameterf:          (target: u32, pname: u32, param: f32) -> void
@@ -88,7 +88,7 @@ load1_0 :: fn(getProcAddress: (*u8) -> rawptr) -> void {
     FrontFace              = autocast getProcAddress("glFrontFace\x00".raw)
     Hi32                   = autocast getProcAddress("glHi32\x00".raw)
     LineWidth              = autocast getProcAddress("glLineWidth\x00".raw)
-    Poi32Size              = autocast getProcAddress("glPoi32Size\x00".raw)
+    PointSize              = autocast getProcAddress("glPointSize\x00".raw)
     PolygonMode            = autocast getProcAddress("glPolygonMode\x00".raw)
     Scissor                = autocast getProcAddress("glScissor\x00".raw)
     TexParameterf          = autocast getProcAddress("glTexParameterf\x00".raw)
@@ -209,10 +209,10 @@ load1_3 :: fn(getProcAddress: (name: *u8) -> rawptr) -> void {
 BlendFuncSeparate: (sfactorRGB: u32, dfactorRGB: u32, sfactorAlpha: u32, dfactorAlpha: u32) -> void
 MultiDrawArrays:   (mode: u32, first: *i32, count: *i32, drawcount: i32) -> void
 MultiDrawElements: (mode: u32, count: *i32, type_: u32, indices: *rawptr, drawcount: i32) -> void
-Poi32Parameterf:   (pname: u32, param: f32) -> void
-Poi32Parameterfv:  (pname: u32, params: *f32) -> void
-Poi32Parameteri:   (pname: u32, param: i32) -> void
-Poi32Parameteriv:  (pname: u32, params: *i32) -> void
+PointParameterf:   (pname: u32, param: f32) -> void
+PointParameterfv:  (pname: u32, params: *f32) -> void
+PointParameteri:   (pname: u32, param: i32) -> void
+PointParameteriv:  (pname: u32, params: *i32) -> void
 BlendColor:        (red: f32, green: f32, blue: f32, alpha: f32) -> void
 BlendEquation:     (mode: u32) -> void
 
@@ -221,10 +221,10 @@ load1_4 :: fn(getProcAddress: (name: *u8) -> rawptr) -> void {
     BlendFuncSeparate = autocast getProcAddress("glBlendFuncSeparate\x00".raw)
     MultiDrawArrays   = autocast getProcAddress("glMultiDrawArrays\x00".raw)
     MultiDrawElements = autocast getProcAddress("glMultiDrawElements\x00".raw)
-    Poi32Parameterf   = autocast getProcAddress("glPoi32Parameterf\x00".raw)
-    Poi32Parameterfv  = autocast getProcAddress("glPoi32Parameterfv\x00".raw)
-    Poi32Parameteri   = autocast getProcAddress("glPoi32Parameteri\x00".raw)
-    Poi32Parameteriv  = autocast getProcAddress("glPoi32Parameteriv\x00".raw)
+    PointParameterf   = autocast getProcAddress("glPointParameterf\x00".raw)
+    PointParameterfv  = autocast getProcAddress("glPointParameterfv\x00".raw)
+    PointParameteri   = autocast getProcAddress("glPointParameteri\x00".raw)
+    PointParameteriv  = autocast getProcAddress("glPointParameteriv\x00".raw)
     BlendColor        = autocast getProcAddress("glBlendColor\x00".raw)
     BlendEquation     = autocast getProcAddress("glBlendEquation\x00".raw)
 }
@@ -249,7 +249,7 @@ GetBufferSubData:     (target: u32, offset: i32, size: i32, data: rawptr) -> voi
 MapBuffer:            (target: u32, access: u32) -> rawptr
 UnmapBuffer:          (target: u32) -> u8
 GetBufferParameteriv: (target: u32, pname: u32, params: *i32) -> void
-GetBufferPoi32erv:    (target: u32, pname: u32, params: *rawptr) -> void
+GetBufferPointerv:    (target: u32, pname: u32, params: *rawptr) -> void
 
 load1_5 :: fn(getProcAddress: (name: *u8) -> rawptr) -> void {
     GenQueries           = autocast getProcAddress("glGenQueries\x00".raw)
@@ -270,7 +270,7 @@ load1_5 :: fn(getProcAddress: (name: *u8) -> rawptr) -> void {
     MapBuffer            = autocast getProcAddress("glMapBuffer\x00".raw)
     UnmapBuffer          = autocast getProcAddress("glUnmapBuffer\x00".raw)
     GetBufferParameteriv = autocast getProcAddress("glGetBufferParameteriv\x00".raw)
-    GetBufferPoi32erv    = autocast getProcAddress("glGetBufferPoi32erv\x00".raw)
+    GetBufferPointerv    = autocast getProcAddress("glGetBufferPointerv\x00".raw)
 }
 
 
@@ -305,7 +305,7 @@ GetUniformiv:             (program: u32, location: i32, params: *i32) -> void
 GetVertexAttribdv:        (index: u32, pname: u32, params: *f64) -> void
 GetVertexAttribfv:        (index: u32, pname: u32, params: *f32) -> void
 GetVertexAttribiv:        (index: u32, pname: u32, params: *i32) -> void
-GetVertexAttribPoi32erv:  (index: u32, pname: u32, poi32er: *rawptr) -> void
+GetVertexAttribPointerv:  (index: u32, pname: u32, poi32er: *rawptr) -> void
 IsProgram:                (program: u32) -> u8
 IsShader:                 (shader: u32) -> u8
 LinkProgram:              (program: u32) -> void
@@ -367,7 +367,7 @@ VertexAttrib4sv:          (index: u32, v: *i16) -> void
 VertexAttrib4ubv:         (index: u32, v: *u8) -> void
 VertexAttrib4uiv:         (index: u32, v: *u32) -> void
 VertexAttrib4usv:         (index: u32, v: *u16) -> void
-VertexAttribPoi32er:      (index: u32, size: i32, type_: u32, normalized: u8, stride: i32, poi32er: rawptr) -> void
+VertexAttribPointer:      (index: u32, size: i32, type_: u32, normalized: u8, stride: i32, poi32er: rawptr) -> void
 
 load2_0 :: fn(getProcAddress: (name: *u8) -> rawptr) -> void {
     BlendEquationSeparate    = autocast getProcAddress("glBlendEquationSeparate\x00".raw)
@@ -400,7 +400,7 @@ load2_0 :: fn(getProcAddress: (name: *u8) -> rawptr) -> void {
     GetVertexAttribdv        = autocast getProcAddress("glGetVertexAttribdv\x00".raw)
     GetVertexAttribfv        = autocast getProcAddress("glGetVertexAttribfv\x00".raw)
     GetVertexAttribiv        = autocast getProcAddress("glGetVertexAttribiv\x00".raw)
-    GetVertexAttribPoi32erv  = autocast getProcAddress("glGetVertexAttribPoi32erv\x00".raw)
+    GetVertexAttribPointerv  = autocast getProcAddress("glGetVertexAttribPointerv\x00".raw)
     IsProgram                = autocast getProcAddress("glIsProgram\x00".raw)
     IsShader                 = autocast getProcAddress("glIsShader\x00".raw)
     LinkProgram              = autocast getProcAddress("glLinkProgram\x00".raw)
@@ -462,7 +462,7 @@ load2_0 :: fn(getProcAddress: (name: *u8) -> rawptr) -> void {
     VertexAttrib4ubv         = autocast getProcAddress("glVertexAttrib4ubv\x00".raw)
     VertexAttrib4uiv         = autocast getProcAddress("glVertexAttrib4uiv\x00".raw)
     VertexAttrib4usv         = autocast getProcAddress("glVertexAttrib4usv\x00".raw)
-    VertexAttribPoi32er      = autocast getProcAddress("glVertexAttribPoi32er\x00".raw)
+    VertexAttribPointer      = autocast getProcAddress("glVertexAttribPointer\x00".raw)
 }
 
 
@@ -500,7 +500,7 @@ GetTransformFeedbackVarying:         (program: u32, index: u32, bufSize: i32, le
 ClampColor:                          (target: u32, clamp: u32) -> void
 BeginConditionalRender:              (id: u32, mode: u32) -> void
 EndConditionalRender:                () -> void
-VertexAttribIPoi32er:                (index: u32, size: i32, type_: u32, stride: i32, poi32er: rawptr) -> void
+VertexAttribIPointer:                (index: u32, size: i32, type_: u32, stride: i32, poi32er: rawptr) -> void
 GetVertexAttribIiv:                  (index: u32, pname: u32, params: *i32) -> void
 GetVertexAttribIuiv:                 (index: u32, pname: u32, params: *u32) -> void
 VertexAttribI1i:                     (index: u32, x: i32) -> void
@@ -586,7 +586,7 @@ load3_0 :: fn(getProcAddress: (name: *u8) -> rawptr) -> void {
     ClampColor                          = autocast getProcAddress("glClampColor\x00".raw)
     BeginConditionalRender              = autocast getProcAddress("glBeginConditionalRender\x00".raw)
     EndConditionalRender                = autocast getProcAddress("glEndConditionalRender\x00".raw)
-    VertexAttribIPoi32er                = autocast getProcAddress("glVertexAttribIPoi32er\x00".raw)
+    VertexAttribIPointer                = autocast getProcAddress("glVertexAttribIPointer\x00".raw)
     GetVertexAttribIiv                  = autocast getProcAddress("glGetVertexAttribIiv\x00".raw)
     GetVertexAttribIuiv                 = autocast getProcAddress("glGetVertexAttribIuiv\x00".raw)
     VertexAttribI1i                     = autocast getProcAddress("glVertexAttribI1i\x00".raw)
@@ -1029,7 +1029,7 @@ VertexAttribL1dv:          (index: u32, v: *f64) -> void
 VertexAttribL2dv:          (index: u32, v: *f64) -> void
 VertexAttribL3dv:          (index: u32, v: *f64) -> void
 VertexAttribL4dv:          (index: u32, v: *f64) -> void
-VertexAttribLPoi32er:      (index: u32, size: i32, type_: u32, stride: i32, poi32er: rawptr) -> void
+VertexAttribLPointer:      (index: u32, size: i32, type_: u32, stride: i32, poi32er: rawptr) -> void
 GetVertexAttribLdv:        (index: u32, pname: u32, params: *f64) -> void
 ViewportArrayv:            (first: u32, count: i32, v: *f32) -> void
 ViewportIndexedf:          (index: u32, x: f32, y: f32, w: f32, h: f32) -> void
@@ -1119,7 +1119,7 @@ load4_1 :: fn(getProcAddress: (name: *u8) -> rawptr) -> void {
     VertexAttribL2dv          = autocast getProcAddress("glVertexAttribL2dv\x00".raw)
     VertexAttribL3dv          = autocast getProcAddress("glVertexAttribL3dv\x00".raw)
     VertexAttribL4dv          = autocast getProcAddress("glVertexAttribL4dv\x00".raw)
-    VertexAttribLPoi32er      = autocast getProcAddress("glVertexAttribLPoi32er\x00".raw)
+    VertexAttribLPointer      = autocast getProcAddress("glVertexAttribLPointer\x00".raw)
     GetVertexAttribLdv        = autocast getProcAddress("glGetVertexAttribLdv\x00".raw)
     ViewportArrayv            = autocast getProcAddress("glViewportArrayv\x00".raw)
     ViewportIndexedf          = autocast getProcAddress("glViewportIndexedf\x00".raw)
@@ -1298,7 +1298,7 @@ UnmapNamedBuffer:                         (buffer: u32) -> u8
 FlushMappedNamedBufferRange:              (buffer: u32, offset: i32, length: i32) -> void
 GetNamedBufferParameteriv:                (buffer: u32, pname: u32, params: *i32) -> void
 GetNamedBufferParameteri64v:              (buffer: u32, pname: u32, params: *i64) -> void
-GetNamedBufferPoi32erv:                   (buffer: u32, pname: u32, params: *rawptr) -> void
+GetNamedBufferPointerv:                   (buffer: u32, pname: u32, params: *rawptr) -> void
 GetNamedBufferSubData:                    (buffer: u32, offset: i32, size: i32, data: rawptr) -> void
 CreateFramebuffers:                       (n: i32, framebuffers: *u32) -> void
 NamedFramebufferRenderbuffer:             (framebuffer: u32, attachment: u32, renderbuffertarget: u32, renderbuffer: u32) -> void
@@ -1422,7 +1422,7 @@ load4_5 :: fn(getProcAddress: (name: *u8) -> rawptr) -> void {
     FlushMappedNamedBufferRange              = autocast getProcAddress("glFlushMappedNamedBufferRange\x00".raw)
     GetNamedBufferParameteriv                = autocast getProcAddress("glGetNamedBufferParameteriv\x00".raw)
     GetNamedBufferParameteri64v              = autocast getProcAddress("glGetNamedBufferParameteri64v\x00".raw)
-    GetNamedBufferPoi32erv                   = autocast getProcAddress("glGetNamedBufferPoi32erv\x00".raw)
+    GetNamedBufferPointerv                   = autocast getProcAddress("glGetNamedBufferPointerv\x00".raw)
     GetNamedBufferSubData                    = autocast getProcAddress("glGetNamedBufferSubData\x00".raw)
     CreateFramebuffers                       = autocast getProcAddress("glCreateFramebuffers\x00".raw)
     NamedFramebufferRenderbuffer             = autocast getProcAddress("glNamedFramebufferRenderbuffer\x00".raw)
@@ -1560,7 +1560,7 @@ findVersion :: fn() -> (major: i32, minor: i32) {
 
     major, minor: i32
 
-    version := GetString(glconstants.GL_VERSION)
+    version := GetString(VERSION)
     if version == nil return 0, 0
 
     prefixes := [3]*u8 {

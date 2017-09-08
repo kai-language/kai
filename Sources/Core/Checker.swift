@@ -88,8 +88,8 @@ extension Checker {
         }
     }
 
-    mutating func check(topLevelStmt: TopLevelStmt) {
-        switch topLevelStmt {
+    mutating func check(topLevelStmt stmt: TopLevelStmt) {
+        switch stmt {
         case let i as Import:
             check(import: i)
         case let l as Library:
@@ -100,8 +100,10 @@ extension Checker {
             check(declBlock: d)
         case let d as Declaration:
             check(decl: d)
+        case let using as Using:
+            check(using: using)
         default:
-            fatalError()
+            print("Warning: statement '\(stmt)' passed through without getting checked")
         }
     }
 
@@ -358,7 +360,7 @@ extension Checker {
                     continue
                 }
 
-                declare(member, scopeOwnsEntity: false)
+                declare(member, scopeOwnsEntity: i.exportSymbolsOutOfScope)
             }
         } else if let entity = entity {
             entity.memberScope = i.scope
@@ -412,6 +414,33 @@ extension Checker {
         f.library.entity = entity
 
         check(foreignDecl: f.decl as! Declaration)
+    }
+
+    mutating func check(using: Using) {
+
+        func declare(_ entity: Entity) {
+            let previous = context.scope.insert(entity, scopeOwnsEntity: false)
+            if let previous = previous {
+                reportError("Use of 'using' resulted in name collision for the name '\(previous.name)'", at: entity.ident.start)
+                file.attachNote("Previously declared here: \(previous.ident.start)")
+            }
+        }
+
+        let type = check(expr: using.expr)
+
+        switch type {
+        case let type as ty.File:
+            for entity in type.memberScope.members {
+                declare(entity)
+            }
+        case let type as ty.Struct:
+            for field in type.fields {
+                let entity = Entity(ident: field.ident, type: field.type, flags: .field, memberScope: nil, owningScope: context.scope, value: nil, constant: nil)
+                declare(entity)
+            }
+        default:
+            reportError("using is invalid on type '\(type)'", at: using.expr.start)
+        }
     }
 }
 
@@ -1564,7 +1593,11 @@ extension Checker {
 
         switch cast.kind {
         case .cast:
-            if let argType = exprType as? ty.Integer, let targetType = targetType as? ty.Integer { // 2 integers
+            if let argType = exprType as? ty.UntypedInteger, let targetType = targetType as? ty.Integer {
+                cast.op = (argType.width! > targetType.width!) ? .trunc : (targetType.isSigned ? .sext : .zext)
+            } else if let argType = exprType as? ty.UntypedFloatingPoint, let targetType = targetType as? ty.FloatingPoint {
+                cast.op = (argType.width! > targetType.width!) ? .fpTrunc : .fpext
+            } else if let argType = exprType as? ty.Integer, let targetType = targetType as? ty.Integer { // 2 integers
                 cast.op = (argType.width! > targetType.width!) ? .trunc : (targetType.isSigned ? .sext : .zext)
             } else if let argType = exprType as? ty.FloatingPoint, let targetType = targetType as? ty.FloatingPoint { // 2 floats
                 cast.op = (argType.width! > targetType.width!) ? .fpTrunc : .fpext

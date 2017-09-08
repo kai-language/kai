@@ -40,6 +40,10 @@ extension Entity {
     var isBuiltin: Bool {
         return flags.contains(.builtin) 
     }
+
+    var isField: Bool {
+        return flags.contains(.field) 
+    }
 }
 
 extension FuncLit {

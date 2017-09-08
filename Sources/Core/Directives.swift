@@ -1,5 +1,6 @@
 
 enum LeadingDirective: String {
+    case use
     case `import`
     case library
     case foreign

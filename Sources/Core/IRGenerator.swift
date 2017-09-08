@@ -80,9 +80,9 @@ extension IRGenerator {
         }
     }
 
-    mutating func emit(topLevelStmt: TopLevelStmt) {
+    mutating func emit(topLevelStmt stmt: TopLevelStmt) {
 
-        switch topLevelStmt {
+        switch stmt {
         case is Import,
              is Library:
             return
@@ -93,7 +93,7 @@ extension IRGenerator {
         case let d as Declaration:
             emit(declaration: d)
         default:
-            fatalError()
+            print("Warning: statement didn't codegen: \(stmt)")
         }
     }
 

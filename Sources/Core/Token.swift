@@ -71,6 +71,8 @@ enum Token: UInt8 {
     case bitcast
     case autocast
 
+    case using
+
     case goto
     case `break`
     case `continue`
@@ -184,6 +186,7 @@ extension Token: CustomStringConvertible {
         case .cast:      return "cast"
         case .bitcast:   return "bitcast"
         case .autocast:  return "autocast"
+        case .using:     return "using"
         case .goto:      return "goto"
         case .break:     return "break"
         case .continue:  return "continue"

@@ -261,6 +261,13 @@ extension Parser {
         let expr = parseExpr()
         return Autocast(keyword: keyword, expr: expr, type: nil, op: nil)
     }
+
+    mutating func parseUsingStmt() -> Using {
+        let keyword = eatToken()
+        let expr = parseExpr()
+        allowTerminator()
+        return Using(keyword: keyword, expr: expr)
+    }
 }
 
 
@@ -450,7 +457,7 @@ extension Parser {
             next()
         }
         let rbrace = expect(.rbrace)
-        return StructType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace, type: nil)
+        return StructType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace, type: nil, checked: nil)
     }
 
     mutating func parsePolymorphicStructType() -> Expr {
@@ -659,6 +666,8 @@ extension Parser {
             return parseSwitchStmt()
         case .for:
             return parseForStmt()
+        case .using:
+            return parseUsingStmt()
         case .directive:
             return parseLeadingDirective()
         case .rbrace:
@@ -856,8 +865,27 @@ extension Parser {
             var alias: Ident?
             var importSymbolsIntoScope = false
             if tok == .ident {
+                if lit == "_" {
+                    next()
+                    importSymbolsIntoScope = true
+                } else {
+                    alias = parseIdent()
+                }
+            } else if tok != .semicolon {
+                reportError("Expected identifier to bind imported or terminator", at: pos)
+            }
+            expectTerm()
+
+            let i = Import(directive: directive, alias: alias, path: path, importSymbolsIntoScope: importSymbolsIntoScope, exportSymbolsOutOfScope: true, resolvedName: nil, scope: nil)
+            file.add(import: i, importedFrom: file)
+            return i
+        case .use?:
+            let path = parseExpr()
+            var alias: Ident?
+            var importSymbolsIntoScope = false
+            if tok == .ident {
                 alias = parseIdent()
-            } else if tok == .period {
+            } else if tok == .ident && lit == "_" {
                 next()
                 importSymbolsIntoScope = true
             } else if tok != .semicolon {
@@ -865,7 +893,7 @@ extension Parser {
             }
             expectTerm()
 
-            let i = Import(directive: directive, path: path, alias: alias, importSymbolsIntoScope: importSymbolsIntoScope, resolvedName: nil, scope: nil)
+            let i = Import(directive: directive, alias: alias, path: path, importSymbolsIntoScope: importSymbolsIntoScope, exportSymbolsOutOfScope: false, resolvedName: nil, scope: nil)
             file.add(import: i, importedFrom: file)
             return i
         case .library?:
@@ -1202,6 +1230,12 @@ extension Parser {
 
     mutating func allowNewline() {
         if tok == .semicolon && lit == "\n" {
+            next()
+        }
+    }
+
+    mutating func allowTerminator() {
+        if tok == .semicolon {
             next()
         }
     }

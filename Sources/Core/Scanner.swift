@@ -330,6 +330,8 @@ struct Scanner {
             return .bitcast
         case "autocast":
             return .autocast
+        case "using":
+            return .using
         case "goto":
             return .goto
         case "break":

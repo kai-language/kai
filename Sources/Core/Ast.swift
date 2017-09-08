@@ -634,12 +634,13 @@ class StructType: Node, Expr {
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:StructType.Init
-init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!) {
+init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!, checked: Checked!) {
     self.keyword = keyword
     self.lbrace = lbrace
     self.fields = fields
     self.rbrace = rbrace
     self.type = type
+    self.checked = checked
 }
 // sourcery:end
 }
@@ -818,6 +819,21 @@ init(keyword: Pos, results: [Expr]) {
 // sourcery:end
 }
 
+class Using: Node, Stmt, TopLevelStmt {
+    var keyword: Pos
+    var expr: Expr
+
+    var start: Pos { return keyword }
+    var end: Pos { return expr.end }
+
+    // sourcery:inline:auto:Using.Init
+init(keyword: Pos, expr: Expr) {
+    self.keyword = keyword
+    self.expr = expr
+}
+    // sourcery:end
+}
+
 class Branch: Node, Stmt {
     /// Keyword Token (break, continue, fallthrough)
     var token: Token
@@ -948,9 +964,10 @@ init(keyword: Pos, initializer: Stmt?, cond: Expr?, step: Stmt?, body: Block, br
 
 class Import: Node, TopLevelStmt {
     var directive: Pos
-    var path: Expr
     var alias: Ident?
+    var path: Expr
     var importSymbolsIntoScope: Bool
+    var exportSymbolsOutOfScope: Bool
     var resolvedName: String?
     var scope: Scope!
 
@@ -958,11 +975,12 @@ class Import: Node, TopLevelStmt {
     var end: Pos { return alias?.end ?? path.end }
 
 // sourcery:inline:auto:Import.Init
-init(directive: Pos, path: Expr, alias: Ident?, importSymbolsIntoScope: Bool, resolvedName: String?, scope: Scope!) {
+init(directive: Pos, alias: Ident?, path: Expr, importSymbolsIntoScope: Bool, exportSymbolsOutOfScope: Bool, resolvedName: String?, scope: Scope!) {
     self.directive = directive
-    self.path = path
     self.alias = alias
+    self.path = path
     self.importSymbolsIntoScope = importSymbolsIntoScope
+    self.exportSymbolsOutOfScope = exportSymbolsOutOfScope
     self.resolvedName = resolvedName
     self.scope = scope
 }
