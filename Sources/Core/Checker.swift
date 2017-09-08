@@ -24,6 +24,10 @@ struct Checker {
         var specializationCallNode: Call? = nil
 
         var nextCase: CaseClause?
+        var nearestNextCase: CaseClause? {
+            return nextCase ?? previous?.nearestNextCase
+        }
+
         var switchLabel: Entity?
         var nearestSwitchLabel: Entity? {
             return switchLabel ?? previous?.nearestSwitchLabel
@@ -32,17 +36,22 @@ struct Checker {
             return nearestSwitchLabel != nil
         }
 
-        var loopLabel: Entity?
-        var nearestLoopLabel: Entity? {
-            return loopLabel ?? previous?.nearestLoopLabel
+        var loopBreakLabel: Entity?
+        var nearestLoopBreakLabel: Entity? {
+            return loopBreakLabel ?? previous?.nearestLoopBreakLabel
         }
         var inLoop: Bool {
-            return nearestLoopLabel != nil
+            return nearestLoopBreakLabel != nil
+        }
+
+        var loopContinueLabel: Entity?
+        var nearestLoopContinueLabel: Entity? {
+            return loopContinueLabel ?? previous?.nearestLoopContinueLabel
         }
 
         var nearestLabel: Entity? {
-            assert(loopLabel == nil || switchLabel == nil)
-            return loopLabel ?? switchLabel ?? previous?.nearestLabel
+            assert(loopBreakLabel == nil || switchLabel == nil)
+            return loopBreakLabel ?? switchLabel ?? previous?.nearestLabel
         }
 
         init(scope: Scope, previous: Context?) {
@@ -111,6 +120,7 @@ extension Checker {
                     guard let fnNode = (call.fun.type as? ty.Function)?.node, fnNode.isDiscardable || type is ty.Void else {
                         fallthrough
                     }
+                    // TODO: Report unused returns on non discardables
                     return
                 default:
                     break
@@ -164,6 +174,12 @@ extension Checker {
 
         case let íf as If:
             check(if: íf)
+
+        case let s as Switch:
+            check(switch: s)
+
+        case let b as Branch:
+            check(branch: b)
 
         default:
             print("Warning: statement '\(stmt)' passed through without getting checked")
@@ -307,7 +323,7 @@ extension Checker {
 
             for (lhs, rhs) in zip(assign.lhs, assign.rhs) {
                 let lhsType = check(expr: lhs)
-                let rhsType = check(expr: rhs)
+                let rhsType = check(expr: rhs, desiredType: lhsType)
 
                 if !canConvert(rhsType, to: lhsType) && !implicitlyConvert(rhsType, to: lhsType) {
                     reportError("Cannot assign value of type '\(rhsType)' to type \(lhsType)", at: rhs.start)
@@ -504,6 +520,9 @@ extension Checker {
         case let cast as Cast:
             check(cast: cast)
 
+        case let autocast as Autocast:
+            check(autocast: autocast, desiredType: desiredType)
+
         default:
             print("Warning: expression '\(expr)' passed through without getting checked")
         }
@@ -660,11 +679,67 @@ extension Checker {
         }
     }
 
+    mutating func check(branch: Branch) {
+        switch branch.token {
+        case .break:
+            let target: Entity
+            if let label = branch.label {
+                guard let entity = context.scope.lookup(label.name) else {
+                    reportError("Use of undefined identifer '\(label)'", at: label.start)
+                    return
+                }
+                target = entity
+            } else {
+                guard let entity = context.nearestLabel else {
+                    reportError("break outside of loop or switch", at: branch.start)
+                    return
+                }
+                target = entity
+            }
+            branch.target = target
+        case .continue:
+            let target: Entity
+            if let label = branch.label {
+                guard let entity = context.scope.lookup(label.name) else {
+                    reportError("Use of undefined identifer '\(label)'", at: label.start)
+                    return
+                }
+                target = entity
+            } else {
+                guard let entity = context.nearestLoopContinueLabel else {
+                    reportError("break outside of loop", at: branch.start)
+                    return
+                }
+                target = entity
+            }
+            branch.target = target
+        case .fallthrough:
+            guard context.inSwitch else {
+                reportError("fallthrough outside of switch", at: branch.start)
+                return
+            }
+            guard let target = context.nearestNextCase?.label else {
+                reportError("fallthrough cannot be used without a next case", at: branch.start)
+                return
+            }
+            branch.target = target
+        default:
+            fatalError()
+        }
+    }
+
     mutating func check(for fór: For) {
         pushContext()
         defer {
             popContext()
         }
+
+        let breakLabel = Entity.makeAnonLabel()
+        let continueLabel = Entity.makeAnonLabel()
+        fór.breakLabel = breakLabel
+        fór.continueLabel = continueLabel
+        context.loopBreakLabel = breakLabel
+        context.loopContinueLabel = continueLabel
 
         if let initializer = fór.initializer {
             check(stmt: initializer)
@@ -699,6 +774,60 @@ extension Checker {
         if let els = iff.els {
             check(stmt: els)
         }
+    }
+
+    mutating func check(switch sw: Switch) {
+        pushContext()
+        defer {
+            popContext()
+        }
+
+        let label = Entity.makeAnonLabel()
+        sw.label = label
+        context.switchLabel = label
+
+        var type: Type?
+        if let match = sw.match {
+            type = check(expr: match)
+            guard type is ty.Integer || type is ty.UntypedInteger else {
+                reportError("Can only switch on integer types", at: match.start)
+                return
+            }
+        }
+
+        var seenDefault = false
+
+        for c in sw.cases {
+            c.label = Entity.makeAnonLabel()
+        }
+
+        for (c, nextCase) in sw.cases.enumerated().map({ ($0.element, sw.cases[safe: $0.offset + 1]) }) {
+            if let match = c.match {
+                if let desiredType = type {
+                    let type = check(expr: match, desiredType: desiredType)
+                    guard canConvert(type, to: desiredType) || implicitlyConvert(type, to: desiredType) else {
+                        reportError("Expected type '\(desiredType)', got '\(type)'", at: match.start)
+                        continue
+                    }
+                } else {
+                    let type = check(expr: match, desiredType: ty.bool)
+                    guard canConvert(type, to: ty.bool) || implicitlyConvert(type, to: ty.bool) else {
+                        reportError("Expected type 'bool', got '\(type)'", at: match.start)
+                        continue
+                    }
+                }
+            } else if seenDefault {
+                reportError("Duplicate default cases", at: c.start)
+            } else {
+                seenDefault = true
+            }
+
+            context.nextCase = nextCase
+            
+            check(stmt: c.block)
+        }
+
+        context.nextCase = nil
     }
 
     @discardableResult
@@ -980,7 +1109,7 @@ extension Checker {
         var (lCast, rCast): (OpCode.Cast?, OpCode.Cast?) = (nil, nil)
 
         // Handle constraining untyped's etc..
-        if lhsType is ty.UntypedNil || lhsType is ty.UntypedInteger || lhsType is ty.UntypedFloatingPoint {
+        if (lhsType is ty.UntypedNil || lhsType is ty.UntypedInteger || lhsType is ty.UntypedFloatingPoint) && rhsType != lhsType {
             guard let cast = constrainUntyped(lhsType, to: rhsType) else {
                 reportError("Invalid operation '\(binary.op)' between untyped '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
                 return ty.invalid
@@ -990,7 +1119,7 @@ extension Checker {
             }
             lhsType = rhsType
             lCast = cast
-        } else if rhsType is ty.UntypedNil || rhsType is ty.UntypedInteger || rhsType is ty.UntypedFloatingPoint {
+        } else if (rhsType is ty.UntypedNil || rhsType is ty.UntypedInteger || rhsType is ty.UntypedFloatingPoint) && rhsType != lhsType {
             guard let cast = constrainUntyped(rhsType, to: lhsType) else {
                 reportError("Invalid operation '\(binary.op)' between '\(lhsType)' and untyped '\(rhsType)'", at: binary.opPos)
                 return ty.invalid
@@ -1003,7 +1132,15 @@ extension Checker {
         }
 
         // Handle extending or truncating
-        if lhsType == rhsType && !(lhsType is ty.Pointer) && !(rhsType is ty.Pointer){
+        if lhsType == rhsType && lhsType is ty.UntypedInteger {
+            lhsType = ty.Integer(entity: .anonymous, width: ty.untypedInteger.width, isSigned: false)
+            rhsType = ty.Integer(entity: .anonymous, width: ty.untypedInteger.width, isSigned: false)
+            resultType = ty.untypedInteger
+        } else if lhsType == rhsType && lhsType is ty.UntypedFloatingPoint {
+            lhsType = ty.f64
+            rhsType = ty.f64
+            resultType = ty.untypedFloat
+        } else if lhsType == rhsType && !(lhsType is ty.Pointer) && !(rhsType is ty.Pointer){
             resultType = lhsType
         } else if let lhsType = lhsType as? ty.Integer, rhsType is ty.FloatingPoint {
             lCast = lhsType.isSigned ? .siToFP : .uiToFP
@@ -1293,6 +1430,7 @@ extension Checker {
         guard let calleeFn = calleeType as? ty.Function else {
             reportError("Cannot call value of non-funtion type '\(calleeType)'", at: call.start)
             call.type = ty.Tuple.make([ty.invalid])
+            call.checked = .call
             return call.type
         }
 
@@ -1310,6 +1448,7 @@ extension Checker {
 
                 guard argType == expectedType || implicitlyConvert(argType, to: expectedType) else {
                     reportError("Cannot convert value of type '\(argType)' to expected argument type '\(expectedType)'", at: arg.start)
+                    file.attachNote("In call to \(call.fun)")
                     continue
                 }
             }
@@ -1348,6 +1487,7 @@ extension Checker {
 
             guard argType == expectedType || implicitlyConvert(argType, to: expectedType) else {
                 reportError("Cannot convert value of type '\(argType)' to expected argument type '\(expectedType)'", at: arg.start)
+                file.attachNote("In call to \(call.fun)")
                 continue
             }
         }
@@ -1362,6 +1502,44 @@ extension Checker {
         let returnType = calleeFn.returnType.types.count == 1 ? calleeFn.returnType.types[0] : calleeFn.returnType
         call.type = returnType
         return returnType
+    }
+
+    @discardableResult
+    mutating func check(autocast: Autocast, desiredType: Type?) -> Type {
+        guard let desiredType = desiredType else {
+            reportError("Unabled to infer type for autocast", at: autocast.keyword)
+            autocast.op = .bitCast
+            autocast.type = ty.invalid
+            return ty.invalid
+        }
+
+        let type = check(expr: autocast.expr, desiredType: desiredType)
+
+        autocast.type = desiredType
+        if let argType = type as? ty.Integer, let targetType = desiredType as? ty.Integer { // 2 integers
+            autocast.op = (argType.width! > targetType.width!) ? .trunc : (targetType.isSigned ? .sext : .zext)
+        } else if let argType = type as? ty.FloatingPoint, let targetType = desiredType as? ty.FloatingPoint { // 2 floats
+            autocast.op = (argType.width! > targetType.width!) ? .fpTrunc : .fpext
+        } else if let argType = type as? ty.Integer, desiredType is ty.FloatingPoint { // TODO: Cast from int to float of different size
+            autocast.op = argType.isSigned ? .siToFP : .uiToFP
+        } else if type is ty.FloatingPoint, let targetType = desiredType as? ty.Integer { // TODO: Cast from float to int of different size
+            autocast.op = targetType.isSigned ? .fpToSI : .fpToUI
+        } else if type is ty.Array, desiredType is ty.Pointer {
+            // If the user performs a reinterpret cast, we don't care if the
+            // underlying types match/are the same width
+            autocast.op = .bitCast
+        } else if type is ty.Function && desiredType is ty.Pointer {
+            autocast.op = .bitCast
+        } else if type is ty.Pointer && desiredType is ty.Pointer {
+            autocast.op = .bitCast
+        } else if type == desiredType {
+            autocast.op = .bitCast
+        } else {
+            autocast.op = .bitCast
+            reportError("Cannot cast between unrelated types '\(type)' and '\(desiredType)'", at: autocast.start)
+        }
+
+        return desiredType
     }
 
     @discardableResult

@@ -328,6 +328,8 @@ struct Scanner {
             return .cast
         case "bitcast":
             return .bitcast
+        case "autocast":
+            return .autocast
         case "goto":
             return .goto
         case "break":
@@ -432,7 +434,7 @@ struct Scanner {
                 switch tok {
                 case .ident, .break, .continue, .fallthrough, .return:
                     insertSemi = true
-                case .if, .for:
+                case .if, .for, .switch:
                     insertSemiBeforeLbrace = true
                 default:
                     break

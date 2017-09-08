@@ -227,6 +227,8 @@ extension Parser {
             return parseFuncLit()
         case .cast, .bitcast:
             return parseCast()
+        case .autocast:
+            return parseAutocast()
         case .lparen:
             return parseFuncType(allowParenthesizedExpr: true)
         case .directive:
@@ -252,6 +254,12 @@ extension Parser {
         expect(.rparen)
         let expr = parseExpr()
         return Cast(keyword: keyword, kind: kind, explicitType: explicitType, expr: expr, type: nil, op: nil)
+    }
+
+    mutating func parseAutocast() -> Autocast {
+        let keyword = eatToken()
+        let expr = parseExpr()
+        return Autocast(keyword: keyword, expr: expr, type: nil, op: nil)
     }
 }
 
@@ -748,7 +756,7 @@ extension Parser {
             label = parseIdent()
         }
         expectTerm()
-        return Branch(token: token, label: label, start: start)
+        return Branch(token: token, label: label, target: nil, start: start)
     }
 
     mutating func parseIfStmt() -> If {
@@ -771,18 +779,21 @@ extension Parser {
     mutating func parseSwitchStmt() -> Switch {
         let keyword = eatToken()
         var match: Expr?
-        if tok != .lbrace {
+        if tok != .lbrace && tok != .semicolon {
             match = parseExpr()
         }
-        let lbrace = expect(.lbrace)
-        var list: [Stmt] = []
+        if tok == .semicolon {
+            // dummy terminator to prevent confusion with composite lits
+            next()
+        }
+        expect(.lbrace)
+        var cases: [CaseClause] = [parseCaseClause()]
         while tok == .case {
-            list.append(parseCaseClause())
+            cases.append(parseCaseClause())
         }
         let rbrace = expect(.rbrace)
         expectTerm()
-        let body = Block(lbrace: lbrace, stmts: list, rbrace: rbrace)
-        return Switch(keyword: keyword, match: match, block: body)
+        return Switch(keyword: keyword, match: match, cases: cases, rbrace: rbrace, label: nil)
     }
 
     mutating func parseCaseClause() -> CaseClause {
@@ -794,7 +805,7 @@ extension Parser {
         let colon = expect(.colon)
         let body = parseStmtList()
         let block = Block(lbrace: colon, stmts: body, rbrace: body.last?.end ?? colon)
-        return CaseClause(keyword: keyword, match: match, colon: colon, block: block)
+        return CaseClause(keyword: keyword, match: match, colon: colon, block: block, label: nil)
     }
 
     mutating func parseForStmt() -> For {
@@ -827,7 +838,7 @@ extension Parser {
             reportExpected("expression", at: s2.start)
             cond = BadExpr(start: s2.start, end: s2.end)
         }
-        return For(keyword: keyword, initializer: s1, cond: cond, step: s3, body: body)
+        return For(keyword: keyword, initializer: s1, cond: cond, step: s3, body: body, breakLabel: nil, continueLabel: nil)
     }
 }
 

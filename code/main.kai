@@ -3,25 +3,25 @@
 #import "glfw.kai"
 
 #foreign libc {
-    printf :: (fmt: string, args: #cvargs ..any) -> i32
+    printf :: (fmt: *u8, args: #cvargs ..any) -> i32
 
     exit :: (exitcode: i32) -> void
 }
 
 
 panic :: fn(msg: string) -> void {
-    printf(msg)
+    printf(msg.raw)
     exit(1)
 }
 
 // OpenGL constants, only the ones we need
 FALSE                :: 0x0000
 TRIANGLE_STRIP       :: 0x0005
-DEPTH_BUFFER_BIT     :: 0x0100
+DEPTH_BUFFER_BIT     : u32 : 0x0100
+COLOR_BUFFER_BIT     : u32 : 0x4000
 DEPTH_TEST           :: 0x0B71
 UNSIGNED_SHORT       :: 0x1403
 FLOAT                :: 0x1406
-COLOR_BUFFER_BIT     :: 0x4000
 ARRAY_BUFFER         :: 0x8892
 ELEMENT_ARRAY_BUFFER :: 0x8893
 STATIC_DRAW          :: 0x88E4
@@ -49,7 +49,7 @@ VertexAttribPointer:      (index: u32, size, type: i32, normalized: i32, stride:
 CreateShader:             (shaderType: i32) -> u32
 ShaderSource:             (shader: u32, count: u32, str: **u8, length: *i32) -> void
 CompileShader:            (shader: u32) -> void
-DeleteShader:             (shader:  u32) -> void
+DeleteShader:             (shader: u32) -> void
 
 CreateProgram:            () -> u32
 AttachShader:             (program, shader: u32) -> void
@@ -57,47 +57,50 @@ LinkProgram:              (program: u32) -> void
 DeleteProgram:            (program: u32) -> void
 
 UseProgram:               (program: u32) -> void
-GetUniformLocation:       (program: u32, name: *u8) -> void
+GetUniformLocation:       (program: u32, name: *u8) -> i32
 Uniform1f:                (loc: i32, v0: f32) -> void
+Uniform2f:                (loc: i32, v0, v1: f32) -> void
 UniformMatrix4fv:         (loc: i32, count: u32, transpose: i32, value: *f32) -> void
 
 DrawElements:             (mode: i32, count: u32, type: i32, indices: rawptr) -> void
 
 getGlFunctions :: fn(_getProcAddress: rawptr) -> void {
-    getProcAddress := ((*u8) -> rawptr)(_getProcAddress)
-    rawptr(Enable) = getProcAddress("glEnable\x00")
+    getProcAddress := cast((*u8) -> rawptr) _getProcAddress
 
-    rawptr(ClearColor) = getProcAddress("glClearColor\x00")
-    rawptr(Clear) = getProcAddress("glClear\x00")
+    Enable             = cast((u32) -> void) getProcAddress("glEnable\x00".raw)
 
-    rawptr(GenBuffers) = getProcAddress("glGenBuffers\x00")
-    rawptr(GenVertexArrays) = getProcAddress("glGenVertexArrays\x00")
-    rawptr(DeleteVertexArrays) = getProcAddress("glDeleteVertexArrays\x00")
+    ClearColor         = cast((f32, f32, f32, f32) -> void) getProcAddress("glClearColor\x00".raw)
+    Clear              = cast((u32) -> void) getProcAddress("glClear\x00".raw)
 
-    rawptr(BindBuffer) = getProcAddress("glBindBuffer\x00")
-    rawptr(BindVertexArray) = getProcAddress("glBindVertexArray\x00")
-    rawptr(BufferData) = getProcAddress("glBufferData\x00")
-    rawptr(DeleteBuffers) = getProcAddress("glDeleteBuffers\x00")
+    GenBuffers         = cast((i32, *u32) -> void) getProcAddress("glGenBuffers\x00".raw)
+    GenVertexArrays    = cast((i32, *u32) -> void) getProcAddress("glGenVertexArrays\x00".raw)
+    DeleteVertexArrays = cast((i32, *u32) -> void) getProcAddress("glDeleteVertexArrays\x00".raw)
 
-    rawptr(EnableVertexAttribArray) = getProcAddress("glEnableVertexAttribArray\x00")
-    rawptr(VertexAttribPointer) = getProcAddress("glVertexAttribPointer\x00")
+    BindBuffer         = cast((i32, u32) -> void) getProcAddress("glBindBuffer\x00".raw)
+    BindVertexArray    = cast((u32) -> void) getProcAddress("glBindVertexArray\x00".raw)
+    BufferData         = cast((i32, i32, rawptr, i32) -> void) getProcAddress("glBufferData\x00".raw)
+    DeleteBuffers      = cast((i32, *u32) -> void) getProcAddress("glDeleteBuffers\x00".raw)
 
-    rawptr(CreateShader) = getProcAddress("glCreateShader\x00")
-    rawptr(ShaderSource) = getProcAddress("glShaderSource\x00")
-    rawptr(CompileShader) = getProcAddress("glCompileShader\x00")
-    rawptr(DeleteShader) = getProcAddress("glDeleteShader\x00")
+    EnableVertexAttribArray = cast((u32) -> void) getProcAddress("glEnableVertexAttribArray\x00".raw)
+    VertexAttribPointer     = cast((u32, i32, i32, i32, u32, rawptr) -> void) getProcAddress("glVertexAttribPointer\x00".raw)
 
-    rawptr(CreateProgram) = getProcAddress("glCreateProgram\x00")
-    rawptr(AttachShader) = getProcAddress("glAttachShader\x00")
-    rawptr(LinkProgram) = getProcAddress("glLinkProgram\x00")
-    rawptr(DeleteProgram) = getProcAddress("glDeleteProgram\x00")
+    CreateShader       = cast((i32) -> u32) getProcAddress("glCreateShader\x00".raw)
+    ShaderSource       = cast((u32, u32, **u8, *i32) -> void) getProcAddress("glShaderSource\x00".raw)
+    CompileShader      = cast((u32) -> void) getProcAddress("glCompileShader\x00".raw)
+    DeleteShader       = cast((u32) -> void) getProcAddress("glDeleteShader\x00".raw)
 
-    rawptr(UseProgram) = getProcAddress("glUseProgram\x00")
-    rawptr(GetUniformLocation) = getProcAddress("glGetUniformLocation\x00")
-    rawptr(Uniform1f) = getProcAddress("glUniform1f\x00")
-    rawptr(UniformMatrix4fv) = getProcAddress("glUniformMatrix4fv\x00")
+    CreateProgram      = cast(() -> u32) getProcAddress("glCreateProgram\x00".raw)
+    AttachShader       = cast((u32, u32) -> void) getProcAddress("glAttachShader\x00".raw)
+    LinkProgram        = cast((u32) -> void) getProcAddress("glLinkProgram\x00".raw)
+    DeleteProgram      = cast((u32) -> void) getProcAddress("glDeleteProgram\x00".raw)
 
-    rawptr(DrawElements) = getProcAddress("glDrawElements\x00")
+    UseProgram         = cast((u32) -> void) getProcAddress("glUseProgram\x00".raw)
+    GetUniformLocation = cast((u32, *u8) -> i32) getProcAddress("glGetUniformLocation\x00".raw)
+    Uniform1f          = cast((i32, f32) -> void) getProcAddress("glUniform1f\x00".raw)
+    Uniform2f          = cast((i32, f32, f32) -> void) getProcAddress("glUniform2f\x00".raw)
+    UniformMatrix4fv   = cast((i32, u32, i32, *f32) -> void) getProcAddress("glUniformMatrix4fv\x00".raw)
+
+    DrawElements       = cast((i32, u32, i32, rawptr) -> void) getProcAddress("glDrawElements\x00".raw)
 }
 
 //glfwErrorCallback :: fn(error: i32, desc: *u8) -> void {
@@ -117,9 +120,9 @@ initGlfw :: fn() -> *glfw.Window, bool {
     glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
     glfw.WindowHint(glfw.OPENGL_FORWARD_COMPAT, 1)
 
-    window := glfw.CreateWindow(1280, 720, "Kai GLFW example", nil, nil)
+    window := glfw.CreateWindow(1280, 720, "Kai GLFW example\x00".raw, nil, nil)
     if window == nil {
-        panic("Asdfklasjdf")
+        panic("Asdfklasjdf\x00")
         return nil, false
     }
 
@@ -129,41 +132,42 @@ initGlfw :: fn() -> *glfw.Window, bool {
 }
 
 loadShaders :: fn() -> u32 {
-    vertex_shader_source := `
+    vertex_shader_source := "
         #version 330 core
 
         layout(location = 0) in vec3 vertexPosition;
 
         uniform float time;
-        uniform mat4 MVP;
 
         out vec3 pos;
 
         void main() {
-            gl_Position = MVP*vec4(vertexPosition, 1.0);
+            gl_Position = vec4(vertexPosition, 1.0);
             pos = vertexPosition;
-        }
-    `
-    fragment_shader_source := `
+        }\x00
+    "
+    fragment_shader_source := "
         #version 330 core
 
         in vec3 pos;
+        in vec2 resolution;
         uniform float time;
         out vec4 color;
 
         void main() {
-            color = vec4(0.5 + 0.5*pos, 1.0);
-        }
-    `
+            vec2 uv = pos.xy / resolution.xy;
+            color = vec4(uv, 0.5 + 0.5 * sin(time), 1.0);
+        }\x00
+    "
 
-    vertex_shader_length := i32(len(vertex_shader_source))
-    fragment_shader_length := i32(len(fragment_shader_source))
+    vertex_shader_length := cast(i32) vertex_shader_source.len
+    fragment_shader_length := cast(i32) fragment_shader_source.len
 
     vertex_shader_id := CreateShader(VERTEX_SHADER)
     fragment_shader_id := CreateShader(FRAGMENT_SHADER)
 
-    ShaderSource(vertex_shader_id, 1, (**u8)(&vertex_shader_source), &vertex_shader_length)
-    ShaderSource(fragment_shader_id, 1, (**u8)(&fragment_shader_source), &fragment_shader_length)
+    ShaderSource(vertex_shader_id, 1, &vertex_shader_source.raw, &vertex_shader_length)
+    ShaderSource(fragment_shader_id, 1, &fragment_shader_source.raw, &fragment_shader_length)
 
     CompileShader(vertex_shader_id)
     CompileShader(fragment_shader_id)
@@ -184,7 +188,6 @@ createBuffers :: fn() -> u32, u32, u32 {
     GenVertexArrays(1, &vao)
     BindVertexArray(vao)
 
-/*
     // a 2x2x2 cube, using triangle strips and indices
     cubeVertices := [..]f32 {
         -1.0, -1.0,  1.0,
@@ -199,44 +202,70 @@ createBuffers :: fn() -> u32, u32, u32 {
 
     cubeIndices := [..]u16{
         // TRIANGLE_STRIP, 14 indices = 12 triangles
-        0, 1, 2, 3, 7, 1, 5, 4, 7, 6, 2, 4, 0, 1
+        0, 1, 2, 3, 7, 1, 5, 4, 7, 6, 2, 4, 0, 1,
     }
-*/
 
     vbo: u32
     GenBuffers(1, &vbo)
-    //BindBuffer(ARRAY_BUFFER, vbo)
-    //BufferData(ARRAY_BUFFER, size_of(cubeVertices), &cubeVertices[0], STATIC_DRAW)
+    BindBuffer(ARRAY_BUFFER, vbo)
+    BufferData(ARRAY_BUFFER, 96, cast(rawptr) &cubeVertices[0], STATIC_DRAW)
 
     EnableVertexAttribArray(0)
     VertexAttribPointer(0, 3, FLOAT, FALSE, 0, nil)
 
     ebo: u32
     GenBuffers(1, &ebo)
-    //BindBuffer(ELEMENT_ARRAY_BUFFER, ebo)
-    //BufferData(ELEMENT_ARRAY_BUFFER, size_of(cubeIndices), &cubeIndices[0], STATIC_DRAW)
+    BindBuffer(ELEMENT_ARRAY_BUFFER, ebo)
+    BufferData(ELEMENT_ARRAY_BUFFER, 28, cast(rawptr) &cubeIndices[0], STATIC_DRAW)
 
     return vao, vbo, ebo
 }
 
 main :: fn () -> void {
 
+    printf("Hello!\n\x00".raw)
+    printf("HERE\n\x00".raw)
+
     window, success := initGlfw()
     if !success
-        panic("Error with window creation!\n")
+        panic("Error with window creation!\n\x00")
 
-    getGlFunctions(rawptr(glfw.GetProcAddress))
+    getGlFunctions(cast(rawptr) glfw.GetProcAddress)
 
     program := loadShaders()
 
     vao, vbo, ebo := createBuffers()
 
+    // timings
+    tPrev := glfw.GetTime()
+    frame := 0
 
+    res := [2]f32{1280, 720}
+
+    Enable(DEPTH_TEST);
+    ClearColor(0.2, 0.3, 0.4, 1.0);
     for glfw.WindowShouldClose(window) == glfw.FALSE {
+
+        tNow := glfw.GetTime()
+        dt := cast(f32) (tNow - tPrev)
+        tPrev = tNow
+
         glfw.PollEvents()
+
+        //
+        // Drawing
+        Clear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
+
+        UseProgram(program)
+        Uniform1f(GetUniformLocation(program, "time\x00".raw), cast(f32) glfw.GetTime())
+        Uniform2f(GetUniformLocation(program, "resolution\x00".raw), 1280, 720)
+
+        BindVertexArray(vao)
+        DrawElements(TRIANGLE_STRIP, 14, UNSIGNED_SHORT, nil)
+
         glfw.SwapBuffers(window)
     }
     glfw.Terminate()
-    printf("Exiting!\n")
+    printf("Exiting!\n\x00".raw)
 }
 

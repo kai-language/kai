@@ -29,6 +29,19 @@ func copy(_ nodes: [Assign]) -> [Assign] {
     return nodes.map(copy)
 }
 
+func copy(_ node: Autocast) -> Autocast {
+    return Autocast(
+        keyword: node.keyword,
+        expr: copy(node.expr),
+        type: node.type,
+        op: node.op
+    )
+}
+
+func copy(_ nodes: [Autocast]) -> [Autocast] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: BadDecl) -> BadDecl {
     return BadDecl(
         start: node.start,
@@ -110,6 +123,7 @@ func copy(_ node: Branch) -> Branch {
     return Branch(
         token: node.token,
         label: node.label.map(copy),
+        target: node.target,
         start: node.start
     )
 }
@@ -138,7 +152,8 @@ func copy(_ node: CaseClause) -> CaseClause {
         keyword: node.keyword,
         match: node.match.map(copy),
         colon: node.colon,
-        block: copy(node.block)
+        block: copy(node.block),
+        label: node.label
     )
 }
 
@@ -269,7 +284,9 @@ func copy(_ node: For) -> For {
         initializer: node.initializer.map(copy),
         cond: node.cond.map(copy),
         step: node.step.map(copy),
-        body: copy(node.body)
+        body: copy(node.body),
+        breakLabel: node.breakLabel,
+        continueLabel: node.continueLabel
     )
 }
 
@@ -596,7 +613,9 @@ func copy(_ node: Switch) -> Switch {
     return Switch(
         keyword: node.keyword,
         match: node.match.map(copy),
-        block: copy(node.block)
+        cases: copy(node.cases),
+        rbrace: node.rbrace,
+        label: node.label
     )
 }
 
@@ -648,6 +667,7 @@ func copy(_ nodes: [VariadicType]) -> [VariadicType] {
 func copy(_ node: Expr) -> Expr {
     switch node {
     case let node as ArrayType: return copy(node)
+    case let node as Autocast: return copy(node)
     case let node as BadExpr: return copy(node)
     case let node as BasicLit: return copy(node)
     case let node as Binary: return copy(node)

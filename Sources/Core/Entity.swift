@@ -60,5 +60,11 @@ extension Entity {
         return entity
     }
 
+    static func makeAnonLabel() -> Entity {
+        let entity = copy(Entity.anonymous)
+        entity.flags.insert(.label)
+        return entity
+    }
+
     static let invalid = Entity.makeBuiltin("< invalid >")
 }

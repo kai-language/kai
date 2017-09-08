@@ -314,6 +314,10 @@ extension IRGenerator {
             emit(for: fór)
         case let íf as If:
             emit(if: íf)
+        case let s as Switch:
+            emit(switch: s)
+        case let b as Branch:
+            emit(branch: b)
         default:
             print("Warning: statement didn't codegen: \(stmt)")
             return
@@ -464,13 +468,13 @@ extension IRGenerator {
             b.buildBr(loopBody)
         }
 
-        // TODO: Break targets
-//        f.breakTarget.val = loopPost
-//        f.continueTarget.val = loopCond ?? loopStep ?? loopBody
         b.positionAtEnd(of: loopBody)
         defer {
             loopPost.moveAfter(b.currentFunction!.lastBlock!)
         }
+
+        f.breakLabel.value = loopCond ?? loopStep ?? loopBody
+        f.continueLabel.value = loopPost
 
         emit(statement: f.body)
 
@@ -500,11 +504,65 @@ extension IRGenerator {
     }
 
     mutating func emit(switch sw: Switch) {
-        fatalError()
+        // NOTE: Also check some sort of flag to ensure things are constant integers otherwise LLVM switch doesn't work
+        if sw.match == nil {
+            fatalError("Boolean Switch not yet implemented for emission")
+        }
+        let ln = file.position(for: sw.start).line
+
+        let curFunction = b.currentFunction!
+        let curBlock = b.insertBlock!
+
+        let postBlock = curFunction.appendBasicBlock(named: "switch.post.ln.\(ln)")
+        defer {
+            postBlock.moveAfter(curFunction.lastBlock!)
+        }
+        sw.label.value = postBlock
+
+        var thenBlocks: [BasicBlock] = []
+        for c in sw.cases {
+            let ln = file.position(for: c.start).line
+            if c.match != nil {
+                let thenBlock = curFunction.appendBasicBlock(named: "switch.then.ln.\(ln)")
+                thenBlocks.append(thenBlock)
+            } else {
+                let thenBlock = curFunction.appendBasicBlock(named: "switch.default.ln.\(ln)")
+                thenBlocks.append(thenBlock)
+            }
+        }
+
+        let value = sw.match.map({ emit(expr: $0) }) ?? true.asLLVM()
+        var matches: [IRValue] = []
+        for (i, c, nextCase) in sw.cases.enumerated().map({ ($0.offset, $0.element, sw.cases[safe: $0.offset + 1]) }) {
+            let thenBlock = thenBlocks[i]
+            nextCase?.label.value = thenBlocks[safe: i + 1]
+
+            if let match = c.match {
+                let val = emit(expr: match)
+                matches.append(val)
+            }
+
+            b.positionAtEnd(of: thenBlock)
+
+            emit(statement: c.block)
+
+            if b.insertBlock!.terminator == nil {
+                b.buildBr(postBlock)
+            }
+            b.positionAtEnd(of: curBlock)
+        }
+
+        let hasDefaultCase = sw.cases.last!.match == nil
+        let irSwitch = b.buildSwitch(value, else: hasDefaultCase ? thenBlocks.last! : postBlock, caseCount: thenBlocks.count)
+        for (match, block) in zip(matches, thenBlocks) {
+            irSwitch.addCase(match, block)
+        }
+
+        b.positionAtEnd(of: postBlock)
     }
 
     mutating func emit(branch: Branch) {
-        fatalError()
+        b.buildBr(branch.target.value as! BasicBlock)
     }
 
     // MARK: Expressions
@@ -533,6 +591,8 @@ extension IRGenerator {
             return emit(call: call)
         case let cast as Cast:
             return emit(cast: cast)
+        case let autocast as Autocast:
+            return emit(autocast: autocast)
         case let sel as Selector:
             return emit(selector: sel, returnAddress: returnAddress)
         case let sub as Subscript:
@@ -762,6 +822,11 @@ extension IRGenerator {
             let args = call.args.map({ emit(expr: $0) })
             return b.buildCall(specialization.llvm!, args: args)
         }
+    }
+
+    mutating func emit(autocast: Autocast) -> IRValue {
+        let val = emit(expr: autocast.expr, returnAddress: autocast.expr.type is ty.Array)
+        return b.buildCast(autocast.op, value: val, type: canonicalize(autocast.type))
     }
 
     mutating func emit(cast: Cast) -> IRValue {

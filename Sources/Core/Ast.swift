@@ -366,6 +366,26 @@ init(rec: Expr, index: Expr, type: Type!, checked: Checked!) {
 // sourcery:end
 }
 
+class Autocast: Node, Expr {
+    var keyword: Pos
+    var expr: Expr
+
+    var type: Type!
+    var op: OpCode.Cast!
+
+    var start: Pos { return keyword }
+    var end: Pos { return expr.end }
+
+// sourcery:inline:auto:Autocast.Init
+init(keyword: Pos, expr: Expr, type: Type!, op: OpCode.Cast!) {
+    self.keyword = keyword
+    self.expr = expr
+    self.type = type
+    self.op = op
+}
+// sourcery:end
+}
+
 class Cast: Node, Expr {
     var keyword: Pos
     var kind: Token
@@ -803,13 +823,16 @@ class Branch: Node, Stmt {
     var token: Token
     var label: Ident?
 
+    var target: Entity!
+
     var start: Pos
     var end: Pos { return label?.end ?? (start + token.description.count) }
 
 // sourcery:inline:auto:Branch.Init
-init(token: Token, label: Ident?, start: Pos) {
+init(token: Token, label: Ident?, target: Entity!, start: Pos) {
     self.token = token
     self.label = label
+    self.target = target
     self.start = start
 }
 // sourcery:end
@@ -857,15 +880,18 @@ class CaseClause: Node, Stmt {
     var colon: Pos
     var block: Block
 
+    var label: Entity!
+
     var start: Pos { return keyword }
     var end: Pos { return block.end }
 
 // sourcery:inline:auto:CaseClause.Init
-init(keyword: Pos, match: Expr?, colon: Pos, block: Block) {
+init(keyword: Pos, match: Expr?, colon: Pos, block: Block, label: Entity!) {
     self.keyword = keyword
     self.match = match
     self.colon = colon
     self.block = block
+    self.label = label
 }
 // sourcery:end
 }
@@ -873,16 +899,21 @@ init(keyword: Pos, match: Expr?, colon: Pos, block: Block) {
 class Switch: Node, Stmt {
     var keyword: Pos
     var match: Expr?
-    var block: Block
+    var cases: [CaseClause]
+    var rbrace: Pos
+
+    var label: Entity!
 
     var start: Pos { return keyword }
-    var end: Pos { return block.end }
+    var end: Pos { return rbrace }
 
 // sourcery:inline:auto:Switch.Init
-init(keyword: Pos, match: Expr?, block: Block) {
+init(keyword: Pos, match: Expr?, cases: [CaseClause], rbrace: Pos, label: Entity!) {
     self.keyword = keyword
     self.match = match
-    self.block = block
+    self.cases = cases
+    self.rbrace = rbrace
+    self.label = label
 }
 // sourcery:end
 }
@@ -894,16 +925,21 @@ class For: Node, Stmt {
     var step: Stmt?
     var body: Block
 
+    var breakLabel: Entity!
+    var continueLabel: Entity!
+
     var start: Pos { return keyword }
     var end: Pos { return body.end }
 
 // sourcery:inline:auto:For.Init
-init(keyword: Pos, initializer: Stmt?, cond: Expr?, step: Stmt?, body: Block) {
+init(keyword: Pos, initializer: Stmt?, cond: Expr?, step: Stmt?, body: Block, breakLabel: Entity!, continueLabel: Entity!) {
     self.keyword = keyword
     self.initializer = initializer
     self.cond = cond
     self.step = step
     self.body = body
+    self.breakLabel = breakLabel
+    self.continueLabel = continueLabel
 }
 // sourcery:end
 }
