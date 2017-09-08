@@ -27,7 +27,9 @@ func == (lhs: Type, rhs: Type) -> Bool {
          (is ty.Anyy, is ty.Anyy),
          (is ty.CVarArg, is ty.CVarArg),
          (is ty.Boolean, is ty.Boolean),
-         (is ty.KaiString, is ty.KaiString):
+         (is ty.KaiString, is ty.KaiString),
+         (is ty.UntypedInteger, is ty.UntypedInteger),
+         (is ty.UntypedFloatingPoint, is ty.UntypedFloatingPoint):
         return true
     case (let lhs as ty.Integer, let rhs as ty.Integer):
         return lhs.isSigned == rhs.isSigned && lhs.width == rhs.width
@@ -120,7 +122,7 @@ enum ty {
 
     struct Pointer: Type {
         unowned var entity: Entity = .anonymous
-        var width: Int? { return MemoryLayout<Int>.size }
+        var width: Int? { return MemoryLayout<Int>.size * 8 }
         var pointeeType: Type
 
         init(pointeeType: Type) {

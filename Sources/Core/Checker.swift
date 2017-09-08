@@ -1408,7 +1408,13 @@ extension Checker {
             }
 
         case .bitcast:
-            cast.op = .bitCast
+            if exprType is ty.Integer || exprType is ty.UntypedInteger, targetType is ty.Pointer {
+                cast.op = OpCode.Cast.intToPtr
+            } else if exprType is ty.Pointer, targetType is ty.Integer {
+                cast.op = OpCode.Cast.ptrToInt
+            } else {
+                cast.op = .bitCast
+            }
             guard exprType.width == targetType.width else {
                 reportError("Can only bitcast between 2 types of the same size", at: cast.keyword)
                 return targetType
