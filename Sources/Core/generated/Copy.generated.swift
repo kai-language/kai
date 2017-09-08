@@ -760,7 +760,7 @@ func copy(_ scope: Scope) -> Scope {
         owningNode: scope.owningNode,
         isFile: scope.isFile,
         isPackage: scope.isPackage,
-        members: scope.members.map(copy)
+        members: scope.members.mapValues(copy)
     )
 }
 

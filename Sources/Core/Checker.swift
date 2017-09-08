@@ -71,9 +71,7 @@ struct Checker {
 
     func declare(_ entity: Entity, scopeOwnsEntity: Bool = true) {
         let previous = context.scope.insert(entity, scopeOwnsEntity: scopeOwnsEntity)
-
         if let previous = previous {
-
             reportError("Invalid redeclaration of '\(previous.name)'", at: entity.ident.start)
             file.attachNote("Previous declaration here: \(previous.ident.start)")
         }
@@ -355,7 +353,7 @@ extension Checker {
 
         // TODO: Ensure the import has been fully checked
         if i.importSymbolsIntoScope {
-            for member in i.scope.members {
+            for member in i.scope.members.values {
                 guard !member.flags.contains(.file) else {
                     continue
                 }
@@ -430,7 +428,7 @@ extension Checker {
 
         switch type {
         case let type as ty.File:
-            for entity in type.memberScope.members {
+            for entity in type.memberScope.members.values {
                 declare(entity)
             }
         case let type as ty.Struct:

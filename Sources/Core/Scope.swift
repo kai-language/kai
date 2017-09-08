@@ -8,9 +8,9 @@ final class Scope {
     var isFile: Bool
     var isPackage: Bool
 
-    var members: [Entity] = []
+    var members: [String: Entity] = [:]
 
-    init(parent: Scope? = nil, owningNode: Node? = nil, isFile: Bool = false, isPackage: Bool = false, members: [Entity] = []) {
+    init(parent: Scope? = nil, owningNode: Node? = nil, isFile: Bool = false, isPackage: Bool = false, members: [String: Entity] = [:]) {
         self.parent = parent
         self.owningNode = owningNode
         self.isFile = isFile
@@ -19,16 +19,12 @@ final class Scope {
     }
 
     func lookup(_ name: String) -> Entity? {
-        if let found = members.first(where: { $0.name == name }) {
-            return found
-        }
-
-        return parent?.lookup(name)
+        return members[name] ?? parent?.lookup(name)
     }
 
     /// - Note: Returns previous
     func insert(_ entity: Entity, scopeOwnsEntity: Bool = true) -> Entity? {
-        if let existing = members.first(where: { $0.name == entity.name }) {
+        if let existing = members[entity.name] {
             return existing
         }
 
@@ -36,7 +32,7 @@ final class Scope {
             entity.owningScope = self
         }
 
-        members.append(entity)
+        members[entity.name] = entity
         return nil
     }
 
@@ -45,6 +41,6 @@ final class Scope {
         for builtin in ty.builtin {
             builtin.entity.type = ty.Metatype(instanceType: builtin.type)
         }
-        return Scope(members: builtins)
+        return Scope(members: builtins.toDictionary(with: { $0.name }))
     }()
 }
