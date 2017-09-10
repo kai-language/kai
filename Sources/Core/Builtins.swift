@@ -35,11 +35,11 @@ struct BuiltinType {
     /// - Note: The type type only exists at compile time
     static let type = BuiltinType(entity: .type, type: ty.Metatype(entity: Entity.type, instanceType: ty.Tuple(width: 0, types: [])))
 
-    static let TypeInfo = ty.Struct.make(named: "TypeInfo", builder: stdlib.builder, [
-        ("kind", ty.u8), // TODO: Make this an enumeration
-        ("name", ty.string),
-        ("width", ty.i64),
-    ])
+//    static let TypeInfo = ty.Struct.make(named: "TypeInfo", builder: stdlib.builder, [
+//        ("kind", ty.u8), // TODO: Make this an enumeration
+//        ("name", ty.string),
+//        ("width", ty.i64),
+//    ])
 }
 
 extension Entity {
