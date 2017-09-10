@@ -82,12 +82,17 @@ public final class SourceFile {
         let sourceFile = SourceFile(handle: handle, fullpath: fullpath, pathImportedAs: path, importedFrom: importedFrom, package: package)
         package.files.append(sourceFile)
 
-        sourceFile.checkingJob = Job("\(path) - Checking", work: sourceFile.checkEmittingErrors)
-        sourceFile.parsingJob = Job("\(path) - Parsing", work: sourceFile.parseEmittingErrors)
-        sourceFile.generationJob = Job("\(path) - Generating IR", work: sourceFile.generateIntermediateRepresentation)
+        let parsingJob = Job("\(path) - Parsing", work: sourceFile.parseEmittingErrors)
+        let checkingJob = Job("\(path) - Checking", work: sourceFile.checkEmittingErrors)
+        let generationJob = Job("\(path) - Generating IR", work: sourceFile.generateIntermediateRepresentation)
 
-        sourceFile.parsingJob.addBlocking(sourceFile.checkingJob)
-        sourceFile.checkingJob.addBlocking(sourceFile.generationJob)
+        generationJob.addDependency(checkingJob)
+        checkingJob.addDependency(parsingJob)
+
+        sourceFile.parsingJob = parsingJob
+        sourceFile.checkingJob = checkingJob
+        sourceFile.generationJob = generationJob
+
         knownSourceFiles[fullpath] = sourceFile
 
         return sourceFile
@@ -102,7 +107,7 @@ extension SourceFile {
         switch i.path {
         case let lit as BasicLit where lit.token == .string:
             let path = lit.constant as! String
-            
+
             let relpath = dirname(path: importedFrom.fullpath) + path
             guard let fullpath = realpath(relpath: relpath) else {
                 addError("Failed to open '\(path)'", lit.start)
@@ -120,16 +125,19 @@ extension SourceFile {
                 i.scope = dependency.scope
 
                 for file in dependency.files {
-                    importedFrom.checkingJob.addBlockedBy(file.checkingJob)
+                    importedFrom.checkingJob.addDependency(file.checkingJob)
+                    importedFrom.generationJob.addDependency(file.generationJob)
+                    threadPool.add(job: file.parsingJob)
                 }
             } else {
                 guard let file = SourceFile.new(path: path, package: package, importedFrom: importedFrom) else {
                     preconditionFailure()
                 }
-                threadPool.add(job: file.parsingJob)
                 i.scope = file.scope
 
-                importedFrom.checkingJob.addBlockedBy(file.checkingJob)
+                importedFrom.checkingJob.addDependency(file.checkingJob)
+                importedFrom.generationJob.addDependency(file.generationJob)
+                threadPool.add(job: file.parsingJob)
             }
 
         case let call as Call where (call.fun as? Ident)?.name == "github":
@@ -174,8 +182,9 @@ extension SourceFile {
                 })
 
                 cloneMutex.lock()
+                // TODO: What is going on here?
                 if let last = cloneQueue.last {
-                    last.addBlocking(job)
+                    last.addDependency(job)
                     cloneQueue.append(job)
                 } else {
                     cloneQueue.append(job)
@@ -212,7 +221,8 @@ extension SourceFile {
         emitErrors(for: self, at: stage)
 
         if errors.count > 0 {
-            parsingJob.dequeueBlocking(checkingJob)
+            // FIXME: What do?
+//            parsingJob.dequeueBlocking(checkingJob)
         }
 
         let endTime = gettime()
@@ -236,7 +246,8 @@ extension SourceFile {
         emitErrors(for: self, at: stage)
 
         if errors.count > 0 {
-            checkingJob.dequeueBlocking(generationJob)
+            // FIXME: What do?
+//            checkingJob.dequeueBlocking(generationJob)
         }
 
         let endTime = gettime()
@@ -255,7 +266,7 @@ extension SourceFile {
         var irGenerator = IRGenerator(file: self)
         irGenerator.generate()
         hasBeenGenerated = true
-        
+
         let endTime = gettime()
         let totalTime = endTime - startTime
         timingMutex.lock()
@@ -265,7 +276,7 @@ extension SourceFile {
 }
 
 extension SourceFile {
-    
+
     func addLine(offset: UInt32) {
         assert(lineOffsets.count == 0 || lineOffsets.last! < offset)
         lineOffsets.append(offset)
@@ -317,4 +328,3 @@ extension SourceFile {
         notes[errors.endIndex - 1] = existingNotes
     }
 }
-

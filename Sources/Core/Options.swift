@@ -9,8 +9,13 @@ public struct Options {
 
     public init(arguments: ArraySlice<String>) {
 
+        var skip = false
         let pairs = arguments.indices.map({ (arguments[$0], arguments[safe: $0 + 1]) })
         for (arg, val) in pairs {
+            guard !skip else {
+                skip = false
+                continue
+            }
             switch arg {
             case "-no-cleanup":
                 flags.insert(.noCleanup)
@@ -34,6 +39,7 @@ public struct Options {
                     exit(1)
                 }
                 jobs = j
+                skip = true
             default:
                 if val != nil {
                     print("WARNING: argument unused during compilation: '\(arg)'")

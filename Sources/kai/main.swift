@@ -9,16 +9,16 @@ guard CommandLine.arguments.count > 1 else {
 
 startTime = gettime()
 
+let opts = Options(arguments: CommandLine.arguments[1...])
+Options.instance = opts // Note: You must set this, it is used internally
+
+threadPool = ThreadPool(nThreads: Options.instance.jobs)
+
 let filepath = CommandLine.arguments.last!
 guard let package = SourcePackage.makeInitial(for: filepath) else {
     print("ERROR: No such file or directory '\(filepath)'")
     exit(1)
 }
-
-let opts = Options(arguments: CommandLine.arguments[1...])
-Options.instance = opts // Note: You must set this, it is used internally
-
-threadPool = ThreadPool(nThreads: Options.instance.jobs)
 
 package.begin()
 

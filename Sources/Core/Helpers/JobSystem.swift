@@ -15,30 +15,34 @@ final class WorkerThread: Thread {
     override func main() {
         while true {
             pool.mutex.lock()
-            // check if any jobs have become unblocked and shift them into the ready pool
-            for (index, job) in pool.blocked.enumerated().reversed() {
-                if !job.isBlocked() {
-                    pool.blocked.remove(at: index)
-                    pool.ready.append(job)
-                }
-            }
-            let isJobs = !pool.ready.isEmpty
-            if isJobs {
-                isIdle = false
-                let job = pool.ready.removeLast()
-                pool.mutex.unlock()
-
-                job.start()
-                job.work()
-                job.end()
-
-                for dependent in job.blocking {
-                    pool.add(job: dependent)
-                }
-            } else {
+            guard !pool.queue.isEmpty else {
                 isIdle = true
                 pool.mutex.unlock()
                 usleep(1)
+                continue
+            }
+
+            guard let (index, job) = pool.queue.enumerated().first(where: { !$0.element.isBlocked }) else {
+                isIdle = true
+                pool.mutex.unlock()
+                usleep(1)
+                continue
+            }
+
+            // Mark thread as non idle
+            isIdle = false
+
+            // remove the job from the queue
+            pool.queue.remove(at: index)
+            pool.mutex.unlock()
+
+            job.start()
+            job.work()
+            job.finish()
+
+            pool.totalCompleted += 1
+            for dependent in job.dependents where dependent.dependencyCount < 1 {
+                pool.add(job: dependent)
             }
         }
     }
@@ -48,10 +52,11 @@ final class WorkerThread: Thread {
 public final class ThreadPool {
 
     let mutex = Mutex()
-    var ready: [Job] = []
-    var blocked: [Job] = []
+    var queue: [Job] = []
 
     var threads: [WorkerThread]
+
+    var totalCompleted: Int = 0
 
     public init(nThreads: Int) {
         self.threads = []
@@ -65,18 +70,14 @@ public final class ThreadPool {
 
     func add(job: Job) {
         mutex.lock()
-        if !job.isBlocked() {
-            ready.append(job)
-        } else {
-            blocked.append(job)
-        }
+        queue.append(job)
         mutex.unlock()
     }
 
     public func waitUntilDone() {
         while true {
             mutex.lock()
-            if ready.isEmpty && threads.reduce(true, { $0 && $1.isIdle }) {
+            if queue.isEmpty && threads.reduce(true, { $0 && $1.isIdle }) {
                 defer {
                     mutex.unlock()
                 }
@@ -85,6 +86,13 @@ public final class ThreadPool {
             }
             mutex.unlock()
             usleep(1)
+        }
+    }
+
+    public func visualize() {
+        print("Ready:")
+        for job in queue {
+            job.visualize()
         }
     }
 }
@@ -97,12 +105,17 @@ final class Job {
     var work: () -> Void
     var startTime = 0.0
 
-    var blocking: [Job] = []
-    var blockedBy: [Job] = []
+    var dependents: [Job] = []
+    var dependencies: [Job] = []
+    var dependencyCount: Int = 0
 
     init(_ name: String, work: @escaping () -> Void) {
         self.name = name
         self.work = work
+    }
+
+    var isBlocked: Bool {
+        return dependencyCount != 0
     }
 
     func start() {
@@ -111,12 +124,7 @@ final class Job {
         }
     }
 
-    func isBlocked() -> Bool {
-        blockedBy = blockedBy.filter({ !$0.done })
-        return !blockedBy.isEmpty
-    }
-
-    func end() {
+    func finish() {
         if Options.instance.flags.contains(.emitDebugTimes) {
             timingMutex.lock()
             let endTime = gettime()
@@ -124,32 +132,26 @@ final class Job {
             timingMutex.unlock()
         }
 
+        // NOTE: Should this be in a lock?
+        for dependent in dependents {
+            dependent.dependencyCount -= 1
+        }
+
         done = true
     }
 
-    func addBlocking(_ job: Job) {
-        blocking.append(job)
+    func addDependency(_ job: Job) {
+        dependencies.append(job)
+        job.dependents.append(self)
+        // NOTE: Should this be in a lock?
+        dependencyCount += 1
     }
 
-    func addBlockedBy(_ job: Job) {
-        blockedBy.append(job)
-    }
-
-    func dequeueBlocking(_ item: Job) {
-        for (index, job) in blocking.enumerated() {
-            guard job !== item else {
-                blocking.remove(at: index)
-                break
-            }
-        }
-    }
-
-    func dequeueBlockedBy(_ item: Job) {
-        for (index, job) in blockedBy.enumerated() {
-            guard job !== item else {
-                blockedBy.remove(at: index)
-                break
-            }
+    public func visualize(indent: Int = 0) {
+        let indentation = repeatElement("  ", count: indent).joined()
+        print(indentation + name)
+        for job in dependents {
+            job.visualize(indent: indent + 1)
         }
     }
 }
