@@ -257,13 +257,13 @@ extension IRGenerator {
                 if let lit = value as? BasicLit, lit.token == .string {
 
                     // If we have a string then ensure the data contents are stored on the stack so they can be mutated
-                    var dstPtr = b.buildAlloca(type: LLVM.ArrayType(elementType: IntType.int8, count: (lit.constant as! String).utf8.count))
+                    let count = (lit.constant as! String).utf8.count + 1 // + 1 for null byte
+                    var dstPtr = b.buildAlloca(type: LLVM.ArrayType(elementType: IntType.int8, count: count))
                     dstPtr = b.buildBitCast(dstPtr, type: LLVM.PointerType.toVoid)
                     let tmp = b.buildInsertValue(aggregate: b.buildLoad(stackValue), element: dstPtr, index: 0)
                     b.buildStore(tmp, to: stackValue)
 
                     let srcPtr = (ir as! Constant<Struct>).getElement(indices: [0])
-                    let count = (ir as! Constant<Struct>).getElement(indices: [1])
                     b.buildMemcpy(dstPtr, srcPtr, count: count)
                 }
             }
