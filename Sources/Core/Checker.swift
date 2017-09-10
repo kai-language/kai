@@ -834,12 +834,12 @@ extension Checker {
         }
 
         let element = forIn.names[0]
-        let elEntity = Entity(ident: element, type: elementType, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+        let elEntity = Entity(ident: element, type: elementType, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil, namedIRType: nil)
         declare(elEntity)
         forIn.element = elEntity
 
         if let index = forIn.names[safe: 1] {
-            let iEntity = Entity(ident: index, type: ty.i64, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+            let iEntity = Entity(ident: index, type: ty.i64, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil, namedIRType: nil)
             declare(iEntity)
             forIn.index = iEntity
         }
