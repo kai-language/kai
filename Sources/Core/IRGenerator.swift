@@ -233,8 +233,9 @@ extension IRGenerator {
                 }
             }
 
-            let value = emit(expr: value, name: entity.name)
+            let ir = emit(expr: value, name: entity.name)
             if entity.owningScope.isFile {
+                // FIXME: What should we do for things like global strings? They need to be mutable?
                 var global = b.addGlobal(mangle(entity.name), type: type)
                 global.initializer = type.undef()
                 entity.value = global
@@ -244,14 +245,27 @@ extension IRGenerator {
                 }
             } else {
                 let stackValue = b.buildAlloca(type: type, name: mangle(entity.name))
-                
+
                 entity.value = stackValue
 
                 if Options.instance.flags.contains(.emitIr) {
                     b.positionAtEnd(of: b.insertBlock!)
                 }
 
-                b.buildStore(value, to: stackValue)
+                b.buildStore(ir, to: stackValue)
+
+                if let lit = value as? BasicLit, lit.token == .string {
+
+                    // If we have a string then ensure the data contents are stored on the stack so they can be mutated
+                    var dstPtr = b.buildAlloca(type: LLVM.ArrayType(elementType: IntType.int8, count: (lit.constant as! String).utf8.count))
+                    dstPtr = b.buildBitCast(dstPtr, type: LLVM.PointerType.toVoid)
+                    let tmp = b.buildInsertValue(aggregate: b.buildLoad(stackValue), element: dstPtr, index: 0)
+                    b.buildStore(tmp, to: stackValue)
+
+                    let srcPtr = (ir as! Constant<Struct>).getElement(indices: [0])
+                    let count = (ir as! Constant<Struct>).getElement(indices: [1])
+                    b.buildMemcpy(dstPtr, srcPtr, count: count)
+                }
             }
         }
     }
@@ -586,35 +600,15 @@ extension IRGenerator {
     mutating func emit(lit: BasicLit, returnAddress: Bool, name: String) -> IRValue {
         if lit.token == .string {
             let value = lit.constant as! String
-            let bytes = value.utf8.count
-            let constant = b.buildGlobalStringPtr(value)
+            let len = value.utf8.count
+            let ptr = b.buildGlobalStringPtr(value)
 
-            let stackAlloc = b.buildAlloca(type: LLVM.ArrayType(elementType: IntType.int8, count: bytes))
-            let stackAllocPtr = b.buildGEP(stackAlloc, indices: [0, 0])
-            let newBuff = b.buildBitCast(stackAllocPtr, type: LLVM.PointerType.toVoid)
-            let constantPtr = b.buildBitCast(constant, type: LLVM.PointerType.toVoid)
-            b.buildMemcpy(newBuff, constantPtr, count: bytes)
-
-            let irType = canonicalize(lit.type)
-            var ir = irType.undef()
-
-            ir = b.buildInsertValue(aggregate: ir, element: newBuff, index: 0)
-            ir = b.buildInsertValue(aggregate: ir, element: bytes, index: 1) // len
-            // NOTE: since the raw buffer is stack allocated, we need to set the
-            // capacity to `0`. Then, any call that needs to realloc can instead
-            // malloc a new buffer.
-            ir = b.buildInsertValue(aggregate: ir, element: 0, index: 2) // cap
-
+            let type = canonicalize(ty.string) as! LLVM.StructType
+            let ir = type.constant(values: [ptr, len, 0])
             if returnAddress {
-                // NOTE: typically, a literal is stored in a declaration. But in
-                // the cases where a literal's address is needed there won't be
-                // an lvalue to store it in. In these cases, we will store it in
-                // an anonymous variable on the stack.
-                let stringAlloca = b.buildAlloca(type: canonicalize(ty.string))
-                _ = b.buildStore(ir, to: stringAlloca)
-                return stringAlloca
+            let global = b.addGlobal("", initializer: ir)
+                return global
             }
-
             return ir
         }
 
