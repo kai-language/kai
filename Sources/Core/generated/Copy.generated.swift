@@ -771,8 +771,9 @@ func copy(_ entity: Entity) -> Entity {
         flags: entity.flags,
         memberScope: entity.memberScope,
         owningScope: entity.owningScope,
-        value: entity.value,
-        constant: entity.constant
+        value: nil,
+        constant: entity.constant,
+        namedIRType: nil
     )
 }
 

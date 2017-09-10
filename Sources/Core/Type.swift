@@ -12,6 +12,9 @@ extension Type {
 extension Type {
 
     func lower() -> Type {
+        if self is ty.Invalid {
+            return self
+        }
         return (self as! ty.Metatype).instanceType
     }
 }
@@ -31,6 +34,8 @@ func == (lhs: Type, rhs: Type) -> Bool {
          (is ty.UntypedInteger, is ty.UntypedInteger),
          (is ty.UntypedFloatingPoint, is ty.UntypedFloatingPoint):
         return true
+    case (let lhs as ty.Named, let rhs as ty.Named):
+        return lhs.underlying == rhs.underlying
     case (let lhs as ty.Integer, let rhs as ty.Integer):
         return lhs.isSigned == rhs.isSigned && lhs.width == rhs.width
     case (is ty.FloatingPoint, is ty.FloatingPoint):
@@ -74,7 +79,9 @@ extension Array where Element == Type {
 func canConvert(_ lhs: Type, to rhs: Type) -> Bool {
 
     if lhs is ty.Metatype || rhs is ty.Metatype {
-        return (rhs as? ty.Metatype)?.entity === Entity.type || (lhs as? ty.Metatype)?.entity === Entity.type
+        // If either the left or right side is a `type` as denoted by an empty tuple
+        return ((rhs as? ty.Metatype)?.instanceType as? ty.Tuple)?.types.count == 0 ||
+               ((lhs as? ty.Metatype)?.instanceType as? ty.Tuple)?.types.count == 0
     }
     if let lhs = lhs as? ty.Metatype, let rhs = rhs as? ty.Metatype {
         return canConvert(lhs.instanceType, to: rhs.instanceType)
@@ -95,33 +102,27 @@ func canConvert(_ lhs: Type, to rhs: Type) -> Bool {
 enum ty {
 
     struct Void: Type {
-        unowned var entity: Entity = .void
         var width: Int? { return 0 }
     }
 
     struct Boolean: Type {
-        unowned var entity: Entity = .bool
         var width: Int? { return 1 }
     }
 
     struct Integer: Type {
-        unowned var entity: Entity = .anonymous
         var width: Int?
         var isSigned: Bool
     }
 
     struct FloatingPoint: Type {
-        unowned var entity: Entity = .anonymous
         var width: Int?
     }
 
     struct KaiString: Type {
-        unowned var entity: Entity = .anonymous
         var width: Int? { return 64 * 3 } // pointer, length, capacity
     }
 
     struct Pointer: Type {
-        unowned var entity: Entity = .anonymous
         var width: Int? { return MemoryLayout<Int>.size * 8 }
         var pointeeType: Type
 
@@ -131,7 +132,6 @@ enum ty {
     }
 
     struct Array: Type {
-        unowned var entity: Entity = .anonymous
         var width: Int? { return (elementType.width ?? 1) * length }
         var length: Int
         var elementType: Type
@@ -143,7 +143,6 @@ enum ty {
     }
 
     struct DynamicArray: Type {
-        unowned var entity: Entity = .anonymous
         // TODO: calculate correct `struct` size
         var width: Int? { return MemoryLayout<Int>.size }
         var elementType: Type
@@ -158,20 +157,15 @@ enum ty {
     }
 
     struct Anyy: Type {
-        unowned var entity: Entity = .any
         var width: Int? { return 64 }
     }
 
     struct Struct: Type {
-        unowned var entity: Entity = .anonymous
         var width: Int?
 
         var node: Node
         var fields: [Field] = []
         var isPolymorphic: Bool
-
-        /// Used for the named type
-        var ir: Ref<LLVM.StructType?>
 
         struct Field {
             let ident: Ident
@@ -185,8 +179,11 @@ enum ty {
             }
         }
 
+        @available(*, unavailable)
         static func make(named name: String, builder: IRBuilder, _ members: [(String, Type)]) -> BuiltinType {
-
+            // NOTE: Not sure how to do these yet. Likely this will be gone.
+            fatalError()
+            /*
             var width = 0
             var fields: [Struct.Field] = []
             for (index, (name, type)) in members.enumerated() {
@@ -211,16 +208,16 @@ enum ty {
             irType.setBody(irTypes)
 
             var type: Type
-            type = Struct(entity: entity, width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields, isPolymorphic: false, ir: Ref(irType))
+            type = Struct(width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields, isPolymorphic: false)
             type = Metatype(instanceType: type)
 
             entity.type = type
             return BuiltinType(entity: entity, type: type)
+            */
         }
     }
 
     struct Function: Type {
-        unowned var entity: Entity = .anonymous
         var node: FuncLit?
         var params: [Type]
         var returnType: Tuple
@@ -240,23 +237,26 @@ enum ty {
     struct UntypedNil: Type {
         var width: Int? { return MemoryLayout<Int>.size }
     }
+
     struct UntypedInteger: Type, CustomStringConvertible {
         var width: Int? { return 64 } // NOTE: Bump up to larger size for more precision.
     }
+
     struct UntypedFloatingPoint: Type {
         var width: Int? { return 64 }
     }
 
+    struct Named: Type {
+        var entity: Entity
+        var underlying: Type
+        var width: Int? { return underlying.width }
+    }
+
     struct Metatype: Type {
-        unowned var entity: Entity = .anonymous
+
         var instanceType: Type
 
         init(instanceType: Type) {
-            self.instanceType = instanceType
-        }
-
-        init(entity: Entity, instanceType: Type) {
-            self.entity = entity
             self.instanceType = instanceType
         }
     }

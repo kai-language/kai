@@ -137,7 +137,7 @@ extension IRGenerator {
                         irTypes.append(fieldType)
                     }
                     irType.setBody(irTypes)
-                    type.ir.val = irType
+                    entity.namedIRType = irType
 
                 default:
                     // Type alias
@@ -204,6 +204,8 @@ extension IRGenerator {
         // NOTE: Uninitialized values?
         assert(decl.entities.count == decl.values.count)
         for (entity, value) in zip(decl.entities, decl.values) {
+
+            // FIXME: Is it actually possible to encounter a metatype as the rhs of a variable declaration?
             if let type = entity.type as? ty.Metatype {
                 let irType = b.createStruct(name: mangle(entity.name))
 
@@ -215,7 +217,7 @@ extension IRGenerator {
                         irTypes.append(fieldType)
                     }
                     irType.setBody(irTypes)
-                    type.ir.val = irType
+                    entity.namedIRType = irType
 
                 default:
                     preconditionFailure()
@@ -633,7 +635,7 @@ extension IRGenerator {
     }
 
     mutating func emit(lit: CompositeLit, returnAddress: Bool, name: String) -> IRValue {
-        switch lit.type {
+        switch (lit.type as? ty.Named)?.underlying ?? lit.type {
         case let type as ty.Struct:
             let irType = canonicalize(type)
             var ir = irType.undef()
@@ -936,122 +938,153 @@ extension IRGenerator {
     }
 }
 
-func canonicalize(_ void: ty.Void) -> VoidType {
-    return VoidType()
-}
+extension IRGenerator {
 
-func canonicalize(_ boolean: ty.Boolean) -> IntType {
-    return IntType.int1
-}
+    func canonicalize(_ type: Type) -> IRType {
 
-func canonicalize(_ integer: ty.Integer) -> IntType {
-    return IntType(width: integer.width!)
-}
+        switch type {
+        case let type as ty.Void:
+            return canonicalize(type)
+        case let type as ty.Boolean:
+            return canonicalize(type)
+        case let type as ty.Integer:
+            return canonicalize(type)
+        case let type as ty.FloatingPoint:
+            return canonicalize(type)
+        case let type as ty.KaiString:
+            return canonicalize(type)
+        case let type as ty.Pointer:
+            return canonicalize(type)
+        case let type as ty.Array:
+            return canonicalize(type)
+        case let type as ty.DynamicArray:
+            return canonicalize(type)
+        case let type as ty.Function:
+            return canonicalize(type)
+        case let type as ty.Struct:
+            return canonicalize(type)
+        case let type as ty.Tuple:
+            return canonicalize(type)
+        case let type as ty.UntypedInteger:
+            return canonicalize(type)
+        case let type as ty.UntypedFloatingPoint:
+            return canonicalize(type)
+        case let type as ty.Named:
+            return canonicalize(type)
+        case is ty.UntypedNil:
+            fatalError("Untyped nil should be constrained to target type")
+        case is ty.Polymorphic:
+            fatalError()
+        default:
+            preconditionFailure()
+        }
+    }
 
-func canonicalize(_ float: ty.FloatingPoint) -> FloatType {
-    switch float.width! {
-    case 16: return FloatType.half
-    case 32: return FloatType.float
-    case 64: return FloatType.double
-    case 80: return FloatType.x86FP80
-    case 128: return FloatType.fp128
-    default: fatalError()
+    func canonicalize(_ void: ty.Void) -> VoidType {
+        return VoidType()
+    }
+
+    func canonicalize(_ boolean: ty.Boolean) -> IntType {
+        return IntType.int1
+    }
+
+    func canonicalize(_ integer: ty.Integer) -> IntType {
+        return IntType(width: integer.width!)
+    }
+
+    func canonicalize(_ float: ty.FloatingPoint) -> FloatType {
+        switch float.width! {
+        case 16: return FloatType.half
+        case 32: return FloatType.float
+        case 64: return FloatType.double
+        case 80: return FloatType.x86FP80
+        case 128: return FloatType.fp128
+        default: fatalError()
+        }
+    }
+
+    func canonicalize(_ string: ty.KaiString) -> LLVM.StructType {
+
+        if let existing = module.type(named: ".string") {
+            return existing as! LLVM.StructType
+        }
+        let cStringType = LLVM.PointerType(pointee: IntType.int8)
+        // Memory size is in bytes but LLVM types are in bits
+        let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8)
+        let irType = b.createStruct(name: ".string")
+        irType.setBody([cStringType, systemWidthType, systemWidthType])
+        return irType
+    }
+
+    func canonicalize(_ pointer: ty.Pointer) -> LLVM.PointerType {
+        return LLVM.PointerType(pointee: canonicalize(pointer.pointeeType))
+    }
+
+    func canonicalize(_ array: ty.Array) -> LLVM.ArrayType {
+        return LLVM.ArrayType(elementType: canonicalize(array.elementType), count: array.length)
+    }
+
+    func canonicalize(_ array: ty.DynamicArray) -> LLVM.StructType {
+        let element = LLVM.PointerType(pointee: canonicalize(array.elementType))
+        // Memory size is in bytes but LLVM types are in bits
+        let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8)
+        // { Element type, Length, Capacity }
+        return LLVM.StructType(elementTypes: [element, systemWidthType, systemWidthType])
+    }
+
+    func canonicalize(_ fn: ty.Function) -> FunctionType {
+        var paramTypes: [IRType] = []
+
+        let requiredParams = fn.isVariadic ? fn.params[..<(fn.params.endIndex - 1)] : ArraySlice(fn.params)
+        for param in requiredParams {
+            let type = canonicalize(param)
+            paramTypes.append(type)
+        }
+        let retType = canonicalize(fn.returnType)
+        return FunctionType(argTypes: paramTypes, returnType: retType, isVarArg: fn.isCVariadic)
+    }
+
+    /// - Returns: A StructType iff tuple.types > 1
+    func canonicalize(_ tuple: ty.Tuple) -> IRType {
+        let types = tuple.types.map(canonicalize)
+        switch types.count {
+        case 1:
+            return types[0]
+        default:
+            return LLVM.StructType(elementTypes: types, isPacked: true)
+        }
+    }
+
+    func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
+        return LLVM.StructType(elementTypes: struc.fields.map({ canonicalize($0.type) }))
+    }
+
+    func canonicalize(_ integer: ty.UntypedInteger) -> IntType {
+        return IntType(width: integer.width!)
+    }
+
+    func canonicalize(_ float: ty.UntypedFloatingPoint) -> FloatType {
+        return FloatType.double
+    }
+
+    func canonicalize(_ named: ty.Named) -> IRType {
+        if let existing = named.entity.namedIRType {
+            return existing
+        }
+        let irType = b.createStruct(name: mangle(named.entity.name))
+
+        switch named.underlying {
+        case let type as ty.Struct:
+            var irTypes: [IRType] = []
+            for field in type.fields {
+                let fieldType = canonicalize(field.type)
+                irTypes.append(fieldType)
+            }
+            irType.setBody(irTypes)
+            named.entity.namedIRType = irType
+            return irType
+        default:
+            return canonicalize(named.underlying)
+        }
     }
 }
-
-func canonicalize(_ string: ty.KaiString) -> LLVM.StructType {
-    let cStringType = LLVM.PointerType(pointee: IntType.int8)
-    // Memory size is in bytes but LLVM types are in bits
-    let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8)
-    return LLVM.StructType(elementTypes: [cStringType, systemWidthType, systemWidthType])
-}
-
-func canonicalize(_ pointer: ty.Pointer) -> LLVM.PointerType {
-    return LLVM.PointerType(pointee: canonicalize(pointer.pointeeType))
-}
-
-func canonicalize(_ array: ty.Array) -> LLVM.ArrayType {
-    return LLVM.ArrayType(elementType: canonicalize(array.elementType), count: array.length)
-}
-
-func canonicalize(_ array: ty.DynamicArray) -> LLVM.StructType {
-    let element = LLVM.PointerType(pointee: canonicalize(array.elementType))
-    // Memory size is in bytes but LLVM types are in bits
-    let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8)
-    // { Element type, Length, Capacity }
-    return LLVM.StructType(elementTypes: [element, systemWidthType, systemWidthType])
-}
-
-func canonicalize(_ fn: ty.Function) -> FunctionType {
-    var paramTypes: [IRType] = []
-
-    let requiredParams = fn.isVariadic ? fn.params[..<(fn.params.endIndex - 1)] : ArraySlice(fn.params)
-    for param in requiredParams {
-        let type = canonicalize(param)
-        paramTypes.append(type)
-    }
-    let retType = canonicalize(fn.returnType)
-    return FunctionType(argTypes: paramTypes, returnType: retType, isVarArg: fn.isCVariadic)
-}
-
-/// - Returns: A StructType iff tuple.types > 1
-func canonicalize(_ tuple: ty.Tuple) -> IRType {
-    let types = tuple.types.map(canonicalize)
-    switch types.count {
-    case 1:
-        return types[0]
-    default:
-        return LLVM.StructType(elementTypes: types, isPacked: true)
-    }
-}
-
-func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
-    return struc.ir.val!
-}
-
-func canonicalize(_ integer: ty.UntypedInteger) -> IntType {
-    return IntType(width: integer.width!)
-}
-
-func canonicalize(_ float: ty.UntypedFloatingPoint) -> FloatType {
-    return FloatType.double
-}
-
-func canonicalize(_ type: Type) -> IRType {
-
-    switch type {
-    case let type as ty.Void:
-        return canonicalize(type)
-    case let type as ty.Boolean:
-        return canonicalize(type)
-    case let type as ty.Integer:
-        return canonicalize(type)
-    case let type as ty.FloatingPoint:
-        return canonicalize(type)
-    case let type as ty.KaiString:
-        return canonicalize(type)
-    case let type as ty.Pointer:
-        return canonicalize(type)
-    case let type as ty.Array:
-        return canonicalize(type)
-    case let type as ty.DynamicArray:
-        return canonicalize(type)
-    case let type as ty.Function:
-        return canonicalize(type)
-    case let type as ty.Struct:
-        return canonicalize(type)
-    case let type as ty.Tuple:
-        return canonicalize(type)
-    case let type as ty.UntypedInteger:
-        return canonicalize(type)
-    case let type as ty.UntypedFloatingPoint:
-        return canonicalize(type)
-    case is ty.UntypedNil:
-        fatalError("Untyped nil should be constrained to target type")
-    case is ty.Polymorphic:
-        fatalError()
-    default:
-        preconditionFailure()
-    }
-}
-
