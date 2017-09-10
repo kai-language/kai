@@ -73,7 +73,7 @@ struct Checker {
         let previous = context.scope.insert(entity, scopeOwnsEntity: scopeOwnsEntity)
         if let previous = previous {
             reportError("Invalid redeclaration of '\(previous.name)'", at: entity.ident.start)
-            file.attachNote("Previous declaration here: \(previous.ident.start)")
+            file.attachNote("Previous declaration here: \(file.position(for: previous.ident.start).description)")
         }
     }
 }
@@ -171,6 +171,9 @@ extension Checker {
 
         case let fór as For:
             check(for: fór)
+
+        case let forIn as ForIn:
+            check(forIn: forIn)
 
         case let íf as If:
             check(if: íf)
@@ -784,6 +787,60 @@ extension Checker {
         }
 
         check(stmt: fór.body)
+    }
+
+    mutating func check(forIn: ForIn) {
+        pushContext()
+        defer {
+            popContext()
+        }
+
+        let breakLabel = Entity.makeAnonLabel()
+        let continueLabel = Entity.makeAnonLabel()
+        forIn.breakLabel =  breakLabel
+        forIn.continueLabel = continueLabel
+        context.loopBreakLabel = breakLabel
+        context.loopContinueLabel = continueLabel
+
+        if forIn.names.count > 2 {
+            reportError("A `for in` statement can only have 1 or 2 declarations", at: forIn.names.last!.start)
+        }
+
+        let aggregateType = check(expr: forIn.aggregate)
+        guard canSequence(aggregateType) else {
+            forIn.aggregate.type = ty.invalid
+            reportError("Cannot create a sequence for type '\(aggregateType)'", at: forIn.aggregate.start)
+
+            return
+        }
+
+        let elementType: Type
+        switch aggregateType {
+        case let array as ty.Array:
+            elementType = array.elementType
+            forIn.checked = .array(array.length)
+        case let darray as ty.DynamicArray:
+            elementType = darray.elementType
+            forIn.checked = .structure
+        case is ty.KaiString:
+            elementType = ty.u8
+            forIn.checked = .structure
+        default:
+            preconditionFailure()
+        }
+
+        let element = forIn.names[0]
+        let elEntity = Entity(ident: element, type: elementType, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+        declare(elEntity)
+        forIn.element = elEntity
+
+        if let index = forIn.names[safe: 1] {
+            let iEntity = Entity(ident: index, type: ty.i64, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+            declare(iEntity)
+            forIn.index = iEntity
+        }
+
+        check(stmt: forIn.body)
     }
 
     mutating func check(if iff: If) {
@@ -1878,6 +1935,15 @@ func canLvalue(_ expr: Expr) -> Bool {
             return true
         }
     case is Subscript:
+        return true
+    default:
+        return false
+    }
+}
+
+func canSequence(_ type: Type) -> Bool {
+    switch type {
+    case is ty.Array, is ty.DynamicArray, is ty.KaiString:
         return true
     default:
         return false

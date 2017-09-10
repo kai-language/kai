@@ -960,6 +960,42 @@ init(keyword: Pos, initializer: Stmt?, cond: Expr?, step: Stmt?, body: Block, br
 // sourcery:end
 }
 
+class ForIn: Node, Stmt {
+    var keyword: Pos
+    var names: [Ident]
+    var aggregate: Expr
+    var body: Block
+
+    var breakLabel: Entity!
+    var continueLabel: Entity!
+    var element: Entity!
+    var index: Entity?
+
+    var checked: Checked!
+    enum Checked {
+        case array(Int)
+        case structure
+        case enumeration
+    }
+
+    var start: Pos { return keyword }
+    var end: Pos { return body.end }
+
+// sourcery:inline:auto:ForIn.Init
+init(keyword: Pos, names: [Ident], aggregate: Expr, body: Block, breakLabel: Entity!, continueLabel: Entity!, element: Entity!, index: Entity?, checked: Checked!) {
+    self.keyword = keyword
+    self.names = names
+    self.aggregate = aggregate
+    self.body = body
+    self.breakLabel = breakLabel
+    self.continueLabel = continueLabel
+    self.element = element
+    self.index = index
+    self.checked = checked
+}
+// sourcery:end
+}
+
 // MARK: Declarations
 
 class Import: Node, TopLevelStmt {

@@ -350,6 +350,8 @@ struct Scanner {
             return .else
         case "defer":
             return .defer
+        case "in":
+            return .in
         case "switch":
             return .switch
         case "case":

@@ -817,11 +817,29 @@ extension Parser {
         return CaseClause(keyword: keyword, match: match, colon: colon, block: block, label: nil)
     }
 
-    mutating func parseForStmt() -> For {
+    mutating func parseForStmt() -> Stmt {
         let keyword = eatToken()
         var s1, s2, s3: Stmt?
         if tok != .lbrace && tok != .semicolon {
             s2 = parseSimpleStmt()
+            if tok == .in || tok == .comma {
+                guard let expr = s2 as? ExprStmt, let firstName = expr.expr as? Ident else {
+                    let errorEnd = eatToken()
+                    reportError("Expected an identifier", at: errorEnd)
+                    return BadStmt(start: keyword, end: errorEnd)
+                }
+                var names: [Ident] = [firstName]
+                if tok == .comma {
+                    next()
+                    names.append(contentsOf: parseIdentList())
+                }
+                expect(.in)
+                let aggregate = parseExpr()
+                expectTerm() // Scanner inserts a terminator
+                let body = parseBlock()
+                expectTerm()
+                return ForIn(keyword: keyword, names: names, aggregate: aggregate, body: body, breakLabel: nil, continueLabel: nil, element: nil, index: nil, checked: nil)
+            }
         }
         // Note: Scanner inserts a semicolon with '{' as the lit
         //  This prevents interpreting the last stmt as a composite lit

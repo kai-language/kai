@@ -84,6 +84,7 @@ enum Token: UInt8 {
     case `for`
     case `else`
     case `defer`
+    case `in`
 
     case `switch`
     case `case`
@@ -196,6 +197,7 @@ extension Token: CustomStringConvertible {
         case .for:       return "for"
         case .else:      return "else"
         case .defer:     return "defer"
+        case .in:        return "in"
         case .switch:    return "switch"
         case .case:      return "case"
         case .fn:        return "fn"

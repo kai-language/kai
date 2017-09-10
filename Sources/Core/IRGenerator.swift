@@ -312,6 +312,8 @@ extension IRGenerator {
             }
         case let fór as For:
             emit(for: fór)
+        case let forIn as ForIn:
+            emit(forIn: forIn)
         case let íf as If:
             emit(if: íf)
         case let s as Switch:
@@ -473,8 +475,8 @@ extension IRGenerator {
             loopPost.moveAfter(b.currentFunction!.lastBlock!)
         }
 
-        f.breakLabel.value = loopCond ?? loopStep ?? loopBody
-        f.continueLabel.value = loopPost
+        f.breakLabel.value = loopPost
+        f.continueLabel.value = loopCond ?? loopStep ?? loopBody
 
         emit(statement: f.body)
 
@@ -499,6 +501,80 @@ extension IRGenerator {
                 b.buildBr(loopBody)
             }
         }
+
+        b.positionAtEnd(of: loopPost)
+    }
+
+    mutating func emit(forIn f: ForIn) {
+        let currentFunc = b.currentFunction!
+
+        var loopBody: BasicBlock
+        var loopPost: BasicBlock
+        var loopCond: BasicBlock
+        var loopStep: BasicBlock
+
+        let index = b.buildAlloca(type: canonicalize(ty.i64), name:  f.index?.ident.name ?? "i")
+        f.index?.value = index
+        _ = b.buildStore(0, to: index)
+
+        let element = b.buildAlloca(type: canonicalize(f.element.type!), name: f.element.ident.name)
+        f.element.value = element
+
+        let agg: IRValue
+        let len: IRValue
+
+        switch f.checked! {
+        case .array(let length):
+            agg = emit(expr: f.aggregate, returnAddress: true)
+            len = IntType.int64.constant(length)
+        case .structure:
+            let aggBox = emit(expr: f.aggregate, returnAddress: true)
+            let aggPtr = b.buildStructGEP(aggBox, index: 0)
+            agg = b.buildLoad(aggPtr)
+            let lenPtr = b.buildStructGEP(aggBox, index: 1)
+            len = b.buildLoad(lenPtr)
+        case .enumeration:
+            fatalError("Unimplemented")
+        }
+
+        loopCond = currentFunc.appendBasicBlock(named: "for.cond")
+        loopStep = currentFunc.appendBasicBlock(named: "for.step")
+        loopBody = currentFunc.appendBasicBlock(named: "for.body")
+        loopPost = currentFunc.appendBasicBlock(named: "for.post")
+
+        b.buildBr(loopCond)
+        b.positionAtEnd(of: loopCond)
+
+        let cond = b.buildICmp(b.buildLoad(index), len, .signedLessThan)
+        b.buildCondBr(condition: cond, then: loopBody, else: loopPost)
+
+        b.positionAtEnd(of: loopBody)
+        defer {
+            loopPost.moveAfter(b.currentFunction!.lastBlock!)
+        }
+
+        f.breakLabel.value = loopPost
+        f.continueLabel.value = loopCond
+
+        let indexLoad = b.buildLoad(index)
+        let indices: [IRValue]
+        switch f.checked! {
+        case .array: indices = [0, indexLoad]
+        default: indices = [indexLoad]
+        }
+        let elPtr = b.buildGEP(agg, indices: indices)
+        b.buildStore(b.buildLoad(elPtr), to: element)
+        emit(statement: f.body)
+
+        let hasJump = b.insertBlock?.terminator != nil
+        if !hasJump {
+            b.buildBr(loopStep)
+        }
+
+        b.positionAtEnd(of: loopStep)
+        let val = b.buildAdd(b.buildLoad(index), 1)
+        b.buildStore(val, to: index)
+        b.buildBr(loopCond)
 
         b.positionAtEnd(of: loopPost)
     }
