@@ -1,72 +1,48 @@
 
 extension ty.Void: CustomStringConvertible {
     var description: String {
-        if entity !== Entity.anonymous {
-            return entity.name
-        }
         return "< void >"
     }
 }
 
 extension ty.Boolean {
     var description: String {
-        if entity !== Entity.anonymous {
-            return entity.name
-        }
         return "< bool >"
     }
 }
 
 extension ty.Integer {
     var description: String {
-        if entity !== Entity.anonymous {
-            return entity.name
-        }
         return "< \(isSigned ? "i" : "u")\(width!) >"
     }
 }
 
 extension ty.FloatingPoint {
     var description: String {
-        if entity !== Entity.anonymous {
-            return entity.name
-        }
         return "< f\(width!) >"
     }
 }
 
 extension ty.KaiString {
     var description: String {
-        if entity !== Entity.anonymous {
-            return entity.name
-        }
         return "< string >"
     }
 }
 
 extension ty.Pointer {
     var description: String {
-        if entity !== Entity.anonymous {
-            return entity.name
-        }
         return "*" + pointeeType.description
     }
 }
 
 extension ty.Anyy {
     var description: String {
-        if entity !== Entity.anonymous {
-            return entity.name
-        }
         return "< any >"
     }
 }
 
 extension ty.Struct {
     var description: String {
-        if entity !== Entity.anonymous {
-            return entity.name
-        }
         return "struct{" + fields.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
     }
 }
@@ -85,9 +61,6 @@ extension ty.DynamicArray {
 
 extension ty.Function {
     var description: String {
-        if entity !== Entity.anonymous {
-            return entity.name
-        }
         return "(" + params.map({ $0.description }).joined(separator: ", ") + ") -> " + returnType.description
     }
 }
@@ -110,11 +83,15 @@ extension ty.UntypedFloatingPoint {
     }
 }
 
+extension ty.Named {
+    var description: String {
+        return entity.name
+    }
+}
+
 extension ty.Metatype {
     var description: String {
-        if entity !== Entity.anonymous {
-            return entity.name
-        } else if let instanceType = instanceType as? ty.Tuple, instanceType.types.isEmpty  {
+        if let instanceType = instanceType as? ty.Tuple, instanceType.types.isEmpty  {
             return "type" // the only possible empty tuple
         }
         return "type(\(instanceType))"
@@ -150,4 +127,3 @@ extension ty.File {
         return "< file >"
     }
 }
-

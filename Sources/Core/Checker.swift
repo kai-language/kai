@@ -208,7 +208,7 @@ extension Checker {
                     entities.append(Entity.anonymous)
                     continue
                 }
-                let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+                let entity = Entity(ident: ident, type: type)
                 if decl.isConstant {
                     entity.flags.insert(.constant)
                     // TODO: Assign constants from calls
@@ -225,7 +225,7 @@ extension Checker {
 
             let type = expectedType!
             for ident in decl.names {
-                let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+                let entity = Entity(ident: ident, type: type)
                 assert(!decl.isConstant)
                 if type is ty.Metatype {
                     entity.flags.insert(.type)
@@ -251,13 +251,14 @@ extension Checker {
                     type = expectedType
                 }
 
-                let entity = Entity(ident: ident, type: type, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+                let entity = Entity(ident: ident, type: type)
                 if decl.isConstant {
                     entity.flags.insert(.constant)
                     entity.constant = constant(from: value)
                 }
-                if type is ty.Metatype {
+                if let type = type as? ty.Metatype {
                     entity.flags.insert(.type)
+                    entity.type = ty.Metatype(instanceType: ty.Named(entity: entity, underlying: type.instanceType))
                 }
                 entities.append(entity)
             }
@@ -304,7 +305,7 @@ extension Checker {
             }
         }
 
-        let entity = Entity(ident: ident, type: type, flags: d.isConstant ? [.constant, .foreign] : .foreign, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+        let entity = Entity(ident: ident, type: type, flags: d.isConstant ? [.constant, .foreign] : .foreign)
         declare(entity)
         d.entities = [entity]
     }
@@ -343,7 +344,7 @@ extension Checker {
 
         var entity: Entity?
         if let alias = i.alias {
-            entity = Entity(ident: alias, type: nil, flags: .file, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+            entity = Entity(ident: alias, type: nil, flags: .file)
         } else if !i.importSymbolsIntoScope {
             guard let name = i.resolvedName else {
                 reportError("Cannot infer an import name for '\(i.path)'", at: i.path.start)
@@ -351,7 +352,7 @@ extension Checker {
                 return
             }
             let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-            entity = Entity(ident: ident, type: nil, flags: .file, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+            entity = Entity(ident: ident, type: nil, flags: .file)
         }
 
         // TODO: Ensure the import has been fully checked
@@ -388,7 +389,7 @@ extension Checker {
             return
         }
         let ident = l.alias ?? Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-        let entity = Entity(ident: ident, type: nil, flags: .library, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+        let entity = Entity(ident: ident, type: nil, flags: .library)
         declare(entity)
 
         if path != "libc" && path != "llvm" {
@@ -436,7 +437,7 @@ extension Checker {
             }
         case let type as ty.Struct:
             for field in type.fields {
-                let entity = Entity(ident: field.ident, type: field.type, flags: .field, memberScope: nil, owningScope: context.scope, value: nil, constant: nil)
+                let entity = Entity(ident: field.ident, type: field.type, flags: .field, memberScope: nil, owningScope: context.scope, value: nil, constant: nil, namedIRType: nil)
                 declare(entity)
             }
         default:
@@ -555,11 +556,9 @@ extension Checker {
 
         default:
             print("Warning: expression '\(expr)' passed through without getting checked")
+            return ty.invalid
         }
-
-        // TODO: Untyped types
-        // NOTE: The pattern of `break exit` ensures that types are set on the Expr when we exit.
-        return expr.type ?? ty.invalid
+        return expr.type!
     }
 
     @discardableResult
@@ -633,22 +632,25 @@ extension Checker {
     mutating func check(compositeLit lit: CompositeLit) -> Type {
         var type = check(expr: lit.explicitType)
         type = lowerFromMetatype(type, atNode: lit.explicitType)
+        lit.type = type
 
-        switch type {
-        case let type as ty.Struct:
-            if lit.elements.count > type.fields.count {
-                reportError("Too many values in struct initializer", at: lit.elements[type.fields.count].start)
+        let underlyingType = (type as? ty.Named)?.underlying ?? type
+
+        switch underlyingType {
+        case let s as ty.Struct:
+            if lit.elements.count > s.fields.count {
+                reportError("Too many values in struct initializer", at: lit.elements[s.fields.count].start)
             }
-            for (el, field) in zip(lit.elements, type.fields) {
+            for (el, field) in zip(lit.elements, s.fields) {
 
                 if let key = el.key {
                     guard let ident = key as? Ident else {
                         reportError("Expected identifier for key in composite literal for struct", at: key.start)
-                        lit.type = ty.invalid
-                        return ty.invalid
+                        // bail, likely everything is wrong
+                        return type
                     }
-                    guard let field = type.fields.first(where: { $0.name == ident.name }) else {
-                        reportError("Unknown field '\(ident)' for '\(type)'", at: ident.start)
+                    guard let field = s.fields.first(where: { $0.name == ident.name }) else {
+                        reportError("Unknown field '\(ident)' for '\(s)'", at: ident.start)
                         continue
                     }
 
@@ -667,7 +669,7 @@ extension Checker {
                     }
                 }
             }
-            lit.type = type
+
             return type
 
         case let type as ty.Array:
@@ -683,6 +685,7 @@ extension Checker {
                 }
             }
 
+            // FIXME: Doesn't respect named types
             lit.type = type
             return type
 
@@ -699,6 +702,7 @@ extension Checker {
             type.initialLength = length
             type.initialCapacity = length
 
+            // FIXME: Doesn't respect named types
             lit.type = type
             return type
 
@@ -919,7 +923,7 @@ extension Checker {
 
         var type = check(expr: param.explicitType)
         type = lowerFromMetatype(type, atNode: param.explicitType)
-        let entity = Entity(ident: param.name, type: type, flags: param.isExplicitPoly ? .constant : .none, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+        let entity = Entity(ident: param.name, type: type, flags: param.isExplicitPoly ? .constant : .none)
         if param.isExplicitPoly {
             type = ty.Polymorphic(entity: entity, specialization: Ref(nil))
         }
@@ -936,7 +940,7 @@ extension Checker {
         }
         switch polyType.explicitType {
         case let ident as Ident:
-            let entity = Entity(ident: ident, type: ty.invalid, flags: .implicitType, memberScope: nil, owningScope: nil, value: nil, constant: nil)
+            let entity = Entity(ident: ident, type: ty.invalid, flags: .implicitType)
             declare(entity)
             var type: Type
             type = ty.Polymorphic(entity: entity, specialization: Ref(nil))
@@ -1020,10 +1024,10 @@ extension Checker {
 
         if needsSpecialization && !fn.isSpecialization {
             typeFlags.insert(.polymorphic)
-            fn.type = ty.Function(entity: .anonymous, node: fn, params: params, returnType: returnType, flags: .polymorphic)
+            fn.type = ty.Function(node: fn, params: params, returnType: returnType, flags: .polymorphic)
             fn.checked = .polymorphic(declaringScope: context.scope, specializations: [])
         } else {
-            fn.type = ty.Function(entity: .anonymous, node: fn, params: params, returnType: returnType, flags: typeFlags)
+            fn.type = ty.Function(node: fn, params: params, returnType: returnType, flags: typeFlags)
             fn.checked = .regular(context.scope)
         }
 
@@ -1065,7 +1069,7 @@ extension Checker {
         }
 
         var type: Type
-        type = ty.Function(entity: .anonymous, node: nil, params: params, returnType: returnType, flags: typeFlags)
+        type = ty.Function(node: nil, params: params, returnType: returnType, flags: typeFlags)
         type = ty.Pointer(pointeeType: type)
         fn.type = ty.Metatype(instanceType: type)
         return type
@@ -1099,7 +1103,7 @@ extension Checker {
             }
         }
         var type: Type
-        type = ty.Struct(entity: .anonymous, width: width, node: strućt, fields: fields, isPolymorphic: false, ir: Ref(nil))
+        type = ty.Struct(width: width, node: strućt, fields: fields, isPolymorphic: false)
         type = ty.Metatype(instanceType: type)
         strućt.type = type
         return type
@@ -1128,7 +1132,7 @@ extension Checker {
             }
         }
         var type: Type
-        type = ty.Struct(entity: .anonymous, width: width, node: polyStruct, fields: fields, isPolymorphic: true, ir: Ref(nil))
+        type = ty.Struct(width: width, node: polyStruct, fields: fields, isPolymorphic: true)
         type = ty.Metatype(instanceType: type)
         polyStruct.type = type
         return type
@@ -1217,8 +1221,8 @@ extension Checker {
 
         // Handle extending or truncating
         if lhsType == rhsType && lhsType is ty.UntypedInteger {
-            lhsType = ty.Integer(entity: .anonymous, width: ty.untypedInteger.width, isSigned: false)
-            rhsType = ty.Integer(entity: .anonymous, width: ty.untypedInteger.width, isSigned: false)
+            lhsType = ty.Integer(width: ty.untypedInteger.width, isSigned: false)
+            rhsType = ty.Integer(width: ty.untypedInteger.width, isSigned: false)
             resultType = ty.untypedInteger
         } else if lhsType == rhsType && lhsType is ty.UntypedFloatingPoint {
             lhsType = ty.f64
