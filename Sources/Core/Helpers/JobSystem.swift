@@ -53,6 +53,7 @@ public final class ThreadPool {
 
     let mutex = Mutex()
     var queue: [Job] = []
+    var known: Set<Job> = []
 
     var threads: [WorkerThread]
 
@@ -69,6 +70,10 @@ public final class ThreadPool {
     }
 
     func add(job: Job) {
+        guard !known.contains(job) else {
+            return
+        }
+        known.insert(job)
         mutex.lock()
         queue.append(job)
         mutex.unlock()
@@ -97,10 +102,15 @@ public final class ThreadPool {
     }
 }
 
-// sourcery:noinit
-final class Job {
+var jobMutex = Mutex()
+var knownJobs: [String: Job] = [:]
 
-    var name: String
+// sourcery:noinit
+final class Job: Hashable {
+
+    /// The (file/folder) path this job is associated with
+    var fullpath: String
+    var operation: String
     var done: Bool = false
     var work: () -> Void
     var startTime = 0.0
@@ -109,16 +119,39 @@ final class Job {
     var dependencies: [Job] = []
     var dependencyCount: Int = 0
 
-    init(_ name: String, work: @escaping () -> Void) {
-        self.name = name
+    private init(fullpath: String, operation: String, work: @escaping () -> Void) {
+        self.fullpath = fullpath
+        self.operation = operation
         self.work = work
+    }
+
+    /// Will return existing jobs that match.
+    static func new(fullpath: String, operation: String, work: @escaping () -> Void) -> Job {
+        if let existing = knownJobs[operation + fullpath] {
+            return existing
+        }
+
+        let job = Job(fullpath: fullpath, operation: operation, work: work)
+        jobMutex.lock()
+        knownJobs[operation + fullpath] = job
+        jobMutex.unlock()
+        return job
     }
 
     var isBlocked: Bool {
         return dependencyCount != 0
     }
 
+    var hashValue: Int {
+        return (operation + fullpath).hashValue
+    }
+
+    static func ==(lhs: Job, rhs: Job) -> Bool {
+        return (lhs.operation + lhs.fullpath) == (rhs.operation + rhs.fullpath)
+    }
+
     func start() {
+        print("Start \(operation) \(fullpath)")
         if Options.instance.flags.contains(.emitDebugTimes) {
             startTime = gettime()
         }
@@ -128,7 +161,7 @@ final class Job {
         if Options.instance.flags.contains(.emitDebugTimes) {
             timingMutex.lock()
             let endTime = gettime()
-            debugTimings.append((name: name, duration: endTime - startTime))
+            debugTimings.append((name: operation + " " + fullpath, duration: endTime - startTime))
             timingMutex.unlock()
         }
 
@@ -149,7 +182,7 @@ final class Job {
 
     public func visualize(indent: Int = 0) {
         let indentation = repeatElement("  ", count: indent).joined()
-        print(indentation + name)
+        print(indentation + fullpath + " " + operation)
         for job in dependents {
             job.visualize(indent: indent + 1)
         }

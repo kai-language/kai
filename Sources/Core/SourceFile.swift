@@ -82,9 +82,9 @@ public final class SourceFile {
         let sourceFile = SourceFile(handle: handle, fullpath: fullpath, pathImportedAs: path, importedFrom: importedFrom, package: package)
         package.files.append(sourceFile)
 
-        let parsingJob = Job("\(path) - Parsing", work: sourceFile.parseEmittingErrors)
-        let checkingJob = Job("\(path) - Checking", work: sourceFile.checkEmittingErrors)
-        let generationJob = Job("\(path) - Generating IR", work: sourceFile.generateIntermediateRepresentation)
+        let parsingJob = Job.new(fullpath: fullpath, operation: "Parsing", work: sourceFile.parseEmittingErrors)
+        let checkingJob = Job.new(fullpath: fullpath, operation: "Checking", work: sourceFile.checkEmittingErrors)
+        let generationJob = Job.new(fullpath: fullpath, operation: "Emitting", work: sourceFile.generateIntermediateRepresentation)
 
         generationJob.addDependency(checkingJob)
         checkingJob.addDependency(parsingJob)
@@ -166,10 +166,12 @@ extension SourceFile {
             i.resolvedName = pathToEntityName(packageDirectory)
             if !isDirectory(path: packageDirectory) {
 
-                let job = Job(repo + "/" + user + " - Cloning", work: {
+                let cloneJob = Job.new(fullpath: packageDirectory, operation: "Cloning", work: {
+                    Git().clone(repo: "https://github.com/" + user + "/" + repo + ".git", to: packageDirectory)
+
+                    // Once done we allow new clones to not depend on this one
                     cloneMutex.lock()
                     cloneQueue.removeFirst()
-                    Git().clone(repo: "https://github.com/" + user + "/" + repo + ".git", to: packageDirectory)
                     cloneMutex.unlock()
 
                     guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
@@ -181,14 +183,16 @@ extension SourceFile {
                     i.scope = dependency.scope
                 })
 
+                importedFrom.checkingJob.addDependency(cloneJob)
+
                 cloneMutex.lock()
-                // TODO: What is going on here?
+                // Ensure at most 1 clone occurs at a time
                 if let last = cloneQueue.last {
-                    last.addDependency(job)
-                    cloneQueue.append(job)
+                    last.addDependency(cloneJob)
+                    cloneQueue.append(cloneJob)
                 } else {
-                    cloneQueue.append(job)
-                    threadPool.add(job: job)
+                    cloneQueue.append(cloneJob)
+                    threadPool.add(job: cloneJob)
                 }
                 cloneMutex.unlock()
             } else { // Directory exists already
