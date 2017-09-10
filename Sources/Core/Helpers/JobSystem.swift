@@ -151,7 +151,6 @@ final class Job: Hashable {
     }
 
     func start() {
-        print("Start \(operation) \(fullpath)")
         if Options.instance.flags.contains(.emitDebugTimes) {
             startTime = gettime()
         }
