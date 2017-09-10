@@ -735,6 +735,8 @@ extension Parser {
             default:
                 return Declaration(names: names, explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil, entities: nil)
             }
+        case .in:
+            return IdentList(idents: x)
         default:
             break
         }
@@ -822,17 +824,16 @@ extension Parser {
         var s1, s2, s3: Stmt?
         if tok != .lbrace && tok != .semicolon {
             s2 = parseSimpleStmt()
-            if tok == .in || tok == .comma {
-                guard let expr = s2 as? ExprStmt, let firstName = expr.expr as? Ident else {
-                    let errorEnd = eatToken()
-                    reportError("Expected an identifier", at: errorEnd)
-                    return BadStmt(start: keyword, end: errorEnd)
+            if let idents = s2 as? IdentList {
+                let names: [Ident] = idents.idents.flatMap {
+                    guard let name = $0 as? Ident else {
+                        reportError("Expected an identifier", at: $0.start)
+                        return nil
+                    }
+
+                    return name
                 }
-                var names: [Ident] = [firstName]
-                if tok == .comma {
-                    next()
-                    names.append(contentsOf: parseIdentList())
-                }
+
                 expect(.in)
                 let aggregate = parseExpr()
                 expectTerm() // Scanner inserts a terminator

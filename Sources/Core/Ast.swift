@@ -230,6 +230,20 @@ init(lparen: Pos?, types: [Expr], rparen: Pos?) {
 // sourcery:end
 }
 
+// NOTE: used in `for x, y in z` statements
+class IdentList: Node, Stmt {
+    var idents: [Expr]
+
+    var start: Pos { return idents.first!.start }
+    var end: Pos { return idents.last!.end }
+
+// sourcery:inline:auto:IdentList.Init
+init(idents: [Expr]) {
+    self.idents = idents
+}
+// sourcery:end
+}
+
 class FuncLit: Node, Expr {
     var keyword: Pos
     var params: ParameterList

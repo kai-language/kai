@@ -371,6 +371,16 @@ func copy(_ nodes: [Ident]) -> [Ident] {
     return nodes.map(copy)
 }
 
+func copy(_ node: IdentList) -> IdentList {
+    return IdentList(
+        idents: copy(node.idents)
+    )
+}
+
+func copy(_ nodes: [IdentList]) -> [IdentList] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: If) -> If {
     return If(
         keyword: node.keyword,
