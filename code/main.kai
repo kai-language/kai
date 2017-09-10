@@ -32,9 +32,9 @@ initGlfw :: fn() -> *glfw.Window, bool {
     glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
     glfw.WindowHint(glfw.OPENGL_FORWARD_COMPAT, 1)
 
-    window := glfw.CreateWindow(1280, 720, "Kai GLFW example\x00".raw, nil, nil)
+    window := glfw.CreateWindow(1280, 720, "Kai GLFW example".raw, nil, nil)
     if window == nil {
-        panic("Asdfklasjdf\x00")
+        panic("Asdfklasjdf")
         return nil, false
     }
 
@@ -56,7 +56,7 @@ loadShaders :: fn() -> u32 {
         void main() {
             gl_Position = vec4(vertexPosition, 1.0);
             pos = vertexPosition;
-        }\x00
+        }
     "
     fragment_shader_source := "
         #version 330 core
@@ -69,7 +69,7 @@ loadShaders :: fn() -> u32 {
         void main() {
             vec2 uv = pos.xy / resolution.xy;
             color = vec4(uv, 0.5 + 0.5 * sin(time), 1.0);
-        }\x00
+        }
     "
 
     vertex_shader_length := cast(i32) vertex_shader_source.len
@@ -135,12 +135,12 @@ createBuffers :: fn() -> u32, u32, u32 {
 
 main :: fn () -> void {
 
-    printf("Hello!\n\x00".raw)
-    printf("HERE\n\x00".raw)
+    printf("Hello!\n".raw)
+    printf("HERE\n".raw)
 
     window, success := initGlfw()
     if !success
-        panic("Error with window creation!\n\x00")
+        panic("Error with window creation!\n")
 
     gl.init(cast((*u8) -> rawptr) glfw.GetProcAddress)
 
@@ -169,8 +169,8 @@ main :: fn () -> void {
         gl.Clear(cast(u32) gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         gl.UseProgram(program)
-        gl.Uniform1f(gl.GetUniformLocation(program, "time\x00".raw), cast(f32) glfw.GetTime())
-        gl.Uniform2f(gl.GetUniformLocation(program, "resolution\x00".raw), 1280, 720)
+        gl.Uniform1f(gl.GetUniformLocation(program, "time".raw), cast(f32) glfw.GetTime())
+        gl.Uniform2f(gl.GetUniformLocation(program, "resolution".raw), 1280, 720)
 
         gl.BindVertexArray(vao)
         gl.DrawElements(gl.TRIANGLE_STRIP, 14, gl.UNSIGNED_SHORT, nil)
@@ -178,6 +178,6 @@ main :: fn () -> void {
         glfw.SwapBuffers(window)
     }
     glfw.Terminate()
-    printf("Exiting!\n\x00".raw)
+    printf("Exiting!\n".raw)
 }
 
