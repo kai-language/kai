@@ -225,8 +225,8 @@ extension SourceFile {
         emitErrors(for: self, at: stage)
 
         if errors.count > 0 {
-            // FIXME: What do?
-//            parsingJob.dequeueBlocking(checkingJob)
+            let index = parsingJob.dependents.index(of: checkingJob)!
+            parsingJob.dependents.remove(at: index)
         }
 
         let endTime = gettime()
@@ -250,8 +250,9 @@ extension SourceFile {
         emitErrors(for: self, at: stage)
 
         if errors.count > 0 {
-            // FIXME: What do?
-//            checkingJob.dequeueBlocking(generationJob)
+            // do not go through with the next job
+            let index = checkingJob.dependents.index(of: generationJob)!
+            checkingJob.dependents.remove(at: index)
         }
 
         let endTime = gettime()
