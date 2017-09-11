@@ -19,6 +19,10 @@ struct IRGenerator {
         self.b = package.builder
     }
 
+    lazy var trap: Function = {
+        return b.addFunction("llvm.trap", type: FunctionType(argTypes: [], returnType: VoidType(in: module.context)))
+    }()
+
     // sourcery:noinit
     class Context {
         var mangledNamePrefix: String
@@ -41,13 +45,49 @@ struct IRGenerator {
     func mangle(_ name: String) -> String {
         return (context.mangledNamePrefix.isEmpty ? "" : context.mangledNamePrefix + ".") + name
     }
+
+    func symbol(for entity: Entity) -> String {
+        if let linkname = entity.linkname {
+            return linkname
+        }
+        if let mangledName = entity.mangledName {
+            return mangledName
+        }
+        let mangledName = (context.mangledNamePrefix.isEmpty ? "" : context.mangledNamePrefix + ".") + entity.name
+        entity.mangledName = mangledName
+        return mangledName
+    }
+
+    func value(for entity: Entity) -> IRValue {
+        guard let entityPackage = entity.package else {
+            return entity.value!
+        }
+        guard entityPackage === package else {
+            // The entity is not in the same package as us, this means it will be in a different `.o` file and we
+            //   will want to emit a 'stub'
+            let symbol = self.symbol(for: entity)
+
+            if entity.type is ty.Function {
+                if let existing = module.function(named: symbol) {
+                    return existing
+                }
+                return b.addFunction(symbol, type: canonicalize(entity.type!) as! FunctionType)
+            } else {
+                if let existing = module.global(named: symbol) {
+                    return existing
+                }
+                return b.addGlobal(symbol, type: canonicalize(entity.type!))
+            }
+        }
+        return entity.value!
+    }
 }
 
 extension IRGenerator {
 
     mutating func generate() {
         if !package.isInitialPackage {
-            pushContext(scopeName: dropExtension(path: file.pathFirstImportedAs))
+            pushContext(scopeName: package.moduleName)
         }
 
         for node in file.nodes {
@@ -88,7 +128,7 @@ extension IRGenerator {
 
             for entity in decl.entities {
                 if let fn = entity.type as? ty.Function {
-                    let function = b.addFunction(decl.linkname ?? entity.name, type: canonicalize(fn))
+                    let function = b.addFunction(symbol(for: entity), type: canonicalize(fn))
                     switch decl.callconv {
                     case nil:
                         break
@@ -99,7 +139,7 @@ extension IRGenerator {
                     }
                     entity.value = function
                 } else {
-                    var globalValue = b.addGlobal(decl.linkname ?? entity.name, type: canonicalize(entity.type!))
+                    var globalValue = b.addGlobal(symbol(for: entity), type: canonicalize(entity.type!))
                     globalValue.isExternallyInitialized = true
                     globalValue.isGlobalConstant = true
                     entity.value = globalValue
@@ -127,7 +167,7 @@ extension IRGenerator {
 
         for (entity, value) in zip(decl.entities, decl.values) {
             if let type = entity.type as? ty.Metatype {
-                let irType = b.createStruct(name: mangle(entity.name))
+                let irType = b.createStruct(name: symbol(for: entity))
 
                 switch type.instanceType {
                 case let type as ty.Struct:
@@ -146,10 +186,10 @@ extension IRGenerator {
                 return
             }
 
-            var value = emit(expr: value, name: entity.name)
+            var value = emit(expr: value, entity: entity)
             // functions are already global
             if !value.isAFunction {
-                var globalValue = b.addGlobal(mangle(entity.name), initializer: value)
+                var globalValue = b.addGlobal(symbol(for: entity), initializer: value)
                 globalValue.isGlobalConstant = true
                 value = globalValue
             }
@@ -170,8 +210,9 @@ extension IRGenerator {
             {
                 let type = canonicalize(entity.type!)
 
+                // TODO: Linkname
                 if entity.owningScope.isFile {
-                    var global = b.addGlobal(mangle(entity.name), type: type)
+                    var global = b.addGlobal(symbol(for: entity), type: type)
                     global.initializer = type.undef()
                     entity.value = global
                 } else {
@@ -190,8 +231,8 @@ extension IRGenerator {
         if decl.values.isEmpty {
             for entity in decl.entities {
                 let type = canonicalize(entity.type!)
-                if entity.owningScope.isFile {
-                    var global = b.addGlobal(mangle(entity.name), type: type)
+                if entity.owningScope.isFile || entity.owningScope.isPackage {
+                    var global = b.addGlobal(symbol(for: entity), type: type)
                     global.initializer = type.undef()
                     entity.value = global
                 } else {
@@ -207,7 +248,7 @@ extension IRGenerator {
 
             // FIXME: Is it actually possible to encounter a metatype as the rhs of a variable declaration?
             if let type = entity.type as? ty.Metatype {
-                let irType = b.createStruct(name: mangle(entity.name))
+                let irType = b.createStruct(name: symbol(for: entity))
 
                 switch type.instanceType {
                 case let type as ty.Struct:
@@ -233,10 +274,10 @@ extension IRGenerator {
                 }
             }
 
-            let ir = emit(expr: value, name: entity.name)
+            let ir = emit(expr: value, entity: entity)
             if entity.owningScope.isFile {
                 // FIXME: What should we do for things like global strings? They need to be mutable?
-                var global = b.addGlobal(mangle(entity.name), type: type)
+                var global = b.addGlobal(symbol(for: entity), type: type)
                 global.initializer = type.undef()
                 entity.value = global
 
@@ -244,7 +285,7 @@ extension IRGenerator {
                     b.positionAtEnd(of: b.insertBlock!)
                 }
             } else {
-                let stackValue = b.buildAlloca(type: type, name: mangle(entity.name))
+                let stackValue = b.buildAlloca(type: type, name: symbol(for: entity))
 
                 entity.value = stackValue
 
@@ -398,9 +439,9 @@ extension IRGenerator {
     mutating func emit(if iff: If) {
         let ln = file.position(for: iff.start).line
 
-        let thenBlock = b.currentFunction!.appendBasicBlock(named: "if.then.ln\(ln)")
-        let elseBlock = iff.els.map({ _ in b.currentFunction!.appendBasicBlock(named: "if.else.ln.\(ln)") })
-        let postBlock = b.currentFunction!.appendBasicBlock(named: "if.post.ln.\(ln)")
+        let thenBlock = b.currentFunction!.appendBasicBlock(named: "if.then.ln\(ln)", in: module.context)
+        let elseBlock = iff.els.map({ _ in b.currentFunction!.appendBasicBlock(named: "if.else.ln.\(ln)", in: module.context) })
+        let postBlock = b.currentFunction!.appendBasicBlock(named: "if.post.ln.\(ln)", in: module.context)
 
         let cond = emit(expr: iff.cond)
         b.buildCondBr(condition: cond, then: thenBlock, else: elseBlock ?? postBlock)
@@ -441,13 +482,13 @@ extension IRGenerator {
         }
 
         if let condition = f.cond {
-            loopCond = currentFunc.appendBasicBlock(named: "for.cond")
+            loopCond = currentFunc.appendBasicBlock(named: "for.cond", in: module.context)
             if f.step != nil {
-                loopStep = currentFunc.appendBasicBlock(named: "for.step")
+                loopStep = currentFunc.appendBasicBlock(named: "for.step", in: module.context)
             }
 
-            loopBody = currentFunc.appendBasicBlock(named: "for.body")
-            loopPost = currentFunc.appendBasicBlock(named: "for.post")
+            loopBody = currentFunc.appendBasicBlock(named: "for.body", in: module.context)
+            loopPost = currentFunc.appendBasicBlock(named: "for.post", in: module.context)
 
             b.buildBr(loopCond!)
             b.positionAtEnd(of: loopCond!)
@@ -456,11 +497,11 @@ extension IRGenerator {
             b.buildCondBr(condition: cond, then: loopBody, else: loopPost)
         } else {
             if f.step != nil {
-                loopStep = currentFunc.appendBasicBlock(named: "for.step")
+                loopStep = currentFunc.appendBasicBlock(named: "for.step", in: module.context)
             }
 
-            loopBody = currentFunc.appendBasicBlock(named: "for.body")
-            loopPost = currentFunc.appendBasicBlock(named: "for.post")
+            loopBody = currentFunc.appendBasicBlock(named: "for.body", in: module.context)
+            loopPost = currentFunc.appendBasicBlock(named: "for.post", in: module.context)
 
             b.buildBr(loopBody)
         }
@@ -532,10 +573,10 @@ extension IRGenerator {
             fatalError("Unimplemented")
         }
 
-        loopCond = currentFunc.appendBasicBlock(named: "for.cond")
-        loopStep = currentFunc.appendBasicBlock(named: "for.step")
-        loopBody = currentFunc.appendBasicBlock(named: "for.body")
-        loopPost = currentFunc.appendBasicBlock(named: "for.post")
+        loopCond = currentFunc.appendBasicBlock(named: "for.cond", in: module.context)
+        loopStep = currentFunc.appendBasicBlock(named: "for.step", in: module.context)
+        loopBody = currentFunc.appendBasicBlock(named: "for.body", in: module.context)
+        loopPost = currentFunc.appendBasicBlock(named: "for.post", in: module.context)
 
         b.buildBr(loopCond)
         b.positionAtEnd(of: loopCond)
@@ -584,7 +625,7 @@ extension IRGenerator {
         let curFunction = b.currentFunction!
         let curBlock = b.insertBlock!
 
-        let postBlock = curFunction.appendBasicBlock(named: "switch.post.ln.\(ln)")
+        let postBlock = curFunction.appendBasicBlock(named: "switch.post.ln.\(ln)", in: module.context)
         defer {
             postBlock.moveAfter(curFunction.lastBlock!)
         }
@@ -594,10 +635,10 @@ extension IRGenerator {
         for c in sw.cases {
             let ln = file.position(for: c.start).line
             if c.match != nil {
-                let thenBlock = curFunction.appendBasicBlock(named: "switch.then.ln.\(ln)")
+                let thenBlock = curFunction.appendBasicBlock(named: "switch.then.ln.\(ln)", in: module.context)
                 thenBlocks.append(thenBlock)
             } else {
-                let thenBlock = curFunction.appendBasicBlock(named: "switch.default.ln.\(ln)")
+                let thenBlock = curFunction.appendBasicBlock(named: "switch.default.ln.\(ln)", in: module.context)
                 thenBlocks.append(thenBlock)
             }
         }
@@ -638,18 +679,18 @@ extension IRGenerator {
 
     // MARK: Expressions
 
-    mutating func emit(expr: Expr, returnAddress: Bool = false, name: String = "") -> IRValue {
+    mutating func emit(expr: Expr, returnAddress: Bool = false, entity: Entity? = nil) -> IRValue {
         switch expr {
         case is Nil:
             return canonicalize(expr.type as! ty.Pointer).null()
         case let lit as BasicLit:
-            return emit(lit: lit, returnAddress: returnAddress, name: name)
+            return emit(lit: lit, returnAddress: returnAddress, entity: entity)
         case let lit as CompositeLit:
-            return emit(lit: lit, returnAddress: returnAddress, name: name)
+            return emit(lit: lit, returnAddress: returnAddress, entity: entity)
         case let ident as Ident:
             return emit(ident: ident, returnAddress: returnAddress)
         case let paren as Paren:
-            return emit(expr: paren.element, returnAddress: returnAddress, name: name)
+            return emit(expr: paren.element, returnAddress: returnAddress, entity: entity)
         case let unary as Unary:
             return emit(unary: unary)
         case let binary as Binary:
@@ -657,7 +698,7 @@ extension IRGenerator {
         case let ternary as Ternary:
             return emit(ternary: ternary)
         case let fn as FuncLit:
-            return emit(funcLit: fn, name: name)
+            return emit(funcLit: fn, entity: entity)
         case let call as Call:
             return emit(call: call)
         case let cast as Cast:
@@ -673,7 +714,8 @@ extension IRGenerator {
         }
     }
 
-    mutating func emit(lit: BasicLit, returnAddress: Bool, name: String) -> IRValue {
+    mutating func emit(lit: BasicLit, returnAddress: Bool, entity: Entity?) -> IRValue {
+        // TODO: Use the mangled entity name
         if lit.token == .string {
             let value = lit.constant as! String
             let len = value.utf8.count
@@ -682,7 +724,8 @@ extension IRGenerator {
             let type = canonicalize(ty.string) as! LLVM.StructType
             let ir = type.constant(values: [ptr, len, 0])
             if returnAddress {
-            let global = b.addGlobal("", initializer: ir)
+                var global = b.addGlobal(".str", initializer: ir)
+                global.linkage = .private
                 return global
             }
             return ir
@@ -698,13 +741,15 @@ extension IRGenerator {
                 let val = Double(lit.constant as! UInt64)
                 return type.constant(val)
             }
-            return type.constant(lit.constant as! Double)
+            let val = type.constant(lit.constant as! Double)
+            return val
         default:
             preconditionFailure()
         }
     }
 
-    mutating func emit(lit: CompositeLit, returnAddress: Bool, name: String) -> IRValue {
+    mutating func emit(lit: CompositeLit, returnAddress: Bool, entity: Entity?) -> IRValue {
+        // TODO: Use the mangled entity name
         switch (lit.type as? ty.Named)?.underlying ?? lit.type {
         case let type as ty.Struct:
             let irType = canonicalize(type)
@@ -759,7 +804,7 @@ extension IRGenerator {
 
     mutating func emit(ident: Ident, returnAddress: Bool) -> IRValue {
         if returnAddress || ident.entity.type! is ty.Function {
-            return ident.entity.value!
+            return value(for: ident.entity)
         }
         if ident.entity.isConstant {
             switch ident.type {
@@ -782,7 +827,7 @@ extension IRGenerator {
             return builtin.gen(b)
         }
 
-        return b.buildLoad(ident.entity.value!)
+        return b.buildLoad(value(for: ident.entity))
     }
 
     mutating func emit(unary: Unary) -> IRValue {
@@ -885,13 +930,13 @@ extension IRGenerator {
         return b.buildCast(cast.op, value: val, type: canonicalize(cast.type))
     }
 
-    mutating func emit(funcLit fn: FuncLit, name: String) -> Function {
+    mutating func emit(funcLit fn: FuncLit, entity: Entity?, specializationMangle: String? = nil) -> Function {
         switch fn.checked! {
         case .regular:
-            let function = b.addFunction(mangle(name), type: canonicalize(fn.type) as! FunctionType)
+            let function = b.addFunction(specializationMangle ?? entity.map(symbol) ?? ".fn", type: canonicalize(fn.type) as! FunctionType)
             let prevBlock = b.insertBlock
 
-            let entryBlock = function.appendBasicBlock(named: "entry")
+            let entryBlock = function.appendBasicBlock(named: "entry", in: module.context)
             b.positionAtEnd(of: entryBlock)
 
             for (param, var irParam) in zip(fn.params.list, function.parameters) {
@@ -901,7 +946,9 @@ extension IRGenerator {
                 b.buildStore(irParam, to: param.entity.value!)
             }
 
-            pushContext(scopeName: name)
+            // TODO: Do we need to push a named context or can we reset the mangling because we are in a function scope?
+            //  also should we use a mangled name if this is an anonymous fn?
+            pushContext(scopeName: entity.map(symbol) ?? "")
             emit(statement: fn.body)
             popContext()
 
@@ -916,12 +963,19 @@ extension IRGenerator {
             return function
 
         case .polymorphic(_, let specializations):
+            let mangledName = entity.map(symbol) ?? ".fn"
             for specialization in specializations {
+                // FIXME: Mangling is gonna be broke I guess, how do we emit function specializations?
+                //  should we make some sort of temp entity with the desired mangled name preset?
+                // What do we do if we don't have an entity here?
+
                 let suffix = specialization.specializedTypes
                     .reduce("", { $0 + "$" + $1.description })
-                specialization.llvm = emit(funcLit: specialization.generatedFunctionNode, name: name + suffix)
+                specialization.mangledName = mangledName + suffix
+
+                specialization.llvm = emit(funcLit: specialization.generatedFunctionNode, entity: entity, specializationMangle: specialization.mangledName)
             }
-            return module.firstFunction! // dummy value. It doesn't matter.
+            return trap // dummy value. It doesn't matter.
         }
     }
 
@@ -930,7 +984,7 @@ extension IRGenerator {
         case .invalid: fatalError()
         case .file(let entity):
             if entity.type is ty.Function {
-                return entity.value!
+                return value(for: entity)
             }
             if entity.isConstant {
                 switch sel.type {
@@ -946,7 +1000,7 @@ extension IRGenerator {
                     break
                 }
             }
-            let val = b.buildLoad(entity.value!)
+            let val = b.buildLoad(value(for: entity))
             if let cast = sel.cast {
                 return b.buildCast(cast, value: val, type: canonicalize(sel.type))
             }
@@ -1051,36 +1105,35 @@ extension IRGenerator {
     }
 
     func canonicalize(_ void: ty.Void) -> VoidType {
-        return VoidType()
+        return VoidType(in: module.context)
     }
 
     func canonicalize(_ boolean: ty.Boolean) -> IntType {
-        return IntType.int1
+        return IntType(width: 1, in: module.context)
     }
 
     func canonicalize(_ integer: ty.Integer) -> IntType {
-        return IntType(width: integer.width!)
+        return IntType(width: integer.width!, in: module.context)
     }
 
     func canonicalize(_ float: ty.FloatingPoint) -> FloatType {
         switch float.width! {
-        case 16: return FloatType.half
-        case 32: return FloatType.float
-        case 64: return FloatType.double
-        case 80: return FloatType.x86FP80
-        case 128: return FloatType.fp128
+        case 16: return FloatType(kind: .half, in: module.context)
+        case 32: return FloatType(kind: .float, in: module.context)
+        case 64: return FloatType(kind: .double, in: module.context)
+        case 80: return FloatType(kind: .x86FP80, in: module.context)
+        case 128: return FloatType(kind: .fp128, in: module.context)
         default: fatalError()
         }
     }
 
     func canonicalize(_ string: ty.KaiString) -> LLVM.StructType {
-
         if let existing = module.type(named: ".string") {
             return existing as! LLVM.StructType
         }
-        let cStringType = LLVM.PointerType(pointee: IntType.int8)
+        let cStringType = LLVM.PointerType(pointee: IntType(width: 8, in: module.context))
         // Memory size is in bytes but LLVM types are in bits
-        let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8)
+        let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8, in: module.context)
         let irType = b.createStruct(name: ".string")
         irType.setBody([cStringType, systemWidthType, systemWidthType])
         return irType
@@ -1097,7 +1150,7 @@ extension IRGenerator {
     func canonicalize(_ array: ty.DynamicArray) -> LLVM.StructType {
         let element = LLVM.PointerType(pointee: canonicalize(array.elementType))
         // Memory size is in bytes but LLVM types are in bits
-        let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8)
+        let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8, in: module.context)
         // { Element type, Length, Capacity }
         return LLVM.StructType(elementTypes: [element, systemWidthType, systemWidthType])
     }
@@ -1105,13 +1158,15 @@ extension IRGenerator {
     func canonicalize(_ fn: ty.Function) -> FunctionType {
         var paramTypes: [IRType] = []
 
+        // FIXME: Only C vargs should use LLVM variadics, native variadics should use slices.
         let requiredParams = fn.isVariadic ? fn.params[..<(fn.params.endIndex - 1)] : ArraySlice(fn.params)
         for param in requiredParams {
             let type = canonicalize(param)
             paramTypes.append(type)
         }
         let retType = canonicalize(fn.returnType)
-        return FunctionType(argTypes: paramTypes, returnType: retType, isVarArg: fn.isCVariadic)
+        let type = FunctionType(argTypes: paramTypes, returnType: retType, isVarArg: fn.isCVariadic)
+        return type
     }
 
     /// - Returns: A StructType iff tuple.types > 1
@@ -1121,28 +1176,27 @@ extension IRGenerator {
         case 1:
             return types[0]
         default:
-            return LLVM.StructType(elementTypes: types, isPacked: true)
+            return LLVM.StructType(elementTypes: types, isPacked: true, in: module.context)
         }
     }
 
     func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
-        return LLVM.StructType(elementTypes: struc.fields.map({ canonicalize($0.type) }))
+        return LLVM.StructType(elementTypes: struc.fields.map({ canonicalize($0.type) }), in: module.context)
     }
 
     func canonicalize(_ integer: ty.UntypedInteger) -> IntType {
-        return IntType(width: integer.width!)
+        return IntType(width: integer.width!, in: module.context)
     }
 
     func canonicalize(_ float: ty.UntypedFloatingPoint) -> FloatType {
-        return FloatType.double
+        return FloatType(kind: .double, in: module.context)
     }
 
     func canonicalize(_ named: ty.Named) -> IRType {
-        if let existing = named.entity.namedIRType {
+        if let existing = named.entity.namedIRType, named.entity.package === package {
             return existing
         }
-        let irType = b.createStruct(name: mangle(named.entity.name))
-
+        let irType = b.createStruct(name: symbol(for: named.entity))
         switch named.underlying {
         case let type as ty.Struct:
             var irTypes: [IRType] = []

@@ -78,7 +78,7 @@ class BuiltinEntity {
 
     init(name: String, type: Type, gen: @escaping (IRBuilder) -> IRValue) {
         let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-        let entity = Entity(ident: ident, type: type, flags: .builtin, memberScope: nil, owningScope: nil, value: nil, constant: nil, namedIRType: nil)
+        let entity = Entity(ident: ident, type: type, flags: .builtin, constant: nil, package: nil, memberScope: nil, owningScope: nil, callconv: nil, linkname: nil, mangledName: nil, value: nil, namedIRType: nil)
         self.entity = entity
         self.type = type
         self.gen = {

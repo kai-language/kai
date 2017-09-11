@@ -189,7 +189,8 @@ extension Checker {
         }
     }
 
-    mutating func check(decl: Declaration) {
+    @discardableResult
+    mutating func check(decl: Declaration) -> [Entity] {
         var expectedType: Type?
         var entities: [Entity] = []
 
@@ -208,7 +209,7 @@ extension Checker {
                     entities.append(Entity.anonymous)
                     continue
                 }
-                let entity = Entity(ident: ident, type: type)
+                let entity = newEntity(ident: ident, type: type)
                 if decl.isConstant {
                     entity.flags.insert(.constant)
                     // TODO: Assign constants from calls
@@ -225,7 +226,7 @@ extension Checker {
 
             let type = expectedType!
             for ident in decl.names {
-                let entity = Entity(ident: ident, type: type)
+                let entity = newEntity(ident: ident, type: type)
                 assert(!decl.isConstant)
                 if type is ty.Metatype {
                     entity.flags.insert(.type)
@@ -251,7 +252,7 @@ extension Checker {
                     type = expectedType
                 }
 
-                let entity = Entity(ident: ident, type: type)
+                let entity = newEntity(ident: ident, type: type)
                 if decl.isConstant {
                     entity.flags.insert(.constant)
                     entity.constant = constant(from: value)
@@ -268,6 +269,8 @@ extension Checker {
         for entity in entities {
             declare(entity)
         }
+
+        return decl.entities
     }
 
     mutating func check(declBlock b: DeclBlock) {
@@ -277,21 +280,27 @@ extension Checker {
                 continue
             }
             decl.callconv = decl.callconv ?? b.callconv
-            decl.linkname = decl.linkname ?? (b.linkprefix ?? "") + decl.names[0].name
+
             if b.isForeign {
-                check(foreignDecl: decl)
+                let entity = check(foreignDecl: decl)
+                // set for all foreign declarations
+                entity.linkname = decl.linkname ?? (b.linkprefix ?? "") + entity.name
             } else {
-                check(decl: decl)
+                let entity = check(decl: decl)[0]
+                if decl.linkname != nil || b.linkprefix != nil {
+                    entity.linkname = decl.linkname ?? (b.linkprefix ?? "") + entity.name
+                }
             }
         }
     }
 
-    mutating func check(foreignDecl d: Declaration) {
+    @discardableResult
+    mutating func check(foreignDecl d: Declaration) -> Entity {
 
         let ident = d.names[0]
         if ident.name == "_" {
             reportError("The dispose identifer is not a permitted name in foreign declarations", at: ident.start)
-            return
+            return Entity.anonymous
         }
 
         // only 2 forms allowed by the parser `i: ty` or `i :: ty`
@@ -305,9 +314,11 @@ extension Checker {
             }
         }
 
-        let entity = Entity(ident: ident, type: type, flags: d.isConstant ? [.constant, .foreign] : .foreign)
+        let entity = newEntity(ident: ident, type: type, flags: d.isConstant ? [.constant, .foreign] : .foreign)
         declare(entity)
         d.entities = [entity]
+
+        return entity
     }
 
     mutating func check(assign: Assign) {
@@ -344,7 +355,7 @@ extension Checker {
 
         var entity: Entity?
         if let alias = i.alias {
-            entity = Entity(ident: alias, type: nil, flags: .file)
+            entity = newEntity(ident: alias, flags: .file)
         } else if !i.importSymbolsIntoScope {
             guard let name = i.resolvedName else {
                 reportError("Cannot infer an import name for '\(i.path)'", at: i.path.start)
@@ -352,7 +363,7 @@ extension Checker {
                 return
             }
             let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-            entity = Entity(ident: ident, type: nil, flags: .file)
+            entity = newEntity(ident: ident, flags: .file)
         }
 
         // TODO: Ensure the import has been fully checked
@@ -389,7 +400,7 @@ extension Checker {
             return
         }
         let ident = l.alias ?? Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-        let entity = Entity(ident: ident, type: nil, flags: .library)
+        let entity = newEntity(ident: ident, flags: .library)
         declare(entity)
 
         if path != "libc" && path != "llvm" {
@@ -437,7 +448,7 @@ extension Checker {
             }
         case let type as ty.Struct:
             for field in type.fields {
-                let entity = Entity(ident: field.ident, type: field.type, flags: .field, memberScope: nil, owningScope: context.scope, value: nil, constant: nil, namedIRType: nil)
+                let entity = newEntity(ident: field.ident, type: field.type, flags: .field, owningScope: context.scope)
                 declare(entity)
             }
         default:
@@ -834,12 +845,12 @@ extension Checker {
         }
 
         let element = forIn.names[0]
-        let elEntity = Entity(ident: element, type: elementType, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil, namedIRType: nil)
+        let elEntity = newEntity(ident: element, type: elementType)
         declare(elEntity)
         forIn.element = elEntity
 
         if let index = forIn.names[safe: 1] {
-            let iEntity = Entity(ident: index, type: ty.i64, flags: .none, memberScope: nil, owningScope: nil, value: nil, constant: nil, namedIRType: nil)
+            let iEntity = newEntity(ident: index, type: ty.i64)
             declare(iEntity)
             forIn.index = iEntity
         }
@@ -923,7 +934,7 @@ extension Checker {
 
         var type = check(expr: param.explicitType)
         type = lowerFromMetatype(type, atNode: param.explicitType)
-        let entity = Entity(ident: param.name, type: type, flags: param.isExplicitPoly ? .constant : .none)
+        let entity = newEntity(ident: param.name, type: type, flags: param.isExplicitPoly ? .constant : .none)
         if param.isExplicitPoly {
             type = ty.Polymorphic(entity: entity, specialization: Ref(nil))
         }
@@ -940,7 +951,7 @@ extension Checker {
         }
         switch polyType.explicitType {
         case let ident as Ident:
-            let entity = Entity(ident: ident, type: ty.invalid, flags: .implicitType)
+            let entity = newEntity(ident: ident, type: ty.invalid, flags: .implicitType)
             declare(entity)
             var type: Type
             type = ty.Polymorphic(entity: entity, specialization: Ref(nil))
@@ -1792,7 +1803,7 @@ extension Checker {
             }
         }
 
-        let specialization = FunctionSpecialization(specializedTypes: specializationTypes, strippedType: type, generatedFunctionNode: generated, llvm: nil)
+        let specialization = FunctionSpecialization(specializedTypes: specializationTypes, strippedType: type, generatedFunctionNode: generated, mangledName: nil, llvm: nil)
 
         // TODO: Tuple splat?
         call.type = type.returnType
@@ -1870,6 +1881,10 @@ extension Checker {
         default:
             return nil
         }
+    }
+
+    func newEntity(ident: Ident, type: Type? = nil, flags: Entity.Flag = .none, memberScope: Scope? = nil, owningScope: Scope? = nil, constant: Value? = nil) -> Entity {
+        return Entity(ident: ident, type: type, flags: flags, constant: constant, package: file.package, memberScope: memberScope, owningScope: owningScope, callconv: nil, linkname: nil, mangledName: nil, value: nil, namedIRType: nil)
     }
 }
 

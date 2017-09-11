@@ -66,10 +66,14 @@ func copy(_ entity: Entity) -> Entity {
         ident: entity.ident,
         type: entity.type,
         flags: entity.flags,
+        constant: entity.constant,
+        package: entity.package,
         memberScope: entity.memberScope,
         owningScope: entity.owningScope,
+        callconv: entity.callconv,
+        linkname: entity.linkname,
+        mangledName: nil,
         value: nil,
-        constant: entity.constant,
         namedIRType: nil
     )
 }

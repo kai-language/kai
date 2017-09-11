@@ -4,13 +4,19 @@ class Entity: CustomStringConvertible {
     var ident: Ident
     var type: Type?
     var flags: Flag = .none
+    var constant: Value?
+    var package: SourcePackage?
 
     var memberScope: Scope?
 
     var owningScope: Scope!
+    
+    var callconv: String?
+    var linkname: String?
 
+    // set in IRGen
+    var mangledName: String!
     var value: IRValue?
-    var constant: Value?
 
     /// - precondition: flags.contains(.type)
     var namedIRType: LLVM.StructType?
@@ -18,10 +24,6 @@ class Entity: CustomStringConvertible {
     var name: String {
         return ident.name
     }
-
-    // TODO: These need to be set in the checker
-//    var callconv: String? = nil
-//    var linkname: String? = nil
 
     struct Flag: OptionSet {
         let rawValue: UInt16
@@ -49,14 +51,18 @@ class Entity: CustomStringConvertible {
     }
 
 // sourcery:inline:auto:Entity.Init
-init(ident: Ident, type: Type?, flags: Flag, memberScope: Scope?, owningScope: Scope!, value: IRValue?, constant: Value?, namedIRType: LLVM.StructType?) {
+init(ident: Ident, type: Type?, flags: Flag, constant: Value?, package: SourcePackage?, memberScope: Scope?, owningScope: Scope!, callconv: String?, linkname: String?, mangledName: String!, value: IRValue?, namedIRType: LLVM.StructType?) {
     self.ident = ident
     self.type = type
     self.flags = flags
+    self.constant = constant
+    self.package = package
     self.memberScope = memberScope
     self.owningScope = owningScope
+    self.callconv = callconv
+    self.linkname = linkname
+    self.mangledName = mangledName
     self.value = value
-    self.constant = constant
     self.namedIRType = namedIRType
 }
 // sourcery:end
@@ -67,7 +73,7 @@ extension Entity {
     static func makeBuiltin(_ name: String, type: Type? = nil, flags: Flag = .none) -> Entity {
 
         let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-        let entity = Entity(ident: ident, type: type, flags: .constant, memberScope: nil, owningScope: nil, value: nil, constant: nil, namedIRType: nil)
+        let entity = Entity(ident: ident, type: type, flags: .constant, constant: nil, package: nil, memberScope: nil, owningScope: nil, callconv: nil, linkname: nil, mangledName: nil, value: nil, namedIRType: nil)
         return entity
     }
 
