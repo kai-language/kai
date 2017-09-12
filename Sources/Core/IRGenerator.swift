@@ -792,7 +792,7 @@ extension IRGenerator {
             let stackAllocPtr = b.buildGEP(stackAlloc, indices: [0, 0])
             let newBuff = b.buildBitCast(stackAllocPtr, type: LLVM.PointerType(pointee: i8))
             let constantPtr = b.buildBitCast(constant, type: LLVM.PointerType(pointee: i8))
-            let bytes = (type.initialLength * (type.elementType.width ?? 8)).round(upToNearest: 8) / 8
+            let bytes = (type.initialLength * type.elementType.width!).round(upToNearest: 8) / 8
             b.buildMemcpy(newBuff, constantPtr, count: bytes)
 
             let newBuffCast = b.buildBitCast(newBuff, type: LLVM.PointerType(pointee: elementType))
