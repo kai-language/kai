@@ -78,6 +78,10 @@ struct IRGenerator {
         return entity.value!
     }
 
+    lazy var i8: IntType = {
+        return IntType(width: 8, in: module.context)
+    }()
+
     lazy var i64: IntType = {
         return IntType(width: 64, in: module.context)
     }()
@@ -303,8 +307,8 @@ extension IRGenerator {
 
                     // If we have a string then ensure the data contents are stored on the stack so they can be mutated
                     let count = (lit.constant as! String).utf8.count + 1 // + 1 for null byte
-                    var dstPtr = b.buildAlloca(type: LLVM.ArrayType(elementType: IntType.int8, count: count))
-                    dstPtr = b.buildBitCast(dstPtr, type: LLVM.PointerType.toVoid)
+                    var dstPtr = b.buildAlloca(type: LLVM.ArrayType(elementType: i8, count: count))
+                    dstPtr = b.buildBitCast(dstPtr, type: LLVM.PointerType(pointee: i8))
                     let tmp = b.buildInsertValue(aggregate: b.buildLoad(stackValue), element: dstPtr, index: 0)
                     b.buildStore(tmp, to: stackValue)
 
@@ -786,8 +790,8 @@ extension IRGenerator {
 
             let stackAlloc = b.buildAlloca(type: LLVM.ArrayType(elementType: elementType, count: type.initialLength))
             let stackAllocPtr = b.buildGEP(stackAlloc, indices: [0, 0])
-            let newBuff = b.buildBitCast(stackAllocPtr, type: LLVM.PointerType.toVoid)
-            let constantPtr = b.buildBitCast(constant, type: LLVM.PointerType.toVoid)
+            let newBuff = b.buildBitCast(stackAllocPtr, type: LLVM.PointerType(pointee: i8))
+            let constantPtr = b.buildBitCast(constant, type: LLVM.PointerType(pointee: i8))
             let bytes = (type.initialLength * (type.elementType.width ?? 8)).round(upToNearest: 8) / 8
             b.buildMemcpy(newBuff, constantPtr, count: bytes)
 
