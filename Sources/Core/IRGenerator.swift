@@ -19,10 +19,6 @@ struct IRGenerator {
         self.b = package.builder
     }
 
-    lazy var trap: Function = {
-        return b.addFunction("llvm.trap", type: FunctionType(argTypes: [], returnType: VoidType(in: module.context)))
-    }()
-
     // sourcery:noinit
     class Context {
         var mangledNamePrefix: String
@@ -81,6 +77,14 @@ struct IRGenerator {
         }
         return entity.value!
     }
+
+    lazy var i64: IntType = {
+        return IntType(width: 64, in: module.context)
+    }()
+
+    lazy var trap: Function = {
+        return b.addFunction("llvm.trap", type: FunctionType(argTypes: [], returnType: VoidType(in: module.context)))
+    }()
 }
 
 extension IRGenerator {
@@ -549,9 +553,9 @@ extension IRGenerator {
         var loopCond: BasicBlock
         var loopStep: BasicBlock
 
-        let index = b.buildAlloca(type: canonicalize(ty.i64), name:  f.index?.ident.name ?? "i")
+        let index = b.buildAlloca(type: i64, name:  f.index?.ident.name ?? "i")
         f.index?.value = index
-        _ = b.buildStore(0, to: index)
+        _ = b.buildStore(i64.zero(), to: index)
 
         let element = b.buildAlloca(type: canonicalize(f.element.type!), name: f.element.ident.name)
         f.element.value = element
@@ -562,7 +566,7 @@ extension IRGenerator {
         switch f.checked! {
         case .array(let length):
             agg = emit(expr: f.aggregate, returnAddress: true)
-            len = IntType.int64.constant(length)
+            len = i64.constant(length)
         case .structure:
             let aggBox = emit(expr: f.aggregate, returnAddress: true)
             let aggPtr = b.buildStructGEP(aggBox, index: 0)
@@ -608,7 +612,7 @@ extension IRGenerator {
         }
 
         b.positionAtEnd(of: loopStep)
-        let val = b.buildAdd(b.buildLoad(index), 1)
+        let val = b.buildAdd(b.buildLoad(index), i64.constant(1))
         b.buildStore(val, to: index)
         b.buildBr(loopCond)
 
