@@ -792,16 +792,16 @@ extension IRGenerator {
             let stackAllocPtr = b.buildGEP(stackAlloc, indices: [0, 0])
             let newBuff = b.buildBitCast(stackAllocPtr, type: LLVM.PointerType(pointee: i8))
             let constantPtr = b.buildBitCast(constant, type: LLVM.PointerType(pointee: i8))
-            let bytes = (type.initialLength * type.elementType.width!).round(upToNearest: 8) / 8
-            b.buildMemcpy(newBuff, constantPtr, count: bytes)
+            let length = i64.constant((type.initialLength * type.elementType.width!).round(upToNearest: 8) / 8)
+            b.buildMemcpy(newBuff, constantPtr, count: length)
 
             let newBuffCast = b.buildBitCast(newBuff, type: LLVM.PointerType(pointee: elementType))
             ir = b.buildInsertValue(aggregate: ir, element: newBuffCast, index: 0)
-            ir = b.buildInsertValue(aggregate: ir, element: bytes, index: 1) // len
+            ir = b.buildInsertValue(aggregate: ir, element: length, index: 1) // len
             // NOTE: since the raw buffer is stack allocated, we need to set the
             // capacity to `0`. Then, any call that needs to realloc can instead
             // malloc a new buffer.
-            ir = b.buildInsertValue(aggregate: ir, element: 0, index: 2) // cap
+            ir = b.buildInsertValue(aggregate: ir, element: i64.zero(), index: 2) // cap
 
             return ir
 
