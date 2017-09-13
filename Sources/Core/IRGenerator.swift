@@ -175,17 +175,16 @@ extension IRGenerator {
 
         for (entity, value) in zip(decl.entities, decl.values) {
             if let type = entity.type as? ty.Metatype {
-                let irType = b.createStruct(name: symbol(for: entity))
 
                 switch type.instanceType {
                 case let type as ty.Struct:
+                    let irType = b.createStruct(name: symbol(for: entity))
                     var irTypes: [IRType] = []
                     for field in type.fields {
                         let fieldType = canonicalize(field.type)
                         irTypes.append(fieldType)
                     }
                     irType.setBody(irTypes)
-                    entity.namedIRType = irType
 
                 default:
                     // Type alias
@@ -266,7 +265,6 @@ extension IRGenerator {
                         irTypes.append(fieldType)
                     }
                     irType.setBody(irTypes)
-                    entity.namedIRType = irType
 
                 default:
                     preconditionFailure()
@@ -758,7 +756,7 @@ extension IRGenerator {
 
     mutating func emit(lit: CompositeLit, returnAddress: Bool, entity: Entity?) -> IRValue {
         // TODO: Use the mangled entity name
-        switch (lit.type as? ty.Named)?.underlying ?? lit.type {
+        switch lit.type {
         case let type as ty.Struct:
             let irType = canonicalize(type)
             var ir = irType.undef()
@@ -792,16 +790,16 @@ extension IRGenerator {
             let stackAllocPtr = b.buildGEP(stackAlloc, indices: [0, 0])
             let newBuff = b.buildBitCast(stackAllocPtr, type: LLVM.PointerType(pointee: i8))
             let constantPtr = b.buildBitCast(constant, type: LLVM.PointerType(pointee: i8))
-            let bytes = (type.initialLength * type.elementType.width!).round(upToNearest: 8) / 8
-            b.buildMemcpy(newBuff, constantPtr, count: bytes)
+            let length = i64.constant((type.initialLength * type.elementType.width!).round(upToNearest: 8) / 8)
+            b.buildMemcpy(newBuff, constantPtr, count: length)
 
             let newBuffCast = b.buildBitCast(newBuff, type: LLVM.PointerType(pointee: elementType))
             ir = b.buildInsertValue(aggregate: ir, element: newBuffCast, index: 0)
-            ir = b.buildInsertValue(aggregate: ir, element: bytes, index: 1) // len
+            ir = b.buildInsertValue(aggregate: ir, element: length, index: 1) // len
             // NOTE: since the raw buffer is stack allocated, we need to set the
             // capacity to `0`. Then, any call that needs to realloc can instead
             // malloc a new buffer.
-            ir = b.buildInsertValue(aggregate: ir, element: 0, index: 2) // cap
+            ir = b.buildInsertValue(aggregate: ir, element: i64.zero(), index: 2) // cap
 
             return ir
 
@@ -1086,6 +1084,10 @@ extension IRGenerator {
 
     func canonicalize(_ type: Type) -> IRType {
 
+        if let named = type as? NamableType, let name = named.entity?.mangledName, let existing = module.type(named: name) {
+            return existing
+        }
+
         switch type {
         case let type as ty.Void:
             return canonicalize(type)
@@ -1114,8 +1116,6 @@ extension IRGenerator {
         case let type as ty.UntypedInteger:
             return canonicalize(type)
         case let type as ty.UntypedFloatingPoint:
-            return canonicalize(type)
-        case let type as ty.Named:
             return canonicalize(type)
         case is ty.UntypedNil:
             fatalError("Untyped nil should be constrained to target type")
@@ -1207,6 +1207,17 @@ extension IRGenerator {
     }
 
     func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
+        if let entity = struc.entity {
+            let irType = b.createStruct(name: symbol(for: entity))
+            var irTypes: [IRType] = []
+            for field in struc.fields {
+                let fieldType = canonicalize(field.type)
+                irTypes.append(fieldType)
+            }
+            irType.setBody(irTypes)
+            return irType
+        }
+
         return LLVM.StructType(elementTypes: struc.fields.map({ canonicalize($0.type) }), in: module.context)
     }
 
@@ -1216,25 +1227,5 @@ extension IRGenerator {
 
     func canonicalize(_ float: ty.UntypedFloatingPoint) -> FloatType {
         return FloatType(kind: .double, in: module.context)
-    }
-
-    func canonicalize(_ named: ty.Named) -> IRType {
-        if let existing = named.entity.namedIRType, named.entity.package === package {
-            return existing
-        }
-        let irType = b.createStruct(name: symbol(for: named.entity))
-        switch named.underlying {
-        case let type as ty.Struct:
-            var irTypes: [IRType] = []
-            for field in type.fields {
-                let fieldType = canonicalize(field.type)
-                irTypes.append(fieldType)
-            }
-            irType.setBody(irTypes)
-            named.entity.namedIRType = irType
-            return irType
-        default:
-            return canonicalize(named.underlying)
-        }
     }
 }

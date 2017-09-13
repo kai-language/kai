@@ -1,7 +1,7 @@
 
 #library "libc"
-#import "glfw.kai"
 #import github("vdka/gl")
+#import github("vdka/glfw")
 
 #foreign libc {
     printf :: (fmt: *u8, args: #cvargs ..any) -> i32

@@ -18,9 +18,6 @@ class Entity: CustomStringConvertible {
     var mangledName: String!
     var value: IRValue?
 
-    /// - precondition: flags.contains(.type)
-    var namedIRType: LLVM.StructType?
-
     var name: String {
         return ident.name
     }
@@ -51,7 +48,7 @@ class Entity: CustomStringConvertible {
     }
 
 // sourcery:inline:auto:Entity.Init
-init(ident: Ident, type: Type?, flags: Flag, constant: Value?, package: SourcePackage?, memberScope: Scope?, owningScope: Scope!, callconv: String?, linkname: String?, mangledName: String!, value: IRValue?, namedIRType: LLVM.StructType?) {
+init(ident: Ident, type: Type?, flags: Flag, constant: Value?, package: SourcePackage?, memberScope: Scope?, owningScope: Scope!, callconv: String?, linkname: String?, mangledName: String!, value: IRValue?) {
     self.ident = ident
     self.type = type
     self.flags = flags
@@ -63,7 +60,6 @@ init(ident: Ident, type: Type?, flags: Flag, constant: Value?, package: SourcePa
     self.linkname = linkname
     self.mangledName = mangledName
     self.value = value
-    self.namedIRType = namedIRType
 }
 // sourcery:end
 }
@@ -73,7 +69,7 @@ extension Entity {
     static func makeBuiltin(_ name: String, type: Type? = nil, flags: Flag = .none) -> Entity {
 
         let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-        let entity = Entity(ident: ident, type: type, flags: .constant, constant: nil, package: nil, memberScope: nil, owningScope: nil, callconv: nil, linkname: nil, mangledName: nil, value: nil, namedIRType: nil)
+        let entity = Entity(ident: ident, type: type, flags: .constant, constant: nil, package: nil, memberScope: nil, owningScope: nil, callconv: nil, linkname: nil, mangledName: nil, value: nil)
         return entity
     }
 

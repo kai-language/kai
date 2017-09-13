@@ -4,6 +4,10 @@ protocol Type: CustomStringConvertible {
     var width: Int? { get }
 }
 
+protocol NamableType: Type {
+    var entity: Entity? { get set }
+}
+
 extension Type {
     // The the type doesn't have a width, then we assume it is nil
     var width: Int? { return nil }
@@ -34,8 +38,6 @@ func == (lhs: Type, rhs: Type) -> Bool {
          (is ty.UntypedInteger, is ty.UntypedInteger),
          (is ty.UntypedFloatingPoint, is ty.UntypedFloatingPoint):
         return true
-    case (let lhs as ty.Named, let rhs as ty.Named):
-        return lhs.underlying == rhs.underlying
     case (let lhs as ty.Integer, let rhs as ty.Integer):
         return lhs.isSigned == rhs.isSigned && lhs.width == rhs.width
     case (is ty.FloatingPoint, is ty.FloatingPoint):
@@ -107,24 +109,29 @@ enum ty {
         var width: Int? { return 0 }
     }
 
-    struct Boolean: Type {
+    struct Boolean: Type, NamableType {
+        weak var entity: Entity?
         var width: Int? { return 1 }
     }
 
-    struct Integer: Type {
+    struct Integer: Type, NamableType {
+        weak var entity: Entity?
         var width: Int?
         var isSigned: Bool
     }
 
-    struct FloatingPoint: Type {
+    struct FloatingPoint: Type, NamableType {
+        weak var entity: Entity?
         var width: Int?
     }
 
-    struct KaiString: Type {
+    struct KaiString: Type, NamableType {
+        weak var entity: Entity?
         var width: Int? { return 64 * 3 } // pointer, length, capacity
     }
 
-    struct Pointer: Type {
+    struct Pointer: Type, NamableType {
+        weak var entity: Entity?
         var width: Int? { return MemoryLayout<Int>.size * 8 }
         var pointeeType: Type
 
@@ -133,7 +140,8 @@ enum ty {
         }
     }
 
-    struct Array: Type {
+    struct Array: Type, NamableType {
+        weak var entity: Entity?
         var width: Int? { return (elementType.width ?? 1) * length }
         var length: Int
         var elementType: Type
@@ -144,7 +152,8 @@ enum ty {
         }
     }
 
-    struct DynamicArray: Type {
+    struct DynamicArray: Type, NamableType {
+        weak var entity: Entity?
         // TODO: calculate correct `struct` size
         var width: Int? { return MemoryLayout<Int>.size }
         var elementType: Type
@@ -168,7 +177,8 @@ enum ty {
         var width: Int? { return 64 }
     }
 
-    struct Struct: Type {
+    struct Struct: Type, NamableType {
+        weak var entity: Entity?
         var width: Int?
 
         var node: Node
@@ -225,7 +235,8 @@ enum ty {
         }
     }
 
-    struct Function: Type {
+    struct Function: Type, NamableType {
+        weak var entity: Entity?
         var node: FuncLit?
         var params: [Type]
         var returnType: Tuple
@@ -252,12 +263,6 @@ enum ty {
 
     struct UntypedFloatingPoint: Type {
         var width: Int? { return 64 }
-    }
-
-    struct Named: Type {
-        var entity: Entity
-        var underlying: Type
-        var width: Int? { return underlying.width }
     }
 
     struct Metatype: Type {
