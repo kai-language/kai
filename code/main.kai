@@ -134,10 +134,6 @@ createBuffers :: fn() -> u32, u32, u32 {
 }
 
 main :: fn () -> void {
-
-    printf("Hello!\n".raw)
-    printf("HERE\n".raw)
-
     window, success := initGlfw()
     if !success
         panic("Error with window creation!\n")
@@ -163,6 +159,9 @@ main :: fn () -> void {
         tPrev = tNow
 
         glfw.PollEvents()
+
+        if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.TRUE
+            break
 
         //
         // Drawing

@@ -167,6 +167,7 @@ extension SourceFile {
             if !isDirectory(path: packageDirectory) {
 
                 let cloneJob = Job.new(fullpath: packageDirectory, operation: "Cloning", work: {
+                    print("Cloning \(userRepo)...")
                     Git().clone(repo: "https://github.com/" + user + "/" + repo + ".git", to: packageDirectory)
 
                     // Once done we allow new clones to not depend on this one

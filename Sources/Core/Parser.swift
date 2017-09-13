@@ -619,12 +619,31 @@ extension Parser {
         return list
     }
 
-    mutating func parseCompositeLiteralBody(_ type: Expr) -> CompositeLit {
+    mutating func parseNestedCompositeLiteralBody(_ type: ArrayType) -> CompositeLit {
         let lbrace = eatToken()
+
         var list: [KeyValue] = []
-        if tok != .lbrace {
-            list = parseElementList()
+        while tok != .rbrace && tok != .eof {
+            let val = parseCompositeLiteralBody(type.explicitType)
+            list.append(KeyValue(key: nil, colon: nil, value: val, type: nil, structField: nil))
+            if !atComma(in: "composite literal", .rbrace) {
+                break
+            }
+            next()
         }
+
+        let rbrace = expect(.rbrace)
+        return CompositeLit(explicitType: type, lbrace: lbrace, elements: list, rbrace: rbrace, type: nil)
+    }
+
+    mutating func parseCompositeLiteralBody(_ type: Expr) -> CompositeLit {
+        if let array = type as? ArrayType, array.explicitType is ArrayType {
+            return parseNestedCompositeLiteralBody(array)
+        }
+
+        let lbrace = eatToken()
+
+        var list: [KeyValue] = parseElementList()
         let rbrace = expect(.rbrace)
         return CompositeLit(explicitType: type, lbrace: lbrace, elements: list, rbrace: rbrace, type: nil)
     }
