@@ -1382,6 +1382,7 @@ extension Checker {
         case let file as ty.File:
             guard let member = file.memberScope.lookup(selector.sel.name) else {
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                selector.checked = .invalid
                 selector.type = ty.invalid
                 return ty.invalid
             }
@@ -1402,6 +1403,7 @@ extension Checker {
         case let strućt as ty.Struct:
             guard let field = strućt.fields.first(where: { $0.name == selector.sel.name }) else {
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                selector.checked = .invalid
                 selector.type = ty.invalid
                 return ty.invalid
             }
@@ -1451,6 +1453,7 @@ extension Checker {
                 reportError("Type '\(aggregateType)', does not have a member scope", at: selector.start)
             }
 
+            selector.checked = .invalid
             selector.type = ty.invalid
             return ty.invalid
         }
