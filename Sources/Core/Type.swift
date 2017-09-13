@@ -46,6 +46,8 @@ func == (lhs: Type, rhs: Type) -> Bool {
         return lhs.elementType == rhs.elementType && lhs.length == rhs.length
     case (let lhs as ty.DynamicArray, let rhs as ty.DynamicArray):
         return lhs.elementType == rhs.elementType
+    case (let lhs as ty.Vector, let rhs as ty.Vector):
+        return lhs.elementType == rhs.elementType && lhs.size == rhs.size
     case (let lhs as ty.Struct, let rhs as ty.Struct):
         return lhs.node.start == rhs.node.start
     case (let lhs as ty.Function, let rhs as ty.Function):
@@ -154,6 +156,12 @@ enum ty {
             self.initialLength = initialLength
             self.initialCapacity = initialCapacity
         }
+    }
+
+    struct Vector: Type {
+        var width: Int? { return elementType.width! * size }
+        var size: Int
+        var elementType: Type
     }
 
     struct Anyy: Type {

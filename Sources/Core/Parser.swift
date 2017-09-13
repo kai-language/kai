@@ -286,6 +286,12 @@ extension Parser {
             return x
         case .lbrack:
             let lbrack = eatToken()
+            var isVector = false
+
+            if tok == .ident && lit == "vec" {
+                next()
+                isVector = true
+            }
 
             let length: Expr?
             if tok != .ellipsis {
@@ -299,12 +305,15 @@ extension Parser {
             let type = parseType()
 
             if let length = length {
+                if isVector {
+                    return VectorType(lbrack: lbrack, size: length, rbrack: rbrack, explicitType: type, type: nil)
+                }
+
                 return ArrayType(lbrack: lbrack, length: length, rbrack: rbrack, explicitType: type, type: nil)
             } else {
                 return DynamicArrayType(
                     lbrack: lbrack, rbrack: rbrack, explicitType: type, type: nil)
             }
-
         case .mul:
             let star = eatToken()
             let type = parseType()
@@ -643,7 +652,7 @@ extension Parser {
 
         let lbrace = eatToken()
 
-        var list: [KeyValue] = parseElementList()
+        let list: [KeyValue] = parseElementList()
         let rbrace = expect(.rbrace)
         return CompositeLit(explicitType: type, lbrace: lbrace, elements: list, rbrace: rbrace, type: nil)
     }

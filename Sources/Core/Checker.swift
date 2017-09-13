@@ -532,6 +532,28 @@ extension Checker {
             let type = ty.DynamicArray(elementType: element, initialLength: nil, initialCapacity: nil)
             array.type = ty.Metatype(instanceType: type)
 
+        case let vector as VectorType:
+            var element = check(expr: vector.explicitType)
+            element = lowerFromMetatype(element, atNode: vector)
+
+            guard canVector(element) else {
+                reportError("Vector only supports primitive data types", at: vector.explicitType.start)
+                vector.type = ty.invalid
+                return ty.invalid
+            }
+
+            // TODO: extract compile-time constant from expression `vector.size`
+            _ = check(expr: vector.size)
+            guard
+                let lit = vector.size as? BasicLit,
+                let size = lit.constant as? UInt64
+            else {
+                    reportError("Currently, only array literals are allowed for vector size", at: vector.size.start)
+                    return ty.invalid
+            }
+            let type = ty.Vector(size: Int(size), elementType: element)
+            vector.type = ty.Metatype(instanceType: type)
+
         case let strućt as StructType:
             check(struct: strućt)
 
@@ -712,6 +734,23 @@ extension Checker {
             let length = lit.elements.count
             type.initialLength = length
             type.initialCapacity = length
+
+            // FIXME: Doesn't respect named types
+            lit.type = type
+            return type
+
+        case let type as ty.Vector:
+            if lit.elements.count != type.size {
+                reportError("Element count (\(lit.elements.count)) does not match vector size (\(type.size))", at: lit.start)
+            }
+
+            for el in lit.elements {
+                el.type = check(expr: el.value, desiredType: type.elementType)
+                guard canConvert(el.type, to: type.elementType) || implicitlyConvert(el.type, to: type.elementType) else {
+                    reportError("Cannot convert element of type '\(el.type.description)' to expected type '\(type.elementType)'", at: el.value.start)
+                    continue
+                }
+            }
 
             // FIXME: Doesn't respect named types
             lit.type = type
@@ -1427,6 +1466,28 @@ extension Checker {
             }
             return selector.type
 
+        case let vector as ty.Vector:
+            let index: Int
+
+            switch selector.sel.name {
+            case "x", "r":
+                index = 0
+            case "y" where vector.size >= 2, "g" where vector.size >= 2:
+                index = 1
+            case "z" where vector.size >= 3, "b" where vector.size >= 3:
+                index = 2
+            case "w" where vector.size >= 4, "a" where vector.size >= 4:
+                index = 3
+            default:
+                selector.checked = .invalid
+                selector.type = ty.invalid
+                return selector.type
+            }
+
+            selector.checked = .vector(index)
+            selector.type = vector.elementType
+            return selector.type
+
         case is ty.KaiString:
             switch selector.sel.name {
             case "raw":
@@ -1948,6 +2009,8 @@ func canLvalue(_ expr: Expr) -> Bool {
             return true
         case .array:
             return true
+        case .vector:
+            return true
         case .struct:
             return true
         case .invalid:
@@ -1963,6 +2026,15 @@ func canLvalue(_ expr: Expr) -> Bool {
 func canSequence(_ type: Type) -> Bool {
     switch type {
     case is ty.Array, is ty.DynamicArray, is ty.KaiString:
+        return true
+    default:
+        return false
+    }
+}
+
+func canVector(_ type: Type) -> Bool {
+    switch type {
+    case is ty.Integer, is ty.FloatingPoint:
         return true
     default:
         return false

@@ -331,6 +331,7 @@ class Selector: Node, Expr {
         case file(Entity)
         case `struct`(ty.Struct.Field)
         case array(ArrayMember)
+        case vector(Int)
 
         enum ArrayMember: Int {
             case raw
@@ -603,6 +604,28 @@ class DynamicArrayType: Node, Expr {
 // sourcery:inline:auto:DynamicArrayType.Init
 init(lbrack: Pos, rbrack: Pos, explicitType: Expr, type: Type!) {
     self.lbrack = lbrack
+    self.rbrack = rbrack
+    self.explicitType = explicitType
+    self.type = type
+}
+// sourcery:end
+}
+
+class VectorType: Node, Expr {
+    var lbrack: Pos
+    var size: Expr
+    var rbrack: Pos
+    var explicitType: Expr
+
+    var type: Type!
+
+    var start: Pos { return lbrack }
+    var end: Pos { return explicitType.end }
+
+// sourcery:inline:auto:VectorType.Init
+init(lbrack: Pos, size: Expr, rbrack: Pos, explicitType: Expr, type: Type!) {
+    self.lbrack = lbrack
+    self.size = size
     self.rbrack = rbrack
     self.explicitType = explicitType
     self.type = type

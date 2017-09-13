@@ -805,6 +805,15 @@ extension IRGenerator {
 
             return ir
 
+        case let type as ty.Vector:
+            let irType = canonicalize(type)
+            var ir = irType.undef()
+            for (index, el) in lit.elements.enumerated() {
+                let val = emit(expr: el.value)
+                ir = b.buildInsertElement(vector: ir, element: val, index: index)
+            }
+            return ir
+
         default:
             preconditionFailure()
         }
@@ -1036,6 +1045,9 @@ extension IRGenerator {
                 return b.buildCast(cast, value: val, type: canonicalize(sel.type))
             }
             return val
+        case .vector(let index):
+            let vector = emit(expr: sel.rec)
+            return b.buildExtractElement(vector: vector, index: index)
         }
     }
 
@@ -1090,6 +1102,8 @@ extension IRGenerator {
         case let type as ty.Array:
             return canonicalize(type)
         case let type as ty.DynamicArray:
+            return canonicalize(type)
+        case let type as ty.Vector:
             return canonicalize(type)
         case let type as ty.Function:
             return canonicalize(type)
@@ -1161,6 +1175,10 @@ extension IRGenerator {
         let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8, in: module.context)
         // { Element type, Length, Capacity }
         return LLVM.StructType(elementTypes: [element, systemWidthType, systemWidthType])
+    }
+
+    func canonicalize(_ vector: ty.Vector) -> LLVM.VectorType {
+        return LLVM.VectorType(elementType: canonicalize(vector.elementType), count: vector.size)
     }
 
     func canonicalize(_ fn: ty.Function) -> FunctionType {

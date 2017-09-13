@@ -705,6 +705,20 @@ func copy(_ nodes: [VariadicType]) -> [VariadicType] {
     return nodes.map(copy)
 }
 
+func copy(_ node: VectorType) -> VectorType {
+    return VectorType(
+        lbrack: node.lbrack,
+        size: copy(node.size),
+        rbrack: node.rbrack,
+        explicitType: copy(node.explicitType),
+        type: node.type
+    )
+}
+
+func copy(_ nodes: [VectorType]) -> [VectorType] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: Expr) -> Expr {
     switch node {
     case let node as ArrayType: return copy(node)
@@ -733,6 +747,7 @@ func copy(_ node: Expr) -> Expr {
     case let node as Ternary: return copy(node)
     case let node as Unary: return copy(node)
     case let node as VariadicType: return copy(node)
+    case let node as VectorType: return copy(node)
     default: fatalError()
     }
 }
@@ -756,6 +771,7 @@ func copy(_ node: Stmt) -> Stmt {
     case let node as For: return copy(node)
     case let node as ForIn: return copy(node)
     case let node as Foreign: return copy(node)
+    case let node as IdentList: return copy(node)
     case let node as If: return copy(node)
     case let node as Import: return copy(node)
     case let node as Label: return copy(node)

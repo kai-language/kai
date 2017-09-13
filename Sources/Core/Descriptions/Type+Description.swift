@@ -59,6 +59,12 @@ extension ty.DynamicArray {
     }
 }
 
+extension ty.Vector {
+    var description: String {
+        return "[vec \(size)]" + elementType.description
+    }
+}
+
 extension ty.Function {
     var description: String {
         return "(" + params.map({ $0.description }).joined(separator: ", ") + ") -> " + returnType.description
