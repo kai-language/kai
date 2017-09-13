@@ -253,15 +253,22 @@ extension Checker {
                 }
 
                 let entity = newEntity(ident: ident, type: type)
+                entities.append(entity)
+
                 if decl.isConstant {
                     entity.flags.insert(.constant)
                     entity.constant = constant(from: value)
                 }
                 if let type = type as? ty.Metatype {
                     entity.flags.insert(.type)
-                    entity.type = ty.Metatype(instanceType: ty.Named(entity: entity, underlying: type.instanceType))
+                    // TODO: check for variable vs value declaration
+                    guard var t = type.instanceType as? NamableType else {
+                        reportError("The type '\(type.instanceType)' is not aliasable", at: value.start)
+                        continue
+                    }
+                    t.entity = entity
+                    entity.type = ty.Metatype(instanceType: t)
                 }
-                entities.append(entity)
             }
         }
 
@@ -645,9 +652,7 @@ extension Checker {
         type = lowerFromMetatype(type, atNode: lit.explicitType)
         lit.type = type
 
-        let underlyingType = type.dename()
-
-        switch underlyingType {
+        switch type {
         case let s as ty.Struct:
             if lit.elements.count > s.fields.count {
                 reportError("Too many values in struct initializer", at: lit.elements[s.fields.count].start)
@@ -1035,10 +1040,10 @@ extension Checker {
 
         if needsSpecialization && !fn.isSpecialization {
             typeFlags.insert(.polymorphic)
-            fn.type = ty.Function(node: fn, params: params, returnType: returnType, flags: .polymorphic)
+            fn.type = ty.Function(entity: nil, node: fn, params: params, returnType: returnType, flags: .polymorphic)
             fn.checked = .polymorphic(declaringScope: context.scope, specializations: [])
         } else {
-            fn.type = ty.Function(node: fn, params: params, returnType: returnType, flags: typeFlags)
+            fn.type = ty.Function(entity: nil, node: fn, params: params, returnType: returnType, flags: typeFlags)
             fn.checked = .regular(context.scope)
         }
 
@@ -1080,7 +1085,7 @@ extension Checker {
         }
 
         var type: Type
-        type = ty.Function(node: nil, params: params, returnType: returnType, flags: typeFlags)
+        type = ty.Function(entity: nil, node: nil, params: params, returnType: returnType, flags: typeFlags)
         type = ty.Pointer(pointeeType: type)
         fn.type = ty.Metatype(instanceType: type)
         return type
@@ -1114,7 +1119,7 @@ extension Checker {
             }
         }
         var type: Type
-        type = ty.Struct(width: width, node: strućt, fields: fields, isPolymorphic: false)
+        type = ty.Struct(entity: nil, width: width, node: strućt, fields: fields, isPolymorphic: false)
         type = ty.Metatype(instanceType: type)
         strućt.type = type
         return type
@@ -1143,7 +1148,7 @@ extension Checker {
             }
         }
         var type: Type
-        type = ty.Struct(width: width, node: polyStruct, fields: fields, isPolymorphic: true)
+        type = ty.Struct(entity: nil, width: width, node: polyStruct, fields: fields, isPolymorphic: true)
         type = ty.Metatype(instanceType: type)
         polyStruct.type = type
         return type
@@ -1232,8 +1237,8 @@ extension Checker {
 
         // Handle extending or truncating
         if lhsType == rhsType && lhsType is ty.UntypedInteger {
-            lhsType = ty.Integer(width: ty.untypedInteger.width, isSigned: false)
-            rhsType = ty.Integer(width: ty.untypedInteger.width, isSigned: false)
+            lhsType = ty.Integer(entity: nil, width: ty.untypedInteger.width, isSigned: false)
+            rhsType = ty.Integer(entity: nil, width: ty.untypedInteger.width, isSigned: false)
             resultType = ty.untypedInteger
         } else if lhsType == rhsType && lhsType is ty.UntypedFloatingPoint {
             lhsType = ty.f64
@@ -1887,7 +1892,7 @@ extension Checker {
     }
 
     func newEntity(ident: Ident, type: Type? = nil, flags: Entity.Flag = .none, memberScope: Scope? = nil, owningScope: Scope? = nil, constant: Value? = nil) -> Entity {
-        return Entity(ident: ident, type: type, flags: flags, constant: constant, package: file.package, memberScope: memberScope, owningScope: owningScope, callconv: nil, linkname: nil, mangledName: nil, value: nil, namedIRType: nil)
+        return Entity(ident: ident, type: type, flags: flags, constant: constant, package: file.package, memberScope: memberScope, owningScope: owningScope, callconv: nil, linkname: nil, mangledName: nil, value: nil)
     }
 }
 

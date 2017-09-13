@@ -756,6 +756,7 @@ func copy(_ node: Stmt) -> Stmt {
     case let node as For: return copy(node)
     case let node as ForIn: return copy(node)
     case let node as Foreign: return copy(node)
+    case let node as IdentList: return copy(node)
     case let node as If: return copy(node)
     case let node as Import: return copy(node)
     case let node as Label: return copy(node)
@@ -805,8 +806,7 @@ func copy(_ entity: Entity) -> Entity {
         callconv: entity.callconv,
         linkname: entity.linkname,
         mangledName: nil,
-        value: nil,
-        namedIRType: nil
+        value: nil
     )
 }
 

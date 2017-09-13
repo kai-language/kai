@@ -73,8 +73,7 @@ func copy(_ entity: Entity) -> Entity {
         callconv: entity.callconv,
         linkname: entity.linkname,
         mangledName: nil,
-        value: nil,
-        namedIRType: nil
+        value: nil
     )
 }
 

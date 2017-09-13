@@ -10,23 +10,24 @@ struct BuiltinType {
         self.entity = entity
         self.type = type
     }
-    static let void = BuiltinType(entity: .void, type: ty.Void() )
+    static let void = BuiltinType(entity: .void, type: ty.Void())
     static let any  = BuiltinType(entity: .any,  type: ty.Anyy())
 
     static let bool = BuiltinType(entity: .bool,    type: ty.Boolean())
     static let rawptr = BuiltinType(entity: .rawptr, type: ty.Pointer(pointeeType: ty.u8))
     static let string = BuiltinType(entity: .string, type: ty.KaiString())
 
-    static let f32 = BuiltinType(entity: .f32, type: ty.FloatingPoint(width: 32))
-    static let f64 = BuiltinType(entity: .f64, type: ty.FloatingPoint(width: 64))
-    static let i8  = BuiltinType(entity: .i8,  type: ty.Integer(width: 8,  isSigned: true))
-    static let u8  = BuiltinType(entity: .u8,  type: ty.Integer(width: 8,  isSigned: false))
-    static let i16 = BuiltinType(entity: .i16, type: ty.Integer(width: 16, isSigned: true))
-    static let u16 = BuiltinType(entity: .u16, type: ty.Integer(width: 16, isSigned: false))
-    static let i32 = BuiltinType(entity: .i32, type: ty.Integer(width: 32, isSigned: true))
-    static let u32 = BuiltinType(entity: .u32, type: ty.Integer(width: 32, isSigned: false))
-    static let i64 = BuiltinType(entity: .i64, type: ty.Integer(width: 64, isSigned: true))
-    static let u64 = BuiltinType(entity: .u64, type: ty.Integer(width: 64, isSigned: false))
+    static let f32 = BuiltinType(entity: .f32, type: ty.FloatingPoint(entity: .f32, width: 32))
+    static let f64 = BuiltinType(entity: .f64, type: ty.FloatingPoint(entity: .f64, width: 64))
+
+    static let i8  = BuiltinType(entity: .i8,  type: ty.Integer(entity: .i8 , width: 8,  isSigned: true))
+    static let u8  = BuiltinType(entity: .u8,  type: ty.Integer(entity: .u8 , width: 8,  isSigned: false))
+    static let i16 = BuiltinType(entity: .i16, type: ty.Integer(entity: .i16, width: 16, isSigned: true))
+    static let u16 = BuiltinType(entity: .u16, type: ty.Integer(entity: .u16, width: 16, isSigned: false))
+    static let i32 = BuiltinType(entity: .i32, type: ty.Integer(entity: .i32, width: 32, isSigned: true))
+    static let u32 = BuiltinType(entity: .u32, type: ty.Integer(entity: .u32, width: 32, isSigned: false))
+    static let i64 = BuiltinType(entity: .i64, type: ty.Integer(entity: .i64, width: 64, isSigned: true))
+    static let u64 = BuiltinType(entity: .u64, type: ty.Integer(entity: .u64, width: 64, isSigned: false))
 
     static let untypedInteger = BuiltinType(entity: .anonymous, type: ty.UntypedInteger())
     static let untypedFloat   = BuiltinType(entity: .anonymous, type: ty.UntypedFloatingPoint())
@@ -78,7 +79,7 @@ class BuiltinEntity {
 
     init(name: String, type: Type, gen: @escaping (IRBuilder) -> IRValue) {
         let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-        let entity = Entity(ident: ident, type: type, flags: .builtin, constant: nil, package: nil, memberScope: nil, owningScope: nil, callconv: nil, linkname: nil, mangledName: nil, value: nil, namedIRType: nil)
+        let entity = Entity(ident: ident, type: type, flags: .builtin, constant: nil, package: nil, memberScope: nil, owningScope: nil, callconv: nil, linkname: nil, mangledName: nil, value: nil)
         self.entity = entity
         self.type = type
         self.gen = {
@@ -126,7 +127,7 @@ class BuiltinFunction {
     /// - Note: OutTypes must be metatypes and will be made instance instanceTypes
     static func make(_ name: String, in inTypes: [Type], out outTypes: [Type], isVariadic: Bool = false, gen: @escaping Generate, onCallCheck: CallCheck? = nil) -> BuiltinFunction {
         let returnType = ty.Tuple.make(outTypes.map(ty.Metatype.init))
-        let type = ty.Function(node: nil, params: inTypes, returnType: returnType, flags: .none)
+        let type = ty.Function(entity: nil, node: nil, params: inTypes, returnType: returnType, flags: .none)
 
         let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
         let entity = Entity(ident: ident, type: type)
