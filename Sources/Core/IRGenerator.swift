@@ -758,7 +758,7 @@ extension IRGenerator {
 
     mutating func emit(lit: CompositeLit, returnAddress: Bool, entity: Entity?) -> IRValue {
         // TODO: Use the mangled entity name
-        switch (lit.type as? ty.Named)?.underlying ?? lit.type {
+        switch lit.type.dename() {
         case let type as ty.Struct:
             let irType = canonicalize(type)
             var ir = irType.undef()

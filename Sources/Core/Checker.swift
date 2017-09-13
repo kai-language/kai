@@ -645,7 +645,7 @@ extension Checker {
         type = lowerFromMetatype(type, atNode: lit.explicitType)
         lit.type = type
 
-        let underlyingType = (type as? ty.Named)?.underlying ?? type
+        let underlyingType = type.dename()
 
         switch underlyingType {
         case let s as ty.Struct:

@@ -17,6 +17,11 @@ extension Type {
         }
         return (self as! ty.Metatype).instanceType
     }
+
+    /// - Returns: `(type as? ty.Named)?.underlying.dename() ?? type`
+    func dename() -> Type {
+        return (self as? ty.Named)?.underlying.dename() ?? self
+    }
 }
 
 func != (lhs: Type, rhs: Type) -> Bool {
@@ -25,7 +30,7 @@ func != (lhs: Type, rhs: Type) -> Bool {
 
 func == (lhs: Type, rhs: Type) -> Bool {
 
-    switch (lhs, rhs) {
+    switch (lhs.dename(), rhs.dename()) {
     case (is ty.Void, is ty.Void),
          (is ty.Anyy, is ty.Anyy),
          (is ty.CVarArg, is ty.CVarArg),
@@ -34,8 +39,6 @@ func == (lhs: Type, rhs: Type) -> Bool {
          (is ty.UntypedInteger, is ty.UntypedInteger),
          (is ty.UntypedFloatingPoint, is ty.UntypedFloatingPoint):
         return true
-    case (let lhs as ty.Named, let rhs as ty.Named):
-        return lhs.underlying == rhs.underlying
     case (let lhs as ty.Integer, let rhs as ty.Integer):
         return lhs.isSigned == rhs.isSigned && lhs.width == rhs.width
     case (is ty.FloatingPoint, is ty.FloatingPoint):
