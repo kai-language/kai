@@ -80,26 +80,153 @@ struct Checker {
 
 extension Checker {
 
-    mutating func check() {
+    mutating func checkFile() {
+        for node in file.nodes {
+            collect(topLevelStmt: node)
+        }
         for node in file.nodes {
             check(topLevelStmt: node)
         }
     }
 
-    mutating func check(topLevelStmt stmt: TopLevelStmt) {
+    mutating func collect(topLevelStmt stmt: TopLevelStmt) {
         switch stmt {
         case let i as Import:
-            check(import: i)
+            collect(import: i)
         case let l as Library:
-            check(library: l)
+            collect(library: l)
         case let f as Foreign:
-            check(foreign: f)
+            collect(foreignDecl: f.decl as! Declaration)
         case let d as DeclBlock:
-            check(declBlock: d)
+            collect(declBlock: d)
         case let d as Declaration:
-            check(decl: d)
+            collect(decl: d)
         case let using as Using:
             check(using: using)
+        default:
+            print("Warning: statement '\(stmt)' passed tharrough without getting checked")
+        }
+    }
+
+    mutating func collect(declBlock b: DeclBlock) {
+        for decl in b.decls {
+            if b.isForeign {
+                collect(foreignDecl: decl)
+            } else {
+                collect(decl: decl)
+            }
+        }
+    }
+
+    mutating func collect(import i: Import) {
+
+        var entity: Entity?
+        if let alias = i.alias {
+            entity = newEntity(ident: alias, flags: .file)
+        } else if !i.importSymbolsIntoScope {
+            guard let name = i.resolvedName else {
+                reportError("Cannot infer an import name for '\(i.path)'", at: i.path.start)
+                file.attachNote("You will need to manually specify one")
+                return
+            }
+            let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
+            entity = newEntity(ident: ident, flags: .file)
+        }
+
+        // TODO: Ensure the import has been fully checked
+        if i.importSymbolsIntoScope {
+            for member in i.scope.members.values {
+                guard !member.isFile else {
+                    continue
+                }
+
+                declare(member, scopeOwnsEntity: i.exportSymbolsOutOfScope)
+            }
+        } else if let entity = entity {
+            entity.memberScope = i.scope
+            entity.type = ty.File(memberScope: i.scope)
+            declare(entity)
+        }
+    }
+
+    mutating func collect(library l: Library) {
+
+        guard let lit = l.path as? BasicLit, lit.token == .string else {
+            reportError("Library path must be a string literal value", at: l.path.start)
+            return
+        }
+
+        let path = lit.constant as! String
+
+        l.resolvedName = l.alias?.name ?? pathToEntityName(path)
+
+        // TODO: Use the Value system to resolve any string value.
+        guard let name = l.resolvedName else {
+            reportError("Cannot infer an import name for '\(path)'", at: l.path.start)
+            file.attachNote("You will need to manually specify one")
+            return
+        }
+        let ident = l.alias ?? Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
+        let entity = newEntity(ident: ident, flags: .library)
+        declare(entity)
+
+        if path != "libc" && path != "llvm" {
+
+            guard let linkpath = resolveLibraryPath(path, for: file.fullpath) else {
+                reportError("Failed to resolve path for '\(path)'", at: l.path.start)
+                return
+            }
+            file.package.linkedLibraries.insert(linkpath)
+        }
+    }
+
+    mutating func collect(decl: Declaration) {
+        var entities: [Entity] = []
+
+        for ident in decl.names {
+            if ident.name == "_" {
+                entities.append(Entity.anonymous)
+                continue
+            }
+
+            let entity = newEntity(ident: ident)
+            entity.declaration = decl
+            ident.entity = entity
+            entities.append(entity)
+            declare(entity)
+        }
+
+        decl.entities = entities
+    }
+
+    mutating func collect(foreignDecl d: Declaration) {
+        // NOTE: Foreign declarations inforce singular names.
+        let ident = d.names[0]
+        if ident.name == "_" {
+            return
+        }
+
+        let entity = newEntity(ident: ident, flags: d.isConstant ? [.constant, .foreign] : .foreign)
+        entity.declaration = d
+        ident.entity = entity
+        declare(entity)
+        d.entities = [entity]
+    }
+
+
+    // MARK: Checking
+
+    mutating func check(topLevelStmt stmt: TopLevelStmt) {
+        switch stmt {
+        case is Using,
+             is Import,
+             is Library,
+             is Foreign:
+        break // we check these during collection.
+        case let d as Declaration:
+            check(decl: d)
+        case let block as DeclBlock:
+            check(declBlock: block)
         default:
             print("Warning: statement '\(stmt)' passed through without getting checked")
         }
@@ -133,6 +260,8 @@ extension Checker {
             }
         case let decl as Declaration:
             check(decl: decl)
+        case let block as DeclBlock:
+            check(declBlock: block)
         case let assign as Assign:
             check(assign: assign)
         case let block as Block:
@@ -192,7 +321,21 @@ extension Checker {
     @discardableResult
     mutating func check(decl: Declaration) -> [Entity] {
         var expectedType: Type?
-        var entities: [Entity] = []
+        if decl.entities == nil {
+            // FIXME: Enter the scope of the declaration
+            var entities: [Entity] = []
+            entities.reserveCapacity(decl.names.count)
+            for ident in decl.names {
+                if ident.name == "_" {
+                    ident.entity = Entity.anonymous
+                } else {
+                    ident.entity = newEntity(ident: ident)
+                    declare(ident.entity)
+                }
+                entities.append(ident.entity)
+            }
+            decl.entities = entities
+        }
 
         if let explicitType = decl.explicitType {
             expectedType = check(expr: explicitType)
@@ -205,43 +348,41 @@ extension Checker {
             let types = tuple.types
 
             for (ident, type) in zip(decl.names, types) {
-                if ident.name == "_" {
-                    entities.append(Entity.anonymous)
+                if ident.entity === Entity.anonymous {
                     continue
                 }
-                let entity = newEntity(ident: ident, type: type)
                 if decl.isConstant {
-                    entity.flags.insert(.constant)
+                    ident.entity.flags.insert(.constant)
                     // TODO: Assign constants from calls
                 }
                 if type is ty.Metatype {
-                    entity.flags.insert(.type)
+                    ident.entity.flags.insert(.type)
                 }
-                entities.append(entity)
+                ident.entity.flags.insert(.checked)
+                ident.entity.type = type
             }
-            decl.entities = entities
 
         } else if decl.values.isEmpty {
             assert(!decl.isConstant)
 
             let type = expectedType!
             for ident in decl.names {
-                let entity = newEntity(ident: ident, type: type)
                 assert(!decl.isConstant)
                 if type is ty.Metatype {
-                    entity.flags.insert(.type)
+                    ident.entity.flags.insert(.type)
                 }
-                entities.append(entity)
+                ident.entity.flags.insert(.checked)
+                ident.entity.type = type
             }
 
         } else {
 
             for (ident, value) in zip(decl.names, decl.values) {
                 var type = check(expr: value, desiredType: expectedType)
-                if ident.name == "_" {
-                    entities.append(Entity.anonymous)
+                if ident.entity === Entity.anonymous {
                     continue
                 }
+                ident.entity.flags.insert(.checked)
                 if let expectedType = expectedType, type is ty.Function, let pointer = expectedType as? ty.Pointer {
                     if type != pointer.pointeeType {
                         reportError("Cannot convert value of type '\(type)' to specified type '\(expectedType)'", at: value.start)
@@ -252,29 +393,23 @@ extension Checker {
                     type = expectedType
                 }
 
-                let entity = newEntity(ident: ident, type: type)
-                entities.append(entity)
+                ident.entity.type = type
 
                 if decl.isConstant {
-                    entity.flags.insert(.constant)
-                    entity.constant = constant(from: value)
+                    ident.entity.flags.insert(.constant)
+                    ident.entity.constant = constant(from: value)
                 }
                 if let type = type as? ty.Metatype {
-                    entity.flags.insert(.type)
+                    ident.entity.flags.insert(.type)
                     // TODO: check for variable vs value declaration
                     guard var t = type.instanceType as? NamableType else {
                         reportError("The type '\(type.instanceType)' is not aliasable", at: value.start)
                         continue
                     }
-                    t.entity = entity
-                    entity.type = ty.Metatype(instanceType: t)
+                    t.entity = ident.entity
+                    ident.entity.type = ty.Metatype(instanceType: t)
                 }
             }
-        }
-
-        decl.entities = entities
-        for entity in entities {
-            declare(entity)
         }
 
         return decl.entities
@@ -303,9 +438,21 @@ extension Checker {
 
     @discardableResult
     mutating func check(foreignDecl d: Declaration) -> Entity {
-
         let ident = d.names[0]
-        if ident.name == "_" {
+
+        if !context.scope.isFile && !context.scope.isPackage {
+            if ident.name == "_" {
+                ident.entity = Entity.anonymous
+                // throws error below
+            } else {
+                let entity = newEntity(ident: ident, flags: d.isConstant ? [.constant, .foreign] : .foreign)
+                ident.entity = entity
+                declare(entity)
+                d.entities = [entity]
+            }
+        }
+
+        if ident.entity === Entity.anonymous {
             reportError("The dispose identifer is not a permitted name in foreign declarations", at: ident.start)
             return Entity.anonymous
         }
@@ -320,12 +467,10 @@ extension Checker {
                 type = pointer.pointeeType
             }
         }
+        ident.entity.flags.insert(.checked)
+        ident.entity.type = type
 
-        let entity = newEntity(ident: ident, type: type, flags: d.isConstant ? [.constant, .foreign] : .foreign)
-        declare(entity)
-        d.entities = [entity]
-
-        return entity
+        return ident.entity
     }
 
     mutating func check(assign: Assign) {
@@ -356,84 +501,6 @@ extension Checker {
                 reportError("Assignment count missmatch \(assign.lhs.count) = \(assign.rhs.count)", at: assign.start)
             }
         }
-    }
-
-    mutating func check(import i: Import) {
-
-        var entity: Entity?
-        if let alias = i.alias {
-            entity = newEntity(ident: alias, flags: .file)
-        } else if !i.importSymbolsIntoScope {
-            guard let name = i.resolvedName else {
-                reportError("Cannot infer an import name for '\(i.path)'", at: i.path.start)
-                file.attachNote("You will need to manually specify one")
-                return
-            }
-            let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-            entity = newEntity(ident: ident, flags: .file)
-        }
-
-        // TODO: Ensure the import has been fully checked
-        if i.importSymbolsIntoScope {
-            for member in i.scope.members.values {
-                guard !member.flags.contains(.file) else {
-                    continue
-                }
-
-                declare(member, scopeOwnsEntity: i.exportSymbolsOutOfScope)
-            }
-        } else if let entity = entity {
-            entity.memberScope = i.scope
-            entity.type = ty.File(memberScope: i.scope)
-            declare(entity)
-        }
-    }
-
-    mutating func check(library l: Library) {
-
-        guard let lit = l.path as? BasicLit, lit.token == .string else {
-            reportError("Library path must be a string literal value", at: l.path.start)
-            return
-        }
-
-        let path = lit.constant as! String
-
-        l.resolvedName = l.alias?.name ?? pathToEntityName(path)
-
-        // TODO: Use the Value system to resolve any string value.
-        guard let name = l.resolvedName else {
-            reportError("Cannot infer an import name for '\(path)'", at: l.path.start)
-            file.attachNote("You will need to manually specify one")
-            return
-        }
-        let ident = l.alias ?? Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-        let entity = newEntity(ident: ident, flags: .library)
-        declare(entity)
-
-        if path != "libc" && path != "llvm" {
-
-            guard let linkpath = resolveLibraryPath(path, for: file.fullpath) else {
-                reportError("Failed to resolve path for '\(path)'", at: l.path.start)
-                return
-            }
-            file.package.linkedLibraries.insert(linkpath)
-        }
-    }
-
-    mutating func check(foreign f: Foreign) {
-
-        // TODO: Check callconv
-        guard let entity = context.scope.lookup(f.library.name) else {
-            reportError("Use of undefined identifier '\(f.library)'", at: f.library.start)
-            return
-        }
-        guard entity.flags.contains(.library) else {
-            reportError("Expected a library", at: f.library.start)
-            return
-        }
-        f.library.entity = entity
-
-        check(foreignDecl: f.decl as! Declaration)
     }
 
     mutating func check(using: Using) {
@@ -609,7 +676,7 @@ extension Checker {
             ident.type = ty.invalid
             return ty.invalid
         }
-        guard !entity.flags.contains(.library) else {
+        guard !entity.isLibrary else {
             reportError("Cannot use library as expression", at: ident.start)
             ident.entity = Entity.invalid
             ident.type = ty.invalid
@@ -626,13 +693,19 @@ extension Checker {
                 return desiredType
             }
         }
-        ident.type = entity.type!
+        assert(entity.type != nil || !entity.isChecked)
+        var type = entity.type
+        if entity.type == nil {
+            check(topLevelStmt: entity.declaration!)
+            assert(entity.isChecked && entity.type != nil)
+            type = entity.type
+        }
+        ident.type = type
         return entity.type!
     }
 
     @discardableResult
     mutating func check(basicLit lit: BasicLit, desiredType: Type?) -> Type {
-        // TODO: Untyped types
         switch lit.token {
         case .int:
             switch lit.text.prefix(2) {
@@ -966,7 +1039,7 @@ extension Checker {
             }
 
             context.nextCase = nextCase
-            
+
             check(stmt: c.block)
         }
 
@@ -1243,10 +1316,15 @@ extension Checker {
         var lhsType = check(expr: binary.lhs)
         var rhsType = check(expr: binary.rhs)
 
+        if lhsType is ty.Invalid || rhsType is ty.Invalid {
+            binary.type = ty.invalid
+            return ty.invalid
+        }
+
         let resultType: Type
         let op: OpCode.Binary
 
-        var isPointerArithmetic = false
+        binary.isPointerArithmetic = false
 
         // Used to communicate any implicit casts to perform for this operation
         var (lCast, rCast): (OpCode.Cast?, OpCode.Cast?) = (nil, nil)
@@ -1325,13 +1403,13 @@ extension Checker {
             }
 
             resultType = lhsType
-            isPointerArithmetic = true
+            binary.isPointerArithmetic = true
         } else if let lhsType = lhsType as? ty.Pointer, let rhsType = rhsType as? ty.Pointer {
             switch binary.op {
             // allowed for ptr <op> ptr
             case .leq, .lss, .geq, .gtr, .eql, .neq:
                 resultType = ty.bool
-                isPointerArithmetic = true
+                binary.isPointerArithmetic = true
 
             default:
                 reportError("Invalid operation '\(binary.op)' between types '\(lhsType) and \(rhsType)'", at: binary.opPos)
@@ -1344,7 +1422,7 @@ extension Checker {
             return ty.invalid
         }
 
-        assert((lhsType == rhsType) || lCast != nil || rCast != nil || isPointerArithmetic, "We must have 2 same types or a way to acheive them by here")
+        assert((lhsType == rhsType) || lCast != nil || rCast != nil || binary.isPointerArithmetic, "We must have 2 same types or a way to acheive them by here")
 
         let underlyingLhs = (lhsType as? ty.Vector)?.elementType ?? lhsType
         let isIntegerOp = underlyingLhs is ty.Integer || underlyingLhs is ty.Integer || underlyingLhs is ty.Pointer
@@ -1352,7 +1430,7 @@ extension Checker {
         var type = resultType
         switch binary.op {
         case .lss, .leq, .gtr, .geq:
-            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint || lhsType is ty.Vector) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint || rhsType is ty.Vector) || isPointerArithmetic else {
+            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint || lhsType is ty.Vector) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint || rhsType is ty.Vector) || binary.isPointerArithmetic else {
                 reportError("Cannot compare '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
                 binary.type = ty.invalid
                 return ty.invalid
@@ -1363,7 +1441,7 @@ extension Checker {
                 type = ty.Vector(size: vec.size, elementType: type)
             }
         case .eql, .neq:
-            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint || lhsType is ty.Boolean || lhsType is ty.Vector) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint || rhsType is ty.Boolean || rhsType is ty.Vector) || isPointerArithmetic else {
+            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint || lhsType is ty.Boolean || lhsType is ty.Vector) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint || rhsType is ty.Boolean || rhsType is ty.Vector) || binary.isPointerArithmetic else {
                 reportError("Cannot compare '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
                 binary.type = ty.invalid
                 return ty.invalid
@@ -1401,7 +1479,6 @@ extension Checker {
         binary.irOp = op
         binary.irLCast = lCast
         binary.irRCast = rCast
-        binary.isPointerArithmetic = isPointerArithmetic
         return type
     }
 

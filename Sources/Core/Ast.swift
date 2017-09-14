@@ -11,7 +11,7 @@ protocol Expr: Node {
 }
 protocol Stmt: Node {}
 protocol TopLevelStmt: Stmt {}
-protocol Decl: Stmt {}
+protocol Decl: TopLevelStmt {}
 protocol LinknameApplicable: Stmt {
     var linkname: String? { get set }
 }

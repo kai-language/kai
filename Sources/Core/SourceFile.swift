@@ -246,7 +246,7 @@ extension SourceFile {
 
         stage = "Checking"
         var checker = Checker(file: self)
-        checker.check()
+        checker.checkFile()
         hasBeenChecked = true
         emitErrors(for: self, at: stage)
 
@@ -270,7 +270,7 @@ extension SourceFile {
 
         stage = "IRGeneration"
         var irGenerator = IRGenerator(file: self)
-        irGenerator.generate()
+        irGenerator.emitFile()
         hasBeenGenerated = true
 
         let endTime = gettime()

@@ -97,7 +97,7 @@ struct IRGenerator {
 
 extension IRGenerator {
 
-    mutating func generate() {
+    mutating func emitFile() {
         if !package.isInitialPackage {
             pushContext(scopeName: package.moduleName)
         }
@@ -138,7 +138,7 @@ extension IRGenerator {
         if decl.values.isEmpty {
             // this is in a decl block of some sort
 
-            for entity in decl.entities {
+            for entity in decl.entities where entity !== Entity.anonymous {
                 if let fn = entity.type as? ty.Function {
                     let function = b.addFunction(symbol(for: entity), type: canonicalize(fn))
                     switch decl.callconv {
@@ -177,7 +177,7 @@ extension IRGenerator {
             return
         }
 
-        for (entity, value) in zip(decl.entities, decl.values) {
+        for (entity, value) in zip(decl.entities, decl.values) where entity.name == "main" || entity !== Entity.anonymous {
             if let type = entity.type as? ty.Metatype {
 
                 switch type.instanceType {
@@ -240,7 +240,7 @@ extension IRGenerator {
         }
 
         if decl.values.isEmpty {
-            for entity in decl.entities {
+            for entity in decl.entities where entity !== Entity.anonymous {
                 let type = canonicalize(entity.type!)
                 if entity.owningScope.isFile || entity.owningScope.isPackage {
                     var global = b.addGlobal(symbol(for: entity), type: type)
@@ -255,7 +255,7 @@ extension IRGenerator {
 
         // NOTE: Uninitialized values?
         assert(decl.entities.count == decl.values.count)
-        for (entity, value) in zip(decl.entities, decl.values) {
+        for (entity, value) in zip(decl.entities, decl.values) where entity !== Entity.anonymous {
 
             // FIXME: Is it actually possible to encounter a metatype as the rhs of a variable declaration?
             if let type = entity.type as? ty.Metatype {
