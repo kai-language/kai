@@ -212,9 +212,12 @@ extension Checker {
         declare(entity)
         d.entities = [entity]
     }
+}
 
 
-    // MARK: Checking
+// MARK: Top Level Statements
+
+extension Checker {
 
     mutating func check(topLevelStmt stmt: TopLevelStmt) {
         switch stmt {
@@ -532,314 +535,9 @@ extension Checker {
 }
 
 
-// MARK: Expressions
+// MARK: Statements
 
 extension Checker {
-
-    mutating func check(expr: Expr, desiredType: Type? = nil) -> Type {
-
-        switch expr {
-        case let expr as Nil:
-            // let this fall through until later
-            expr.type = desiredType ?? ty.invalid
-            return desiredType ?? ty.untypedNil
-            /*
-            guard let desiredType = desiredType else {
-                reportError("'nil' requires a contextual type", at: expr.start)
-                return ty.invalid
-            }
-            guard desiredType is ty.Pointer else {
-                reportError("'nil' is not convertable to '\(desiredType)'", at: expr.start)
-                return ty.invalid
-            }
-            expr.type = desiredType
-            return desiredType
-            */
-
-        case let ident as Ident:
-            check(ident: ident, desiredType: desiredType)
-
-        case let lit as BasicLit:
-            check(basicLit: lit, desiredType: desiredType)
-
-        case let lit as CompositeLit:
-            check(compositeLit: lit)
-
-        case let fn as FuncLit:
-            check(funcLit: fn)
-
-        case let fn as FuncType:
-            check(funcType: fn)
-
-        case let polyType as PolyType:
-            check(polyType: polyType)
-
-        case let variadic as VariadicType:
-            variadic.type = check(expr: variadic.explicitType)
-
-        case let pointer as PointerType:
-            var pointee = check(expr: pointer.explicitType)
-            pointee = lowerFromMetatype(pointee, atNode: pointer.explicitType)
-            let type = ty.Pointer(pointeeType: pointee)
-            pointer.type = ty.Metatype(instanceType: type)
-
-        case let array as ArrayType:
-            var element = check(expr: array.explicitType)
-            element = lowerFromMetatype(element, atNode: array)
-            // TODO: extract compile-time constant from expression `array.length`
-            _ = check(expr: array.length)
-            guard
-                let lit = array.length as? BasicLit,
-                let length = lit.constant as? UInt64
-            else {
-                reportError("Currently, only array literals are allowed for array length", at: array.length.start)
-                return ty.invalid
-            }
-
-            let type = ty.Array(length: Int(length), elementType: element)
-            array.type = ty.Metatype(instanceType: type)
-
-        case let array as DynamicArrayType:
-            var element = check(expr: array.explicitType)
-            element = lowerFromMetatype(element, atNode: array)
-
-            let type = ty.DynamicArray(elementType: element, initialLength: nil, initialCapacity: nil)
-            array.type = ty.Metatype(instanceType: type)
-
-        case let vector as VectorType:
-            var element = check(expr: vector.explicitType)
-            element = lowerFromMetatype(element, atNode: vector)
-
-            guard canVector(element) else {
-                reportError("Vector only supports primitive data types", at: vector.explicitType.start)
-                vector.type = ty.invalid
-                return ty.invalid
-            }
-
-            // TODO: extract compile-time constant from expression `vector.size`
-            _ = check(expr: vector.size)
-            guard
-                let lit = vector.size as? BasicLit,
-                let size = lit.constant as? UInt64
-            else {
-                    reportError("Currently, only array literals are allowed for vector size", at: vector.size.start)
-                    return ty.invalid
-            }
-            let type = ty.Vector(size: Int(size), elementType: element)
-            vector.type = ty.Metatype(instanceType: type)
-
-        case let strućt as StructType:
-            check(struct: strućt)
-
-        case let polyStruct as PolyStructType:
-            check(polyStruct: polyStruct)
-
-        case let paren as Paren:
-            paren.type = check(expr: paren.element, desiredType: desiredType)
-
-        case let unary as Unary:
-            check(unary: unary, desiredType: desiredType)
-
-        case let binary as Binary:
-            check(binary: binary, desiredType: desiredType)
-
-        case let ternary as Ternary:
-            check(ternary: ternary, desiredType: desiredType)
-
-        case let selector as Selector:
-            check(selector: selector, desiredType: desiredType)
-
-        case let subsćript as Subscript:
-            check(subscript: subsćript)
-
-        case let call as Call:
-            check(call: call)
-
-        case let cast as Cast:
-            check(cast: cast)
-
-        case let autocast as Autocast:
-            check(autocast: autocast, desiredType: desiredType)
-
-        default:
-            print("Warning: expression '\(expr)' passed through without getting checked")
-            return ty.invalid
-        }
-        return expr.type!
-    }
-
-    @discardableResult
-    mutating func check(ident: Ident, desiredType: Type? = nil) -> Type {
-        guard let entity = context.scope.lookup(ident.name) else {
-            reportError("Use of undefined identifier '\(ident)'", at: ident.start)
-            ident.entity = Entity.invalid
-            ident.type = ty.invalid
-            return ty.invalid
-        }
-        guard !entity.isLibrary else {
-            reportError("Cannot use library as expression", at: ident.start)
-            ident.entity = Entity.invalid
-            ident.type = ty.invalid
-            return ty.invalid
-        }
-        ident.entity = entity
-        if entity.isConstant {
-            ident.constant = entity.constant
-        }
-        if let desiredType = desiredType, entity.type! is ty.UntypedInteger || entity.type! is ty.UntypedFloatingPoint {
-            if let cast = constrainUntyped(entity.type!, to: desiredType) {
-                ident.cast = cast
-                ident.type = desiredType
-                return desiredType
-            }
-        }
-        assert(entity.type != nil || !entity.isChecked)
-        var type = entity.type
-        if entity.type == nil {
-            check(topLevelStmt: entity.declaration!)
-            assert(entity.isChecked && entity.type != nil)
-            type = entity.type
-        }
-        ident.type = type
-        return entity.type!
-    }
-
-    @discardableResult
-    mutating func check(basicLit lit: BasicLit, desiredType: Type?) -> Type {
-        switch lit.token {
-        case .int:
-            switch lit.text.prefix(2) {
-            case "0x":
-                let text = String(lit.text.dropFirst(2))
-                lit.constant = UInt64(text, radix: 16)!
-            case "0o":
-                let text = String(lit.text.dropFirst(2))
-                lit.constant = UInt64(text, radix: 8)!
-            case "0b":
-                let text = String(lit.text.dropFirst(2))
-                lit.constant = UInt64(text, radix: 2)!
-            default:
-                lit.constant = UInt64(lit.text, radix: 10)!
-            }
-            if let desiredType = desiredType, desiredType is ty.Integer || desiredType is ty.FloatingPoint {
-                lit.type = desiredType
-            } else {
-                lit.type = ty.untypedInteger
-            }
-        case .float:
-            lit.constant = Double(lit.text)!
-            if let desiredType = desiredType, desiredType is ty.FloatingPoint {
-                lit.type = desiredType
-            } else {
-                lit.type = ty.untypedFloat
-            }
-        case .string:
-            lit.type = ty.string
-        default:
-            lit.type = ty.invalid
-        }
-        return lit.type
-    }
-
-    @discardableResult
-    mutating func check(compositeLit lit: CompositeLit) -> Type {
-        var type = check(expr: lit.explicitType)
-        type = lowerFromMetatype(type, atNode: lit.explicitType)
-        lit.type = type
-
-        switch type {
-        case let s as ty.Struct:
-            if lit.elements.count > s.fields.count {
-                reportError("Too many values in struct initializer", at: lit.elements[s.fields.count].start)
-            }
-            for (el, field) in zip(lit.elements, s.fields) {
-
-                if let key = el.key {
-                    guard let ident = key as? Ident else {
-                        reportError("Expected identifier for key in composite literal for struct", at: key.start)
-                        // bail, likely everything is wrong
-                        return type
-                    }
-                    guard let field = s.fields.first(where: { $0.name == ident.name }) else {
-                        reportError("Unknown field '\(ident)' for '\(s)'", at: ident.start)
-                        continue
-                    }
-
-                    el.structField = field
-                    el.type = check(expr: el.value, desiredType: field.type)
-                    guard canConvert(el.type, to: field.type) || implicitlyConvert(el.type, to: field.type) else {
-                        reportError("Cannot convert type '\(el.type)' to expected type '\(field.type)'", at: el.value.start)
-                        continue
-                    }
-                } else {
-                    el.structField = field
-                    el.type = check(expr: el.value, desiredType: field.type)
-                    guard canConvert(el.type, to: field.type) || implicitlyConvert(el.type, to: field.type) else {
-                        reportError("Cannot convert type '\(el.type!)' to expected type '\(field.type)'", at: el.value.start)
-                        continue
-                    }
-                }
-            }
-
-            return type
-
-        case let type as ty.Array:
-            if lit.elements.count != type.length {
-                reportError("Element count (\(lit.elements.count)) does not match array length (\(type.length))", at: lit.start)
-            }
-
-            for el in lit.elements {
-                el.type = check(expr: el.value, desiredType: type.elementType)
-                guard canConvert(el.type, to: type.elementType) || implicitlyConvert(el.type, to: type.elementType) else {
-                    reportError("Cannot convert element of type '\(el.type.description)' to expected type '\(type.elementType)'", at: el.value.start)
-                    continue
-                }
-            }
-
-            // FIXME: Doesn't respect named types
-            lit.type = type
-            return type
-
-        case var type as ty.DynamicArray:
-            for el in lit.elements {
-                el.type = check(expr: el.value, desiredType: type.elementType)
-                guard canConvert(el.type, to: type.elementType) || implicitlyConvert(el.type, to: type.elementType) else {
-                    reportError("Cannot convert element of type '\(el.type.description)' to expected type '\(type.elementType)'", at: el.value.start)
-                    continue
-                }
-            }
-
-            let length = lit.elements.count
-            type.initialLength = length
-            type.initialCapacity = length
-
-            // FIXME: Doesn't respect named types
-            lit.type = type
-            return type
-
-        case let type as ty.Vector:
-            if lit.elements.count != type.size {
-                reportError("Element count (\(lit.elements.count)) does not match vector size (\(type.size))", at: lit.start)
-            }
-
-            for el in lit.elements {
-                el.type = check(expr: el.value, desiredType: type.elementType)
-                guard canConvert(el.type, to: type.elementType) || implicitlyConvert(el.type, to: type.elementType) else {
-                    reportError("Cannot convert element of type '\(el.type.description)' to expected type '\(type.elementType)'", at: el.value.start)
-                    continue
-                }
-            }
-
-            // FIXME: Doesn't respect named types
-            lit.type = type
-            return type
-
-        default:
-            reportError("Invalid type for composite literal", at: lit.start)
-            lit.type = ty.invalid
-            return ty.invalid
-        }
-    }
 
     mutating func check(branch: Branch) {
         switch branch.token {
@@ -1046,10 +744,322 @@ extension Checker {
         context.nextCase = nil
     }
 
+}
+
+
+// MARK: Expressions
+
+extension Checker {
+
+    mutating func check(expr: Expr, desiredType: Type? = nil) -> Type {
+
+        switch expr {
+        case let expr as Nil:
+            // let this fall through until later
+            expr.type = desiredType ?? ty.invalid
+            return desiredType ?? ty.untypedNil
+            /*
+            guard let desiredType = desiredType else {
+                reportError("'nil' requires a contextual type", at: expr.start)
+                return ty.invalid
+            }
+            guard desiredType is ty.Pointer else {
+                reportError("'nil' is not convertable to '\(desiredType)'", at: expr.start)
+                return ty.invalid
+            }
+            expr.type = desiredType
+            return desiredType
+            */
+
+        case let ident as Ident:
+            check(ident: ident, desiredType: desiredType)
+
+        case let lit as BasicLit:
+            check(basicLit: lit, desiredType: desiredType)
+
+        case let lit as CompositeLit:
+            check(compositeLit: lit)
+
+        case let fn as FuncLit:
+            check(funcLit: fn)
+
+        case let fn as FuncType:
+            check(funcType: fn)
+
+        case let polyType as PolyType:
+            check(polyType: polyType)
+
+        case let variadic as VariadicType:
+            variadic.type = check(expr: variadic.explicitType)
+
+        case let pointer as PointerType:
+            var pointee = check(expr: pointer.explicitType)
+            pointee = lowerFromMetatype(pointee, atNode: pointer.explicitType)
+            let type = ty.Pointer(pointeeType: pointee)
+            pointer.type = ty.Metatype(instanceType: type)
+
+        case let array as ArrayType:
+            var element = check(expr: array.explicitType)
+            element = lowerFromMetatype(element, atNode: array)
+            // TODO: extract compile-time constant from expression `array.length`
+            _ = check(expr: array.length)
+            guard
+                let lit = array.length as? BasicLit,
+                let length = lit.constant as? UInt64
+            else {
+                reportError("Currently, only array literals are allowed for array length", at: array.length.start)
+                return ty.invalid
+            }
+
+            let type = ty.Array(length: Int(length), elementType: element)
+            array.type = ty.Metatype(instanceType: type)
+
+        case let array as DynamicArrayType:
+            var element = check(expr: array.explicitType)
+            element = lowerFromMetatype(element, atNode: array)
+
+            let type = ty.DynamicArray(elementType: element, initialLength: nil, initialCapacity: nil)
+            array.type = ty.Metatype(instanceType: type)
+
+        case let vector as VectorType:
+            var element = check(expr: vector.explicitType)
+            element = lowerFromMetatype(element, atNode: vector)
+
+            guard canVector(element) else {
+                reportError("Vector only supports primitive data types", at: vector.explicitType.start)
+                vector.type = ty.invalid
+                return ty.invalid
+            }
+
+            // TODO: extract compile-time constant from expression `vector.size`
+            _ = check(expr: vector.size)
+            guard
+                let lit = vector.size as? BasicLit,
+                let size = lit.constant as? UInt64
+            else {
+                    reportError("Currently, only array literals are allowed for vector size", at: vector.size.start)
+                    return ty.invalid
+            }
+            let type = ty.Vector(size: Int(size), elementType: element)
+            vector.type = ty.Metatype(instanceType: type)
+
+        case let strućt as StructType:
+            check(struct: strućt)
+
+        case let polyStruct as PolyStructType:
+            check(polyStruct: polyStruct)
+
+        case let paren as Paren:
+            paren.type = check(expr: paren.element, desiredType: desiredType)
+
+        case let unary as Unary:
+            check(unary: unary, desiredType: desiredType)
+
+        case let binary as Binary:
+            check(binary: binary, desiredType: desiredType)
+
+        case let ternary as Ternary:
+            check(ternary: ternary, desiredType: desiredType)
+
+        case let selector as Selector:
+            check(selector: selector, desiredType: desiredType)
+
+        case let subsćript as Subscript:
+            check(subscript: subsćript)
+
+        case let call as Call:
+            check(call: call)
+
+        case let cast as Cast:
+            check(cast: cast)
+
+        case let autocast as Autocast:
+            check(autocast: autocast, desiredType: desiredType)
+
+        default:
+            print("Warning: expression '\(expr)' passed through without getting checked")
+            return ty.invalid
+        }
+        return expr.type!
+    }
+
     @discardableResult
-    mutating func check(param: Parameter) -> Type {
+    mutating func check(ident: Ident, desiredType: Type? = nil) -> Operand {
+        guard let entity = context.scope.lookup(ident.name) else {
+            reportError("Use of undefined identifier '\(ident)'", at: ident.start)
+            ident.entity = Entity.invalid
+            ident.type = ty.invalid
+            return Operand.invalid
+        }
+        guard !entity.isLibrary else {
+            reportError("Cannot use library as expression", at: ident.start)
+            ident.entity = Entity.invalid
+            ident.type = ty.invalid
+            return Operand.invalid
+        }
+        ident.entity = entity
+        if entity.isConstant {
+            ident.constant = entity.constant
+        }
+        if let desiredType = desiredType, entity.type! is ty.UntypedInteger || entity.type! is ty.UntypedFloatingPoint {
+            if let cast = constrainUntyped(entity.type!, to: desiredType) {
+                ident.cast = cast
+                ident.type = desiredType
+                return Operand(type: desiredType, constant: entity.constant, dependencies: [entity])
+            }
+        }
+        assert(entity.type != nil || !entity.isChecked)
+        var type = entity.type
+        if entity.type == nil {
+            check(topLevelStmt: entity.declaration!)
+            assert(entity.isChecked && entity.type != nil)
+            type = entity.type
+        }
+        ident.type = type
+        return Operand(type: type, constant: entity.constant, dependencies: [entity])
+    }
+
+    @discardableResult
+    mutating func check(basicLit lit: BasicLit, desiredType: Type?) -> Operand {
+        switch lit.token {
+        case .int:
+            switch lit.text.prefix(2) {
+            case "0x":
+                let text = String(lit.text.dropFirst(2))
+                lit.constant = UInt64(text, radix: 16)!
+            case "0o":
+                let text = String(lit.text.dropFirst(2))
+                lit.constant = UInt64(text, radix: 8)!
+            case "0b":
+                let text = String(lit.text.dropFirst(2))
+                lit.constant = UInt64(text, radix: 2)!
+            default:
+                lit.constant = UInt64(lit.text, radix: 10)!
+            }
+            if let desiredType = desiredType, desiredType is ty.Integer || desiredType is ty.FloatingPoint {
+                lit.type = desiredType
+            } else {
+                lit.type = ty.untypedInteger
+            }
+        case .float:
+            lit.constant = Double(lit.text)!
+            if let desiredType = desiredType, desiredType is ty.FloatingPoint {
+                lit.type = desiredType
+            } else {
+                lit.type = ty.untypedFloat
+            }
+        case .string:
+            lit.type = ty.string
+        default:
+            lit.type = ty.invalid
+        }
+        return Operand(type: lit.type, constant: lit.constant, dependencies: [])
+    }
+
+    @discardableResult
+    mutating func check(compositeLit lit: CompositeLit) -> Operand {
+        var type = check(expr: lit.explicitType)
+        let operand = Operand.todo
+
+        type = lowerFromMetatype(type, atNode: lit.explicitType)
+        lit.type = type
+
+        switch type {
+        case let s as ty.Struct:
+            if lit.elements.count > s.fields.count {
+                reportError("Too many values in struct initializer", at: lit.elements[s.fields.count].start)
+            }
+            for (el, field) in zip(lit.elements, s.fields) {
+
+                if let key = el.key {
+                    guard let ident = key as? Ident else {
+                        reportError("Expected identifier for key in composite literal for struct", at: key.start)
+                        // bail, likely everything is wrong
+                        return Operand(type: type, constant: nil, dependencies: operand.dependencies)
+                    }
+                    guard let field = s.fields.first(where: { $0.name == ident.name }) else {
+                        reportError("Unknown field '\(ident)' for '\(s)'", at: ident.start)
+                        continue
+                    }
+
+                    el.structField = field
+                    el.type = check(expr: el.value, desiredType: field.type)
+                    guard canConvert(el.type, to: field.type) || implicitlyConvert(el.type, to: field.type) else {
+                        reportError("Cannot convert type '\(el.type)' to expected type '\(field.type)'", at: el.value.start)
+                        continue
+                    }
+                } else {
+                    el.structField = field
+                    el.type = check(expr: el.value, desiredType: field.type)
+                    guard canConvert(el.type, to: field.type) || implicitlyConvert(el.type, to: field.type) else {
+                        reportError("Cannot convert type '\(el.type!)' to expected type '\(field.type)'", at: el.value.start)
+                        continue
+                    }
+                }
+            }
+
+            return Operand(type: type, constant: nil, dependencies: operand.dependencies)
+
+        case let type as ty.Array:
+            if lit.elements.count != type.length {
+                reportError("Element count (\(lit.elements.count)) does not match array length (\(type.length))", at: lit.start)
+            }
+
+            for el in lit.elements {
+                el.type = check(expr: el.value, desiredType: type.elementType)
+                guard canConvert(el.type, to: type.elementType) || implicitlyConvert(el.type, to: type.elementType) else {
+                    reportError("Cannot convert element of type '\(el.type.description)' to expected type '\(type.elementType)'", at: el.value.start)
+                    continue
+                }
+            }
+
+            lit.type = type
+            return Operand(type: type, constant: nil, dependencies: operand.dependencies)
+
+        case var type as ty.DynamicArray:
+            for el in lit.elements {
+                el.type = check(expr: el.value, desiredType: type.elementType)
+                guard canConvert(el.type, to: type.elementType) || implicitlyConvert(el.type, to: type.elementType) else {
+                    reportError("Cannot convert element of type '\(el.type.description)' to expected type '\(type.elementType)'", at: el.value.start)
+                    continue
+                }
+            }
+
+            let length = lit.elements.count
+            type.initialLength = length
+            type.initialCapacity = length
+
+            lit.type = type
+            return Operand(type: type, constant: nil, dependencies: operand.dependencies)
+
+        case let type as ty.Vector:
+            if lit.elements.count != type.size {
+                reportError("Element count (\(lit.elements.count)) does not match vector size (\(type.size))", at: lit.start)
+            }
+
+            for el in lit.elements {
+                el.type = check(expr: el.value, desiredType: type.elementType)
+                guard canConvert(el.type, to: type.elementType) || implicitlyConvert(el.type, to: type.elementType) else {
+                    reportError("Cannot convert element of type '\(el.type.description)' to expected type '\(type.elementType)'", at: el.value.start)
+                    continue
+                }
+            }
+
+            lit.type = type
+            return Operand(type: type, constant: nil, dependencies: operand.dependencies)
+
+        default:
+            reportError("Invalid type for composite literal", at: lit.start)
+            lit.type = ty.invalid
+            return Operand.invalid
+        }
+    }
+
+    @discardableResult
+    mutating func check(param: Parameter) -> Operand {
 
         var type = check(expr: param.explicitType)
+        let operand = Operand.todo
         type = lowerFromMetatype(type, atNode: param.explicitType)
         let entity = newEntity(ident: param.name, type: type, flags: param.isExplicitPoly ? .constant : .none)
         if param.isExplicitPoly {
@@ -1057,7 +1067,7 @@ extension Checker {
         }
         declare(entity)
         param.entity = entity
-        return type
+        return Operand(type: type, constant: nil, dependencies: operand.dependencies)
     }
 
     @discardableResult
@@ -1087,10 +1097,12 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(funcLit fn: FuncLit) -> ty.Function {
+    mutating func check(funcLit fn: FuncLit) -> Operand {
         if !fn.isSpecialization {
             pushContext()
         }
+
+        var dependencies: Set<Entity> = []
 
         var typeFlags: ty.Function.Flags = .none
         var needsSpecialization = false
@@ -1104,8 +1116,10 @@ extension Checker {
 
             needsSpecialization = needsSpecialization || (param.explicitType is PolyType) || param.isExplicitPoly
 
-            var type = check(param: param)
+            let operand = check(param: param)
+            dependencies.formUnion(operand.dependencies)
 
+            var type = operand.type!
             if let paramType = param.explicitType as? VariadicType {
                 fn.flags.insert(paramType.isCvargs ? .cVariadic : .variadic)
                 typeFlags.insert(paramType.isCvargs ? .cVariadic : .variadic)
@@ -1128,6 +1142,9 @@ extension Checker {
         var returnTypes: [Type] = []
         for resultType in fn.results.types {
             var type = check(expr: resultType)
+            let operand = Operand.todo
+            dependencies.formUnion(operand.dependencies)
+
             type = lowerFromMetatype(type, atNode: resultType)
             if let polyType = type as? ty.Polymorphic, fn.isSpecialization {
                 type = polyType.specialization.val!
@@ -1145,8 +1162,11 @@ extension Checker {
 
         let prevReturnType = context.expectedReturnType
         context.expectedReturnType = returnType
-        if !needsSpecialization {
+        if !needsSpecialization { // FIXME: We need to partially check polymorphics to determine dependencies
             check(stmt: fn.body)
+
+            let operand = Operand.todo
+            dependencies.formUnion(operand.dependencies)
         }
         context.expectedReturnType = prevReturnType
 
@@ -1162,15 +1182,21 @@ extension Checker {
         if !fn.isSpecialization {
             popContext()
         }
-        return fn.type as! ty.Function
+        return Operand(type: fn.type, constant: nil, dependencies: dependencies)
     }
 
     @discardableResult
-    mutating func check(funcType fn: FuncType) -> Type {
+    mutating func check(funcType fn: FuncType) -> Operand {
+        var dependencies: Set<Entity> = []
+
         var typeFlags: ty.Function.Flags = .none
         var params: [Type] = []
         for param in fn.params {
             var type = check(expr: param)
+            let operand = Operand.todo
+            dependencies.formUnion(operand.dependencies)
+
+
             type = lowerFromMetatype(type, atNode: param)
 
             if let param = param as? VariadicType {
@@ -1186,6 +1212,9 @@ extension Checker {
         var returnTypes: [Type] = []
         for returnType in fn.results {
             var type = check(expr: returnType)
+            let operand = Operand.todo
+            dependencies.formUnion(operand.dependencies)
+
             type = lowerFromMetatype(type, atNode: returnType)
             returnTypes.append(type)
         }
@@ -1200,32 +1229,36 @@ extension Checker {
         type = ty.Function(entity: nil, node: nil, params: params, returnType: returnType, flags: typeFlags)
         type = ty.Pointer(pointeeType: type)
         fn.type = ty.Metatype(instanceType: type)
-        return type
+        return Operand(type: type, constant: nil, dependencies: dependencies)
     }
 
     @discardableResult
-    mutating func check(field: StructField) -> Type {
-
+    mutating func check(field: StructField) -> Operand {
         var type = check(expr: field.explicitType)
+        let operand = Operand.todo
+
         type = lowerFromMetatype(type, atNode: field.explicitType)
         field.type = type
-        return type
+        return Operand(type: type, constant: nil, dependencies: operand.dependencies)
     }
 
     @discardableResult
-    mutating func check(struct strućt: StructType) -> Type {
+    mutating func check(struct strućt: StructType) -> Operand {
+        var dependencies: Set<Entity> = []
+
         var width = 0
         var index = 0
         var fields: [ty.Struct.Field] = []
         for x in strućt.fields {
-            let type = check(field: x) // TODO: Custom check?
+            let operand = check(field: x)
+            dependencies.formUnion(operand.dependencies)
 
             for name in x.names {
-
-                let field = ty.Struct.Field(ident: name, type: type, index: index, offset: width)
+                let field = ty.Struct.Field(ident: name, type: operand.type, index: index, offset: width)
                 fields.append(field)
 
                 // FIXME: This will align fields to bytes, maybe not best default?
+                // FIXME: Also .width should not ever be 0 right?
                 width = (width + (x.type.width ?? 0)).round(upToNearest: 8)
                 index += 1
             }
@@ -1234,27 +1267,31 @@ extension Checker {
         type = ty.Struct(entity: nil, width: width, node: strućt, fields: fields, isPolymorphic: false)
         type = ty.Metatype(instanceType: type)
         strućt.type = type
-        return type
+        return Operand(type: type, constant: nil, dependencies: dependencies)
     }
 
     @discardableResult
-    mutating func check(polyStruct: PolyStructType) -> Type {
+    mutating func check(polyStruct: PolyStructType) -> Operand {
+        var dependencies: Set<Entity> = []
+
         var width = 0
         var index = 0
         var fields: [ty.Struct.Field] = []
 
         for x in polyStruct.polyTypes.list {
-            _ = check(polyType: x)
+            check(polyType: x)
         }
 
         for x in polyStruct.fields {
-            let type = check(field: x)
-            for name in x.names {
+            let operand = check(field: x)
+            dependencies.formUnion(operand.dependencies)
 
-                let field = ty.Struct.Field(ident: name, type: type, index: index, offset: width)
+            for name in x.names {
+                let field = ty.Struct.Field(ident: name, type: operand.type, index: index, offset: width)
                 fields.append(field)
 
                 // FIXME: This will align fields to bytes, maybe not best default?
+                // FIXME: Also .width should not ever be 0 right?
                 width = (width + (x.type.width ?? 0)).round(upToNearest: 8)
                 index += 1
             }
@@ -1263,62 +1300,78 @@ extension Checker {
         type = ty.Struct(entity: nil, width: width, node: polyStruct, fields: fields, isPolymorphic: true)
         type = ty.Metatype(instanceType: type)
         polyStruct.type = type
-        return type
+        return Operand(type: type, constant: nil, dependencies: dependencies)
     }
 
     @discardableResult
-    mutating func check(unary: Unary, desiredType: Type?) -> Type {
+    mutating func check(unary: Unary, desiredType: Type?) -> Operand {
         var type = check(expr: unary.element, desiredType: desiredType)
+        let operand = Operand.todo
 
+        // in case we early exit
+        unary.type = ty.invalid
+
+        var constant: Value?
         switch unary.op {
-        case .add, .sub:
+        case .sub:
+            constant = operand.constant.map(negate)
+            fallthrough
+
+        case .add:
             guard type is ty.Integer || type is ty.FloatingPoint || type is ty.UntypedInteger || type is ty.UntypedFloatingPoint else {
                 reportError("Invalid operation '\(unary.op)' on type '\(type)'", at: unary.start)
-                unary.type = ty.invalid
-                return ty.invalid
+                return Operand.invalid
             }
+
+        case .not:
+            guard type is ty.Boolean else {
+                reportError("Invalid operation '\(unary.op)' on type '\(type)'", at: unary.start)
+                return Operand.invalid
+            }
+            constant = operand.constant.map(not)
 
         case .lss:
             guard let pointer = type as? ty.Pointer else {
                 reportError("Invalid operation '\(unary.op)' on type '\(type)'", at: unary.start)
-                unary.type = ty.invalid
-                return ty.invalid
+                return Operand.invalid
             }
             type = pointer.pointeeType
 
         case .and:
             guard canLvalue(unary.element) else {
                 reportError("Cannot take the address of a non lvalue", at: unary.start)
-                unary.type = ty.invalid
-                return ty.invalid
+                return Operand.invalid
             }
             type = ty.Pointer(pointeeType: type)
 
-        case .not:
-            guard type is ty.Boolean else {
-                reportError("Invalid operation '\(unary.op)' on type '\(type)'", at: unary.start)
-                unary.type = ty.invalid
-                return ty.invalid
-            }
-
         default:
             reportError("Invalid operation '\(unary.op)' on type '\(type)'", at: unary.start)
-            unary.type = ty.invalid
-            return ty.invalid
+            return Operand.invalid
         }
 
         unary.type = type
-        return type
+        return Operand(type: type, constant: constant, dependencies: operand.dependencies)
     }
 
+
+    // FIXME: Refactor this, for the love of all that is good.
+    // FIXME: Constant support
     @discardableResult
-    mutating func check(binary: Binary, desiredType: Type?) -> Type {
+    mutating func check(binary: Binary, desiredType: Type?) -> Operand {
         var lhsType = check(expr: binary.lhs)
         var rhsType = check(expr: binary.rhs)
 
+        var dependencies: Set<Entity> = []
+        let lhs = Operand.todo
+        let rhs = Operand.todo
+        dependencies.formUnion(lhs.dependencies)
+        dependencies.formUnion(rhs.dependencies)
+
+        // in case we early exit
+        binary.type = ty.invalid
+
         if lhsType is ty.Invalid || rhsType is ty.Invalid {
-            binary.type = ty.invalid
-            return ty.invalid
+            return Operand.invalid
         }
 
         let resultType: Type
@@ -1333,8 +1386,7 @@ extension Checker {
         if (lhsType is ty.UntypedNil || lhsType is ty.UntypedInteger || lhsType is ty.UntypedFloatingPoint) && rhsType != lhsType {
             guard let cast = constrainUntyped(lhsType, to: rhsType) else {
                 reportError("Invalid operation '\(binary.op)' between untyped '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
-                binary.type = ty.invalid
-                return ty.invalid
+                return Operand.invalid
             }
             if lhsType is ty.UntypedNil {
                 (binary.lhs as! Nil).type = rhsType
@@ -1345,7 +1397,7 @@ extension Checker {
             guard let cast = constrainUntyped(rhsType, to: lhsType) else {
                 reportError("Invalid operation '\(binary.op)' between '\(lhsType)' and untyped '\(rhsType)'", at: binary.opPos)
                 binary.type = ty.invalid
-                return ty.invalid
+                return Operand.invalid
             }
             if rhsType is ty.UntypedNil {
                 (binary.rhs as! Nil).type = lhsType
@@ -1383,8 +1435,7 @@ extension Checker {
         } else if let lhsType = lhsType as? ty.Integer, let rhsType = rhsType as? ty.Integer {
             guard lhsType.isSigned == rhsType.isSigned else {
                 reportError("Implicit conversion between signed and unsigned integers in operator is disallowed", at: binary.opPos)
-                binary.type = ty.invalid
-                return ty.invalid
+                return Operand.invalid
             }
             // select the largest
             if lhsType.width! < rhsType.width! {
@@ -1398,8 +1449,7 @@ extension Checker {
             // Can only increment/decrement a pointer
             guard binary.op == .add || binary.op == .sub else {
                 reportError("Invalid operation '\(binary.op)' between types '\(lhsType) and \(rhsType)'", at: binary.opPos)
-                binary.type = ty.invalid
-                return ty.invalid
+                return Operand.invalid
             }
 
             resultType = lhsType
@@ -1413,13 +1463,11 @@ extension Checker {
 
             default:
                 reportError("Invalid operation '\(binary.op)' between types '\(lhsType) and \(rhsType)'", at: binary.opPos)
-                binary.type = ty.invalid
-                return ty.invalid
+                return Operand.invalid
             }
         } else {
             reportError("Invalid operation '\(binary.op)' between types '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
-            binary.type = ty.invalid
-            return ty.invalid
+            return Operand.invalid
         }
 
         assert((lhsType == rhsType) || lCast != nil || rCast != nil || binary.isPointerArithmetic, "We must have 2 same types or a way to acheive them by here")
@@ -1432,8 +1480,7 @@ extension Checker {
         case .lss, .leq, .gtr, .geq:
             guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint || lhsType is ty.Vector) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint || rhsType is ty.Vector) || binary.isPointerArithmetic else {
                 reportError("Cannot compare '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
-                binary.type = ty.invalid
-                return ty.invalid
+                return Operand.invalid
             }
             op = isIntegerOp ? .icmp : .fcmp
             type = ty.bool
@@ -1443,8 +1490,7 @@ extension Checker {
         case .eql, .neq:
             guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint || lhsType is ty.Boolean || lhsType is ty.Vector) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint || rhsType is ty.Boolean || rhsType is ty.Vector) || binary.isPointerArithmetic else {
                 reportError("Cannot compare '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
-                binary.type = ty.invalid
-                return ty.invalid
+                return Operand.invalid
             }
             op = (isIntegerOp || lhsType is ty.Boolean || rhsType is ty.Boolean) ? .icmp : .fcmp
             type = ty.bool
@@ -1479,33 +1525,48 @@ extension Checker {
         binary.irOp = op
         binary.irLCast = lCast
         binary.irRCast = rCast
-        return type
+        // TODO: Constants
+        return Operand(type: type, constant: nil, dependencies: dependencies)
     }
 
     @discardableResult
-    mutating func check(ternary: Ternary, desiredType: Type?) -> Type {
+    mutating func check(ternary: Ternary, desiredType: Type?) -> Operand {
+        var dependencies: Set<Entity> = []
+
         let condType = check(expr: ternary.cond)
+        let condOperand = Operand.todo
+        dependencies.formUnion(condOperand.dependencies)
+
         guard condType == ty.bool || condType is ty.Pointer || condType is ty.Integer || condType is ty.FloatingPoint else {
             reportError("Expected a conditional value", at: ternary.cond.start)
             ternary.type = ty.invalid
-            return ty.invalid
+            return Operand.invalid
         }
         var thenType: Type?
         if let then = ternary.then {
             thenType = check(expr: then, desiredType: desiredType)
+            let thenOperand = Operand.todo
+            dependencies.formUnion(thenOperand.dependencies)
         }
 
         let type = check(expr: ternary.els, desiredType: thenType)
+        let elseOperand = Operand.todo
+        dependencies.formUnion(elseOperand.dependencies)
         if let thenType = thenType, !canConvert(thenType, to: type) {
             reportError("Expected matching types", at: ternary.start)
         }
         ternary.type = type
-        return type
+        // TODO: Constants
+        return Operand(type: type, constant: nil, dependencies: dependencies)
     }
 
     @discardableResult
-    mutating func check(selector: Selector, desiredType: Type? = nil) -> Type {
+    mutating func check(selector: Selector, desiredType: Type? = nil) -> Operand {
+        var dependencies: Set<Entity> = []
+
         let aggregateType = check(expr: selector.rec)
+        let operand = Operand.todo
+        dependencies.formUnion(operand.dependencies)
 
         switch aggregateType {
         case let file as ty.File:
@@ -1513,8 +1574,11 @@ extension Checker {
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
-                return ty.invalid
+                return Operand.invalid
             }
+
+            dependencies.insert(member)
+
             selector.checked = .file(member)
             if member.isConstant {
                 selector.constant = member.constant
@@ -1523,22 +1587,23 @@ extension Checker {
                 if let cast = constrainUntyped(member.type!, to: desiredType) {
                     selector.cast = cast
                     selector.type = desiredType
-                    return desiredType
+                    // TODO: Constants
+                    return Operand(type: desiredType, constant: member.constant, dependencies: dependencies)
                 }
             }
             selector.type = member.type
-            return member.type!
+            return Operand(type: member.type, constant: member.constant, dependencies: dependencies)
 
         case let strućt as ty.Struct:
             guard let field = strućt.fields.first(where: { $0.name == selector.sel.name }) else {
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
-                return ty.invalid
+                return Operand.invalid
             }
             selector.checked = .struct(field)
             selector.type = field.type
-            return field.type
+            return Operand(type: field.type, constant: nil, dependencies: dependencies)
 
         case let array as ty.DynamicArray:
             switch selector.sel.name {
@@ -1556,7 +1621,7 @@ extension Checker {
                 selector.checked = .invalid
                 selector.type = ty.invalid
             }
-            return selector.type
+            return Operand(type: selector.type, constant: nil, dependencies: dependencies)
 
         case let vector as ty.Vector:
             var indices: [Int] = []
@@ -1576,7 +1641,7 @@ extension Checker {
                     reportError("'\(name)' is not a component of '\(selector.rec)'", at: selector.sel.start)
                     selector.checked = .invalid
                     selector.type = ty.invalid
-                    return selector.type
+                    return Operand(type: selector.type, constant: nil, dependencies: dependencies)
                 }
             }
 
@@ -1588,7 +1653,7 @@ extension Checker {
                 selector.type = ty.Vector(size: indices.count, elementType: vector.elementType)
             }
 
-            return selector.type
+            return Operand(type: selector.type, constant: nil, dependencies: dependencies)
 
         case is ty.KaiString:
             switch selector.sel.name {
@@ -1606,7 +1671,7 @@ extension Checker {
                 selector.checked = .invalid
                 selector.type = ty.invalid
             }
-            return selector.type
+            return Operand(type: selector.type, constant: nil, dependencies: dependencies)
 
         default:
             // Don't spam diagnostics if the type is already invalid
@@ -1616,21 +1681,27 @@ extension Checker {
 
             selector.checked = .invalid
             selector.type = ty.invalid
-            return ty.invalid
+            return Operand.invalid
         }
     }
 
     @discardableResult
-    mutating func check(subscript sub: Subscript) -> Type {
+    mutating func check(subscript sub: Subscript) -> Operand {
+        var dependencies: Set<Entity> = []
+
         let recType = check(expr: sub.rec)
         let indexType = check(expr: sub.index, desiredType: ty.i64)
+
+        let receiverOperand = Operand.todo
+        let indexOperand = Operand.todo
+        dependencies.formUnion(receiverOperand.dependencies)
+        dependencies.formUnion(indexOperand.dependencies)
 
         if !canConvert(indexType, to: ty.i64) && !implicitlyConvert(indexType, to: ty.i64) && !(indexType is ty.Integer){
             reportError("Cannot subscript with non-integer type", at: sub.index.start)
         }
 
         let type: Type
-
         switch recType {
         case let array as ty.Array:
             sub.type = array.elementType
@@ -1664,22 +1735,26 @@ extension Checker {
             if !(recType is ty.Invalid) {
                 reportError("Unable to subscript type \(recType)", at: sub.start)
             }
-
-            return ty.invalid
+            return Operand.invalid
         }
 
-        return type
+        return Operand(type: type, constant: nil, dependencies: dependencies)
     }
 
     @discardableResult
-    mutating func check(call: Call) -> Type {
+    mutating func check(call: Call) -> Operand {
+        var dependencies: Set<Entity> = []
+
         var calleeType = check(expr: call.fun)
+        let calleeOperand = Operand.todo
+        dependencies.formUnion(calleeOperand.dependencies)
 
         if calleeType is ty.Metatype {
             let lowered = calleeType.lower()
             // NOTE: this may cause issues when trying to cast with polymorphic
             // structs. That shouldn't be possible, right?
             if let strućt = lowered as? ty.Struct, strućt.isPolymorphic {
+                // FIXME: What's going on here
                 return check(polymorphicCall: call, calleeType: strućt)
             }
             fatalError("TODO")
@@ -1694,7 +1769,7 @@ extension Checker {
             reportError("Cannot call value of non-funtion type '\(calleeType)'", at: call.start)
             call.type = ty.Tuple.make([ty.invalid])
             call.checked = .call
-            return call.type
+            return Operand.invalid
         }
 
         if call.args.count > calleeFn.params.count {
@@ -1702,12 +1777,14 @@ extension Checker {
             guard calleeFn.isVariadic else {
                 reportError("Too many arguments in call to \(call.fun)", at: excessArgs.first!.start)
                 call.type = calleeFn.returnType
-                return calleeFn.returnType
+                return Operand(type: calleeFn.returnType, constant: nil, dependencies: dependencies)
             }
 
             let expectedType = calleeFn.params.last!
             for arg in excessArgs {
                 let argType = check(expr: arg, desiredType: expectedType)
+                let argOperand = Operand.todo
+                dependencies.formUnion(argOperand.dependencies)
 
                 guard argType == expectedType || implicitlyConvert(argType, to: expectedType) else {
                     reportError("Cannot convert value of type '\(argType)' to expected argument type '\(expectedType)'", at: arg.start)
@@ -1720,7 +1797,7 @@ extension Checker {
         if call.args.count < calleeFn.params.count {
             guard calleeFn.isVariadic, call.args.count + 1 == calleeFn.params.count else {
                 reportError("Not enough arguments in call to '\(call.fun)'", at: call.start)
-                return calleeFn.returnType
+                return Operand(type: call.type, constant: nil, dependencies: dependencies)
             }
         }
 
@@ -1739,7 +1816,8 @@ extension Checker {
                 call.type = returnType
                 call.checked = .builtinCall(b)
 
-                return returnType
+                // TODO: Constants
+                return Operand(type: returnType, constant: nil, dependencies: dependencies)
             }
             builtin = b
         }
@@ -1764,19 +1842,20 @@ extension Checker {
         // splat!
         let returnType = calleeFn.returnType.types.count == 1 ? calleeFn.returnType.types[0] : calleeFn.returnType
         call.type = returnType
-        return returnType
+        return Operand(type: returnType, constant: nil, dependencies: dependencies)
     }
 
     @discardableResult
-    mutating func check(autocast: Autocast, desiredType: Type?) -> Type {
+    mutating func check(autocast: Autocast, desiredType: Type?) -> Operand {
         guard let desiredType = desiredType else {
             reportError("Unabled to infer type for autocast", at: autocast.keyword)
             autocast.op = .bitCast
             autocast.type = ty.invalid
-            return ty.invalid
+            return Operand.invalid
         }
 
         let type = check(expr: autocast.expr, desiredType: desiredType)
+        let operand = Operand.todo
 
         autocast.type = desiredType
         if let argType = type as? ty.Integer, let targetType = desiredType as? ty.Integer { // 2 integers
@@ -1802,12 +1881,16 @@ extension Checker {
             reportError("Cannot cast between unrelated types '\(type)' and '\(desiredType)'", at: autocast.start)
         }
 
-        return desiredType
+        return Operand(type: desiredType, constant: nil, dependencies: operand.dependencies)
     }
 
     @discardableResult
-    mutating func check(cast: Cast) -> Type {
+    mutating func check(cast: Cast) -> Operand {
+        var dependencies: Set<Entity> = []
         var targetType = check(expr: cast.explicitType)
+        var operand = Operand.todo
+        dependencies.formUnion(operand.dependencies)
+
         targetType = lowerFromMetatype(targetType, atNode: cast.explicitType)
 
         if let poly = targetType as? ty.Polymorphic, let val = poly.specialization.val {
@@ -1818,11 +1901,13 @@ extension Checker {
         cast.type = targetType
 
         let exprType = check(expr: cast.expr, desiredType: targetType)
+        operand = Operand.todo
+        dependencies.formUnion(operand.dependencies)
 
         if exprType == targetType {
             reportError("Unnecissary cast to same type", at: cast.start)
             cast.op = .bitCast
-            return targetType
+            return Operand(type: targetType, constant: nil, dependencies: dependencies)
         }
 
         switch cast.kind {
@@ -1862,17 +1947,19 @@ extension Checker {
             }
             guard exprType.width == targetType.width else {
                 reportError("Can only bitcast between 2 types of the same size", at: cast.keyword)
-                return targetType
+                return Operand(type: targetType, constant: nil, dependencies: dependencies)
             }
 
         default:
             fatalError()
         }
 
-        return targetType
+        return Operand(type: targetType, constant: nil, dependencies: dependencies)
     }
 
-    mutating func check(polymorphicCall call: Call, calleeType: ty.Function) -> Type {
+    // NOTE: We should have checked the dependencies at this point from looking at the declaration of this.
+    //  Either that or they don't matter becuase the call will always be following the declaration
+    mutating func check(polymorphicCall call: Call, calleeType: ty.Function) -> Operand {
         let fnLitNode = calleeType.node!
 
         guard case .polymorphic(let declaringScope, var specializations)? = fnLitNode.checked else {
@@ -1928,7 +2015,7 @@ extension Checker {
 
             call.type = specialization.strippedType.returnType
             call.checked = .specializedCall(specialization)
-            return specialization.strippedType.returnType
+            return Operand(type: call.type, constant: nil, dependencies: [])
         }
 
         // generated a new specialization
@@ -1947,7 +2034,7 @@ extension Checker {
         context.scope = functionScope
         context.specializationCallNode = call
 
-        let type = check(funcLit: generated)
+        let type = check(funcLit: generated).type as! ty.Function
 
         context.scope = prevScope
         context.specializationCallNode = prevNode
@@ -1978,10 +2065,10 @@ extension Checker {
         fnLitNode.checked = .polymorphic(declaringScope: declaringScope, specializations: specializations)
 
         // TODO: Tuple splat?
-        return type.returnType
+        return Operand(type: type.returnType, constant: nil, dependencies: [])
     }
 
-    mutating func check(polymorphicCall call: Call, calleeType: ty.Struct) -> Type {
+    mutating func check(polymorphicCall call: Call, calleeType: ty.Struct) -> Operand {
         fatalError("TODO")
     }
 }

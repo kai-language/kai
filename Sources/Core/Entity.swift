@@ -91,3 +91,15 @@ extension Entity {
 
     static let invalid = Entity.makeBuiltin("< invalid >")
 }
+
+extension Entity: Hashable {
+
+    var hashValue: Int {
+        // use the class pointer
+        return unsafeBitCast(self, to: Int.self)
+    }
+
+    static func ==(lhs: Entity, rhs: Entity) -> Bool {
+        return lhs === rhs
+    }
+}
