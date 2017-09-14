@@ -1255,6 +1255,7 @@ extension Checker {
         if (lhsType is ty.UntypedNil || lhsType is ty.UntypedInteger || lhsType is ty.UntypedFloatingPoint) && rhsType != lhsType {
             guard let cast = constrainUntyped(lhsType, to: rhsType) else {
                 reportError("Invalid operation '\(binary.op)' between untyped '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
+                binary.type = ty.invalid
                 return ty.invalid
             }
             if lhsType is ty.UntypedNil {
@@ -1265,6 +1266,7 @@ extension Checker {
         } else if (rhsType is ty.UntypedNil || rhsType is ty.UntypedInteger || rhsType is ty.UntypedFloatingPoint) && rhsType != lhsType {
             guard let cast = constrainUntyped(rhsType, to: lhsType) else {
                 reportError("Invalid operation '\(binary.op)' between '\(lhsType)' and untyped '\(rhsType)'", at: binary.opPos)
+                binary.type = ty.invalid
                 return ty.invalid
             }
             if rhsType is ty.UntypedNil {
