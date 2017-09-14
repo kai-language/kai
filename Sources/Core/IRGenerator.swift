@@ -82,6 +82,10 @@ struct IRGenerator {
         return IntType(width: 8, in: module.context)
     }()
 
+    lazy var i32: IntType = {
+        return IntType(width: 32, in: module.context)
+    }()
+
     lazy var i64: IntType = {
         return IntType(width: 64, in: module.context)
     }()
@@ -1043,9 +1047,25 @@ extension IRGenerator {
                 return b.buildCast(cast, value: val, type: canonicalize(sel.type))
             }
             return val
-        case .vector(let index):
+        case .scalar(let index):
             let vector = emit(expr: sel.rec)
             return b.buildExtractElement(vector: vector, index: index)
+        case .swizzle(let indices):
+            let vector = emit(expr: sel.rec)
+            let recType = canonicalize(sel.rec.type)
+            let maskType = canonicalize(sel.type)
+            var shuffleMask = maskType.undef()
+            for (i, index) in indices.enumerated() {
+                shuffleMask = b.buildInsertElement(vector: shuffleMask, element: i32.constant(index), index: i)
+            }
+
+            let swizzle = b.buildShuffleVector(vector, and: recType.undef(), mask: shuffleMask)
+            if returnAddress {
+                let ptr = b.buildAlloca(type: maskType)
+                return b.buildStore(swizzle, to: ptr)
+            }
+
+            return swizzle
         }
     }
 

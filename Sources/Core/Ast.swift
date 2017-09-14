@@ -331,7 +331,8 @@ class Selector: Node, Expr {
         case file(Entity)
         case `struct`(ty.Struct.Field)
         case array(ArrayMember)
-        case vector(Int)
+        case scalar(Int)
+        case swizzle([Int])
 
         enum ArrayMember: Int {
             case raw

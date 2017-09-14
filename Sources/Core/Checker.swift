@@ -1344,27 +1344,33 @@ extension Checker {
 
         assert((lhsType == rhsType) || lCast != nil || rCast != nil || isPointerArithmetic, "We must have 2 same types or a way to acheive them by here")
 
-        let isIntegerOp = lhsType is ty.Integer || rhsType is ty.Integer || lhsType is ty.Pointer
+        let underlyingLhs = (lhsType as? ty.Vector)?.elementType ?? lhsType
+        let isIntegerOp = underlyingLhs is ty.Integer || underlyingLhs is ty.Integer || underlyingLhs is ty.Pointer
 
         var type = resultType
         switch binary.op {
         case .lss, .leq, .gtr, .geq:
-            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint) || isPointerArithmetic else {
+            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint || lhsType is ty.Vector) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint || rhsType is ty.Vector) || isPointerArithmetic else {
                 reportError("Cannot compare '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
                 binary.type = ty.invalid
                 return ty.invalid
             }
             op = isIntegerOp ? .icmp : .fcmp
             type = ty.bool
-
+            if let vec = lhsType as? ty.Vector {
+                type = ty.Vector(size: vec.size, elementType: type)
+            }
         case .eql, .neq:
-            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint || lhsType is ty.Boolean) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint || rhsType is ty.Boolean) || isPointerArithmetic else {
+            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint || lhsType is ty.Boolean || lhsType is ty.Vector) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint || rhsType is ty.Boolean || rhsType is ty.Vector) || isPointerArithmetic else {
                 reportError("Cannot compare '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
                 binary.type = ty.invalid
                 return ty.invalid
             }
             op = (isIntegerOp || lhsType is ty.Boolean || rhsType is ty.Boolean) ? .icmp : .fcmp
             type = ty.bool
+            if let vec = lhsType as? ty.Vector {
+                type = ty.Vector(size: vec.size, elementType: type)
+            }
         case .xor:
             op = .xor
         case .and, .land:
@@ -1474,25 +1480,35 @@ extension Checker {
             return selector.type
 
         case let vector as ty.Vector:
-            let index: Int
+            var indices: [Int] = []
+            let name = selector.sel.name
 
-            switch selector.sel.name {
-            case "x", "r":
-                index = 0
-            case "y" where vector.size >= 2, "g" where vector.size >= 2:
-                index = 1
-            case "z" where vector.size >= 3, "b" where vector.size >= 3:
-                index = 2
-            case "w" where vector.size >= 4, "a" where vector.size >= 4:
-                index = 3
-            default:
-                selector.checked = .invalid
-                selector.type = ty.invalid
-                return selector.type
+            for char in name.characters {
+                switch char {
+                case "x", "r":
+                    indices.append(0)
+                case "y" where vector.size >= 2, "g" where vector.size >= 2:
+                    indices.append(1)
+                case "z" where vector.size >= 3, "b" where vector.size >= 3:
+                    indices.append(2)
+                case "w" where vector.size >= 4, "a" where vector.size >= 4:
+                    indices.append(3)
+                default:
+                    reportError("'\(name)' is not a component of '\(selector.rec)'", at: selector.sel.start)
+                    selector.checked = .invalid
+                    selector.type = ty.invalid
+                    return selector.type
+                }
             }
 
-            selector.checked = .vector(index)
-            selector.type = vector.elementType
+            if indices.count == 1 {
+                selector.checked = .scalar(indices[0])
+                selector.type = vector.elementType
+            } else {
+                selector.checked = .swizzle(indices)
+                selector.type = ty.Vector(size: indices.count, elementType: vector.elementType)
+            }
+
             return selector.type
 
         case is ty.KaiString:
@@ -2017,7 +2033,9 @@ func canLvalue(_ expr: Expr) -> Bool {
             return true
         case .array:
             return true
-        case .vector:
+        case .scalar:
+            return true
+        case .swizzle:
             return true
         case .struct:
             return true

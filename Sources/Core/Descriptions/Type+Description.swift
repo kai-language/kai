@@ -10,7 +10,7 @@ extension ty.Boolean {
         if let name = entity?.name {
             return name
         }
-        return "< bool >"
+        return "bool"
     }
 }
 
@@ -19,7 +19,7 @@ extension ty.Integer {
         if let name = entity?.name {
             return name
         }
-        return "< \(isSigned ? "i" : "u")\(width!) >"
+        return "\(isSigned ? "i" : "u")\(width!)"
     }
 }
 
@@ -28,7 +28,7 @@ extension ty.FloatingPoint {
         if let name = entity?.name {
             return name
         }
-        return "< f\(width!) >"
+        return "f\(width!)"
     }
 }
 
@@ -37,7 +37,7 @@ extension ty.KaiString {
         if let name = entity?.name {
             return name
         }
-        return "< string >"
+        return "string"
     }
 }
 
@@ -52,7 +52,7 @@ extension ty.Pointer {
 
 extension ty.Anyy {
     var description: String {
-        return "< any >"
+        return "any"
     }
 }
 
