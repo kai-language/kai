@@ -78,6 +78,28 @@ struct IRGenerator {
         return entity.value!
     }
 
+    func entryBlockAlloca(type: IRType, name: String = "", default def: IRValue? = nil) -> IRValue {
+        let f = b.currentFunction!
+        let cur = b.insertBlock
+        let entry = f.entryBlock!
+
+        if let first = entry.firstInstruction {
+            b.position(first, block: entry)
+        }
+
+        let alloc = b.buildAlloca(type: type, name: name)
+
+        if let block = cur {
+            b.positionAtEnd(of: block)
+        }
+
+        if let def = def {
+            b.buildStore(def, to: alloc)
+        }
+
+        return alloc
+    }
+
     lazy var i8: IntType = {
         return IntType(width: 8, in: module.context)
     }()
@@ -212,7 +234,7 @@ extension IRGenerator {
     mutating func emit(variableDecl decl: Declaration) {
         if decl.values.count == 1, let call = decl.values.first as? Call, decl.entities.count > 1 {
             let retType = canonicalize(call.type)
-            let stackAggregate = b.buildAlloca(type: retType)
+            let stackAggregate = entryBlockAlloca(type: retType)
             let aggregate = emit(call: call)
             b.buildStore(aggregate, to: stackAggregate)
 
@@ -227,7 +249,7 @@ extension IRGenerator {
                     global.initializer = type.undef()
                     entity.value = global
                 } else {
-                    let stackValue = b.buildAlloca(type: type, name: entity.name)
+                    let stackValue = entryBlockAlloca(type: type, name: entity.name)
                     let rvaluePtr = b.buildStructGEP(stackAggregate, index: index)
                     let rvalue = b.buildLoad(rvaluePtr)
 
@@ -247,7 +269,7 @@ extension IRGenerator {
                     global.initializer = type.undef()
                     entity.value = global
                 } else {
-                    entity.value = b.buildAlloca(type: type)
+                    entity.value = entryBlockAlloca(type: type)
                 }
             }
             return
@@ -295,7 +317,7 @@ extension IRGenerator {
                     b.positionAtEnd(of: b.insertBlock!)
                 }
             } else {
-                let stackValue = b.buildAlloca(type: type, name: symbol(for: entity))
+                let stackValue = entryBlockAlloca(type: type, name: symbol(for: entity))
 
                 entity.value = stackValue
 
@@ -309,7 +331,7 @@ extension IRGenerator {
 
                     // If we have a string then ensure the data contents are stored on the stack so they can be mutated
                     let count = (lit.constant as! String).utf8.count + 1 // + 1 for null byte
-                    var dstPtr = b.buildAlloca(type: LLVM.ArrayType(elementType: i8, count: count))
+                    var dstPtr = entryBlockAlloca(type: LLVM.ArrayType(elementType: i8, count: count))
                     dstPtr = b.buildBitCast(dstPtr, type: LLVM.PointerType(pointee: i8))
                     let tmp = b.buildInsertValue(aggregate: b.buildLoad(stackValue), element: dstPtr, index: 0)
                     b.buildStore(tmp, to: stackValue)
@@ -378,13 +400,12 @@ extension IRGenerator {
             if assign.lhs.count == 1 {
                 let rvaluePtr = emit(call: call)
                 let lvalueAddress = emit(expr: assign.lhs[0], returnAddress: true)
-                let rvalue = b.buildLoad(rvaluePtr)
-                b.buildStore(rvalue, to: lvalueAddress)
+                b.buildStore(rvaluePtr, to: lvalueAddress)
                 return
             }
 
             let retType = canonicalize(call.type)
-            let stackAggregate = b.buildAlloca(type: retType)
+            let stackAggregate = entryBlockAlloca(type: retType)
             let aggregate = emit(call: call)
             b.buildStore(aggregate, to: stackAggregate)
 
@@ -437,7 +458,7 @@ extension IRGenerator {
              }
         }
 
-        let stackValue = b.buildAlloca(type: type, name: param.entity.name)
+        let stackValue = entryBlockAlloca(type: type, name: param.entity.name)
 
         if Options.instance.flags.contains(.emitIr) {
             b.positionAtEnd(of: b.insertBlock!)
@@ -522,7 +543,7 @@ extension IRGenerator {
         }
 
         f.breakLabel.value = loopPost
-        f.continueLabel.value = loopCond ?? loopStep ?? loopBody
+        f.continueLabel.value = loopStep ?? loopCond ?? loopBody
 
         emit(statement: f.body)
 
@@ -559,11 +580,11 @@ extension IRGenerator {
         var loopCond: BasicBlock
         var loopStep: BasicBlock
 
-        let index = b.buildAlloca(type: i64, name:  f.index?.ident.name ?? "i")
+        let index = entryBlockAlloca(type: i64, name:  f.index?.ident.name ?? "i")
         f.index?.value = index
         _ = b.buildStore(i64.zero(), to: index)
 
-        let element = b.buildAlloca(type: canonicalize(f.element.type!), name: f.element.ident.name)
+        let element = entryBlockAlloca(type: canonicalize(f.element.type!), name: f.element.ident.name)
         f.element.value = element
 
         let agg: IRValue
@@ -790,7 +811,7 @@ extension IRGenerator {
             var constant = b.addGlobal("array.lit", initializer: LLVM.ArrayType.constant(elements, type: elementType))
             constant.isGlobalConstant = true
 
-            let stackAlloc = b.buildAlloca(type: LLVM.ArrayType(elementType: elementType, count: type.initialLength))
+            let stackAlloc = entryBlockAlloca(type: LLVM.ArrayType(elementType: elementType, count: type.initialLength))
             let stackAllocPtr = b.buildGEP(stackAlloc, indices: [0, 0])
             let newBuff = b.buildBitCast(stackAllocPtr, type: LLVM.PointerType(pointee: i8))
             let constantPtr = b.buildBitCast(constant, type: LLVM.PointerType(pointee: i8))
@@ -1048,7 +1069,12 @@ extension IRGenerator {
             }
             return val
         case .scalar(let index):
-            let vector = emit(expr: sel.rec)
+            let vector = emit(expr: sel.rec, returnAddress: returnAddress)
+
+            if returnAddress {
+                return b.buildGEP(vector, indices: [i64.constant(0), i64.constant(index)])
+            }
+
             return b.buildExtractElement(vector: vector, index: index)
         case .swizzle(let indices):
             let vector = emit(expr: sel.rec)
@@ -1061,7 +1087,7 @@ extension IRGenerator {
 
             let swizzle = b.buildShuffleVector(vector, and: recType.undef(), mask: shuffleMask)
             if returnAddress {
-                let ptr = b.buildAlloca(type: maskType)
+                let ptr = entryBlockAlloca(type: maskType)
                 return b.buildStore(swizzle, to: ptr)
             }
 
