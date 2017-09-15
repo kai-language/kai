@@ -14,7 +14,7 @@ struct IRGenerator {
     init(file: SourceFile) {
         self.package = file.package
         self.file = file
-        self.context = Context(mangledNamePrefix: "", previous: nil)
+        self.context = Context(mangledNamePrefix: "", resultPtr: nil, previous: nil)
         self.module = package.module
         self.b = package.builder
     }
@@ -22,16 +22,22 @@ struct IRGenerator {
     // sourcery:noinit
     class Context {
         var mangledNamePrefix: String
+        var resultPtr: IRValue?
         var previous: Context?
 
-        init(mangledNamePrefix: String, previous: Context?) {
+        init(mangledNamePrefix: String, resultPtr: IRValue?, previous: Context?) {
             self.mangledNamePrefix = mangledNamePrefix
+            self.resultPtr = resultPtr
             self.previous = previous
+        }
+
+        func findResultPtr() -> IRValue? {
+            return resultPtr ?? previous?.findResultPtr()
         }
     }
 
     mutating func pushContext(scopeName: String) {
-        context = Context(mangledNamePrefix: mangle(scopeName), previous: context)
+        context = Context(mangledNamePrefix: mangle(scopeName), resultPtr: nil, previous: context)
     }
 
     mutating func popContext() {
@@ -443,8 +449,12 @@ extension IRGenerator {
 
         switch values.count {
         case 1:
-            b.buildRet(values[0])
+            if let result = context.findResultPtr() {
+                b.buildStore(values[0], to: result)
+            }
+
         default:
+            // FIXME: store to `result`. Don't return
             b.buildRetAggregate(of: values)
         }
     }
@@ -480,21 +490,17 @@ extension IRGenerator {
         b.positionAtEnd(of: thenBlock)
         emit(statement: iff.body)
 
+        if b.insertBlock!.terminator == nil {
+            b.buildBr(postBlock)
+        }
+
         if let els = iff.els {
             b.positionAtEnd(of: elseBlock!)
             emit(statement: els)
 
             if elseBlock!.terminator == nil {
                 b.buildBr(postBlock)
-            } else if thenBlock.terminator != nil {
-                // The if statement is terminating and the post block is unneeded.
-                postBlock.removeFromParent()
             }
-        }
-
-        if thenBlock.terminator == nil {
-            b.positionAtEnd(of: thenBlock)
-            b.buildBr(postBlock)
         }
 
         b.positionAtEnd(of: postBlock)
@@ -973,10 +979,31 @@ extension IRGenerator {
     mutating func emit(funcLit fn: FuncLit, entity: Entity?, specializationMangle: String? = nil) -> Function {
         switch fn.checked! {
         case .regular:
-            let function = b.addFunction(specializationMangle ?? entity.map(symbol) ?? ".fn", type: canonicalize(fn.type) as! FunctionType)
+            let fnType = canonicalize(fn.type) as! FunctionType
+            let function = b.addFunction(specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
             let prevBlock = b.insertBlock
 
+            let isVoid = fnType.returnType is VoidType
+
             let entryBlock = function.appendBasicBlock(named: "entry", in: module.context)
+            let retBlock = function.appendBasicBlock(named: "ret")
+
+            let prevResult = context.findResultPtr()
+            defer {
+                context.resultPtr = prevResult
+            }
+
+            if isVoid {
+                b.positionAtEnd(of: retBlock)
+                b.buildRetVoid()
+            } else {
+                b.positionAtEnd(of: entryBlock)
+                let resultPtr = b.buildAlloca(type: fnType.returnType, name: "result")
+                context.resultPtr = resultPtr
+                b.positionAtEnd(of: retBlock)
+                b.buildRet(b.buildLoad(resultPtr))
+            }
+
             b.positionAtEnd(of: entryBlock)
 
             for (param, var irParam) in zip(fn.params.list, function.parameters) {
@@ -992,9 +1019,11 @@ extension IRGenerator {
             emit(statement: fn.body)
             popContext()
 
-            if b.insertBlock?.terminator == nil, fn.results.types.first!.type!.lower() == ty.void {
-                b.buildRetVoid()
+            if b.insertBlock?.terminator == nil {
+                b.buildBr(retBlock)
             }
+
+            retBlock.moveAfter(function.lastBlock!)
 
             if let prevBlock = prevBlock {
                 b.positionAtEnd(of: prevBlock)
