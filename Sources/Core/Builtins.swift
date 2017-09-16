@@ -134,6 +134,13 @@ class BuiltinFunction {
 
         return BuiltinFunction(entity: entity, generate: gen, onCallCheck: onCallCheck)
     }
+
+    static let sizeof = BuiltinFunction(
+        entity: Entity.makeBuiltin("sizeof", type: ty.Function.make([ty.any], [ty.i64])),
+        generate: { function, exprs, gen in
+            return IntType.int64.constant(exprs.first!.type.width!.round(upToNearest: 8) / 8)
+        }, onCallCheck: nil
+    )
 }
 
 extension IRBuilder {

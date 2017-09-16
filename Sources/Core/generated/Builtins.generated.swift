@@ -67,6 +67,7 @@ extension ty {
 }
 
 let builtinFunctions: [BuiltinFunction] = [
+    BuiltinFunction.sizeof,
 ]
 
 let builtinEntities: [BuiltinEntity] = [
@@ -75,6 +76,7 @@ let builtinEntities: [BuiltinEntity] = [
 ]
 
 let builtins: [Entity] = [
+    BuiltinFunction.sizeof.entity,
     BuiltinEntity.trué.entity,
     BuiltinEntity.falsé.entity,
     BuiltinType.void.entity,

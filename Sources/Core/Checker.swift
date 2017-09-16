@@ -1548,7 +1548,7 @@ extension Checker {
         let recType = check(expr: sub.rec)
         let indexType = check(expr: sub.index, desiredType: ty.i64)
 
-        if !canConvert(indexType, to: ty.i64) && !implicitlyConvert(indexType, to: ty.i64) && !(indexType is ty.Integer){
+        if !canConvert(indexType, to: ty.i64) && !implicitlyConvert(indexType, to: ty.i64) && !(indexType is ty.Integer) && !(indexType is ty.UntypedInteger) {
             reportError("Cannot subscript with non-integer type", at: sub.index.start)
         }
 
@@ -1925,7 +1925,8 @@ extension Checker {
     func implicitlyConvert(_ type: Type, to targetType: Type) -> Bool {
 
         if targetType is ty.Anyy {
-            fatalError("Implement this once we have an any type")
+            return true
+//            fatalError("Implement this once we have an any type")
         }
 
         if targetType is ty.CVarArg {
