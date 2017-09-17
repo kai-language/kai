@@ -251,6 +251,10 @@ enum ty {
             static let polymorphic  = Flags(rawValue: 0b0100)
             static let builtin      = Flags(rawValue: 0b1000)
         }
+
+        static func make(_ params: [Type], _ returnType: [Type], _ flags: Flags = .builtin) -> Function {
+            return Function(entity: nil, node: nil, params: params, returnType: ty.Tuple.init(width: nil, types: returnType), flags: flags)
+        }
     }
 
     struct UntypedNil: Type {

@@ -449,7 +449,7 @@ extension IRGenerator {
 
         switch values.count {
         case 1:
-            if let result = context.findResultPtr() {
+            if let result = context.findResultPtr(), !(result is VoidType) {
                 b.buildStore(values[0], to: result)
             }
 
@@ -809,24 +809,26 @@ extension IRGenerator {
         case let type as ty.DynamicArray:
             let irType = canonicalize(type)
             var ir = irType.undef()
-            let elements = lit.elements.map {
-                emit(expr: $0.value)
-            }
 
             let elementType = canonicalize(type.elementType)
-            var constant = b.addGlobal("array.lit", initializer: LLVM.ArrayType.constant(elements, type: elementType))
-            constant.isGlobalConstant = true
+            let rawBuffType = LLVM.ArrayType(elementType: elementType, count: type.initialLength)
+            var constant = rawBuffType.undef()
+            for (index, el) in lit.elements.enumerated() {
+                let val = emit(expr: el.value)
+                constant = b.buildInsertValue(aggregate: constant, element: val, index: index)
+            }
 
-            let stackAlloc = entryBlockAlloca(type: LLVM.ArrayType(elementType: elementType, count: type.initialLength))
+            let constantStackAlloc = entryBlockAlloca(type: rawBuffType, name: "array.lit", default: constant)
+            let stackAlloc = entryBlockAlloca(type: rawBuffType)
             let stackAllocPtr = b.buildGEP(stackAlloc, indices: [0, 0])
             let newBuff = b.buildBitCast(stackAllocPtr, type: LLVM.PointerType(pointee: i8))
-            let constantPtr = b.buildBitCast(constant, type: LLVM.PointerType(pointee: i8))
+            let constantPtr = b.buildBitCast(constantStackAlloc, type: LLVM.PointerType(pointee: i8))
             let length = i64.constant((type.initialLength * type.elementType.width!).round(upToNearest: 8) / 8)
             b.buildMemcpy(newBuff, constantPtr, count: length)
 
             let newBuffCast = b.buildBitCast(newBuff, type: LLVM.PointerType(pointee: elementType))
             ir = b.buildInsertValue(aggregate: ir, element: newBuffCast, index: 0)
-            ir = b.buildInsertValue(aggregate: ir, element: length, index: 1) // len
+            ir = b.buildInsertValue(aggregate: ir, element: i64.constant(type.initialLength), index: 1)
             // NOTE: since the raw buffer is stack allocated, we need to set the
             // capacity to `0`. Then, any call that needs to realloc can instead
             // malloc a new buffer.
@@ -1283,6 +1285,9 @@ extension IRGenerator {
 
     func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
         if let entity = struc.entity {
+            if let ptr = module.type(named: symbol(for: entity)) {
+                return ptr as! LLVM.StructType
+            }
             let irType = b.createStruct(name: symbol(for: entity))
             var irTypes: [IRType] = []
             for field in struc.fields {
