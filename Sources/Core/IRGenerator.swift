@@ -1285,6 +1285,9 @@ extension IRGenerator {
 
     func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
         if let entity = struc.entity {
+            if let ptr = module.type(named: symbol(for: entity)) {
+                return ptr as! LLVM.StructType
+            }
             let irType = b.createStruct(name: symbol(for: entity))
             var irTypes: [IRType] = []
             for field in struc.fields {
