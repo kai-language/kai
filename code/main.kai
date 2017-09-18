@@ -2,6 +2,7 @@
 #library "libc"
 #import github("vdka/gl")
 #import github("vdka/glfw")
+#import github("kai-language/stdlib")
 
 #foreign libc {
     printf :: (fmt: *u8, args: #cvargs ..any) -> i32
@@ -49,26 +50,26 @@ loadShaders :: fn() -> u32 {
 
         layout(location = 0) in vec3 vertexPosition;
 
-        uniform float time;
+        uniform mat4 MVP;
 
         out vec3 pos;
 
         void main() {
-            gl_Position = vec4(vertexPosition, 1.0);
-            pos = vertexPosition;
+            gl_Position = MVP * vec4(vertexPosition, 1.0);
+            pos = vertexPosition.xyz;
         }
     "
     fragment_shader_source := "
         #version 330 core
 
         in vec3 pos;
-        in vec2 resolution;
-        uniform float time;
         out vec4 color;
 
+        uniform float time;
+    
         void main() {
-            vec2 uv = pos.xy / resolution.xy;
-            color = vec4(uv, 0.5 + 0.5 * sin(time), 1.0);
+            
+            color = vec4(pos.xy, sin(2.0 * 3.14159 * 2 * time), 1.0);
         }
     "
 
@@ -150,6 +151,16 @@ main :: fn () -> void {
 
     res := [2]f32{1280, 720}
 
+    p := stdlib.perspective(0.785, 1.77, 0.1, 100.0)
+
+    pos := [vec 3]f32 { 4, 3, 3 }
+    lookPos := [vec 3]f32 { 0, 0, 0 }
+    up := [vec 3]f32 { 0, 1, 0 }
+
+    v := stdlib.look_at(pos, lookPos, up)
+
+    m := stdlib.identity_mat() 
+
     gl.Enable(gl.DEPTH_TEST);
     gl.ClearColor(0.2, 0.3, 0.4, 1.0);
     for glfw.WindowShouldClose(window) == glfw.FALSE {
@@ -162,14 +173,17 @@ main :: fn () -> void {
 
         if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.TRUE
             break
-
-        //
+        
+        MV  := stdlib.mul(v, m)
+        MVP := stdlib.mul(p, MV)
+ 
         // Drawing
         gl.Clear(cast(u32) gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         gl.UseProgram(program)
+        gl.UniformMatrix4fv(gl.GetUniformLocation(program, "MVP".raw), 1, gl.FALSE, &MVP[0][0])
         gl.Uniform1f(gl.GetUniformLocation(program, "time".raw), cast(f32) glfw.GetTime())
-        gl.Uniform2f(gl.GetUniformLocation(program, "resolution".raw), 1280, 720)
+        //gl.Uniform2f(gl.GetUniformLocation(program, "resolution".raw), 1280, 720)
 
         gl.BindVertexArray(vao)
         gl.DrawElements(gl.TRIANGLE_STRIP, 14, gl.UNSIGNED_SHORT, nil)

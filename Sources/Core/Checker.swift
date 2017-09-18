@@ -2193,7 +2193,8 @@ extension Checker {
     func implicitlyConvert(_ type: Type, to targetType: Type) -> Bool {
 
         if targetType is ty.Anyy {
-            fatalError("Implement this once we have an any type")
+            return true
+//            fatalError("Implement this once we have an any type")
         }
 
         if targetType is ty.CVarArg {
