@@ -305,7 +305,14 @@ class Paren: Node, Expr {
     var element: Expr
     var rparen: Pos
 
-    var type: Type!
+    var type: Type! {
+        get {
+            return element.type
+        }
+        set {
+            element.type = newValue
+        }
+    }
 
     var start: Pos { return lparen }
     var end: Pos { return rparen }
