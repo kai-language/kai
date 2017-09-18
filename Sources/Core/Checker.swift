@@ -444,6 +444,10 @@ extension Checker {
     mutating func check(foreignDecl d: Declaration) -> Set<Entity> {
         let ident = d.names[0]
 
+        if d.callconv == nil {
+            d.callconv = "c"
+        }
+
         if !context.scope.isFile && !context.scope.isPackage {
             if ident.name == "_" {
                 ident.entity = Entity.anonymous
