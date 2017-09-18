@@ -54,7 +54,7 @@ struct IRGenerator {
         return mangledName
     }
 
-    func value(for entity: Entity) -> IRValue {
+    mutating func value(for entity: Entity) -> IRValue {
         guard let entityPackage = entity.package else {
             return entity.value!
         }
@@ -74,6 +74,10 @@ struct IRGenerator {
                 }
                 return b.addGlobal(symbol, type: canonicalize(entity.type!))
             }
+        }
+        // FIXME: We need to ensure we are in the declarations context for correct mangling.
+        if entity.value == nil {
+            emit(decl: entity.declaration!)
         }
         return entity.value!
     }
@@ -125,6 +129,19 @@ extension IRGenerator {
             emit(declaration: d)
         default:
             print("Warning: statement didn't codegen: \(stmt)")
+        }
+    }
+
+    mutating func emit(decl: Decl) {
+        switch decl {
+        case let d as Declaration:
+            emit(declaration: d)
+        case let b as DeclBlock:
+            emit(declBlock: b)
+        case let f as Foreign:
+            emit(foreign: f)
+        default:
+            fatalError("Unrecognized instance of Decl")
         }
     }
 
@@ -258,6 +275,7 @@ extension IRGenerator {
         for (entity, value) in zip(decl.entities, decl.values) where entity !== Entity.anonymous {
 
             // FIXME: Is it actually possible to encounter a metatype as the rhs of a variable declaration?
+            //   if it is we should catch that in the checker for declarations
             if let type = entity.type as? ty.Metatype {
                 let irType = b.createStruct(name: symbol(for: entity))
 
@@ -286,7 +304,7 @@ extension IRGenerator {
 
             let ir = emit(expr: value, entity: entity)
             if entity.owningScope.isFile {
-                // FIXME: What should we do for things like global strings? They need to be mutable?
+                // FIXME: What should we do for things like global variable strings? They need to be mutable?
                 var global = b.addGlobal(symbol(for: entity), type: type)
                 global.initializer = type.undef()
                 entity.value = global
@@ -828,13 +846,13 @@ extension IRGenerator {
         if ident.entity.isConstant {
             switch ident.type {
             case let type as ty.Integer:
-                return canonicalize(type).constant(ident.constant as! UInt64)
+                return canonicalize(type).constant(ident.entity.constant as! UInt64)
             case let type as ty.UntypedInteger:
-                return canonicalize(type).constant(ident.constant as! UInt64)
+                return canonicalize(type).constant(ident.entity.constant as! UInt64)
             case let type as ty.FloatingPoint:
-                return canonicalize(type).constant(ident.constant as! Double)
+                return canonicalize(type).constant(ident.entity.constant as! Double)
             case let type as ty.UntypedFloatingPoint:
-                return canonicalize(type).constant(ident.constant as! Double)
+                return canonicalize(type).constant(ident.entity.constant as! Double)
             default:
                 break
             }
@@ -984,9 +1002,6 @@ extension IRGenerator {
         case .polymorphic(_, let specializations):
             let mangledName = entity.map(symbol) ?? ".fn"
             for specialization in specializations {
-                // FIXME: Mangling is gonna be broke I guess, how do we emit function specializations?
-                //  should we make some sort of temp entity with the desired mangled name preset?
-                // What do we do if we don't have an entity here?
 
                 let suffix = specialization.specializedTypes
                     .reduce("", { $0 + "$" + $1.description })

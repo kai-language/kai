@@ -208,7 +208,9 @@ func copy(_ node: DeclBlock) -> DeclBlock {
         rbrace: node.rbrace,
         isForeign: node.isForeign,
         linkprefix: node.linkprefix,
-        callconv: node.callconv
+        callconv: node.callconv,
+        dependsOn: node.dependsOn,
+        emitted: node.emitted
     )
 }
 
@@ -224,7 +226,9 @@ func copy(_ node: Declaration) -> Declaration {
         isConstant: node.isConstant,
         callconv: node.callconv,
         linkname: node.linkname,
-        entities: node.entities
+        entities: node.entities,
+        dependsOn: node.dependsOn,
+        emitted: node.emitted
     )
 }
 
@@ -318,7 +322,9 @@ func copy(_ node: Foreign) -> Foreign {
         library: copy(node.library),
         decl: copy(node.decl),
         linkname: node.linkname,
-        callconv: node.callconv
+        callconv: node.callconv,
+        dependsOn: node.dependsOn,
+        emitted: node.emitted
     )
 }
 

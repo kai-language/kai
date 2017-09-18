@@ -32,7 +32,6 @@ class Entity: CustomStringConvertible {
         // the highest 4 bits are used as control flags
         static let builtin      = Flag(rawValue: 0b0111 << 12) // implies checked & emitted
         static let checked      = Flag(rawValue: 0b0010 << 12)
-        static let emitted      = Flag(rawValue: 0b0100 << 12)
 
         // entity info
         static let file         = Flag(rawValue: 0b00000001)

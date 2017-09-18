@@ -13,10 +13,6 @@ extension Entity {
         return flags.contains(.checked) 
     }
 
-    var isEmitted: Bool {
-        return flags.contains(.emitted) 
-    }
-
     var isFile: Bool {
         return flags.contains(.file) 
     }
