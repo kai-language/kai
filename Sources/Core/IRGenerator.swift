@@ -441,21 +441,25 @@ extension IRGenerator {
     }
 
     mutating func emit(return ret: Return) {
-        var values: [IRValue] = []
-        for value in ret.results {
-            let irValue = emit(expr: value)
-            values.append(irValue)
-        }
-
-        switch values.count {
+        switch ret.results.count {
         case 1:
             if let result = context.findResultPtr(), !(result is VoidType) {
-                b.buildStore(values[0], to: result)
+                let val = emit(expr: ret.results[0])
+                b.buildStore(val, to: result)
             }
 
         default:
-            // FIXME: store to `result`. Don't return
-            b.buildRetAggregate(of: values)
+            if let result = context.findResultPtr(), !(result is VoidType) {
+                let ptr = result.type as! LLVM.PointerType
+                let type = ptr.pointee as! LLVM.StructType
+                var ir = type.undef()
+                for (index, value) in ret.results.enumerated() {
+                    let val = emit(expr: value)
+                    ir = b.buildInsertValue(aggregate: ir, element: val, index: index)
+                }
+
+                b.buildStore(ir, to: result)
+            }
         }
     }
 

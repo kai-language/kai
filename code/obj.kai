@@ -1,0 +1,179 @@
+#library "libc"
+#foreign libc {
+    puts    :: (str: *u8) -> i32
+
+    malloc  :: (size: i64) -> rawptr
+    realloc :: (ptr: rawptr, size: i64) -> rawptr
+    memcpy  :: (dest: rawptr, source: rawptr, size: i64) -> rawptr
+
+    fopen  :: (path: *u8, mode: *u8) -> rawptr
+    fclose :: (file: rawptr) -> i32
+    fread  :: (dest: rawptr, size: i64, nmemb: i64, file: rawptr) -> i64
+}
+
+stof :: fn(buff: *u8, index: i64) -> f32, i64 {
+    result : f32 = 0
+    fact : f32 = 1
+    i := index
+    if buff[i] == 0x2D { // -
+        fact = -1.0
+        i += 1
+    }
+
+    pointSeen := false
+    for ; buff[i] != 0x00; i += 1 {
+        if buff[i] == 0x2E { // .
+            pointSeen = true
+            continue
+        }
+
+        d := buff[i] - 0x30 // 0
+        if d >= 0 && d <= 9 {
+            if pointSeen
+                fact /= 10.0
+            result = result * 10.0 + cast(f32)d 
+        } 
+        else { // this is not a decimal number, stop parsing
+            break
+        }
+    }
+
+    return result * fact, i
+}
+
+stoi :: fn(buff: *u8, index: i64) -> u32, i64 {
+    result: u32 = 0
+    i := index
+    for ; buff[i] != 0x00; i += 1 {
+        d := buff[i] - 0x30
+        if d >= 0 && d <= 9 {
+            result = result * 10 + cast(u32)d
+        }
+        else {
+            break
+        }
+    }
+
+    return result, i
+}
+
+appendV3 :: fn(array: [..][vec 3]f32, val: [vec 3]f32) -> [..][vec 3]f32 {
+    newLen := array.len + 1
+
+    // '0' indicates stack alloc
+    if array.cap == 0 {
+        buff := malloc(12 * newLen * 2)
+        dataCopy := memcpy(buff, autocast &array.raw[0], array.len * 12)
+        array.raw = autocast buff
+        array.cap = newLen * 2
+    }
+
+    if newLen > array.cap {
+        newCap := newLen * 2
+        puts("vec3\n".raw)
+        buff := realloc(autocast &array.raw[0], newCap * 12)
+        array.raw = autocast buff
+        array.cap = newCap
+    }
+
+    array[array.len] = val
+    array.len = newLen
+
+    return array
+} 
+
+appendU32 :: fn(array: [..]u32, val: u32) -> [..]u32 {
+    newLen := array.len + 1
+
+    if array.cap == 0 {
+        buff := malloc(4 * newLen * 2)
+        dataCopy := memcpy(buff, autocast &array.raw[0], array.len * 4)
+        array.raw = autocast buff
+        array.cap = newLen * 2
+    }
+
+    if newLen > array.cap {
+        newCap := newLen * 2
+        puts("u32\n".raw)
+        buff := realloc(autocast &array.raw[0], newCap * 4)
+        array.raw = autocast buff
+        array.cap = newCap
+    }
+
+    array[array.len] = val
+    array.len = newLen
+    
+    return array
+}
+
+loadModel :: fn(path: string) -> bool {
+    file := fopen(path.raw, "r".raw)
+    if file == nil {
+        return false
+    }
+   
+    verts := [..][vec 3]f32 {}
+    faces := [..]u32 {}
+ 
+    buffer : [2049]u8
+    count := fread(autocast buffer, 1, 2048, file)
+
+    for i : i64 = 0; i < count; i += 1 {
+        byte := buffer[i]
+        if byte == 0x20 || byte == 0x09 || byte == 0x0D || byte == 0x0A 
+            continue
+
+        switch byte {
+        // comments
+        case 0x23: // # 
+            for buffer[i] != 0x0A { i += 1 }
+        // faces
+        case 0x66: // f
+            i += 2
+            f: u32
+            f, i = stoi(&buffer[0], i)
+            faces = appendU32(faces, f - 1) // obj faces start at 0 and obj start at 1
+            for buffer[i] != 0x0A { i += 1 }
+        // verts, texcoords, normals
+        case 0x76: // v
+            i += 1
+            switch buffer[i] {
+            case 0x20: 
+                i += 1
+                x : f32
+                x, i = stof(&buffer[0], i)
+                i += 1
+                y : f32
+                y, i = stof(&buffer[0], i)
+                i += 1
+                z : f32
+                z, i = stof(&buffer[0], i)
+                vert := [vec 3]f32 { x, y, z }
+                //verts = appendV3(verts, vert)
+                for buffer[i] != 0x0A { i += 1 }
+            case:
+                for buffer[i] != 0x0A { i += 1 }
+            }
+        // mtllib
+        case 0x6D: // m
+            for buffer[i] != 0x0A { i += 1 }
+        // usemtl
+        case 0x75: // u
+            for buffer[i] != 0x0A { i += 1}
+        // smooth shading
+        case 0x73: // s
+            for buffer[i] != 0x0A { i += 1 }
+        // objects
+        case 0x6f: // o
+            for buffer[i] != 0x0A { i += 1 }
+        // groups
+        case 0x67: // g
+            for buffer[i] != 0x0A { i += 1}
+        case:
+            return false
+        }
+    }
+
+    fclose(file)
+    return true
+}
