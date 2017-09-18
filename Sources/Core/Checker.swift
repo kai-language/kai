@@ -932,6 +932,9 @@ extension Checker {
         case let s as PolyStructType:
             return check(polyStruct: s)
 
+        case let e as EnumType:
+            return check(enumType: e)
+
         case let paren as Paren:
             return check(expr: paren.element, desiredType: desiredType)
 
@@ -1411,6 +1414,69 @@ extension Checker {
     }
 
     @discardableResult
+    mutating func check(enumType e: EnumType) -> Operand {
+        var dependencies: Set<Entity> = []
+
+        var explicitType: Type?
+        var useExplicitTypeWidth = false
+        if let expr = e.explicitType {
+            let operand = check(expr: expr)
+            dependencies.formUnion(operand.dependencies)
+
+            explicitType = lowerFromMetatype(operand.type, atNode: expr)
+            useExplicitTypeWidth = explicitType is ty.Integer
+        }
+
+        var number: Int = 0
+        var biggest: Int = 0
+
+        var cases: [ty.Enum.Case] = []
+        for x in e.cases {
+            if let value = x.value {
+                let operand = check(expr: value, desiredType: explicitType)
+                dependencies.formUnion(operand.dependencies)
+
+                if let explicitType = explicitType {
+                    if !canConvert(operand.type, to: explicitType) && !implicitlyConvert(operand.type, to: explicitType) {
+                        reportError("Cannot convert value \(operand) to expected type \(explicitType)", at: value.start)
+                    }
+                    if let constant = operand.constant as? UInt64 {
+                        if numericCast(constant) > biggest {
+                            biggest = numericCast(constant)
+                        }
+                        number = numericCast(constant)
+                    } else {
+                        reportError("Enum values must be constant", at: value.start)
+                    }
+                } else {
+                    if let constant = operand.constant as? UInt64 {
+                        if numericCast(constant) > biggest {
+                            biggest = numericCast(constant)
+                        }
+                    } else {
+                        reportError("Enum values must be constant Integer", at: value.start)
+                        file.attachNote("You may explicitly opt for a different associated type by using enum(string) for example")
+                    }
+                }
+            }
+            let c = ty.Enum.Case(ident: x.name, value: x.value, number: number)
+            cases.append(c)
+            number += 1
+            if number > biggest {
+                biggest = number
+            }
+        }
+
+        let width = useExplicitTypeWidth ? explicitType!.width : biggest.bitsNeeded()
+        var type: Type
+        type = ty.Enum(entity: nil, width: width, associatedType: explicitType, cases: cases)
+        type = ty.Metatype(instanceType: type)
+        e.type = type
+        return Operand(mode: .type, expr: e, type: type, constant: nil, dependencies: dependencies)
+    }
+
+
+    @discardableResult
     mutating func check(unary: Unary, desiredType: Type?) -> Operand {
         let operand = check(expr: unary.element, desiredType: desiredType)
         var type = operand.type!
@@ -1780,6 +1846,26 @@ extension Checker {
                 selector.type = ty.invalid
             }
             return Operand(mode: .addressable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
+
+        case let meta as ty.Metatype:
+            switch meta.instanceType {
+            case let e as ty.Enum:
+                guard let c = e.cases.first(where: { $0.ident.name == selector.sel.name }) else {
+                    reportError("Case '\(selector.sel)' not found on enum \(operand)", at: selector.sel.start)
+                    selector.type = ty.invalid
+                    return Operand.invalid
+                }
+                selector.checked = .enum(c)
+                selector.type = e
+                return Operand(mode: .computed, expr: selector, type: e, constant: nil, dependencies: dependencies)
+
+            case is ty.Struct:
+                fatalError() // TODO
+
+            default:
+                break
+            }
+            fallthrough
 
         default:
             // Don't spam diagnostics if the type is already invalid

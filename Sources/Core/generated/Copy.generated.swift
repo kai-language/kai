@@ -272,6 +272,31 @@ func copy(_ nodes: [Empty]) -> [Empty] {
     return nodes.map(copy)
 }
 
+func copy(_ node: EnumCase) -> EnumCase {
+    return EnumCase(
+        name: copy(node.name),
+        value: node.value.map(copy)
+    )
+}
+
+func copy(_ nodes: [EnumCase]) -> [EnumCase] {
+    return nodes.map(copy)
+}
+
+func copy(_ node: EnumType) -> EnumType {
+    return EnumType(
+        keyword: node.keyword,
+        explicitType: node.explicitType.map(copy),
+        cases: copy(node.cases),
+        rbrace: node.rbrace,
+        type: node.type
+    )
+}
+
+func copy(_ nodes: [EnumType]) -> [EnumType] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: ExprStmt) -> ExprStmt {
     return ExprStmt(
         expr: copy(node.expr)
@@ -736,6 +761,7 @@ func copy(_ node: Expr) -> Expr {
     case let node as CompositeLit: return copy(node)
     case let node as DynamicArrayType: return copy(node)
     case let node as Ellipsis: return copy(node)
+    case let node as EnumType: return copy(node)
     case let node as FuncLit: return copy(node)
     case let node as FuncType: return copy(node)
     case let node as Ident: return copy(node)

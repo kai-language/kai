@@ -65,6 +65,21 @@ init(names: [Ident], colon: Pos, explicitType: Expr, type: Type!) {
 // sourcery:end
 }
 
+class EnumCase: Node {
+    var name: Ident
+    var value: Expr?
+
+    var start: Pos { return name.start }
+    var end: Pos { return value?.end ?? name.end }
+
+// sourcery:inline:auto:EnumCase.Init
+init(name: Ident, value: Expr?) {
+    self.name = name
+    self.value = value
+}
+// sourcery:end
+}
+
 class BadExpr: Node, Expr {
     var start: Pos
     var end: Pos
@@ -339,6 +354,7 @@ class Selector: Node, Expr {
         case invalid
         case file(Entity)
         case `struct`(ty.Struct.Field)
+        case `enum`(ty.Enum.Case)
         case array(ArrayMember)
         case scalar(Int)
         case swizzle([Int])
@@ -709,6 +725,28 @@ init(lbrace: Pos, polyTypes: PolyParameterList, fields: [StructField], rbrace: P
     self.lbrace = lbrace
     self.polyTypes = polyTypes
     self.fields = fields
+    self.rbrace = rbrace
+    self.type = type
+}
+// sourcery:end
+}
+
+class EnumType: Node, Expr {
+    var keyword: Pos
+    var explicitType: Expr?
+    var cases: [EnumCase]
+    var rbrace: Pos
+
+    var type: Type!
+
+    var start: Pos { return keyword }
+    var end: Pos { return rbrace }
+
+// sourcery:inline:auto:EnumType.Init
+init(keyword: Pos, explicitType: Expr?, cases: [EnumCase], rbrace: Pos, type: Type!) {
+    self.keyword = keyword
+    self.explicitType = explicitType
+    self.cases = cases
     self.rbrace = rbrace
     self.type = type
 }
