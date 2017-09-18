@@ -1799,7 +1799,7 @@ extension Checker {
         dependencies.formUnion(receiver.dependencies)
         dependencies.formUnion(index.dependencies)
 
-        if !canConvert(index.type, to: ty.i64) && !implicitlyConvert(index.type, to: ty.i64) && !(index.type is ty.Integer){
+        if !canConvert(index.type, to: ty.i64) && !implicitlyConvert(index.type, to: ty.i64) && !(index.type is ty.Integer) && !(index.type is ty.UntypedInteger) {
             reportError("Cannot subscript with non-integer type", at: sub.index.start)
         }
 
