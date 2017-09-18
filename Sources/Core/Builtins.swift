@@ -91,8 +91,8 @@ class BuiltinEntity {
         }
     }
 
-    static let trué = BuiltinEntity(name: "true", type: ty.bool, gen: { _ in true.asLLVM() })
-    static let falsé = BuiltinEntity(name: "false", type: ty.bool, gen: { _ in false.asLLVM() })
+    static let trué = BuiltinEntity(name: "true", type: ty.bool, gen: { b in IntType(width: 1, in: b.module.context).constant(1) })
+    static let falsé = BuiltinEntity(name: "false", type: ty.bool, gen: { b in IntType(width: 1, in: b.module.context).constant(0) })
 }
 
 //let polymorphicT = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
@@ -150,14 +150,15 @@ extension IRBuilder {
         if let function = module.function(named: "llvm.memcpy.p0i8.p0i8.i64") {
             memcpy = function
         } else {
+            let rawptr = LLVM.PointerType(pointee: IntType(width: 9, in: module.context))
             let memcpyType = FunctionType(
-                argTypes: [LLVM.PointerType.toVoid, LLVM.PointerType.toVoid, IntType.int64, IntType.int32, IntType.int1], returnType: VoidType()
+                argTypes: [rawptr, rawptr, IntType(width: 64, in: module.context), IntType(width: 32, in: module.context), IntType(width: 1, in: module.context)], returnType: VoidType(in: module.context)
             )
             memcpy = addFunction("llvm.memcpy.p0i8.p0i8.i64", type: memcpyType)
         }
 
         return buildCall(memcpy,
-            args: [dest, source, count, IntType.int32.constant(alias), IntType.int1.constant(0)]
+                         args: [dest, source, count, IntType(width: 32, in: module.context).constant(alias), IntType(width: 1, in: module.context).constant(0)]
         )
     }
 }

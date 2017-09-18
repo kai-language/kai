@@ -106,6 +106,10 @@ struct IRGenerator {
         return alloc
     }
 
+    lazy var i1: IntType = {
+        return IntType(width: 1, in: module.context)
+    }()
+
     lazy var i8: IntType = {
         return IntType(width: 8, in: module.context)
     }()
@@ -680,7 +684,7 @@ extension IRGenerator {
             }
         }
 
-        let value = sw.match.map({ emit(expr: $0) }) ?? true.asLLVM()
+        let value = sw.match.map({ emit(expr: $0) }) ?? i1.constant(1)
         var matches: [IRValue] = []
         for (i, c, nextCase) in sw.cases.enumerated().map({ ($0.offset, $0.element, sw.cases[safe: $0.offset + 1]) }) {
             let thenBlock = thenBlocks[i]
