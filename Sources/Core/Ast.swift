@@ -11,7 +11,10 @@ protocol Expr: Node {
 }
 protocol Stmt: Node {}
 protocol TopLevelStmt: Stmt {}
-protocol Decl: Stmt {}
+protocol Decl: TopLevelStmt {
+    var dependsOn: Set<Entity> { get set }
+    var emitted: Bool { get set }
+}
 protocol LinknameApplicable: Stmt {
     var linkname: String? { get set }
 }
@@ -58,6 +61,21 @@ init(names: [Ident], colon: Pos, explicitType: Expr, type: Type!) {
     self.colon = colon
     self.explicitType = explicitType
     self.type = type
+}
+// sourcery:end
+}
+
+class EnumCase: Node {
+    var name: Ident
+    var value: Expr?
+
+    var start: Pos { return name.start }
+    var end: Pos { return value?.end ?? name.end }
+
+// sourcery:inline:auto:EnumCase.Init
+init(name: Ident, value: Expr?) {
+    self.name = name
+    self.value = value
 }
 // sourcery:end
 }
@@ -302,17 +320,23 @@ class Paren: Node, Expr {
     var element: Expr
     var rparen: Pos
 
-    var type: Type!
+    var type: Type! {
+        get {
+            return element.type
+        }
+        set {
+            element.type = newValue
+        }
+    }
 
     var start: Pos { return lparen }
     var end: Pos { return rparen }
 
 // sourcery:inline:auto:Paren.Init
-init(lparen: Pos, element: Expr, rparen: Pos, type: Type!) {
+init(lparen: Pos, element: Expr, rparen: Pos) {
     self.lparen = lparen
     self.element = element
     self.rparen = rparen
-    self.type = type
 }
 // sourcery:end
 }
@@ -330,6 +354,7 @@ class Selector: Node, Expr {
         case invalid
         case file(Entity)
         case `struct`(ty.Struct.Field)
+        case `enum`(ty.Enum.Case)
         case array(ArrayMember)
         case scalar(Int)
         case swizzle([Int])
@@ -475,6 +500,7 @@ init(start: Pos, op: Token, element: Expr, type: Type!) {
 // sourcery:end
 }
 
+// sourcery:noinit
 class Binary: Node, Expr {
     var lhs: Expr
     var op: Token
@@ -492,7 +518,7 @@ class Binary: Node, Expr {
     var end: Pos { return rhs.end }
 
 // sourcery:inline:auto:Binary.Init
-init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr, type: Type!, irOp: OpCode.Binary!, irLCast: OpCode.Cast!, irRCast: OpCode.Cast!, isPointerArithmetic: Bool!) {
+init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr, type: Type! = nil, irOp: OpCode.Binary! = nil, irLCast: OpCode.Cast! = nil, irRCast: OpCode.Cast! = nil, isPointerArithmetic: Bool! = nil) {
     self.lhs = lhs
     self.op = op
     self.opPos = opPos
@@ -699,6 +725,28 @@ init(lbrace: Pos, polyTypes: PolyParameterList, fields: [StructField], rbrace: P
     self.lbrace = lbrace
     self.polyTypes = polyTypes
     self.fields = fields
+    self.rbrace = rbrace
+    self.type = type
+}
+// sourcery:end
+}
+
+class EnumType: Node, Expr {
+    var keyword: Pos
+    var explicitType: Expr?
+    var cases: [EnumCase]
+    var rbrace: Pos
+
+    var type: Type!
+
+    var start: Pos { return keyword }
+    var end: Pos { return rbrace }
+
+// sourcery:inline:auto:EnumType.Init
+init(keyword: Pos, explicitType: Expr?, cases: [EnumCase], rbrace: Pos, type: Type!) {
+    self.keyword = keyword
+    self.explicitType = explicitType
+    self.cases = cases
     self.rbrace = rbrace
     self.type = type
 }
@@ -1081,6 +1129,7 @@ init(directive: Pos, path: Expr, alias: Ident?, resolvedName: String?) {
 // sourcery:end
 }
 
+// sourcery:noinit
 class Foreign: Node, TopLevelStmt, LinknameApplicable, CallConvApplicable {
     var directive: Pos
     var library: Ident
@@ -1089,20 +1138,24 @@ class Foreign: Node, TopLevelStmt, LinknameApplicable, CallConvApplicable {
     var linkname: String?
     var callconv: String?
 
+    var dependsOn: Set<Entity>
+    var emitted: Bool
+
     var start: Pos { return directive }
     var end: Pos { return decl.end }
 
-// sourcery:inline:auto:Foreign.Init
-init(directive: Pos, library: Ident, decl: Decl, linkname: String?, callconv: String?) {
-    self.directive = directive
-    self.library = library
-    self.decl = decl
-    self.linkname = linkname
-    self.callconv = callconv
-}
-// sourcery:end
+    init(directive: Pos, library: Ident, decl: Decl, linkname: String?, callconv: String?, dependsOn: Set<Entity> = [], emitted: Bool = false) {
+        self.directive = directive
+        self.library = library
+        self.decl = decl
+        self.linkname = linkname
+        self.callconv = callconv
+        self.dependsOn = dependsOn
+        self.emitted = emitted
+    }
 }
 
+// sourcery:noinit
 class DeclBlock: Node, TopLevelStmt, CallConvApplicable {
     var lbrace: Pos
     var decls: [Declaration]
@@ -1113,22 +1166,27 @@ class DeclBlock: Node, TopLevelStmt, CallConvApplicable {
     var linkprefix: String?
     var callconv: String?
 
+    var dependsOn: Set<Entity>
+    var emitted: Bool
+
     var start: Pos { return lbrace }
     var end: Pos { return rbrace }
 
-// sourcery:inline:auto:DeclBlock.Init
-init(lbrace: Pos, decls: [Declaration], rbrace: Pos, isForeign: Bool, linkprefix: String?, callconv: String?) {
-    self.lbrace = lbrace
-    self.decls = decls
-    self.rbrace = rbrace
-    self.isForeign = isForeign
-    self.linkprefix = linkprefix
-    self.callconv = callconv
-}
-// sourcery:end
+    init(lbrace: Pos, decls: [Declaration], rbrace: Pos, isForeign: Bool, linkprefix: String?, callconv: String?, dependsOn: Set<Entity> = [], emitted: Bool = false) {
+        self.lbrace = lbrace
+        self.decls = decls
+        self.rbrace = rbrace
+        self.isForeign = isForeign
+        self.linkprefix = linkprefix
+        self.callconv = callconv
+        self.dependsOn = dependsOn
+        self.emitted = emitted
+    }
 }
 
+// sourcery:noinit
 class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplicable {
+
     var names: [Ident]
     var explicitType: Expr?
     var values: [Expr]
@@ -1139,26 +1197,37 @@ class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplica
     var linkname: String?
 
     var entities: [Entity]!
+    var dependsOn: Set<Entity>
+    var emitted: Bool
 
     var start: Pos { return names.first!.start }
     var end: Pos { return values.first!.end }
 
-// sourcery:inline:auto:Declaration.Init
-init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?, entities: [Entity]!) {
-    self.names = names
-    self.explicitType = explicitType
-    self.values = values
-    self.isConstant = isConstant
-    self.callconv = callconv
-    self.linkname = linkname
-    self.entities = entities
-}
-// sourcery:end
+    init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?, entities: [Entity]! = nil, dependsOn: Set<Entity> = [], emitted: Bool = false) {
+        self.names = names
+        self.explicitType = explicitType
+        self.values = values
+        self.isConstant = isConstant
+        self.callconv = callconv
+        self.linkname = linkname
+        self.entities = entities
+        self.dependsOn = dependsOn
+        self.emitted = emitted
+    }
 }
 
 class BadDecl: Node, Decl {
     var start: Pos
     var end: Pos
+
+    var dependsOn: Set<Entity> {
+        get { return [] }
+        set { }
+    }
+    var emitted: Bool {
+        get { return true }
+        set { }
+    }
 
 // sourcery:inline:auto:BadDecl.Init
 init(start: Pos, end: Pos) {

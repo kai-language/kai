@@ -60,7 +60,7 @@ struct IRGenerator {
         return mangledName
     }
 
-    func value(for entity: Entity) -> IRValue {
+    mutating func value(for entity: Entity) -> IRValue {
         guard let entityPackage = entity.package else {
             return entity.value!
         }
@@ -80,6 +80,10 @@ struct IRGenerator {
                 }
                 return b.addGlobal(symbol, type: canonicalize(entity.type!))
             }
+        }
+        // FIXME: We need to ensure we are in the declarations context for correct mangling.
+        if entity.value == nil {
+            emit(decl: entity.declaration!)
         }
         return entity.value!
     }
@@ -106,6 +110,10 @@ struct IRGenerator {
         return alloc
     }
 
+    lazy var i1: IntType = {
+        return IntType(width: 1, in: module.context)
+    }()
+
     lazy var i8: IntType = {
         return IntType(width: 8, in: module.context)
     }()
@@ -125,7 +133,7 @@ struct IRGenerator {
 
 extension IRGenerator {
 
-    mutating func generate() {
+    mutating func emitFile() {
         if !package.isInitialPackage {
             pushContext(scopeName: package.moduleName)
         }
@@ -156,6 +164,19 @@ extension IRGenerator {
         }
     }
 
+    mutating func emit(decl: Decl) {
+        switch decl {
+        case let d as Declaration:
+            emit(declaration: d)
+        case let b as DeclBlock:
+            emit(declBlock: b)
+        case let f as Foreign:
+            emit(foreign: f)
+        default:
+            fatalError("Unrecognized instance of Decl")
+        }
+    }
+
     mutating func emit(declBlock b: DeclBlock) {
         for decl in b.decls {
             emit(declaration: decl)
@@ -166,7 +187,7 @@ extension IRGenerator {
         if decl.values.isEmpty {
             // this is in a decl block of some sort
 
-            for entity in decl.entities {
+            for entity in decl.entities where entity !== Entity.anonymous {
                 if let fn = entity.type as? ty.Function {
                     let function = b.addFunction(symbol(for: entity), type: canonicalize(fn))
                     switch decl.callconv {
@@ -205,7 +226,7 @@ extension IRGenerator {
             return
         }
 
-        for (entity, value) in zip(decl.entities, decl.values) {
+        for (entity, value) in zip(decl.entities, decl.values) where entity.name == "main" || entity !== Entity.anonymous {
             if let type = entity.type as? ty.Metatype {
 
                 switch type.instanceType {
@@ -217,6 +238,29 @@ extension IRGenerator {
                         irTypes.append(fieldType)
                     }
                     irType.setBody(irTypes)
+
+                case let e as ty.Enum:
+                    let sym = symbol(for: entity)
+                    let type = IntType(width: e.width!, in: module.context)
+                    let irType = b.createStruct(name: sym, types: [type], isPacked: true)
+                    var globals: [Global] = []
+                    for c in e.cases {
+                        let name = sym.appending("." + c.ident.name)
+                        let value = irType.constant(values: [type.constant(c.number)])
+                        let global = b.addGlobal(name, initializer: value)
+                        globals.append(global)
+                    }
+                    _ = b.addGlobal(sym.appending("..cases"), initializer: LLVM.ArrayType.constant(globals, type: irType))
+                    if let associatedType = e.associatedType, !(associatedType is ty.Integer)  {
+                        var associatedGlobals: [Global] = []
+                        for c in e.cases {
+                            let name = sym.appending("." + c.ident.name).appending(".raw")
+                            let value = emit(expr: c.value!)
+                            let global = b.addGlobal(name, initializer: value)
+                            associatedGlobals.append(global)
+                        }
+                        _ = b.addGlobal(sym.appending("..associated"), initializer: LLVM.ArrayType.constant(associatedGlobals, type: canonicalize(associatedType)))
+                    }
 
                 default:
                     // Type alias
@@ -268,7 +312,7 @@ extension IRGenerator {
         }
 
         if decl.values.isEmpty {
-            for entity in decl.entities {
+            for entity in decl.entities where entity !== Entity.anonymous {
                 let type = canonicalize(entity.type!)
                 if entity.owningScope.isFile || entity.owningScope.isPackage {
                     var global = b.addGlobal(symbol(for: entity), type: type)
@@ -283,9 +327,10 @@ extension IRGenerator {
 
         // NOTE: Uninitialized values?
         assert(decl.entities.count == decl.values.count)
-        for (entity, value) in zip(decl.entities, decl.values) {
+        for (entity, value) in zip(decl.entities, decl.values) where entity !== Entity.anonymous {
 
             // FIXME: Is it actually possible to encounter a metatype as the rhs of a variable declaration?
+            //   if it is we should catch that in the checker for declarations
             if let type = entity.type as? ty.Metatype {
                 let irType = b.createStruct(name: symbol(for: entity))
 
@@ -314,7 +359,7 @@ extension IRGenerator {
 
             let ir = emit(expr: value, entity: entity)
             if entity.owningScope.isFile {
-                // FIXME: What should we do for things like global strings? They need to be mutable?
+                // FIXME: What should we do for things like global variable strings? They need to be mutable?
                 var global = b.addGlobal(symbol(for: entity), type: type)
                 global.initializer = type.undef()
                 entity.value = global
@@ -684,7 +729,7 @@ extension IRGenerator {
             }
         }
 
-        let value = sw.match.map({ emit(expr: $0) }) ?? true.asLLVM()
+        let value = sw.match.map({ emit(expr: $0) }) ?? i1.constant(1)
         var matches: [IRValue] = []
         for (i, c, nextCase) in sw.cases.enumerated().map({ ($0.offset, $0.element, sw.cases[safe: $0.offset + 1]) }) {
             let thenBlock = thenBlocks[i]
@@ -861,13 +906,13 @@ extension IRGenerator {
         if ident.entity.isConstant {
             switch ident.type {
             case let type as ty.Integer:
-                return canonicalize(type).constant(ident.constant as! UInt64)
+                return canonicalize(type).constant(ident.entity.constant as! UInt64)
             case let type as ty.UntypedInteger:
-                return canonicalize(type).constant(ident.constant as! UInt64)
+                return canonicalize(type).constant(ident.entity.constant as! UInt64)
             case let type as ty.FloatingPoint:
-                return canonicalize(type).constant(ident.constant as! Double)
+                return canonicalize(type).constant(ident.entity.constant as! Double)
             case let type as ty.UntypedFloatingPoint:
-                return canonicalize(type).constant(ident.constant as! Double)
+                return canonicalize(type).constant(ident.entity.constant as! Double)
             default:
                 break
             }
@@ -1040,9 +1085,6 @@ extension IRGenerator {
         case .polymorphic(_, let specializations):
             let mangledName = entity.map(symbol) ?? ".fn"
             for specialization in specializations {
-                // FIXME: Mangling is gonna be broke I guess, how do we emit function specializations?
-                //  should we make some sort of temp entity with the desired mangled name preset?
-                // What do we do if we don't have an entity here?
 
                 let suffix = specialization.specializedTypes
                     .reduce("", { $0 + "$" + $1.description })
@@ -1091,6 +1133,10 @@ extension IRGenerator {
                 return b.buildCast(cast, value: val, type: canonicalize(sel.type))
             }
             return val
+        case .enum(let c):
+            let type = canonicalize(sel.type as! ty.Enum)
+            let val = IntType(width: sel.type.width!, in: module.context).constant(c.number)
+            return type.constant(values: [val])
         case .array(let member):
             let aggregate = emit(expr: sel.rec, returnAddress: true)
             let index = member.rawValue
@@ -1163,7 +1209,7 @@ extension IRGenerator {
 
 extension IRGenerator {
 
-    func canonicalize(_ type: Type) -> IRType {
+    mutating func canonicalize(_ type: Type) -> IRType {
 
         if let named = type as? NamableType, let name = named.entity?.mangledName, let existing = module.type(named: name) {
             return existing
@@ -1192,6 +1238,8 @@ extension IRGenerator {
             return canonicalize(type)
         case let type as ty.Struct:
             return canonicalize(type)
+        case let type as ty.Enum:
+            return canonicalize(type)
         case let type as ty.Tuple:
             return canonicalize(type)
         case let type as ty.UntypedInteger:
@@ -1207,19 +1255,19 @@ extension IRGenerator {
         }
     }
 
-    func canonicalize(_ void: ty.Void) -> VoidType {
+    mutating func canonicalize(_ void: ty.Void) -> VoidType {
         return VoidType(in: module.context)
     }
 
-    func canonicalize(_ boolean: ty.Boolean) -> IntType {
+    mutating func canonicalize(_ boolean: ty.Boolean) -> IntType {
         return IntType(width: 1, in: module.context)
     }
 
-    func canonicalize(_ integer: ty.Integer) -> IntType {
+    mutating func canonicalize(_ integer: ty.Integer) -> IntType {
         return IntType(width: integer.width!, in: module.context)
     }
 
-    func canonicalize(_ float: ty.FloatingPoint) -> FloatType {
+    mutating func canonicalize(_ float: ty.FloatingPoint) -> FloatType {
         switch float.width! {
         case 16: return FloatType(kind: .half, in: module.context)
         case 32: return FloatType(kind: .float, in: module.context)
@@ -1230,7 +1278,7 @@ extension IRGenerator {
         }
     }
 
-    func canonicalize(_ string: ty.KaiString) -> LLVM.StructType {
+    mutating func canonicalize(_ string: ty.KaiString) -> LLVM.StructType {
         if let existing = module.type(named: ".string") {
             return existing as! LLVM.StructType
         }
@@ -1242,15 +1290,15 @@ extension IRGenerator {
         return irType
     }
 
-    func canonicalize(_ pointer: ty.Pointer) -> LLVM.PointerType {
+    mutating func canonicalize(_ pointer: ty.Pointer) -> LLVM.PointerType {
         return LLVM.PointerType(pointee: canonicalize(pointer.pointeeType))
     }
 
-    func canonicalize(_ array: ty.Array) -> LLVM.ArrayType {
+    mutating func canonicalize(_ array: ty.Array) -> LLVM.ArrayType {
         return LLVM.ArrayType(elementType: canonicalize(array.elementType), count: array.length)
     }
 
-    func canonicalize(_ array: ty.DynamicArray) -> LLVM.StructType {
+    mutating func canonicalize(_ array: ty.DynamicArray) -> LLVM.StructType {
         let element = LLVM.PointerType(pointee: canonicalize(array.elementType))
         // Memory size is in bytes but LLVM types are in bits
         let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8, in: module.context)
@@ -1258,11 +1306,11 @@ extension IRGenerator {
         return LLVM.StructType(elementTypes: [element, systemWidthType, systemWidthType])
     }
 
-    func canonicalize(_ vector: ty.Vector) -> LLVM.VectorType {
+    mutating func canonicalize(_ vector: ty.Vector) -> LLVM.VectorType {
         return LLVM.VectorType(elementType: canonicalize(vector.elementType), count: vector.size)
     }
 
-    func canonicalize(_ fn: ty.Function) -> FunctionType {
+    mutating func canonicalize(_ fn: ty.Function) -> FunctionType {
         var paramTypes: [IRType] = []
 
         // FIXME: Only C vargs should use LLVM variadics, native variadics should use slices.
@@ -1277,8 +1325,8 @@ extension IRGenerator {
     }
 
     /// - Returns: A StructType iff tuple.types > 1
-    func canonicalize(_ tuple: ty.Tuple) -> IRType {
-        let types = tuple.types.map(canonicalize)
+    mutating func canonicalize(_ tuple: ty.Tuple) -> IRType {
+        let types = tuple.types.map({ canonicalize($0) })
         switch types.count {
         case 1:
             return types[0]
@@ -1287,12 +1335,13 @@ extension IRGenerator {
         }
     }
 
-    func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
+    mutating func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
         if let entity = struc.entity {
-            if let ptr = module.type(named: symbol(for: entity)) {
+            let sym = symbol(for: entity)
+            if let ptr = module.type(named: sym) {
                 return ptr as! LLVM.StructType
             }
-            let irType = b.createStruct(name: symbol(for: entity))
+            let irType = b.createStruct(name: sym)
             var irTypes: [IRType] = []
             for field in struc.fields {
                 let fieldType = canonicalize(field.type)
@@ -1305,11 +1354,42 @@ extension IRGenerator {
         return LLVM.StructType(elementTypes: struc.fields.map({ canonicalize($0.type) }), in: module.context)
     }
 
-    func canonicalize(_ integer: ty.UntypedInteger) -> IntType {
+    mutating func canonicalize(_ e: ty.Enum) -> LLVM.StructType {
+        if let entity = e.entity {
+            let sym = symbol(for: entity)
+            if let ptr = module.type(named: sym) {
+                return ptr as! LLVM.StructType
+            }
+            let type = IntType(width: e.width!, in: module.context)
+            let irType = b.createStruct(name: sym, types: [type], isPacked: true)
+            var globals: [Global] = []
+            for c in e.cases {
+                let name = sym.appending("." + c.ident.name)
+                let value = irType.constant(values: [type.constant(c.number)])
+                let global = b.addGlobal(name, initializer: value)
+                globals.append(global)
+            }
+            _ = b.addGlobal(sym.appending("..cases"), initializer: LLVM.ArrayType.constant(globals, type: irType))
+            if let associatedType = e.associatedType, !(associatedType is ty.Integer)  {
+                var associatedGlobals: [Global] = []
+                for c in e.cases {
+                    let name = sym.appending("." + c.ident.name).appending(".raw")
+                    let value = emit(expr: c.value!)
+                    let global = b.addGlobal(name, initializer: value)
+                    associatedGlobals.append(global)
+                }
+                _ = b.addGlobal(sym.appending("..associated"), initializer: LLVM.ArrayType.constant(associatedGlobals, type: canonicalize(associatedType)))
+            }
+        }
+
+        return LLVM.StructType(elementTypes: [IntType(width: e.width!, in: module.context)], isPacked: true, in: module.context)
+    }
+
+    mutating func canonicalize(_ integer: ty.UntypedInteger) -> IntType {
         return IntType(width: integer.width!, in: module.context)
     }
 
-    func canonicalize(_ float: ty.UntypedFloatingPoint) -> FloatType {
+    mutating func canonicalize(_ float: ty.UntypedFloatingPoint) -> FloatType {
         return FloatType(kind: .double, in: module.context)
     }
 }

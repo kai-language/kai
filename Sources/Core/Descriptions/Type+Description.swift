@@ -65,6 +65,15 @@ extension ty.Struct {
     }
 }
 
+extension ty.Enum {
+    var description: String {
+        if let name = entity?.name {
+            return name
+        }
+        return "enum{" + cases.map({ $0.ident.name + ($0.value.map({ " = " + String(describing: $0) }) ?? "") }).joined(separator: ", ") + "}"
+    }
+}
+
 extension ty.Array {
     var description: String {
         var str = ""

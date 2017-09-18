@@ -5,8 +5,12 @@
 
 extension Entity {
 
-    var isUsed: Bool {
-        return flags.contains(.used) 
+    var isBuiltin: Bool {
+        return flags.contains(.builtin) 
+    }
+
+    var isChecked: Bool {
+        return flags.contains(.checked) 
     }
 
     var isFile: Bool {
@@ -35,10 +39,6 @@ extension Entity {
 
     var isLabel: Bool {
         return flags.contains(.label) 
-    }
-
-    var isBuiltin: Bool {
-        return flags.contains(.builtin) 
     }
 
     var isField: Bool {

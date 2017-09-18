@@ -208,7 +208,9 @@ func copy(_ node: DeclBlock) -> DeclBlock {
         rbrace: node.rbrace,
         isForeign: node.isForeign,
         linkprefix: node.linkprefix,
-        callconv: node.callconv
+        callconv: node.callconv,
+        dependsOn: node.dependsOn,
+        emitted: node.emitted
     )
 }
 
@@ -224,7 +226,9 @@ func copy(_ node: Declaration) -> Declaration {
         isConstant: node.isConstant,
         callconv: node.callconv,
         linkname: node.linkname,
-        entities: node.entities
+        entities: node.entities,
+        dependsOn: node.dependsOn,
+        emitted: node.emitted
     )
 }
 
@@ -265,6 +269,31 @@ func copy(_ node: Empty) -> Empty {
 }
 
 func copy(_ nodes: [Empty]) -> [Empty] {
+    return nodes.map(copy)
+}
+
+func copy(_ node: EnumCase) -> EnumCase {
+    return EnumCase(
+        name: copy(node.name),
+        value: node.value.map(copy)
+    )
+}
+
+func copy(_ nodes: [EnumCase]) -> [EnumCase] {
+    return nodes.map(copy)
+}
+
+func copy(_ node: EnumType) -> EnumType {
+    return EnumType(
+        keyword: node.keyword,
+        explicitType: node.explicitType.map(copy),
+        cases: copy(node.cases),
+        rbrace: node.rbrace,
+        type: node.type
+    )
+}
+
+func copy(_ nodes: [EnumType]) -> [EnumType] {
     return nodes.map(copy)
 }
 
@@ -318,7 +347,9 @@ func copy(_ node: Foreign) -> Foreign {
         library: copy(node.library),
         decl: copy(node.decl),
         linkname: node.linkname,
-        callconv: node.callconv
+        callconv: node.callconv,
+        dependsOn: node.dependsOn,
+        emitted: node.emitted
     )
 }
 
@@ -488,8 +519,7 @@ func copy(_ node: Paren) -> Paren {
     return Paren(
         lparen: node.lparen,
         element: copy(node.element),
-        rparen: node.rparen,
-        type: node.type
+        rparen: node.rparen
     )
 }
 
@@ -731,6 +761,7 @@ func copy(_ node: Expr) -> Expr {
     case let node as CompositeLit: return copy(node)
     case let node as DynamicArrayType: return copy(node)
     case let node as Ellipsis: return copy(node)
+    case let node as EnumType: return copy(node)
     case let node as FuncLit: return copy(node)
     case let node as FuncType: return copy(node)
     case let node as Ident: return copy(node)

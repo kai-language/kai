@@ -326,6 +326,8 @@ extension Parser {
             return PolyType(dollar: dollar, explicitType: type, type: nil)
         case .struct:
             return parseStructType()
+        case .enum:
+            return parseEnumType()
         case .ellipsis where allowVariadic:
             let ellipsis = eatToken()
             let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: false, type: nil)
@@ -360,7 +362,7 @@ extension Parser {
             // covers "(" Expr ")" and "(" Type ")" "->" ResultList
             let rparen = eatToken()
             if tok != .retArrow && allowParenthesizedExpr {
-                return Paren(lparen: lparen, element: firstExpr, rparen: rparen, type: nil)
+                return Paren(lparen: lparen, element: firstExpr, rparen: rparen)
             }
             expect(.retArrow)
             let results = parseResultList()
@@ -469,6 +471,29 @@ extension Parser {
         return StructType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace, type: nil, checked: nil)
     }
 
+    mutating func parseEnumType() -> Expr {
+        let keyword = eatToken()
+        var explicitType: Expr?
+        if tok == .lparen {
+            next()
+            explicitType = parseType()
+            expect(.rparen)
+        }
+        expect(.lbrace)
+
+        var cases: [EnumCase] = []
+        if tok != .rbrace {
+            cases = parseEnumCaseList()
+        }
+
+        if tok == .semicolon {
+            next()
+        }
+
+        let rbrace = expect(.rbrace)
+        return EnumType(keyword: keyword, explicitType: explicitType, cases: cases, rbrace: rbrace, type: nil)
+    }
+
     mutating func parsePolymorphicStructType() -> Expr {
         let params = parsePolyStructSignature()
         let lbrace = expect(.lbrace)
@@ -522,6 +547,28 @@ extension Parser {
         let colon = expect(.colon)
         let type = parseType()
         return StructField(names: names, colon: colon, explicitType: type, type: nil)
+    }
+
+    mutating func parseEnumCaseList() -> [EnumCase] {
+        var list: [EnumCase] = []
+        while tok != .rbrace && tok != .eof {
+            list.append(parseEnumCase())
+            if !atComma(in: "enum", .rbrace) {
+                break
+            }
+            next()
+        }
+        return list
+    }
+
+    mutating func parseEnumCase() -> EnumCase {
+        let name = parseIdent()
+        var value: Expr?
+        if tok == .assign {
+            next()
+            value = parseExpr()
+        }
+        return EnumCase(name: name, value: value)
     }
 
 

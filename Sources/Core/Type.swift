@@ -52,6 +52,8 @@ func == (lhs: Type, rhs: Type) -> Bool {
         return lhs.elementType == rhs.elementType && lhs.size == rhs.size
     case (let lhs as ty.Struct, let rhs as ty.Struct):
         return lhs.node.start == rhs.node.start
+    case (let lhs as ty.Enum, let rhs as ty.Enum):
+        return lhs.cases.first?.ident.start == rhs.cases.first?.ident.start
     case (let lhs as ty.Function, let rhs as ty.Function):
         return lhs.params == rhs.params && lhs.returnType == rhs.returnType
     case (let lhs as ty.Tuple, let rhs as ty.Tuple):
@@ -232,6 +234,19 @@ enum ty {
             entity.type = type
             return BuiltinType(entity: entity, type: type)
             */
+        }
+    }
+
+    struct Enum: Type, NamableType {
+        weak var entity: Entity?
+        var width: Int?
+        var associatedType: Type?
+        var cases: [Case]
+
+        struct Case {
+            var ident: Ident
+            let value: Expr?
+            let number: Int
         }
     }
 

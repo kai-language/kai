@@ -10,9 +10,12 @@ class Entity: CustomStringConvertible {
     var memberScope: Scope?
 
     var owningScope: Scope!
-    
+
     var callconv: String?
     var linkname: String?
+
+    var declaration: Decl?
+    var dependencies: [Decl]!
 
     // set in IRGen
     var mangledName: String!
@@ -24,17 +27,21 @@ class Entity: CustomStringConvertible {
 
     struct Flag: OptionSet {
         let rawValue: UInt16
-        static let none         = Flag(rawValue: 0b0000_0000)
-        static let used         = Flag(rawValue: 0b0000_0001)
-        static let file         = Flag(rawValue: 0b0000_0010)
-        static let library      = Flag(rawValue: 0b0000_0100)
-        static let type         = Flag(rawValue: 0b0001_0000)
-        static let constant     = Flag(rawValue: 0b0010_0000)
-        static let implicitType = Flag(rawValue: 0b0111_0000)
-        static let foreign      = Flag(rawValue: 0b1000_0000)
-        static let label        = Flag(rawValue: 0b0000_0001 << 8)
-        static let builtin      = Flag(rawValue: 0b0000_0010 << 8)
-        static let field        = Flag(rawValue: 0b0000_0100 << 8)
+        static let none         = Flag(rawValue: 0b0000)
+
+        // the highest 4 bits are used as control flags
+        static let builtin      = Flag(rawValue: 0b0111 << 12) // implies checked & emitted
+        static let checked      = Flag(rawValue: 0b0010 << 12)
+
+        // entity info
+        static let file         = Flag(rawValue: 0b00000001)
+        static let library      = Flag(rawValue: 0b00000010)
+        static let type         = Flag(rawValue: 0b00000100)
+        static let constant     = Flag(rawValue: 0b00001000)
+        static let implicitType = Flag(rawValue: 0b00011100) // implies constant & type
+        static let foreign      = Flag(rawValue: 0b00100000)
+        static let label        = Flag(rawValue: 0b01000000)
+        static let field        = Flag(rawValue: 0b10000000)
     }
 
     var description: String {
@@ -48,7 +55,7 @@ class Entity: CustomStringConvertible {
     }
 
 // sourcery:inline:auto:Entity.Init
-init(ident: Ident, type: Type?, flags: Flag, constant: Value?, package: SourcePackage?, memberScope: Scope?, owningScope: Scope!, callconv: String?, linkname: String?, mangledName: String!, value: IRValue?) {
+init(ident: Ident, type: Type? = nil, flags: Flag, constant: Value? = nil, package: SourcePackage? = nil, memberScope: Scope? = nil, owningScope: Scope! = nil, callconv: String? = nil, linkname: String? = nil, declaration: Decl? = nil, dependencies: [Decl]! = nil, mangledName: String! = nil, value: IRValue? = nil) {
     self.ident = ident
     self.type = type
     self.flags = flags
@@ -58,6 +65,8 @@ init(ident: Ident, type: Type?, flags: Flag, constant: Value?, package: SourcePa
     self.owningScope = owningScope
     self.callconv = callconv
     self.linkname = linkname
+    self.declaration = declaration
+    self.dependencies = dependencies
     self.mangledName = mangledName
     self.value = value
 }
@@ -69,7 +78,7 @@ extension Entity {
     static func makeBuiltin(_ name: String, type: Type? = nil, flags: Flag = .none) -> Entity {
 
         let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-        let entity = Entity(ident: ident, type: type, flags: .constant, constant: nil, package: nil, memberScope: nil, owningScope: nil, callconv: nil, linkname: nil, mangledName: nil, value: nil)
+        let entity = Entity(ident: ident, type: type, flags: flags)
         return entity
     }
 
@@ -80,4 +89,16 @@ extension Entity {
     }
 
     static let invalid = Entity.makeBuiltin("< invalid >")
+}
+
+extension Entity: Hashable {
+
+    var hashValue: Int {
+        // use the class pointer
+        return unsafeBitCast(self, to: Int.self)
+    }
+
+    static func ==(lhs: Entity, rhs: Entity) -> Bool {
+        return lhs === rhs
+    }
 }
