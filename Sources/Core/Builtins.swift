@@ -136,9 +136,15 @@ class BuiltinFunction {
     }
 
     static let sizeof = BuiltinFunction(
-        entity: Entity.makeBuiltin("sizeof", type: ty.Function.make([ty.any], [ty.i64])),
+        entity: Entity.makeBuiltin("sizeof", type: ty.Function.make([ty.any], [ty.untypedInteger])),
         generate: { function, exprs, gen in
-            return IntType.int64.constant(exprs.first!.type.width!.round(upToNearest: 8) / 8)
+            var type = exprs[0].type!
+            if let meta = type as? ty.Metatype {
+                type = meta.instanceType
+            }
+            let irType = gen.canonicalize(type)
+            // TODO: Ensure the integer returned matches the `untypedInteger` types width.
+            return gen.b.buildSizeOf(irType)
         }, onCallCheck: nil
     )
 }
@@ -150,7 +156,7 @@ extension IRBuilder {
         if let function = module.function(named: "llvm.memcpy.p0i8.p0i8.i64") {
             memcpy = function
         } else {
-            let rawptr = LLVM.PointerType(pointee: IntType(width: 9, in: module.context))
+            let rawptr = LLVM.PointerType(pointee: IntType(width: 8, in: module.context))
             let memcpyType = FunctionType(
                 argTypes: [rawptr, rawptr, IntType(width: 64, in: module.context), IntType(width: 32, in: module.context), IntType(width: 1, in: module.context)], returnType: VoidType(in: module.context)
             )
