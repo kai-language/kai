@@ -494,8 +494,7 @@ func copy(_ node: Paren) -> Paren {
     return Paren(
         lparen: node.lparen,
         element: copy(node.element),
-        rparen: node.rparen,
-        type: node.type
+        rparen: node.rparen
     )
 }
 

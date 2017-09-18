@@ -360,7 +360,7 @@ extension Parser {
             // covers "(" Expr ")" and "(" Type ")" "->" ResultList
             let rparen = eatToken()
             if tok != .retArrow && allowParenthesizedExpr {
-                return Paren(lparen: lparen, element: firstExpr, rparen: rparen, type: nil)
+                return Paren(lparen: lparen, element: firstExpr, rparen: rparen)
             }
             expect(.retArrow)
             let results = parseResultList()

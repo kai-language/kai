@@ -318,11 +318,10 @@ class Paren: Node, Expr {
     var end: Pos { return rparen }
 
 // sourcery:inline:auto:Paren.Init
-init(lparen: Pos, element: Expr, rparen: Pos, type: Type!) {
+init(lparen: Pos, element: Expr, rparen: Pos) {
     self.lparen = lparen
     self.element = element
     self.rparen = rparen
-    self.type = type
 }
 // sourcery:end
 }
