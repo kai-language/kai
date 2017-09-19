@@ -153,9 +153,9 @@ main :: fn () -> void {
 
     p := stdlib.perspective(0.785, 1.77, 0.1, 100.0)
 
-    pos := [vec 3]f32 { 4, 3, 3 }
-    lookPos := [vec 3]f32 { 0, 0, 0 }
-    up := [vec 3]f32 { 0, 1, 0 }
+    pos := stdlib.Vec3 { 4, 3, 3 }
+    lookPos := stdlib.Vec3 { 0, 0, 0 }
+    up := stdlib.Vec3 { 0, 1, 0 }
 
     v := stdlib.look_at(pos, lookPos, up)
 

@@ -1230,7 +1230,7 @@ extension Checker {
                 continue
             }
 
-            needsSpecialization = needsSpecialization || (param.explicitType is PolyType) || param.isExplicitPoly
+            needsSpecialization = needsSpecialization || param.isPolymorphic
 
             let operand = check(param: param)
             dependencies.formUnion(operand.dependencies)
@@ -1264,6 +1264,7 @@ extension Checker {
             if let polyType = type as? ty.Polymorphic, fn.isSpecialization {
                 type = polyType.specialization.val!
             }
+            
             returnTypes.append(type)
         }
 
@@ -2161,14 +2162,13 @@ extension Checker {
         let functionScope = Scope(parent: declaringScope)
         var explicitIndices: [Int] = []
         for (index, (param, arg)) in zip(fnLitNode.params.list, call.args).enumerated()
-            where param.isExplicitPoly || param.type is ty.Polymorphic
+            where param.isPolymorphic
         {
             let argument = check(expr: arg, desiredType: param.type)
             let argType = argument.type!
             specializationTypes.append(argType)
 
             if param.isExplicitPoly, let polyType = param.type as? ty.Polymorphic {
-
                 guard canConvert(argType, to: param.type) || implicitlyConvert(argType, to: param.type) else {
                     reportError("Cannot convert '\(argument)' to expected type '\(param.type)'", at: arg.start)
                     continue
@@ -2184,6 +2184,9 @@ extension Checker {
                 polyType.specialization.val = argType
                 _ = functionScope.insert(polyType.entity)
                 // TODO: Should we be ignoring conflicts? Will this miss duplicate param names?
+            } else if let argArray = argType as? ty.Array, let array = param.type as? ty.Array, let polyType = array.elementType as? ty.Polymorphic {
+                polyType.specialization.val = argArray.elementType
+                _ = functionScope.insert(polyType.entity)
             }
         }
 
@@ -2217,7 +2220,7 @@ extension Checker {
 
         var specializationTypesCopy = specializationTypes
         for (param, generatedParam) in zip(fnLitNode.params.list, generated.params.list)
-            where param.isExplicitPoly || param.type is ty.Polymorphic
+            where param.isPolymorphic
         {
             generatedParam.entity.type = specializationTypesCopy.removeFirst()
         }
@@ -2249,16 +2252,18 @@ extension Checker {
 
         let specialization = FunctionSpecialization(specializedTypes: specializationTypes, strippedType: type, generatedFunctionNode: generated, mangledName: nil, llvm: nil)
 
-        // TODO: Tuple splat?
-        call.type = type.returnType
+        var returnType = calleeType.returnType.types.count == 1 ? calleeType.returnType.types[0] : calleeType.returnType
+        if let poly = returnType as? ty.Polymorphic {
+            returnType = poly.specialization.val!
+        }
+        call.type = returnType
         call.checked = .specializedCall(specialization)
 
         // update the specializations list on the original FnLit
         specializations.append(specialization)
         fnLitNode.checked = .polymorphic(declaringScope: declaringScope, specializations: specializations)
 
-        // TODO: Tuple splat?
-        return Operand(mode: .computed, expr: call, type: type.returnType, constant: nil, dependencies: [])
+        return Operand(mode: .computed, expr: call, type: returnType, constant: nil, dependencies: [])
     }
 
     mutating func check(polymorphicCall call: Call, calleeType: ty.Struct) -> Operand {
@@ -2338,6 +2343,27 @@ extension Checker {
 extension Parameter {
     var isExplicitPoly: Bool {
         return dollar != nil
+    }
+}
+
+extension Node {
+    var isPolymorphic: Bool {
+        switch self {
+        case let param as Parameter:
+            return param.isExplicitPoly || param.explicitType.isPolymorphic
+        case let array as ArrayType:
+            return array.explicitType.isPolymorphic
+        case let darray as DynamicArrayType:
+            return darray.explicitType.isPolymorphic
+        case let pointer as PointerType:
+            return pointer.explicitType.isPolymorphic
+        case let vector as VectorType:
+            return vector.explicitType.isPolymorphic
+        case is PolyType, is PolyStructType, is PolyParameterList:
+            return true
+        default:
+            return false
+        }
     }
 }
 
