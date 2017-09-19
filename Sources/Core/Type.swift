@@ -169,10 +169,16 @@ enum ty {
         }
     }
 
-    struct Vector: Type {
+    struct Vector: Type, NamableType {
+        weak var entity: Entity?
         var width: Int? { return elementType.width! * size }
         var size: Int
         var elementType: Type
+
+        init(size: Int, elementType: Type) {
+            self.size = size
+            self.elementType = elementType
+        }
     }
 
     struct Anyy: Type {
