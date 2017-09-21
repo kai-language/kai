@@ -36,6 +36,9 @@ func emitErrors(for file: SourceFile, at stage: String) {
     wasErrors = true
 
     let filteredErrors = file.errors.enumerated().filter { !$0.element.msg.contains("< invalid >") }
+    if filteredErrors.isEmpty {
+        fatalError("There were errors in \(file.pathFirstImportedAs), but they were all filtered out")
+    }
 
     print("There were \(filteredErrors.count) errors during \(stage)\nexiting")
 

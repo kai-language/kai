@@ -1043,6 +1043,18 @@ extension Parser {
                 return BadStmt(start: directive, end: x.end)
             }
             return x
+        case .linkname?:
+            let linkname = parseStringLit()
+            allowNewline()
+            let stmt = parseSimpleStmt()
+            guard let decl = stmt as? Declaration else {
+                reportError("Expected declaration", at: stmt.start)
+                return stmt
+            }
+            expectTerm()
+            decl.linkname = linkname.constant as! String!
+            return decl
+
         case .linkprefix?:
             // link prefix is only permitted on decl blocks and must be the last directive
             let linkprefix = parseStringLit()

@@ -259,8 +259,21 @@ extension IRGenerator {
                         var associatedGlobals: [Global] = []
                         for c in e.cases {
                             let name = sym.appending("." + c.ident.name).appending(".raw")
-                            let value = emit(expr: c.value!)
-                            let global = b.addGlobal(name, initializer: value)
+                            var ir: IRValue
+                            switch c.constant {
+                            case let val as String:
+                                let len = val.utf8.count
+                                let ptr = b.addGlobalString(name: "", value: val)
+                                    .constGEP(indices: [i64.zero(), i64.zero()])
+
+                                let type = canonicalize(ty.string) as! LLVM.StructType
+                                ir = type.constant(values: [ptr, len, 0])
+                            case let val as Double:
+                                ir = canonicalize(associatedType as! ty.FloatingPoint).constant(val)
+                            default:
+                                fatalError()
+                            }
+                            let global = b.addGlobal(name, initializer: ir)
                             associatedGlobals.append(global)
                         }
                         _ = b.addGlobal(sym.appending("..associated"), initializer: LLVM.ArrayType.constant(associatedGlobals, type: canonicalize(associatedType)))
@@ -270,6 +283,26 @@ extension IRGenerator {
                     // Type alias
                     break
                 }
+                return
+            } else if let type = entity.type as? ty.Function, !(value is FuncLit),
+                let valueEntity = (value as? Ident)?.entity ?? (value as? Selector)?.sel.entity, valueEntity.isConstant {
+                // Messy check for aliasing functions
+
+                guard valueEntity.package !== package else {
+                    entity.value = valueEntity.value
+                    return
+                }
+                let irType = canonicalize(type)
+
+                // If the entity on the rhs has a custom linkname create a stub for the linker to resolve
+                if let linkname = valueEntity.linkname {
+                    entity.value = b.addFunction(linkname, type: irType)
+                    return
+                }
+
+                // finally if none of that is the case, emit a stub for the rhs and an alias for the lhs
+                let rhsStub = b.addFunction(valueEntity.mangledName, type: irType)
+                entity.value = b.addAlias(name: symbol(for: entity), to: rhsStub, type: irType)
                 return
             }
 

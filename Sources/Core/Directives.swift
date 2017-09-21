@@ -5,6 +5,7 @@ enum LeadingDirective: String {
     case library
     case foreign
     case callconv
+    case linkname
     case linkprefix
 }
 

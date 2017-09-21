@@ -395,6 +395,13 @@ extension Checker {
                     ident.entity.constant = operand.constant
                     ident.constant = operand.constant
                 }
+                if let linkname = decl.linkname {
+                    ident.entity.linkname = linkname
+                    guard decl.names.count == 1 else {
+                        reportError("Linkname cannot be used on a declaration of multiple entities", at: decl.start)
+                        continue
+                    }
+                }
                 if let type = type as? ty.Metatype {
                     ident.entity.flags.insert(.type)
                     // TODO: check for variable vs value declaration
@@ -1433,21 +1440,25 @@ extension Checker {
 
         var cases: [ty.Enum.Case] = []
         for x in e.cases {
+            var constant: Value?
             if let value = x.value {
                 let operand = check(expr: value, desiredType: explicitType)
                 dependencies.formUnion(operand.dependencies)
 
+                constant = operand.constant
+
                 if let explicitType = explicitType {
                     if !canConvert(operand.type, to: explicitType) && !implicitlyConvert(operand.type, to: explicitType) {
                         reportError("Cannot convert value \(operand) to expected type \(explicitType)", at: value.start)
-                    }
-                    if let constant = operand.constant as? UInt64 {
-                        if numericCast(constant) > biggest {
-                            biggest = numericCast(constant)
-                        }
-                        number = numericCast(constant)
                     } else {
-                        reportError("Enum values must be constant", at: value.start)
+                        if let constant = operand.constant as? UInt64 {
+                            if numericCast(constant) > biggest {
+                                biggest = numericCast(constant)
+                            }
+                            number = numericCast(constant)
+                        } else if operand.constant == nil {
+                            reportError("Enum values must be constant", at: value.start)
+                        }
                     }
                 } else {
                     if let constant = operand.constant as? UInt64 {
@@ -1460,7 +1471,7 @@ extension Checker {
                     }
                 }
             }
-            let c = ty.Enum.Case(ident: x.name, value: x.value, number: number)
+            let c = ty.Enum.Case(ident: x.name, value: x.value, constant: constant, number: number)
             cases.append(c)
             number += 1
             if number > biggest {
@@ -1767,6 +1778,7 @@ extension Checker {
                 }
             }
             selector.type = member.type
+            selector.sel.entity = member
             return Operand(mode: .addressable, expr: selector, type: member.type, constant: member.constant, dependencies: dependencies)
 
         case let strućt as ty.Struct:

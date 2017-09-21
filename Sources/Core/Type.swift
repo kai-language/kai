@@ -282,6 +282,7 @@ enum ty {
         struct Case {
             var ident: Ident
             let value: Expr?
+            let constant: Value?
             let number: Int
         }
     }
