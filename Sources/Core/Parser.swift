@@ -201,6 +201,12 @@ extension Parser {
                 let rparen = expect(.rparen)
                 x = Call(fun: x, lparen: lparen, args: args, rparen: rparen, type: nil, checked: nil)
             case .lbrace:
+                if x is FuncType {
+                    reportError("Unexpected '{' after function type", at: x.end)
+                    file.attachNote("Did you mean to declare a function? Add 'fn'")
+                    return x
+                }
+
                 return parseCompositeLiteralBody(x)
             default:
                 return x
@@ -352,6 +358,7 @@ extension Parser {
             next()
             expect(.retArrow)
             let results = parseResultList()
+
             return FuncType(lparen: lparen, params: [], results: results.types, flags: .none, type: nil)
         }
 

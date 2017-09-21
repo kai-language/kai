@@ -1967,7 +1967,7 @@ extension Checker {
             guard calleeFn.isVariadic else {
                 reportError("Too many arguments in call to \(call.fun)", at: excessArgs.first!.start)
                 call.type = calleeFn.returnType
-                return Operand(mode: .computed, expr: call, type: calleeFn.returnType, constant: nil, dependencies: dependencies)
+                return Operand(mode: .computed, expr: call, type: ty.invalid, constant: nil, dependencies: dependencies)
             }
 
             let expectedType = calleeFn.params.last!
@@ -1986,7 +1986,7 @@ extension Checker {
         if call.args.count < calleeFn.params.count {
             guard calleeFn.isVariadic, call.args.count + 1 == calleeFn.params.count else {
                 reportError("Not enough arguments in call to '\(callee)'", at: call.start)
-                return Operand(mode: .computed, expr: call, type: call.type, constant: nil, dependencies: dependencies)
+                return Operand(mode: .computed, expr: call, type: ty.invalid, constant: nil, dependencies: dependencies)
             }
         }
 

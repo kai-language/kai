@@ -126,6 +126,10 @@ struct IRGenerator {
         return IntType(width: 64, in: module.context)
     }()
 
+    lazy var f64: FloatType = {
+        return FloatType(kind: .double, in: module.context)
+    }()
+
     lazy var trap: Function = {
         return b.addFunction("llvm.trap", type: FunctionType(argTypes: [], returnType: VoidType(in: module.context)))
     }()
@@ -1009,7 +1013,31 @@ extension IRGenerator {
             return builtin.generate(builtin, call.args, &self)
         case .call:
             let callee = emit(expr: call.fun, returnAddress: !(call.fun.type is ty.Pointer))
-            let args = call.args.map({ emit(expr: $0) })
+
+            let args: [IRValue]
+            // this code is structured in a way that non-variadic/non-function
+            // calls don't get punished for C's insane ABI.
+            if let function = call.fun.type as? ty.Function, function.isCVariadic {
+                args = call.args.map {
+                    var val = emit(expr: $0)
+
+                    // C ABI requires integers less than 32bits to be promoted
+                    if let type = $0.type as? ty.Integer, let int = val.type as? LLVM.IntType, int.width < 32 {
+                        val = b.buildCast(type.isSigned ? .sext : .zext , value: val, type: i32)
+                    }
+
+                    // C ABI requires floats to be promoted to doubles
+                    if let float = val.type as? LLVM.FloatType, float.kind == .float {
+                        val = b.buildCast(.fpext, value: val, type: f64)
+                    }
+
+                    return val
+                }
+            } else {
+                args = call.args.map {
+                    emit(expr: $0)
+                }
+            }
             return b.buildCall(callee, args: args)
         case .specializedCall(let specialization):
             let args = call.args.map({ emit(expr: $0) })
