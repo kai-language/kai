@@ -2184,9 +2184,9 @@ extension Checker {
                 polyType.specialization.val = argType
                 _ = functionScope.insert(polyType.entity)
                 // TODO: Should we be ignoring conflicts? Will this miss duplicate param names?
-            } else if let argArray = argType as? ty.Array, let array = param.type as? ty.Array, let polyType = array.elementType as? ty.Polymorphic {
-                polyType.specialization.val = argArray.elementType
-                _ = functionScope.insert(polyType.entity)
+            } else if let (argType, paramPoly) = findPolymorphicType(arg: argType, param: param.type) {
+                paramPoly.specialization.val = argType
+                _ = functionScope.insert(paramPoly.entity)
             }
         }
 
@@ -2395,7 +2395,7 @@ func canSequence(_ type: Type) -> Bool {
 
 func canVector(_ type: Type) -> Bool {
     switch type {
-    case is ty.Integer, is ty.FloatingPoint:
+    case is ty.Integer, is ty.FloatingPoint, is ty.Polymorphic:
         return true
     default:
         return false

@@ -23,6 +23,36 @@ extension Type {
     }
 }
 
+func findPolymorphicType(arg: Type, param: Type) -> (argType: Type, polyParam: ty.Polymorphic)? {
+    switch (arg, param) {
+    case (let lhs as ty.Array, let rhs as ty.Array):
+        guard let poly = rhs.elementType as? ty.Polymorphic else {
+            return findPolymorphicType(arg: lhs.elementType, param: rhs.elementType)
+        }
+
+        return (lhs.elementType, poly)
+    case (let lhs as ty.DynamicArray, let rhs as ty.DynamicArray):
+        guard let poly = rhs.elementType as? ty.Polymorphic else {
+            return findPolymorphicType(arg: lhs.elementType, param: rhs.elementType)
+        }
+
+        return (lhs.elementType, poly)
+    case (let lhs as ty.Vector, let rhs as ty.Vector):
+        guard let poly = rhs.elementType as? ty.Polymorphic else {
+            return findPolymorphicType(arg: lhs.elementType, param: rhs.elementType)
+        }
+
+        return (lhs.elementType, poly)
+    case (let lhs as ty.Pointer, let rhs as ty.Pointer):
+        guard let poly = rhs.pointeeType as? ty.Polymorphic else {
+            return findPolymorphicType(arg: lhs.pointeeType, param: rhs.pointeeType)
+        }
+
+        return (lhs.pointeeType, poly)
+    default: return nil
+    }
+}
+
 func != (lhs: Type, rhs: Type) -> Bool {
     return !(lhs == rhs)
 }
