@@ -2252,6 +2252,13 @@ extension Checker {
 
         let specialization = FunctionSpecialization(specializedTypes: specializationTypes, strippedType: type, generatedFunctionNode: generated, mangledName: nil, llvm: nil)
 
+        var calleeType = calleeType
+        for (index, ret) in calleeType.returnType.types.enumerated() {
+            if let poly = ret as? ty.Polymorphic {
+                calleeType.returnType.types[index] = poly.specialization.val!
+            }
+        }
+
         var returnType = calleeType.returnType.types.count == 1 ? calleeType.returnType.types[0] : calleeType.returnType
         if let poly = returnType as? ty.Polymorphic {
             returnType = poly.specialization.val!
