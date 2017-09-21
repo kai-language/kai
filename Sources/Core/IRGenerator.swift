@@ -14,7 +14,7 @@ struct IRGenerator {
     init(file: SourceFile) {
         self.package = file.package
         self.file = file
-        self.context = Context(mangledNamePrefix: "", resultPtr: nil, previous: nil)
+        self.context = Context(mangledNamePrefix: "", resultPtr: nil, returnBlock: nil, previous: nil)
         self.module = package.module
         self.b = package.builder
     }
@@ -23,21 +23,19 @@ struct IRGenerator {
     class Context {
         var mangledNamePrefix: String
         var resultPtr: IRValue?
+        var returnBlock: BasicBlock?
         var previous: Context?
 
-        init(mangledNamePrefix: String, resultPtr: IRValue?, previous: Context?) {
+        init(mangledNamePrefix: String, resultPtr: IRValue?, returnBlock: BasicBlock?, previous: Context?) {
             self.mangledNamePrefix = mangledNamePrefix
             self.resultPtr = resultPtr
+            self.returnBlock = returnBlock
             self.previous = previous
-        }
-
-        func findResultPtr() -> IRValue? {
-            return resultPtr ?? previous?.findResultPtr()
         }
     }
 
-    mutating func pushContext(scopeName: String) {
-        context = Context(mangledNamePrefix: mangle(scopeName), resultPtr: nil, previous: context)
+    mutating func pushContext(scopeName: String, resultPtr: IRValue? = nil, returnBlock: BasicBlock? = nil) {
+        context = Context(mangledNamePrefix: mangle(scopeName), resultPtr: resultPtr ?? context.resultPtr, returnBlock: returnBlock ?? context.returnBlock, previous: context)
     }
 
     mutating func popContext() {
@@ -89,19 +87,19 @@ struct IRGenerator {
     }
 
     func entryBlockAlloca(type: IRType, name: String = "", default def: IRValue? = nil) -> IRValue {
-        let f = b.currentFunction!
-        let cur = b.insertBlock
-        let entry = f.entryBlock!
+        let prev = b.insertBlock!
+        let entry = b.currentFunction!.entryBlock!
 
-        if let first = entry.firstInstruction {
-            b.position(first, block: entry)
+        // TODO: Could probably get some better performance by doing something smarter
+        if let endOfAlloca = entry.instructions.first(where: { !$0.isAAllocaInst }) {
+            b.position(endOfAlloca, block: entry)
+        } else {
+            b.positionAtEnd(of: entry)
         }
 
         let alloc = b.buildAlloca(type: type, name: name)
 
-        if let block = cur {
-            b.positionAtEnd(of: block)
-        }
+        b.positionAtEnd(of: prev)
 
         if let def = def {
             b.buildStore(def, to: alloc)
@@ -388,30 +386,16 @@ extension IRGenerator {
 
             let type = canonicalize(entity.type!)
 
-            if Options.instance.flags.contains(.emitIr) {
-                if let endOfAlloca = b.insertBlock?.instructions.first(where: { !$0.isAAllocaInst }) {
-                    b.position(endOfAlloca, block: b.insertBlock!)
-                }
-            }
-
             let ir = emit(expr: value, entity: entity)
             if entity.owningScope.isFile {
                 // FIXME: What should we do for things like global variable strings? They need to be mutable?
                 var global = b.addGlobal(symbol(for: entity), type: type)
                 global.initializer = type.undef()
                 entity.value = global
-
-                if Options.instance.flags.contains(.emitIr) {
-                    b.positionAtEnd(of: b.insertBlock!)
-                }
             } else {
                 let stackValue = entryBlockAlloca(type: type, name: symbol(for: entity))
 
                 entity.value = stackValue
-
-                if Options.instance.flags.contains(.emitIr) {
-                    b.positionAtEnd(of: b.insertBlock!)
-                }
 
                 b.buildStore(ir, to: stackValue)
 
@@ -523,42 +507,37 @@ extension IRGenerator {
     }
 
     mutating func emit(return ret: Return) {
-        switch ret.results.count {
+        // TODO: result should always be the first instruction
+        var values: [IRValue] = []
+        for value in ret.results {
+            let irValue = emit(expr: value)
+            values.append(irValue)
+        }
+
+        guard !ret.results.isEmpty else { // void return
+            b.buildBr(context.returnBlock!)
+            return
+        }
+
+        let result = context.resultPtr!
+        switch values.count {
         case 1:
-            if let result = context.findResultPtr(), !(result is VoidType) {
-                let val = emit(expr: ret.results[0])
-                b.buildStore(val, to: result)
-            }
+            b.buildStore(values[0], to: result)
 
         default:
-            if let result = context.findResultPtr(), !(result is VoidType) {
-                let ptr = result.type as! LLVM.PointerType
-                let type = ptr.pointee as! LLVM.StructType
-                var ir = type.undef()
-                for (index, value) in ret.results.enumerated() {
-                    let val = emit(expr: value)
-                    ir = b.buildInsertValue(aggregate: ir, element: val, index: index)
-                }
-
-                b.buildStore(ir, to: result)
+            for (index, expr) in ret.results.enumerated() {
+                let elPtr = b.buildStructGEP(result, index: index)
+                let value = emit(expr: expr)
+                b.buildStore(value, to: elPtr)
             }
         }
+        b.buildBr(context.returnBlock!)
     }
 
     mutating func emit(parameter param: Parameter) {
         let type = canonicalize(param.entity.type!)
 
-        if Options.instance.flags.contains(.emitIr) {
-             if let endOfAlloca = b.insertBlock!.instructions.first(where: { !$0.isAAllocaInst }) {
-                 b.position(endOfAlloca, block: b.insertBlock!)
-             }
-        }
-
         let stackValue = entryBlockAlloca(type: type, name: param.entity.name)
-
-        if Options.instance.flags.contains(.emitIr) {
-            b.positionAtEnd(of: b.insertBlock!)
-        }
 
         param.entity.value = stackValue
     }
@@ -1098,44 +1077,35 @@ extension IRGenerator {
             let isVoid = fnType.returnType is VoidType
 
             let entryBlock = function.appendBasicBlock(named: "entry", in: module.context)
-            let retBlock = function.appendBasicBlock(named: "ret")
+            let returnBlock = function.appendBasicBlock(named: "ret", in: module.context)
 
-            let prevResult = context.findResultPtr()
-            defer {
-                context.resultPtr = prevResult
-            }
-
+            b.positionAtEnd(of: returnBlock)
+            var resultPtr: IRValue?
             if isVoid {
-                b.positionAtEnd(of: retBlock)
                 b.buildRetVoid()
             } else {
-                b.positionAtEnd(of: entryBlock)
-                let resultPtr = b.buildAlloca(type: fnType.returnType, name: "result")
-                context.resultPtr = resultPtr
-                b.positionAtEnd(of: retBlock)
-                b.buildRet(b.buildLoad(resultPtr))
+                resultPtr = entryBlockAlloca(type: fnType.returnType, name: "result")
+                b.buildRet(b.buildLoad(resultPtr!))
             }
 
             b.positionAtEnd(of: entryBlock)
 
             for (param, var irParam) in zip(fn.params.list, function.parameters) {
                 irParam.name = param.entity.name
-                emit(parameter: param)
-
-                b.buildStore(irParam, to: param.entity.value!)
+                param.entity.value = entryBlockAlloca(type: irParam.type, name: param.name.name, default: irParam)
             }
 
             // TODO: Do we need to push a named context or can we reset the mangling because we are in a function scope?
             //  also should we use a mangled name if this is an anonymous fn?
-            pushContext(scopeName: entity.map(symbol) ?? "")
+            pushContext(scopeName: entity.map(symbol) ?? "", resultPtr: resultPtr, returnBlock: returnBlock)
             emit(statement: fn.body)
             popContext()
 
             if b.insertBlock?.terminator == nil {
-                b.buildBr(retBlock)
+                b.buildBr(returnBlock)
             }
 
-            retBlock.moveAfter(function.lastBlock!)
+            returnBlock.moveAfter(function.lastBlock!)
 
             if let prevBlock = prevBlock {
                 b.positionAtEnd(of: prevBlock)
