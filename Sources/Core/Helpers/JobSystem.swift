@@ -16,6 +16,12 @@ final class WorkerThread: Thread {
         while true {
             pool.mutex.lock()
             guard !pool.queue.isEmpty else {
+                if !pool.cloneQueue.isEmpty {
+                    // if there are no regular jobs but there are clone jobs, add the clone jobs to the
+                    //  regular queue for next time.
+                    pool.queue.append(pool.cloneQueue.removeFirst())
+                    // TODO: Improve the job system.
+                }
                 isIdle = true
                 pool.mutex.unlock()
                 usleep(1)
@@ -53,6 +59,7 @@ public final class ThreadPool {
 
     let mutex = Mutex()
     var queue: [Job] = []
+    var cloneQueue: [Job] = []
     var known: Set<Job> = []
 
     var threads: [WorkerThread]
@@ -79,10 +86,20 @@ public final class ThreadPool {
         mutex.unlock()
     }
 
+    func addCloneJob(job: Job) {
+        guard !known.contains(job) else {
+            return
+        }
+        known.insert(job)
+        mutex.lock()
+        queue.append(job)
+        mutex.unlock()
+    }
+
     public func waitUntilDone() {
         while true {
             mutex.lock()
-            if queue.isEmpty && threads.reduce(true, { $0 && $1.isIdle }) {
+            if queue.isEmpty && cloneQueue.isEmpty && threads.reduce(true, { $0 && $1.isIdle }) {
                 defer {
                     mutex.unlock()
                 }
@@ -106,7 +123,7 @@ var jobMutex = Mutex()
 var knownJobs: [String: Job] = [:]
 
 // sourcery:noinit
-final class Job: Hashable {
+final class Job: Hashable, CustomStringConvertible {
 
     /// The (file/folder) path this job is associated with
     var fullpath: String
@@ -164,6 +181,7 @@ final class Job: Hashable {
             timingMutex.unlock()
         }
 
+
         // NOTE: Should this be in a lock?
         for dependent in dependents {
             dependent.dependencyCount -= 1
@@ -179,11 +197,15 @@ final class Job: Hashable {
         dependencyCount += 1
     }
 
-    public func visualize(indent: Int = 0) {
+    func visualize(indent: Int = 0) {
         let indentation = repeatElement("  ", count: indent).joined()
         print(indentation + fullpath + " " + operation)
         for job in dependents {
             job.visualize(indent: indent + 1)
         }
+    }
+
+    var description: String {
+        return fullpath + " " + operation
     }
 }

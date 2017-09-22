@@ -139,19 +139,27 @@ extension SourceFile {
                 importedFrom.generationJob.addDependency(file.generationJob)
                 threadPool.add(job: file.parsingJob)
             }
+        case let call as Call where (call.fun as? Ident)?.name == "kai":
+            guard call.args.count >= 1 else {
+                addError("Expected 1 or more arguments", call.lparen)
+                return
+            }
+            guard let lit = call.args[0] as? BasicLit, let repo = lit.constant as? String else {
+                addError("Expected string literal representing github user/repo", call.args[0].start)
+                return
+            }
+            addRemoteGithubPackage(user: "kai-language", repo: repo, import: i, importedFrom: importedFrom)
 
         case let call as Call where (call.fun as? Ident)?.name == "github":
-
             guard call.args.count >= 1 else {
                 addError("Expected 1 or more arguments", call.lparen)
                 return
             }
 
-            guard let lit = call.args[0] as? BasicLit, lit.token == .string else {
+            guard let lit = call.args[0] as? BasicLit, let userRepo = lit.constant as? String else {
                 addError("Expected string literal representing github user/repo", call.args[0].start)
                 return
             }
-            let userRepo = lit.constant as! String
 
             let split = userRepo.split(separator: "/")
             guard split.count == 2 else {
@@ -159,44 +167,25 @@ extension SourceFile {
                 return
             }
 
-            let (user, repo) = (split[0], split[1])
+            let (user, repo) = (String(split[0]), String(split[1]))
+            addRemoteGithubPackage(user: user, repo: repo, import: i, importedFrom: importedFrom)
 
-            let packageDirectory = dirname(path: importedFrom.package.fullpath) + "deps/github/" + user + "/" + repo
+        default:
+            addError("Expected import path as string", i.path.start)
+            return
+        }
+    }
 
-            i.resolvedName = pathToEntityName(packageDirectory)
-            if !isDirectory(path: packageDirectory) {
+    func addRemoteGithubPackage(user: String, repo: String, import i: Import, importedFrom: SourceFile) {
+        let packageDirectory = dirname(path: importedFrom.package.fullpath) + "deps/" + user + "/" + repo
 
-                let cloneJob = Job.new(fullpath: packageDirectory, operation: "Cloning", work: {
-                    print("Cloning \(userRepo)...")
-                    Git().clone(repo: "https://github.com/" + user + "/" + repo + ".git", to: packageDirectory)
+        i.resolvedName = pathToEntityName(packageDirectory)
+        if !isDirectory(path: packageDirectory) {
 
-                    // Once done we allow new clones to not depend on this one
-                    cloneMutex.lock()
-                    cloneQueue.removeFirst()
-                    cloneMutex.unlock()
+            let cloneJob = Job.new(fullpath: packageDirectory, operation: "Cloning", work: {
 
-                    guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
-                        preconditionFailure()
-                    }
-                    self.package.dependencies.append(dependency)
-                    dependency.begin()
-
-                    i.scope = dependency.scope
-                })
-
-                importedFrom.checkingJob.addDependency(cloneJob)
-
-                cloneMutex.lock()
-                // Ensure at most 1 clone occurs at a time
-                if let last = cloneQueue.last {
-                    last.addDependency(cloneJob)
-                    cloneQueue.append(cloneJob)
-                } else {
-                    cloneQueue.append(cloneJob)
-                    threadPool.add(job: cloneJob)
-                }
-                cloneMutex.unlock()
-            } else { // Directory exists already
+                print("Cloning \(user)/\(repo)...")
+                Git().clone(repo: "https://github.com/" + user + "/" + repo + ".git", to: packageDirectory)
 
                 guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
                     preconditionFailure()
@@ -205,11 +194,22 @@ extension SourceFile {
                 dependency.begin()
 
                 i.scope = dependency.scope
-            }
+            })
 
-        default:
-            addError("Expected import path as string", i.path.start)
-            return
+            importedFrom.checkingJob.addDependency(cloneJob)
+
+            threadPool.mutex.lock()
+            threadPool.cloneQueue.append(cloneJob)
+            threadPool.mutex.unlock()
+        } else { // Directory exists already
+
+            guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
+                preconditionFailure()
+            }
+            self.package.dependencies.append(dependency)
+            dependency.begin()
+
+            i.scope = dependency.scope
         }
     }
 }
