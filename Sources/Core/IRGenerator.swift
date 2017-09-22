@@ -14,7 +14,7 @@ struct IRGenerator {
     init(file: SourceFile) {
         self.package = file.package
         self.file = file
-        self.context = Context(mangledNamePrefix: "", resultPtr: nil, returnBlock: nil, previous: nil)
+        self.context = Context(mangledNamePrefix: "", returnBlock: nil, previous: nil)
         self.module = package.module
         self.b = package.builder
     }
@@ -22,20 +22,18 @@ struct IRGenerator {
     // sourcery:noinit
     class Context {
         var mangledNamePrefix: String
-        var resultPtr: IRValue?
         var returnBlock: BasicBlock?
         var previous: Context?
 
-        init(mangledNamePrefix: String, resultPtr: IRValue?, returnBlock: BasicBlock?, previous: Context?) {
+        init(mangledNamePrefix: String, returnBlock: BasicBlock?, previous: Context?) {
             self.mangledNamePrefix = mangledNamePrefix
-            self.resultPtr = resultPtr
             self.returnBlock = returnBlock
             self.previous = previous
         }
     }
 
-    mutating func pushContext(scopeName: String, resultPtr: IRValue? = nil, returnBlock: BasicBlock? = nil) {
-        context = Context(mangledNamePrefix: mangle(scopeName), resultPtr: resultPtr ?? context.resultPtr, returnBlock: returnBlock ?? context.returnBlock, previous: context)
+    mutating func pushContext(scopeName: String, returnBlock: BasicBlock? = nil) {
+        context = Context(mangledNamePrefix: mangle(scopeName), returnBlock: returnBlock ?? context.returnBlock, previous: context)
     }
 
     mutating func popContext() {
@@ -519,7 +517,8 @@ extension IRGenerator {
             return
         }
 
-        let result = context.resultPtr!
+        let result = b.currentFunction!.entryBlock!.firstInstruction!
+        assert(result.isAAllocaInst && result.name == "result")
         switch values.count {
         case 1:
             b.buildStore(values[0], to: result)
@@ -1097,7 +1096,7 @@ extension IRGenerator {
 
             // TODO: Do we need to push a named context or can we reset the mangling because we are in a function scope?
             //  also should we use a mangled name if this is an anonymous fn?
-            pushContext(scopeName: entity.map(symbol) ?? "", resultPtr: resultPtr, returnBlock: returnBlock)
+            pushContext(scopeName: entity.map(symbol) ?? "", returnBlock: returnBlock)
             emit(statement: fn.body)
             popContext()
 
