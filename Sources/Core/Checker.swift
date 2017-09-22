@@ -282,6 +282,9 @@ extension Checker {
         case let ret as Return:
             return check(return: ret)
 
+        case let d as Defer:
+            return check(defer: d)
+
         case let fór as For:
             return check(for: fór)
 
@@ -559,6 +562,13 @@ extension Checker {
         default:
             reportError("using is invalid on '\(operand)'", at: using.expr.start)
         }
+    }
+
+    mutating func check(defer d: Defer) -> Set<Entity> {
+        pushContext(owningNode: d); defer {
+            popContext()
+        }
+        return check(stmt: d.stmt)
     }
 }
 

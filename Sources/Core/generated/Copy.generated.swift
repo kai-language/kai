@@ -236,6 +236,17 @@ func copy(_ nodes: [Declaration]) -> [Declaration] {
     return nodes.map(copy)
 }
 
+func copy(_ node: Defer) -> Defer {
+    return Defer(
+        keyword: node.keyword,
+        stmt: copy(node.stmt)
+    )
+}
+
+func copy(_ nodes: [Defer]) -> [Defer] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: DynamicArrayType) -> DynamicArrayType {
     return DynamicArrayType(
         lbrack: node.lbrack,
@@ -797,6 +808,7 @@ func copy(_ node: Stmt) -> Stmt {
     case let node as CaseClause: return copy(node)
     case let node as DeclBlock: return copy(node)
     case let node as Declaration: return copy(node)
+    case let node as Defer: return copy(node)
     case let node as Empty: return copy(node)
     case let node as ExprStmt: return copy(node)
     case let node as For: return copy(node)

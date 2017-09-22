@@ -14,7 +14,7 @@ struct IRGenerator {
     init(file: SourceFile) {
         self.package = file.package
         self.file = file
-        self.context = Context(mangledNamePrefix: "", returnBlock: nil, previous: nil)
+        self.context = Context(mangledNamePrefix: "", deferBlocks: [], returnBlock: nil, previous: nil)
         self.module = package.module
         self.b = package.builder
     }
@@ -22,18 +22,20 @@ struct IRGenerator {
     // sourcery:noinit
     class Context {
         var mangledNamePrefix: String
+        var deferBlocks: [BasicBlock]
         var returnBlock: BasicBlock?
         var previous: Context?
 
-        init(mangledNamePrefix: String, returnBlock: BasicBlock?, previous: Context?) {
+        init(mangledNamePrefix: String, deferBlocks: [BasicBlock], returnBlock: BasicBlock?, previous: Context?) {
             self.mangledNamePrefix = mangledNamePrefix
+            self.deferBlocks = deferBlocks
             self.returnBlock = returnBlock
             self.previous = previous
         }
     }
 
     mutating func pushContext(scopeName: String, returnBlock: BasicBlock? = nil) {
-        context = Context(mangledNamePrefix: mangle(scopeName), returnBlock: returnBlock ?? context.returnBlock, previous: context)
+        context = Context(mangledNamePrefix: mangle(scopeName), deferBlocks: context.deferBlocks, returnBlock: returnBlock ?? context.returnBlock, previous: context)
     }
 
     mutating func popContext() {
@@ -431,6 +433,8 @@ extension IRGenerator {
         case is Empty: return
         case let ret as Return:
             emit(return: ret)
+        case let d as Defer:
+            emit(defer: d)
         case let stmt as ExprStmt:
             // return address so that we don't bother with the load
             _ = emit(expr: stmt.expr, returnAddress: true)
@@ -506,7 +510,7 @@ extension IRGenerator {
 
     mutating func emit(return ret: Return) {
         guard !ret.results.isEmpty else { // void return
-            b.buildBr(context.returnBlock!)
+            b.buildBr(context.deferBlocks.last ?? context.returnBlock!)
             return
         }
 
@@ -528,7 +532,22 @@ extension IRGenerator {
                 b.buildStore(value, to: elPtr)
             }
         }
-        b.buildBr(context.returnBlock!)
+        b.buildBr(context.deferBlocks.last ?? context.returnBlock!)
+    }
+
+    mutating func emit(defer d: Defer) {
+        let f = b.currentFunction!
+        let prevBlock = b.insertBlock!
+        let block = f.appendBasicBlock(named: "defer", in: module.context)
+
+        b.positionAtEnd(of: block)
+
+        emit(statement: d.stmt)
+        b.buildBr(context.deferBlocks.last ?? context.returnBlock!)
+
+        b.positionAtEnd(of: prevBlock)
+
+        context.deferBlocks.append(block)
     }
 
     mutating func emit(parameter param: Parameter) {
@@ -1096,11 +1115,10 @@ extension IRGenerator {
             //  also should we use a mangled name if this is an anonymous fn?
             pushContext(scopeName: entity.map(symbol) ?? "", returnBlock: returnBlock)
             emit(statement: fn.body)
-            popContext()
-
             if b.insertBlock?.terminator == nil {
-                b.buildBr(returnBlock)
+                b.buildBr(context.deferBlocks.last ?? returnBlock)
             }
+            popContext()
 
             returnBlock.moveAfter(function.lastBlock!)
 

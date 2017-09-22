@@ -905,6 +905,21 @@ init(keyword: Pos, results: [Expr]) {
 // sourcery:end
 }
 
+class Defer: Node, Stmt {
+    var keyword: Pos
+    var stmt: Stmt
+
+    var start: Pos { return keyword }
+    var end: Pos { return stmt.end }
+
+// sourcery:inline:auto:Defer.Init
+init(keyword: Pos, stmt: Stmt) {
+    self.keyword = keyword
+    self.stmt = stmt
+}
+// sourcery:end
+}
+
 class Using: Node, Stmt, TopLevelStmt {
     var keyword: Pos
     var expr: Expr
@@ -912,12 +927,12 @@ class Using: Node, Stmt, TopLevelStmt {
     var start: Pos { return keyword }
     var end: Pos { return expr.end }
 
-    // sourcery:inline:auto:Using.Init
+// sourcery:inline:auto:Using.Init
 init(keyword: Pos, expr: Expr) {
     self.keyword = keyword
     self.expr = expr
 }
-    // sourcery:end
+// sourcery:end
 }
 
 class Branch: Node, Stmt {

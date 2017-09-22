@@ -66,9 +66,8 @@ loadShaders :: fn() -> u32 {
         out vec4 color;
 
         uniform float time;
-    
+
         void main() {
-            
             color = vec4(pos.xy, sin(2.0 * 3.14159 * 2 * time), 1.0);
         }
     "
@@ -138,6 +137,7 @@ main :: fn () -> void {
     window, success := initGlfw()
     if !success
         panic("Error with window creation!\n")
+    defer glfw.Terminate()
 
     gl.init(cast((*u8) -> rawptr) glfw.GetProcAddress)
 
@@ -173,10 +173,10 @@ main :: fn () -> void {
 
         if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.TRUE
             break
-        
+
         MV  := stdlib.mul(v, m)
         MVP := stdlib.mul(p, MV)
- 
+
         // Drawing
         gl.Clear(cast(u32) gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -190,7 +190,6 @@ main :: fn () -> void {
 
         glfw.SwapBuffers(window)
     }
-    glfw.Terminate()
     printf("Exiting!\n".raw)
 }
 

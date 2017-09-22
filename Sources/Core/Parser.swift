@@ -750,6 +750,8 @@ extension Parser {
             return parseForStmt()
         case .using:
             return parseUsingStmt()
+        case .defer:
+            return parseDeferStmt()
         case .directive:
             return parseLeadingDirective()
         case .rbrace:
@@ -839,6 +841,12 @@ extension Parser {
         }
         expectTerm()
         return Return(keyword: keyword, results: x)
+    }
+
+    mutating func parseDeferStmt() -> Defer {
+        let keyword = eatToken()
+        let stmt = parseStmt() // this expects a term
+        return Defer(keyword: keyword, stmt: stmt)
     }
 
     mutating func parseBranch() -> Branch {
