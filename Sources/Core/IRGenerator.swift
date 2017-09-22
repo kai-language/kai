@@ -505,16 +505,15 @@ extension IRGenerator {
     }
 
     mutating func emit(return ret: Return) {
-        // TODO: result should always be the first instruction
+        guard !ret.results.isEmpty else { // void return
+            b.buildBr(context.returnBlock!)
+            return
+        }
+
         var values: [IRValue] = []
         for value in ret.results {
             let irValue = emit(expr: value)
             values.append(irValue)
-        }
-
-        guard !ret.results.isEmpty else { // void return
-            b.buildBr(context.returnBlock!)
-            return
         }
 
         let result = b.currentFunction!.entryBlock!.firstInstruction!
@@ -524,9 +523,8 @@ extension IRGenerator {
             b.buildStore(values[0], to: result)
 
         default:
-            for (index, expr) in ret.results.enumerated() {
+            for (index, value) in values.enumerated() {
                 let elPtr = b.buildStructGEP(result, index: index)
-                let value = emit(expr: expr)
                 b.buildStore(value, to: elPtr)
             }
         }
