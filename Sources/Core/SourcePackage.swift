@@ -6,9 +6,6 @@ var currentDirectory = FileManager.default.currentDirectoryPath
 let fileExtension = ".kai"
 var buildDirectory = currentDirectory + "/" + fileExtension + "/"
 
-var cloneMutex = Mutex()
-var cloneQueue: [Job] = []
-
 var knownSourcePackages: [String: SourcePackage] = [:]
 
 // sourcery:noinit

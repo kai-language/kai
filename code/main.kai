@@ -2,7 +2,7 @@
 #library "libc"
 #import github("vdka/gl")
 #import github("vdka/glfw")
-#import github("kai-language/stdlib")
+#import kai("stdlib")
 
 #foreign libc {
     printf :: (fmt: *u8, args: #cvargs ..any) -> i32
