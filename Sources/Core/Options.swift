@@ -2,6 +2,8 @@
 import func Darwin.C.exit
 
 public struct Options {
+    public static let version = "0.0.0"
+
     public static var instance = Options(arguments: [])
 
     public var flags: Flags = []
@@ -40,12 +42,44 @@ public struct Options {
                 }
                 jobs = j
                 skip = true
+            case "-help":
+                emitHelp()
+            case "-version":
+                emitVersion()
             default:
                 if val != nil {
                     print("WARNING: argument unused during compilation: '\(arg)'")
                 }
             }
         }
+    }
+
+    public func emitHelp() {
+        let purple = "\u{001B}[35m"
+        let reset = "\u{001B}[0m"
+
+        print("\(purple)OVERVIEW\(reset): Kai compiler\n")
+
+        print("\(purple)USAGE\(reset): kai [options] <inputs>\n")
+
+        print("\(purple)OPTIONS\(reset):")
+        print("  -dump-ir               Dump LLVM IR")
+        print("")
+        print("  -emit-asm              Emit assembly file(s)")
+        print("  -emit-ast              Parse, check and emit AST file(s)")
+        print("  -emit-bitcode          Emit LLVM bitcode file(s)")
+        print("  -emit-ir               Emit LLVM IR file(s)")
+        print("  -emit-times            Emit times for each stage of compilation")
+        print("")
+        print("  -jobs <value>          Controls the amount of workers (default is # of cores)")
+        print("")
+        print("  -version               Show version information and exit")
+        exit(0)
+    }
+
+    public func emitVersion() {
+        print("Kai version \(Options.version)")
+        exit(0)
     }
 
     public struct Flags: OptionSet {
