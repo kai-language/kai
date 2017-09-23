@@ -355,6 +355,7 @@ class Selector: Node, Expr {
         case file(Entity)
         case `struct`(ty.Struct.Field)
         case `enum`(ty.Enum.Case)
+        case union(ty.Union.Case)
         case array(ArrayMember)
         case staticLength(Int)
         case scalar(Int)
@@ -748,6 +749,28 @@ init(keyword: Pos, explicitType: Expr?, cases: [EnumCase], rbrace: Pos, type: Ty
     self.keyword = keyword
     self.explicitType = explicitType
     self.cases = cases
+    self.rbrace = rbrace
+    self.type = type
+}
+// sourcery:end
+}
+
+class UnionType: Node, Expr {
+    var keyword: Pos
+    var lbrace: Pos
+    var fields: [StructField]
+    var rbrace: Pos
+
+    var type: Type!
+
+    var start: Pos { return keyword }
+    var end: Pos { return rbrace }
+
+// sourcery:inline:auto:UnionType.Init
+init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!) {
+    self.keyword = keyword
+    self.lbrace = lbrace
+    self.fields = fields
     self.rbrace = rbrace
     self.type = type
 }

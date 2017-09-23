@@ -965,6 +965,9 @@ extension Checker {
         case let e as EnumType:
             return check(enumType: e)
 
+        case let u as UnionType:
+            return check(union: u)
+
         case let paren as Paren:
             return check(expr: paren.element, desiredType: desiredType)
 
@@ -1525,6 +1528,31 @@ extension Checker {
         return Operand(mode: .type, expr: e, type: type, constant: nil, dependencies: dependencies)
     }
 
+    mutating func check(union u: UnionType) -> Operand {
+        var dependencies: Set<Entity> = []
+
+        var largestWidth = 0
+        var cases: [ty.Union.Case] = []
+        for x in u.fields {
+            let operand = check(field: x)
+            dependencies.formUnion(operand.dependencies)
+
+            for name in x.names {
+                let casé = ty.Union.Case(ident: name, type: operand.type)
+                cases.append(casé)
+                let width = operand.type.width!.round(upToNearest: 8)
+                if width > largestWidth {
+                    largestWidth = width
+                }
+            }
+        }
+
+        var type: Type
+        type = ty.Union(entity: nil, width: largestWidth, cases: cases)
+        type = ty.Metatype(instanceType: type)
+        u.type = type
+        return Operand(mode: .type, expr: u, type: type, constant: nil, dependencies: dependencies)
+    }
 
     @discardableResult
     mutating func check(unary: Unary, desiredType: Type?) -> Operand {
@@ -1910,6 +1938,17 @@ extension Checker {
                 selector.type = ty.invalid
             }
             return Operand(mode: .addressable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
+
+        case let union as ty.Union:
+            guard let casé = union.cases.first(where: { $0.ident.name == selector.sel.name }) else {
+                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                selector.checked = .invalid
+                selector.type = ty.invalid
+                return Operand.invalid
+            }
+            selector.checked = .union(casé)
+            selector.type = casé.type
+            return Operand(mode: .addressable, expr: selector, type: casé.type, constant: nil, dependencies: dependencies)
 
         case let meta as ty.Metatype:
             switch meta.instanceType {

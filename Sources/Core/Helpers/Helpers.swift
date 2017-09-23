@@ -182,6 +182,10 @@ extension Int {
         return (self + multiple - 1) & ~(multiple - 1)
     }
 
+    func bytes() -> Int {
+        return round(upToNearest: 8) / 8
+    }
+
     func bitsNeeded() -> Int {
         return Int(floor(log2(Double(self - 1))) + 1)
     }

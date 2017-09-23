@@ -1183,6 +1183,16 @@ extension IRGenerator {
             let type = canonicalize(sel.type as! ty.Enum)
             let val = IntType(width: sel.type.width!, in: module.context).constant(c.number)
             return type.constant(values: [val])
+        case .union(let c):
+            let aggregate = emit(expr: sel.rec, returnAddress: true)
+            let type = canonicalize(c.type)
+            let address = b.buildBitCast(aggregate, type: LLVM.PointerType(pointee: type))
+            if returnAddress {
+                return address
+            }
+
+            return b.buildLoad(address)
+
         case .array(let member):
             let aggregate = emit(expr: sel.rec, returnAddress: true)
             let index = member.rawValue
@@ -1287,6 +1297,8 @@ extension IRGenerator {
         case let type as ty.Struct:
             return canonicalize(type)
         case let type as ty.Enum:
+            return canonicalize(type)
+        case let type as ty.Union:
             return canonicalize(type)
         case let type as ty.Tuple:
             return canonicalize(type)
@@ -1431,6 +1443,23 @@ extension IRGenerator {
         }
 
         return LLVM.StructType(elementTypes: [IntType(width: e.width!, in: module.context)], isPacked: true, in: module.context)
+    }
+
+    mutating func canonicalize(_ u: ty.Union) -> LLVM.StructType {
+        if let entity = u.entity {
+            let sym = symbol(for: entity)
+            if let ptr = module.type(named: sym) {
+                return ptr as! LLVM.StructType
+            }
+
+            let irType = b.createStruct(name: sym)
+            let containerType = LLVM.ArrayType(elementType: i8, count: u.width!.bytes())
+            irType.setBody([containerType])
+            return irType
+        }
+
+        let containerType = LLVM.ArrayType(elementType: i8, count: u.width!.bytes())
+        return LLVM.StructType(elementTypes: [containerType] , in: module.context)
     }
 
     mutating func canonicalize(_ integer: ty.UntypedInteger) -> IntType {

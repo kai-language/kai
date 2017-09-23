@@ -722,6 +722,20 @@ func copy(_ nodes: [Unary]) -> [Unary] {
     return nodes.map(copy)
 }
 
+func copy(_ node: UnionType) -> UnionType {
+    return UnionType(
+        keyword: node.keyword,
+        lbrace: node.lbrace,
+        fields: copy(node.fields),
+        rbrace: node.rbrace,
+        type: node.type
+    )
+}
+
+func copy(_ nodes: [UnionType]) -> [UnionType] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: Using) -> Using {
     return Using(
         keyword: node.keyword,
@@ -788,6 +802,7 @@ func copy(_ node: Expr) -> Expr {
     case let node as Subscript: return copy(node)
     case let node as Ternary: return copy(node)
     case let node as Unary: return copy(node)
+    case let node as UnionType: return copy(node)
     case let node as VariadicType: return copy(node)
     case let node as VectorType: return copy(node)
     default: fatalError()

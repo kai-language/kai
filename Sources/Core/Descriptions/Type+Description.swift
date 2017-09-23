@@ -74,6 +74,16 @@ extension ty.Enum {
     }
 }
 
+extension ty.Union {
+    var description: String {
+        if let name = entity?.name {
+            return name
+        }
+
+        return "union{" + cases.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
+    }
+}
+
 extension ty.Array {
     var description: String {
         var str = ""

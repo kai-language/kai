@@ -287,6 +287,17 @@ enum ty {
         }
     }
 
+    struct Union: Type, NamableType {
+        weak var entity: Entity?
+        var width: Int?
+        var cases: [Case]
+
+        struct Case {
+            var ident: Ident
+            var type: Type
+        }
+    }
+
     struct Function: Type, NamableType {
         weak var entity: Entity?
         var node: FuncLit?
