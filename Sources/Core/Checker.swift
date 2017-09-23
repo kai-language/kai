@@ -875,7 +875,7 @@ extension Checker {
             return check(basicLit: lit, desiredType: desiredType)
 
         case let lit as CompositeLit:
-            return check(compositeLit: lit)
+            return check(compositeLit: lit, desiredType: desiredType)
 
         case let fn as FuncLit:
             return check(funcLit: fn)
@@ -1075,15 +1075,25 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(compositeLit lit: CompositeLit) -> Operand {
+    mutating func check(compositeLit lit: CompositeLit, desiredType: Type?) -> Operand {
         var dependencies: Set<Entity> = []
-        let operand = check(expr: lit.explicitType)
-        dependencies.formUnion(operand.dependencies)
+        let operand: Operand?
+        let type: Type?
+        if let explicitType = lit.explicitType {
+            operand = check(expr: explicitType)
+            dependencies.formUnion(operand!.dependencies)
+            type = lowerFromMetatype(operand!.type, atNode: explicitType)
+            lit.type = type
+        } else if let desiredType = desiredType {
+            operand = nil
+            type = desiredType
+        } else {
+            lit.type = ty.invalid
+            reportError("Unable to determine type for composite literal", at: lit.start)
+            return Operand.invalid
+        }
 
-        let type = lowerFromMetatype(operand.type, atNode: lit.explicitType)
-        lit.type = type
-
-        switch type {
+        switch type! {
         case let s as ty.Struct:
             if lit.elements.count > s.fields.count {
                 reportError("Too many values in struct initializer", at: lit.elements[s.fields.count].start)
@@ -1094,10 +1104,10 @@ extension Checker {
                     guard let ident = key as? Ident else {
                         reportError("Expected identifier for key in composite literal for struct", at: key.start)
                         // bail, likely everything is wrong
-                        return Operand(mode: .invalid, expr: lit, type: type, constant: nil, dependencies: operand.dependencies)
+                        return Operand(mode: .invalid, expr: lit, type: type, constant: nil, dependencies: operand?.dependencies ?? [])
                     }
                     guard let field = s.fields.first(where: { $0.name == ident.name }) else {
-                        reportError("Unknown field '\(ident)' for '\(operand)'", at: ident.start)
+                        reportError("Unknown field '\(ident)' for struct '\(s.entity!.name)'", at: ident.start)
                         continue
                     }
 
@@ -1122,7 +1132,7 @@ extension Checker {
                     }
                 }
             }
-
+            lit.type = type
             return Operand(mode: .computed, expr: lit, type: type, constant: nil, dependencies: dependencies)
 
         case let type as ty.Array:

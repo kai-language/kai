@@ -189,7 +189,7 @@ func copy(_ nodes: [Comment]) -> [Comment] {
 
 func copy(_ node: CompositeLit) -> CompositeLit {
     return CompositeLit(
-        explicitType: copy(node.explicitType),
+        explicitType: node.explicitType.map(copy),
         lbrace: node.lbrace,
         elements: copy(node.elements),
         rbrace: node.rbrace,

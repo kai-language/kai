@@ -294,18 +294,18 @@ init(keyword: Pos, params: ParameterList, results: ResultList, body: Block, flag
 }
 
 class CompositeLit: Node, Expr {
-    var explicitType: Expr
+    var explicitType: Expr?
     var lbrace: Pos
     var elements: [KeyValue]
     var rbrace: Pos
 
     var type: Type!
 
-    var start: Pos { return explicitType.start }
+    var start: Pos { return explicitType?.start ?? lbrace }
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:CompositeLit.Init
-init(explicitType: Expr, lbrace: Pos, elements: [KeyValue], rbrace: Pos, type: Type!) {
+init(explicitType: Expr?, lbrace: Pos, elements: [KeyValue], rbrace: Pos, type: Type!) {
     self.explicitType = explicitType
     self.lbrace = lbrace
     self.elements = elements
