@@ -84,6 +84,8 @@ func == (lhs: Type, rhs: Type) -> Bool {
         return lhs.node.start == rhs.node.start
     case (let lhs as ty.Enum, let rhs as ty.Enum):
         return lhs.cases.first?.ident.start == rhs.cases.first?.ident.start
+    case (let lhs as ty.Union, let rhs as ty.Union):
+        return lhs.cases.first?.ident.start == rhs.cases.first?.ident.start
     case (let lhs as ty.Function, let rhs as ty.Function):
         return lhs.params == rhs.params && lhs.returnType == rhs.returnType
     case (let lhs as ty.Tuple, let rhs as ty.Tuple):
