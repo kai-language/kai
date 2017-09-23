@@ -1195,6 +1195,8 @@ extension IRGenerator {
                 return b.buildCast(cast, value: val, type: canonicalize(sel.type))
             }
             return val
+        case .staticLength(let length):
+            return i64.constant(length)
         case .scalar(let index):
             let vector = emit(expr: sel.rec, returnAddress: returnAddress)
 

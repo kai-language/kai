@@ -6,7 +6,7 @@
 func copy(_ node: ArrayType) -> ArrayType {
     return ArrayType(
         lbrack: node.lbrack,
-        length: copy(node.length),
+        length: node.length.map(copy),
         rbrack: node.rbrack,
         explicitType: copy(node.explicitType),
         type: node.type

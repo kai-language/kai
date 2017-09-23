@@ -292,19 +292,24 @@ extension Parser {
             return x
         case .lbrack:
             let lbrack = eatToken()
-            var isVector = false
 
-            if tok == .ident && lit == "vec" {
-                next()
-                isVector = true
-            }
+            var isVector = false
+            var isImplicitlySized = false
 
             let length: Expr?
-            if tok != .ellipsis {
-                length = parseExpr()
-            } else {
+            switch tok {
+            case .ellipsis:
                 length = nil
                 next()
+            case .rbrack:
+                length = nil
+                isImplicitlySized = true
+            case .ident where lit == "vec":
+                next()
+                isVector = true
+                length = parseExpr()
+            default:
+                length = parseExpr()
             }
 
             let rbrack = expect(.rbrack)
@@ -316,6 +321,8 @@ extension Parser {
                 }
 
                 return ArrayType(lbrack: lbrack, length: length, rbrack: rbrack, explicitType: type, type: nil)
+            } else if isImplicitlySized {
+                return ArrayType(lbrack: lbrack, length: nil, rbrack: rbrack, explicitType: type, type: nil)
             } else {
                 return DynamicArrayType(
                     lbrack: lbrack, rbrack: rbrack, explicitType: type, type: nil)

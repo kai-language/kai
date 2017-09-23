@@ -362,6 +362,13 @@ extension Checker {
 
             let type = expectedType!
             for ident in decl.names {
+                guard !(type is ty.Array) else {
+                    ident.type = ty.invalid
+                    ident.entity.type = ty.invalid
+                    reportError("An implicit-length array must have an initial value", at: ident.start)
+                    continue
+                }
+
                 assert(!decl.isConstant)
                 if type is ty.Metatype {
                     ident.entity.flags.insert(.type)
@@ -901,16 +908,22 @@ extension Checker {
         case let array as ArrayType:
             let elementOperand = check(expr: array.explicitType)
             let elementType = lowerFromMetatype(elementOperand.type, atNode: array)
-            let lengthOperand = check(expr: array.length)
-            guard let length = lengthOperand.constant as? UInt64 else {
-                reportError("Currently, only array literals are allowed for array length", at: array.length.start)
-                return Operand.invalid
+            var dependencies: Set<Entity> = []
+            var length: Int?
+            if let lengthExpr = array.length {
+                let lengthOperand = check(expr: lengthExpr)
+                guard let len = lengthOperand.constant as? UInt64 else {
+                    reportError("Currently, only integer literals are allowed for array length", at: lengthExpr.start)
+                    return Operand.invalid
+                }
+
+                length = Int(len)
+
+                dependencies = elementOperand.dependencies.union(lengthOperand.dependencies)
             }
 
-            let type = ty.Array(length: Int(length), elementType: elementType)
+            let type = ty.Array(length: length, elementType: elementType)
             array.type = ty.Metatype(instanceType: type)
-
-            let dependencies = elementOperand.dependencies.union(lengthOperand.dependencies)
             return Operand(mode: .type, expr: expr, type: array.type, constant: nil, dependencies: dependencies)
 
         case let array as DynamicArrayType:
@@ -1135,9 +1148,14 @@ extension Checker {
             lit.type = type
             return Operand(mode: .computed, expr: lit, type: type, constant: nil, dependencies: dependencies)
 
-        case let type as ty.Array:
-            if lit.elements.count != type.length {
-                reportError("Element count (\(lit.elements.count)) does not match array length (\(type.length))", at: lit.start)
+        case var type as ty.Array:
+            if type.length != nil {
+                if lit.elements.count != type.length {
+                    reportError("Element count (\(lit.elements.count)) does not match array length (\(type.length))", at: lit.start)
+                }
+            } else {
+                // NOTE: implicit array length
+                type.length = lit.elements.count
             }
 
             for el in lit.elements {
@@ -1811,6 +1829,19 @@ extension Checker {
             selector.checked = .struct(field)
             selector.type = field.type
             return Operand(mode: .addressable, expr: selector, type: field.type, constant: nil, dependencies: dependencies)
+
+        case let array as ty.Array:
+            switch selector.sel.name {
+            case "len":
+                selector.checked = .staticLength(array.length)
+                selector.type = ty.i64
+            default:
+                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                selector.checked = .invalid
+                selector.type = ty.invalid
+                return Operand.invalid
+            }
+            return Operand(mode: .addressable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
 
         case let array as ty.DynamicArray:
             switch selector.sel.name {

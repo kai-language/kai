@@ -80,7 +80,14 @@ extension ty.Array {
         if let name = entity?.name {
             str += name + " aka "
         }
-        str += "[\(length)]" + elementType.description
+
+        str += "["
+
+        if length != nil {
+            str += "\(length!)"
+        }
+
+        str += "]" + elementType.description
         return str
     }
 }

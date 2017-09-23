@@ -356,6 +356,7 @@ class Selector: Node, Expr {
         case `struct`(ty.Struct.Field)
         case `enum`(ty.Enum.Case)
         case array(ArrayMember)
+        case staticLength(Int)
         case scalar(Int)
         case swizzle([Int])
 
@@ -598,7 +599,7 @@ init(star: Pos, explicitType: Expr, type: Type!) {
 
 class ArrayType: Node, Expr {
     var lbrack: Pos
-    var length: Expr
+    var length: Expr?
     var rbrack: Pos
     var explicitType: Expr
 
@@ -608,7 +609,7 @@ class ArrayType: Node, Expr {
     var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:ArrayType.Init
-init(lbrack: Pos, length: Expr, rbrack: Pos, explicitType: Expr, type: Type!) {
+init(lbrack: Pos, length: Expr?, rbrack: Pos, explicitType: Expr, type: Type!) {
     self.lbrack = lbrack
     self.length = length
     self.rbrack = rbrack

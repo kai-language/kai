@@ -174,11 +174,11 @@ enum ty {
 
     struct Array: Type, NamableType {
         weak var entity: Entity?
-        var width: Int? { return (elementType.width ?? 1) * length }
-        var length: Int
+        var width: Int? { return elementType.width! * length }
+        var length: Int!
         var elementType: Type
 
-        init(length: Int, elementType: Type) {
+        init(length: Int!, elementType: Type) {
             self.length = length
             self.elementType = elementType
         }
