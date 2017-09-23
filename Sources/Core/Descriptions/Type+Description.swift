@@ -65,15 +65,6 @@ extension ty.Struct {
     }
 }
 
-extension ty.Enum {
-    var description: String {
-        if let name = entity?.name {
-            return name
-        }
-        return "enum{" + cases.map({ $0.ident.name + ($0.value.map({ " = " + String(describing: $0) }) ?? "") }).joined(separator: ", ") + "}"
-    }
-}
-
 extension ty.Union {
     var description: String {
         if let name = entity?.name {
@@ -81,6 +72,25 @@ extension ty.Union {
         }
 
         return "union{" + cases.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
+    }
+}
+
+extension ty.Variant {
+    var description: String {
+        if let name = entity?.name {
+            return name
+        }
+
+        return "variant{" + cases.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
+    }
+}
+
+extension ty.Enum {
+    var description: String {
+        if let name = entity?.name {
+            return name
+        }
+        return "enum{" + cases.map({ $0.ident.name + ($0.value.map({ " = " + String(describing: $0) }) ?? "") }).joined(separator: ", ") + "}"
     }
 }
 

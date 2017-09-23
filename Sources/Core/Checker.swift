@@ -962,11 +962,14 @@ extension Checker {
         case let s as PolyStructType:
             return check(polyStruct: s)
 
-        case let e as EnumType:
-            return check(enumType: e)
-
         case let u as UnionType:
             return check(union: u)
+
+        case let v as VariantType:
+            return check(variant: v)
+
+        case let e as EnumType:
+            return check(enumType: e)
 
         case let paren as Paren:
             return check(expr: paren.element, desiredType: desiredType)
@@ -1462,6 +1465,61 @@ extension Checker {
         return Operand(mode: .type, expr: polyStruct, type: type, constant: nil, dependencies: dependencies)
     }
 
+    mutating func check(union u: UnionType) -> Operand {
+        var dependencies: Set<Entity> = []
+
+        var largestWidth = 0
+        var cases: [ty.Union.Case] = []
+        for x in u.fields {
+            let operand = check(field: x)
+            dependencies.formUnion(operand.dependencies)
+
+            for name in x.names {
+                let casé = ty.Union.Case(ident: name, type: operand.type)
+                cases.append(casé)
+                let width = operand.type.width!.round(upToNearest: 8)
+                if width > largestWidth {
+                    largestWidth = width
+                }
+            }
+        }
+
+        var type: Type
+        type = ty.Union(entity: nil, width: largestWidth, cases: cases)
+        type = ty.Metatype(instanceType: type)
+        u.type = type
+        return Operand(mode: .type, expr: u, type: type, constant: nil, dependencies: dependencies)
+    }
+
+    mutating func check(variant v: VariantType) -> Operand {
+        var dependencies: Set<Entity> = []
+
+        var index = 0
+        var largestWidth = 0
+        var cases: [ty.Variant.Case] = []
+        for x in v.fields {
+            let operand = check(field: x)
+            dependencies.formUnion(operand.dependencies)
+
+            for name in x.names {
+                let casé = ty.Variant.Case(ident: name, type: operand.type, index: index)
+                cases.append(casé)
+                let width = operand.type.width!.round(upToNearest: 8)
+                if width > largestWidth {
+                    largestWidth = width
+                }
+
+                index += 1
+            }
+        }
+
+        var type: Type
+        type = ty.Variant(entity: nil, width: largestWidth, cases: cases)
+        type = ty.Metatype(instanceType: type)
+        v.type = type
+        return Operand(mode: .type, expr: v, type: type, constant: nil, dependencies: dependencies)
+    }
+
     @discardableResult
     mutating func check(enumType e: EnumType) -> Operand {
         var dependencies: Set<Entity> = []
@@ -1526,32 +1584,6 @@ extension Checker {
         type = ty.Metatype(instanceType: type)
         e.type = type
         return Operand(mode: .type, expr: e, type: type, constant: nil, dependencies: dependencies)
-    }
-
-    mutating func check(union u: UnionType) -> Operand {
-        var dependencies: Set<Entity> = []
-
-        var largestWidth = 0
-        var cases: [ty.Union.Case] = []
-        for x in u.fields {
-            let operand = check(field: x)
-            dependencies.formUnion(operand.dependencies)
-
-            for name in x.names {
-                let casé = ty.Union.Case(ident: name, type: operand.type)
-                cases.append(casé)
-                let width = operand.type.width!.round(upToNearest: 8)
-                if width > largestWidth {
-                    largestWidth = width
-                }
-            }
-        }
-
-        var type: Type
-        type = ty.Union(entity: nil, width: largestWidth, cases: cases)
-        type = ty.Metatype(instanceType: type)
-        u.type = type
-        return Operand(mode: .type, expr: u, type: type, constant: nil, dependencies: dependencies)
     }
 
     @discardableResult

@@ -339,10 +339,12 @@ extension Parser {
             return PolyType(dollar: dollar, explicitType: type, type: nil)
         case .struct:
             return parseStructType()
-        case .enum:
-            return parseEnumType()
         case .union:
             return parseUnionType()
+        case .variant:
+            return parseVariantType()
+        case .enum:
+            return parseEnumType()
         case .ellipsis where allowVariadic:
             let ellipsis = eatToken()
             let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: false, type: nil)
@@ -522,6 +524,20 @@ extension Parser {
         }
         let rbrace = expect(.rbrace)
         return UnionType(keyword: keyword, lbrace: lrbrace, fields: fields, rbrace: rbrace, type: nil)
+    }
+
+    mutating func parseVariantType() -> Expr {
+        let keyword = eatToken()
+        let lbrace = expect(.lbrace)
+        var fields: [StructField] = []
+        if tok != .rbrace {
+            fields = parseStructFieldList()
+        }
+        if tok == .semicolon {
+            next()
+        }
+        let rbrace = expect(.rbrace)
+        return VariantType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace, type: nil)
     }
 
     mutating func parsePolymorphicStructType() -> Expr {

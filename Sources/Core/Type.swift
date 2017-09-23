@@ -275,6 +275,29 @@ enum ty {
         }
     }
 
+    struct Union: Type, NamableType {
+        weak var entity: Entity?
+        var width: Int?
+        var cases: [Case]
+
+        struct Case {
+            var ident: Ident
+            var type: Type
+        }
+    }
+
+    struct Variant: Type, NamableType {
+        weak var entity: Entity?
+        var width: Int?
+        var cases: [Case]
+
+        struct Case {
+            var ident: Ident
+            var type: Type
+            var index: Int
+        }
+    }
+
     struct Enum: Type, NamableType {
         weak var entity: Entity?
         var width: Int?
@@ -286,17 +309,6 @@ enum ty {
             let value: Expr?
             let constant: Value?
             let number: Int
-        }
-    }
-
-    struct Union: Type, NamableType {
-        weak var entity: Entity?
-        var width: Int?
-        var cases: [Case]
-
-        struct Case {
-            var ident: Ident
-            var type: Type
         }
     }
 

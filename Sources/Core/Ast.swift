@@ -777,6 +777,28 @@ init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!)
 // sourcery:end
 }
 
+class VariantType: Node, Expr {
+    var keyword: Pos
+    var lbrace: Pos
+    var fields: [StructField]
+    var rbrace: Pos
+
+    var type: Type!
+
+    var start: Pos { return keyword }
+    var end: Pos { return rbrace }
+
+// sourcery:inline:auto:VariantType.Init
+init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!) {
+    self.keyword = keyword
+    self.lbrace = lbrace
+    self.fields = fields
+    self.rbrace = rbrace
+    self.type = type
+}
+// sourcery:end
+}
+
 class PolyType: Node, Expr {
     var dollar: Pos
     var explicitType: Expr

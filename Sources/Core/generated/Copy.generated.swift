@@ -760,6 +760,20 @@ func copy(_ nodes: [VariadicType]) -> [VariadicType] {
     return nodes.map(copy)
 }
 
+func copy(_ node: VariantType) -> VariantType {
+    return VariantType(
+        keyword: node.keyword,
+        lbrace: node.lbrace,
+        fields: copy(node.fields),
+        rbrace: node.rbrace,
+        type: node.type
+    )
+}
+
+func copy(_ nodes: [VariantType]) -> [VariantType] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: VectorType) -> VectorType {
     return VectorType(
         lbrack: node.lbrack,
@@ -804,6 +818,7 @@ func copy(_ node: Expr) -> Expr {
     case let node as Unary: return copy(node)
     case let node as UnionType: return copy(node)
     case let node as VariadicType: return copy(node)
+    case let node as VariantType: return copy(node)
     case let node as VectorType: return copy(node)
     default: fatalError()
     }

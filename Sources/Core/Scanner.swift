@@ -360,6 +360,8 @@ struct Scanner {
             return .fn
         case "union":
             return .union
+        case "variant":
+            return .variant
         case "enum":
             return .enum
         case "struct":
