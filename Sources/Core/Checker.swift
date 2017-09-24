@@ -362,7 +362,7 @@ extension Checker {
 
             let type = expectedType!
             for ident in decl.names {
-                guard !(type is ty.Array) else {
+                if let type = type as? ty.Array, type.length == nil {
                     ident.type = ty.invalid
                     ident.entity.type = ty.invalid
                     reportError("An implicit-length array must have an initial value", at: ident.start)
