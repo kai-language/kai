@@ -298,10 +298,10 @@ extension Parser {
 
             let length: Expr?
             switch tok {
-            case .ellipsis:
-                length = nil
-                next()
             case .rbrack:
+                length = nil
+            case .ellipsis:
+                next()
                 length = nil
                 isImplicitlySized = true
             case .ident where lit == "vec":
