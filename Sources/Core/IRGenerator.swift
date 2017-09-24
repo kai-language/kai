@@ -584,6 +584,11 @@ extension IRGenerator {
             }
         }
 
+        // fixes if a else if b emitting bad IR
+        if b.insertBlock?.terminator == nil {
+            b.buildBr(postBlock)
+        }
+
         b.positionAtEnd(of: postBlock)
     }
 
@@ -1113,7 +1118,7 @@ extension IRGenerator {
 
             // TODO: Do we need to push a named context or can we reset the mangling because we are in a function scope?
             //  also should we use a mangled name if this is an anonymous fn?
-            pushContext(scopeName: entity.map(symbol) ?? "", returnBlock: returnBlock)
+            pushContext(scopeName: "", returnBlock: returnBlock)
             emit(statement: fn.body)
             if b.insertBlock?.terminator == nil {
                 b.buildBr(context.deferBlocks.last ?? returnBlock)
