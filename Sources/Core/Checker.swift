@@ -930,7 +930,7 @@ extension Checker {
             let elementOperand = check(expr: array.explicitType)
             let elementType = lowerFromMetatype(elementOperand.type, atNode: array)
 
-            let type = ty.Slice(elementType: elementType, initialLength: nil, initialCapacity: nil)
+            let type = ty.Slice(elementType: elementType)
             array.type = ty.Metatype(instanceType: type)
             return Operand(mode: .type, expr: expr, type: array.type, constant: nil, dependencies: elementOperand.dependencies)
 
@@ -1178,7 +1178,7 @@ extension Checker {
             lit.type = type
             return Operand(mode: .computed, expr: lit, type: type, constant: nil, dependencies: dependencies)
 
-        case var slice as ty.Slice:
+        case let slice as ty.Slice:
             for el in lit.elements {
                 let operand = check(expr: el.value, desiredType: slice.elementType)
                 dependencies.formUnion(operand.dependencies)
@@ -1189,10 +1189,6 @@ extension Checker {
                     continue
                 }
             }
-
-            let length = lit.elements.count
-            slice.initialLength = length
-            slice.initialCapacity = length
 
             lit.type = slice
             return Operand(mode: .computed, expr: lit, type: slice, constant: nil, dependencies: dependencies)

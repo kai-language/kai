@@ -897,7 +897,7 @@ extension IRGenerator {
             var ir = irType.undef()
 
             let elementType = canonicalize(slice.elementType)
-            let rawBuffType = LLVM.ArrayType(elementType: elementType, count: slice.initialLength)
+            let rawBuffType = LLVM.ArrayType(elementType: elementType, count: lit.elements.count)
             var constant = rawBuffType.undef()
             for (index, el) in lit.elements.enumerated() {
                 let val = emit(expr: el.value)
@@ -909,12 +909,12 @@ extension IRGenerator {
             let stackAllocPtr = b.buildGEP(stackAlloc, indices: [0, 0])
             let newBuff = b.buildBitCast(stackAllocPtr, type: LLVM.PointerType(pointee: i8))
             let constantPtr = b.buildBitCast(constantStackAlloc, type: LLVM.PointerType(pointee: i8))
-            let length = i64.constant((slice.initialLength * slice.elementType.width!).round(upToNearest: 8) / 8)
+            let length = i64.constant((lit.elements.count * slice.elementType.width!).round(upToNearest: 8) / 8)
             b.buildMemcpy(newBuff, constantPtr, count: length)
 
             let newBuffCast = b.buildBitCast(newBuff, type: LLVM.PointerType(pointee: elementType))
             ir = b.buildInsertValue(aggregate: ir, element: newBuffCast, index: 0)
-            ir = b.buildInsertValue(aggregate: ir, element: i64.constant(slice.initialLength), index: 1)
+            ir = b.buildInsertValue(aggregate: ir, element: i64.constant(lit.elements.count), index: 1)
             // NOTE: since the raw buffer is stack allocated, we need to set the
             // capacity to `0`. Then, any call that needs to realloc can instead
             // malloc a new buffer.

@@ -192,13 +192,9 @@ enum ty {
         weak var entity: Entity?
         var width: Int? { return 64 * 3 } // pointer, length, capacity
         var elementType: Type
-        var initialLength: Int!
-        var initialCapacity: Int!
 
-        init(elementType: Type, initialLength: Int!, initialCapacity: Int!) {
+        init(elementType: Type) {
             self.elementType = elementType
-            self.initialLength = initialLength
-            self.initialCapacity = initialCapacity
         }
     }
 
