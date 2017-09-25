@@ -986,8 +986,11 @@ extension Checker {
         case let selector as Selector:
             return check(selector: selector, desiredType: desiredType)
 
-        case let subsćript as Subscript:
-            return check(subscript: subsćript)
+        case let s as Subscript:
+            return check(subscript: s)
+
+        case let s as Slice:
+            return check(slice: s)
 
         case let call as Call:
             return check(call: call)
@@ -2062,6 +2065,57 @@ extension Checker {
         }
 
         return Operand(mode: .addressable, expr: sub, type: type, constant: nil, dependencies: dependencies)
+    }
+
+    @discardableResult
+    mutating func check(slice: Slice) -> Operand {
+        var dependencies: Set<Entity> = []
+
+        let receiver = check(expr: slice.rec)
+        let lo = slice.lo.map { check(expr: $0, desiredType: ty.i64) }
+        let hi = slice.hi.map { check(expr: $0, desiredType: ty.i64) }
+
+        dependencies.formUnion(receiver.dependencies)
+        if let lo = lo {
+            dependencies.formUnion(lo.dependencies)
+            // TODO: Can we clean this up to just check if this is an integer of any kind?
+            if !canConvert(lo.type, to: ty.i64) && !implicitlyConvert(lo.type, to: ty.i64) && !(lo.type is ty.Integer) && !(lo.type is ty.UntypedInteger) {
+                reportError("Cannot subscript with non-integer type", at: slice.lo!.start)
+            }
+        }
+        if let hi = hi {
+            dependencies.formUnion(hi.dependencies)
+            // TODO: Can we clean this up to just check if this is an integer of any kind?
+            if !canConvert(hi.type, to: ty.i64) && !implicitlyConvert(hi.type, to: ty.i64) && !(hi.type is ty.Integer) && !(hi.type is ty.UntypedInteger) {
+                reportError("Cannot subscript with non-integer type", at: slice.lo!.start)
+            }
+        }
+
+        switch receiver.type {
+        case let x as ty.Array:
+            slice.type = ty.Slice(elementType: x.elementType)
+
+            // TODO: Check for invalid hi & lo's when constant
+
+        case let x as ty.Slice:
+            slice.type = x
+
+            // TODO: Check for invalid hi & lo's when constant
+
+        case is ty.KaiString:
+            slice.type = ty.Slice(elementType: ty.u8)
+
+            // TODO: Check for invalid hi & lo's when constant
+
+        default:
+            if receiver.mode != .invalid {
+                reportError("Unable to slice \(receiver)", at: slice.start)
+            }
+            slice.type = ty.invalid
+            return Operand.invalid
+        }
+
+        return Operand(mode: .addressable, expr: slice, type: slice.type, constant: nil, dependencies: dependencies)
     }
 
     @discardableResult

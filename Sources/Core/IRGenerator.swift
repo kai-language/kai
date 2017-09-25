@@ -832,6 +832,8 @@ extension IRGenerator {
             return emit(selector: sel, returnAddress: returnAddress)
         case let sub as Subscript:
             return emit(subscript: sub, returnAddress: returnAddress)
+        case let slice as Slice:
+            return emit(slice: slice, returnAddress: returnAddress)
         default:
             preconditionFailure()
         }
@@ -1245,7 +1247,8 @@ extension IRGenerator {
 
         let indicies: [IRValue]
 
-        // NOTE: Pointers need to have the address loaded and arrays must use their address
+        // TODO: Array bounds checks
+
         switch sub.checked! {
         case .array:
             aggregate = emit(expr: sub.rec, returnAddress: true)
@@ -1267,6 +1270,54 @@ extension IRGenerator {
             return val
         }
         return b.buildLoad(val)
+    }
+
+    mutating func emit(slice: Slice, returnAddress: Bool) -> IRValue {
+        var lo = slice.lo.map({ emit(expr: $0) })
+        var hi = slice.hi.map({ emit(expr: $0) })
+
+        // TODO: Array bounds checks
+
+        var ptr: IRValue
+        let len: IRValue
+        let cap: IRValue
+        switch slice.rec.type {
+        case let type as ty.Array:
+            let rec = emit(expr: slice.rec, returnAddress: true)
+            lo = lo ?? i64.zero()
+            hi = hi ?? type.length
+
+            ptr = b.buildInBoundsGEP(rec, indices: [0, lo!])
+            len = b.buildSub(hi!, lo!)
+            cap = b.buildSub(i64.constant(type.length), lo!)
+
+        case is ty.Slice, is ty.KaiString:
+            let rec = emit(expr: slice.rec, returnAddress: true)
+            let prevLen = b.buildLoad(b.buildStructGEP(rec, index: 1))
+            let prevCap = b.buildLoad(b.buildStructGEP(rec, index: 2))
+            lo = lo ?? i64.zero()
+            hi = hi ?? prevLen
+
+            // load the address in the struct then offset it by lo
+            ptr = b.buildLoad(b.buildStructGEP(rec, index: 0))
+            ptr = b.buildGEP(ptr, indices: [lo!])
+            len = b.buildSub(hi!, lo!)
+            cap = b.buildSub(prevCap, lo!)
+
+        default:
+            preconditionFailure()
+        }
+
+        var val = canonicalize(slice.type).undef()
+        val = b.buildInsertValue(aggregate: val, element: ptr, index: 0)
+        val = b.buildInsertValue(aggregate: val, element: len, index: 1)
+        val = b.buildInsertValue(aggregate: val, element: cap, index: 2)
+
+        if returnAddress {
+            // FIXME: What do? Should we alloca this and return that?
+            fatalError()
+        }
+        return val
     }
 }
 

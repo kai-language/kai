@@ -385,11 +385,14 @@ init(rec: Expr, sel: Ident, checked: Checked!, type: Type!, cast: OpCode.Cast?, 
 
 class Subscript: Expr, Node {
     var rec: Expr
+    let lbrack: Pos
     var index: Expr
+    let rbrack: Pos
 
     var type: Type! 
     var checked: Checked!
 
+    // TODO: Isn't this implied from rec.type?
     enum Checked {
         case array
         case slice
@@ -397,14 +400,42 @@ class Subscript: Expr, Node {
     }
 
     var start: Pos { return rec.start }
-    var end: Pos { return index.end }
+    var end: Pos { return rbrack }
 
 // sourcery:inline:auto:Subscript.Init
-init(rec: Expr, index: Expr, type: Type!, checked: Checked!) {
+init(rec: Expr, lbrack: Pos, index: Expr, rbrack: Pos, type: Type!, checked: Checked!) {
     self.rec = rec
+    self.lbrack = lbrack
     self.index = index
+    self.rbrack = rbrack
     self.type = type
     self.checked = checked
+}
+// sourcery:end
+}
+
+class Slice: Expr, Node {
+    var rec: Expr
+    var lbrack: Pos
+    var lo: Expr?
+    var hi: Expr?
+    var rbrack: Pos
+
+    var type: Type!
+
+    // TODO: Slice with certain capacity?
+
+    var start: Pos { return rec.start }
+    var end: Pos { return rbrack }
+
+// sourcery:inline:auto:Slice.Init
+init(rec: Expr, lbrack: Pos, lo: Expr?, hi: Expr?, rbrack: Pos, type: Type!) {
+    self.rec = rec
+    self.lbrack = lbrack
+    self.lo = lo
+    self.hi = hi
+    self.rbrack = rbrack
+    self.type = type
 }
 // sourcery:end
 }

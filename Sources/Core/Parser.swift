@@ -181,17 +181,41 @@ extension Parser {
         var x = parseOperand()
 
         while true {
-            switch tok {
+            S: switch tok {
             case .question:
                 x = parseTernaryExpr(x)
             case .period:
                 next()
                 x = Selector(rec: x, sel: parseIdent(), checked: nil, type: nil, cast: nil, constant: nil)
             case .lbrack:
-                next()
+                let lbrack = eatToken()
+                if tok == .colon {
+                    next()
+                    if tok == .rbrack {
+                        let rbrack = eatToken()
+                        x = Slice(rec: x, lbrack: lbrack, lo: nil, hi: nil, rbrack: rbrack, type: nil)
+                        break S
+                    }
+                    let hi = parseExpr()
+                    let rbrack = expect(.rbrack)
+                    x = Slice(rec: x, lbrack: lbrack, lo: nil, hi: hi, rbrack: rbrack, type: nil)
+                    break S
+                }
                 let index = parseExpr()
-                expect(.rbrack)
-                x = Subscript(rec: x, index: index, type: nil, checked: nil)
+                if tok == .colon {
+                    next()
+                    if tok == .rbrack {
+                        let rbrack = eatToken()
+                        x = Slice(rec: x, lbrack: lbrack, lo: index, hi: nil, rbrack: rbrack, type: nil)
+                        break S
+                    }
+                    let hi = parseExpr()
+                    let rbrack = expect(.rbrack)
+                    x = Slice(rec: x, lbrack: lbrack, lo: index, hi: hi, rbrack: rbrack, type: nil)
+                    break S
+                }
+                let rbrack = expect(.rbrack)
+                x = Subscript(rec: x, lbrack: lbrack, index: index, rbrack: rbrack, type: nil, checked: nil)
             case .lparen:
                 let lparen = eatToken()
                 var args: [Expr] = []

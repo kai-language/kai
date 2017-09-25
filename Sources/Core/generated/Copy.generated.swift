@@ -613,6 +613,21 @@ func copy(_ nodes: [Selector]) -> [Selector] {
     return nodes.map(copy)
 }
 
+func copy(_ node: Slice) -> Slice {
+    return Slice(
+        rec: copy(node.rec),
+        lbrack: node.lbrack,
+        lo: node.lo.map(copy),
+        hi: node.hi.map(copy),
+        rbrack: node.rbrack,
+        type: node.type
+    )
+}
+
+func copy(_ nodes: [Slice]) -> [Slice] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: SliceType) -> SliceType {
     return SliceType(
         lbrack: node.lbrack,
@@ -657,7 +672,9 @@ func copy(_ nodes: [StructType]) -> [StructType] {
 func copy(_ node: Subscript) -> Subscript {
     return Subscript(
         rec: copy(node.rec),
+        lbrack: node.lbrack,
         index: copy(node.index),
+        rbrack: node.rbrack,
         type: node.type,
         checked: node.checked
     )
@@ -797,6 +814,7 @@ func copy(_ node: Expr) -> Expr {
     case let node as PolyStructType: return copy(node)
     case let node as PolyType: return copy(node)
     case let node as Selector: return copy(node)
+    case let node as Slice: return copy(node)
     case let node as SliceType: return copy(node)
     case let node as StructType: return copy(node)
     case let node as Subscript: return copy(node)
