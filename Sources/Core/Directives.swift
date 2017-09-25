@@ -1,4 +1,12 @@
 
+enum LoneDirective: String {
+    case asm
+    case file
+    case line
+    case location
+    case function
+}
+
 enum LeadingDirective: String {
     case use
     case `import`

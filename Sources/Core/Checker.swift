@@ -17,6 +17,11 @@ struct Checker {
         var scope: Scope
         var previous: Context?
 
+        var function: Entity?
+        var nearestFunction: Entity? {
+            return function ?? previous?.nearestFunction
+        }
+
         var expectedReturnType: ty.Tuple? = nil
         var nearestExpectedReturnType: ty.Tuple? {
             return expectedReturnType ?? previous?.nearestExpectedReturnType
@@ -394,6 +399,12 @@ extension Checker {
         } else {
 
             for (ident, value) in zip(decl.names, decl.values) {
+                defer {
+                    context.function = nil
+                }
+                if value is FuncLit {
+                    context.function = ident.entity
+                }
                 let operand = check(expr: value, desiredType: expectedType)
                 dependencies.formUnion(operand.dependencies)
 
@@ -1014,6 +1025,9 @@ extension Checker {
 
         case let autocast as Autocast:
             return check(autocast: autocast, desiredType: desiredType)
+
+        case let l as LocationDirective:
+            return check(locationDirective: l, desiredType: desiredType)
 
         default:
             print("Warning: expression '\(expr)' passed through without getting checked")
@@ -2346,6 +2360,32 @@ extension Checker {
         }
 
         return Operand(mode: .computed, expr: cast, type: targetType, constant: nil, dependencies: dependencies)
+    }
+
+    mutating func check(locationDirective l: LocationDirective, desiredType: Type? = nil) -> Operand {
+        switch l.kind {
+        case .file:
+            l.type = ty.string
+            l.constant = file.pathFirstImportedAs
+        case .line:
+            l.type = ty.untypedInteger
+            l.constant = UInt64(file.position(for: l.directive).line)
+        case .location:
+            // TODO: We need to support complex constants first.
+            fatalError()
+        case .function:
+            guard context.expectedReturnType != nil else {
+                reportError("#function cannot be used outside of a function", at: l.start)
+                l.type = ty.invalid
+                return Operand.invalid
+            }
+            l.type = ty.string
+            l.constant = context.nearestFunction?.name ?? "<anonymous fn>"
+        default:
+            preconditionFailure()
+        }
+
+        return Operand(mode: .computed, expr: l, type: l.type, constant: l.constant, dependencies: [])
     }
 
     // NOTE: We should have checked the dependencies at this point from looking at the declaration of this.

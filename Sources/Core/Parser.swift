@@ -263,13 +263,16 @@ extension Parser {
             return parseFuncType(allowParenthesizedExpr: true)
         case .directive:
             let name = lit
-            let directive = eatToken()
-            switch name {
-            case "asm":
+            let pos = eatToken()
+            guard let directive = LoneDirective(rawValue: name) else {
+                reportError("Unknown directive '\(name)'", at: pos)
+                return BadExpr(start: pos, end: pos + name.count)
+            }
+            switch directive {
+            case .asm:
                 fatalError("Inline assembly is not yet supported")
-            default:
-                reportError("Unknown directive '\(name)'", at: directive)
-                return BadExpr(start: directive, end: directive)
+            case .file, .line, .location, .function:
+                return LocationDirective(directive: pos, kind: directive, type: nil, constant: nil)
             }
         default:
             return parseType()

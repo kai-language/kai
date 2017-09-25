@@ -263,12 +263,7 @@ extension IRGenerator {
                             var ir: IRValue
                             switch c.constant {
                             case let val as String:
-                                let len = val.utf8.count
-                                let ptr = b.addGlobalString(name: "", value: val)
-                                    .constGEP(indices: [i64.zero(), i64.zero()])
-
-                                let type = canonicalize(ty.string) as! LLVM.StructType
-                                ir = type.constant(values: [ptr, len, 0])
+                                ir = emit(constantString: val)
                             case let val as Double:
                                 ir = canonicalize(associatedType as! ty.FloatingPoint).constant(val)
                             default:
@@ -838,6 +833,8 @@ extension IRGenerator {
             return emit(subscript: sub, returnAddress: returnAddress)
         case let slice as Slice:
             return emit(slice: slice, returnAddress: returnAddress)
+        case let l as LocationDirective:
+            return emit(locationDirective: l, returnAddress: returnAddress)
         default:
             preconditionFailure()
         }
@@ -846,18 +843,7 @@ extension IRGenerator {
     mutating func emit(lit: BasicLit, returnAddress: Bool, entity: Entity?) -> IRValue {
         // TODO: Use the mangled entity name
         if lit.token == .string {
-            let value = lit.constant as! String
-            let len = value.utf8.count
-            let ptr = b.buildGlobalStringPtr(value)
-
-            let type = canonicalize(ty.string) as! LLVM.StructType
-            let ir = type.constant(values: [ptr, len, 0])
-            if returnAddress {
-                var global = b.addGlobal(".str", initializer: ir)
-                global.linkage = .private
-                return global
-            }
-            return ir
+            return emit(constantString: lit.constant as! String, returnAddress: returnAddress)
         }
 
         let type = canonicalize(lit.type)
@@ -1325,6 +1311,42 @@ extension IRGenerator {
             fatalError()
         }
         return val
+    }
+
+    mutating func emit(locationDirective l: LocationDirective, returnAddress: Bool = false) -> IRValue {
+        switch l.kind {
+        case .file:
+            return emit(constantString: l.constant as! String, returnAddress: returnAddress)
+        case .line:
+            assert(!returnAddress)
+            return (canonicalize(ty.untypedInteger) as! IntType).constant(l.constant as! UInt64)
+        case .location:
+            fatalError()
+        case .function:
+            return emit(constantString: l.constant as! String, returnAddress: returnAddress)
+        default:
+            fatalError()
+        }
+    }
+}
+
+
+// MARK: Emit helpers
+
+extension IRGenerator {
+
+    mutating func emit(constantString value: String, returnAddress: Bool = false) -> IRValue {
+        let len = value.utf8.count
+        let ptr = b.buildGlobalStringPtr(value)
+
+        let type = canonicalize(ty.string) as! LLVM.StructType
+        let ir = type.constant(values: [ptr, len, 0])
+        if returnAddress {
+            var global = b.addGlobal(".str", initializer: ir)
+            global.linkage = .private
+            return global
+        }
+        return ir
     }
 }
 

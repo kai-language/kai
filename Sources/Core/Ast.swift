@@ -100,6 +100,25 @@ init(start: Pos, end: Pos) {
 // sourcery:end
 }
 
+class LocationDirective: Node, Expr {
+    var directive: Pos
+    var kind: LoneDirective
+    var type: Type!
+    var constant: Value!
+
+    var start: Pos { return directive }
+    var end: Pos { return directive + kind.rawValue.count }
+
+// sourcery:inline:auto:LocationDirective.Init
+init(directive: Pos, kind: LoneDirective, type: Type!, constant: Value!) {
+    self.directive = directive
+    self.kind = kind
+    self.type = type
+    self.constant = constant
+}
+// sourcery:end
+}
+
 class Nil: Node, Expr {
     var start: Pos
     var end: Pos {
