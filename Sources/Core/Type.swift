@@ -31,7 +31,7 @@ func findPolymorphicType(arg: Type, param: Type) -> (argType: Type, polyParam: t
         }
 
         return (lhs.elementType, poly)
-    case (let lhs as ty.DynamicArray, let rhs as ty.DynamicArray):
+    case (let lhs as ty.Slice, let rhs as ty.Slice):
         guard let poly = rhs.elementType as? ty.Polymorphic else {
             return findPolymorphicType(arg: lhs.elementType, param: rhs.elementType)
         }
@@ -76,7 +76,7 @@ func == (lhs: Type, rhs: Type) -> Bool {
         return lhs.pointeeType == rhs.pointeeType
     case (let lhs as ty.Array, let rhs as ty.Array):
         return lhs.elementType == rhs.elementType && lhs.length == rhs.length
-    case (let lhs as ty.DynamicArray, let rhs as ty.DynamicArray):
+    case (let lhs as ty.Slice, let rhs as ty.Slice):
         return lhs.elementType == rhs.elementType
     case (let lhs as ty.Vector, let rhs as ty.Vector):
         return lhs.elementType == rhs.elementType && lhs.size == rhs.size
@@ -139,6 +139,8 @@ func canConvert(_ lhs: Type, to rhs: Type) -> Bool {
 /// A name space containing all type specifics
 enum ty {
 
+    // TODO: Use platform pointer types where appropriate
+
     struct Void: Type {
         var width: Int? { return 0 }
     }
@@ -186,10 +188,9 @@ enum ty {
         }
     }
 
-    struct DynamicArray: Type, NamableType {
+    struct Slice: Type, NamableType {
         weak var entity: Entity?
-        // TODO: calculate correct `struct` size
-        var width: Int? { return MemoryLayout<Int>.size }
+        var width: Int? { return 64 * 3 } // pointer, length, capacity
         var elementType: Type
         var initialLength: Int!
         var initialCapacity: Int!

@@ -892,12 +892,12 @@ extension IRGenerator {
             }
             return ir
 
-        case let type as ty.DynamicArray:
-            let irType = canonicalize(type)
+        case let slice as ty.Slice:
+            let irType = canonicalize(slice)
             var ir = irType.undef()
 
-            let elementType = canonicalize(type.elementType)
-            let rawBuffType = LLVM.ArrayType(elementType: elementType, count: type.initialLength)
+            let elementType = canonicalize(slice.elementType)
+            let rawBuffType = LLVM.ArrayType(elementType: elementType, count: slice.initialLength)
             var constant = rawBuffType.undef()
             for (index, el) in lit.elements.enumerated() {
                 let val = emit(expr: el.value)
@@ -909,12 +909,12 @@ extension IRGenerator {
             let stackAllocPtr = b.buildGEP(stackAlloc, indices: [0, 0])
             let newBuff = b.buildBitCast(stackAllocPtr, type: LLVM.PointerType(pointee: i8))
             let constantPtr = b.buildBitCast(constantStackAlloc, type: LLVM.PointerType(pointee: i8))
-            let length = i64.constant((type.initialLength * type.elementType.width!).round(upToNearest: 8) / 8)
+            let length = i64.constant((slice.initialLength * slice.elementType.width!).round(upToNearest: 8) / 8)
             b.buildMemcpy(newBuff, constantPtr, count: length)
 
             let newBuffCast = b.buildBitCast(newBuff, type: LLVM.PointerType(pointee: elementType))
             ir = b.buildInsertValue(aggregate: ir, element: newBuffCast, index: 0)
-            ir = b.buildInsertValue(aggregate: ir, element: i64.constant(type.initialLength), index: 1)
+            ir = b.buildInsertValue(aggregate: ir, element: i64.constant(slice.initialLength), index: 1)
             // NOTE: since the raw buffer is stack allocated, we need to set the
             // capacity to `0`. Then, any call that needs to realloc can instead
             // malloc a new buffer.
@@ -1251,7 +1251,7 @@ extension IRGenerator {
             aggregate = emit(expr: sub.rec, returnAddress: true)
             indicies = [0, index]
 
-        case .dynamicArray:
+        case .slice:
             let structPtr = emit(expr: sub.rec, returnAddress: true)
             let arrayPtr = b.buildStructGEP(structPtr, index: 0)
             aggregate = b.buildLoad(arrayPtr)
@@ -1293,7 +1293,7 @@ extension IRGenerator {
             return canonicalize(type)
         case let type as ty.Array:
             return canonicalize(type)
-        case let type as ty.DynamicArray:
+        case let type as ty.Slice:
             return canonicalize(type)
         case let type as ty.Vector:
             return canonicalize(type)
@@ -1363,8 +1363,8 @@ extension IRGenerator {
         return LLVM.ArrayType(elementType: canonicalize(array.elementType), count: array.length)
     }
 
-    mutating func canonicalize(_ array: ty.DynamicArray) -> LLVM.StructType {
-        let element = LLVM.PointerType(pointee: canonicalize(array.elementType))
+    mutating func canonicalize(_ slice: ty.Slice) -> LLVM.StructType {
+        let element = LLVM.PointerType(pointee: canonicalize(slice.elementType))
         // Memory size is in bytes but LLVM types are in bits
         let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8, in: module.context)
         // { Element type, Length, Capacity }

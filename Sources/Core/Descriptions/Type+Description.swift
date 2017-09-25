@@ -112,13 +112,13 @@ extension ty.Array {
     }
 }
 
-extension ty.DynamicArray {
+extension ty.Slice {
     var description: String {
         var str = ""
         if let name = entity?.name {
             str += name + " aka "
         }
-        str += "[..]" + elementType.description
+        str += "[]" + elementType.description
         return str
     }
 }

@@ -392,7 +392,7 @@ class Subscript: Expr, Node {
 
     enum Checked {
         case array
-        case dynamicArray
+        case slice
         case pointer
     }
 
@@ -620,7 +620,7 @@ init(lbrack: Pos, length: Expr?, rbrack: Pos, explicitType: Expr, type: Type!) {
 // sourcery:end
 }
 
-class DynamicArrayType: Node, Expr {
+class SliceType: Node, Expr {
     var lbrack: Pos
     var rbrack: Pos
     var explicitType: Expr
@@ -630,7 +630,7 @@ class DynamicArrayType: Node, Expr {
     var start: Pos { return lbrack }
     var end: Pos { return explicitType.end }
 
-// sourcery:inline:auto:DynamicArrayType.Init
+// sourcery:inline:auto:SliceType.Init
 init(lbrack: Pos, rbrack: Pos, explicitType: Expr, type: Type!) {
     self.lbrack = lbrack
     self.rbrack = rbrack
@@ -655,26 +655,6 @@ class VectorType: Node, Expr {
 init(lbrack: Pos, size: Expr, rbrack: Pos, explicitType: Expr, type: Type!) {
     self.lbrack = lbrack
     self.size = size
-    self.rbrack = rbrack
-    self.explicitType = explicitType
-    self.type = type
-}
-// sourcery:end
-}
-
-class SliceType: Node, Expr {
-    var lbrack: Pos
-    var rbrack: Pos
-    var explicitType: Expr
-
-    var type: Type!
-
-    var start: Pos { return lbrack }
-    var end: Pos { return explicitType.end }
-
-// sourcery:inline:auto:SliceType.Init
-init(lbrack: Pos, rbrack: Pos, explicitType: Expr, type: Type!) {
-    self.lbrack = lbrack
     self.rbrack = rbrack
     self.explicitType = explicitType
     self.type = type

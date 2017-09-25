@@ -731,8 +731,8 @@ extension Checker {
         case let array as ty.Array:
             elementType = array.elementType
             forIn.checked = .array(array.length)
-        case let darray as ty.DynamicArray:
-            elementType = darray.elementType
+        case let slice as ty.Slice:
+            elementType = slice.elementType
             forIn.checked = .structure
         case is ty.KaiString:
             elementType = ty.u8
@@ -926,11 +926,11 @@ extension Checker {
             array.type = ty.Metatype(instanceType: type)
             return Operand(mode: .type, expr: expr, type: array.type, constant: nil, dependencies: dependencies)
 
-        case let array as DynamicArrayType:
+        case let array as SliceType:
             let elementOperand = check(expr: array.explicitType)
             let elementType = lowerFromMetatype(elementOperand.type, atNode: array)
 
-            let type = ty.DynamicArray(elementType: elementType, initialLength: nil, initialCapacity: nil)
+            let type = ty.Slice(elementType: elementType, initialLength: nil, initialCapacity: nil)
             array.type = ty.Metatype(instanceType: type)
             return Operand(mode: .type, expr: expr, type: array.type, constant: nil, dependencies: elementOperand.dependencies)
 
@@ -1178,24 +1178,24 @@ extension Checker {
             lit.type = type
             return Operand(mode: .computed, expr: lit, type: type, constant: nil, dependencies: dependencies)
 
-        case var type as ty.DynamicArray:
+        case var slice as ty.Slice:
             for el in lit.elements {
-                let operand = check(expr: el.value, desiredType: type.elementType)
+                let operand = check(expr: el.value, desiredType: slice.elementType)
                 dependencies.formUnion(operand.dependencies)
 
                 el.type = operand.type
-                guard canConvert(el.type, to: type.elementType) || implicitlyConvert(el.type, to: type.elementType) else {
-                    reportError("Cannot convert element '\(operand)' to expected type '\(type.elementType)'", at: el.value.start)
+                guard canConvert(el.type, to: slice.elementType) || implicitlyConvert(el.type, to: slice.elementType) else {
+                    reportError("Cannot convert element '\(operand)' to expected type '\(slice.elementType)'", at: el.value.start)
                     continue
                 }
             }
 
             let length = lit.elements.count
-            type.initialLength = length
-            type.initialCapacity = length
+            slice.initialLength = length
+            slice.initialCapacity = length
 
-            lit.type = type
-            return Operand(mode: .computed, expr: lit, type: type, constant: nil, dependencies: dependencies)
+            lit.type = slice
+            return Operand(mode: .computed, expr: lit, type: slice, constant: nil, dependencies: dependencies)
 
         case let type as ty.Vector:
             if lit.elements.count != type.size {
@@ -1903,11 +1903,11 @@ extension Checker {
             }
             return Operand(mode: .addressable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
 
-        case let array as ty.DynamicArray:
+        case let slice as ty.Slice:
             switch selector.sel.name {
             case "raw":
                 selector.checked = .array(.raw)
-                selector.type = ty.Pointer(pointeeType: array.elementType)
+                selector.type = ty.Pointer(pointeeType: slice.elementType)
             case "len":
                 selector.checked = .array(.length)
                 selector.type = ty.i64
@@ -2043,10 +2043,10 @@ extension Checker {
                 }
             }
 
-        case let array as ty.DynamicArray:
-            sub.type = array.elementType
-            sub.checked = .dynamicArray
-            type = array.elementType
+        case let slice as ty.Slice:
+            sub.type = slice.elementType
+            sub.checked = .slice
+            type = slice.elementType
 
         case let pointer as ty.Pointer:
             sub.type = pointer.pointeeType
@@ -2055,7 +2055,7 @@ extension Checker {
 
         case is ty.KaiString:
             sub.type = ty.u8
-            sub.checked = .dynamicArray
+            sub.checked = .slice
             type = ty.u8
 
         default:
@@ -2494,7 +2494,7 @@ extension Node {
             return param.isExplicitPoly || param.explicitType.isPolymorphic
         case let array as ArrayType:
             return array.explicitType.isPolymorphic
-        case let darray as DynamicArrayType:
+        case let darray as SliceType:
             return darray.explicitType.isPolymorphic
         case let pointer as PointerType:
             return pointer.explicitType.isPolymorphic
@@ -2527,7 +2527,7 @@ extension Array where Element == FunctionSpecialization {
 
 func canSequence(_ type: Type) -> Bool {
     switch type {
-    case is ty.Array, is ty.DynamicArray, is ty.KaiString:
+    case is ty.Array, is ty.Slice, is ty.KaiString:
         return true
     default:
         return false

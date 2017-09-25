@@ -305,6 +305,7 @@ extension Parser {
                 length = nil
                 isImplicitlySized = true
             case .ident where lit == "vec":
+                // BUG: if vec is a identifier used in: `vec := 5; array := [vec]int{ 1, 2, 3, 4, 5 }
                 next()
                 isVector = true
                 length = parseExpr()
@@ -324,7 +325,7 @@ extension Parser {
             } else if isImplicitlySized {
                 return ArrayType(lbrack: lbrack, length: nil, rbrack: rbrack, explicitType: type, type: nil)
             } else {
-                return DynamicArrayType(
+                return SliceType(
                     lbrack: lbrack, rbrack: rbrack, explicitType: type, type: nil)
             }
         case .mul:
