@@ -160,6 +160,9 @@ extension IRGenerator {
         case let d as DeclBlock: // #callconv "c" { ... }
             emit(declBlock: d)
         case let d as Declaration:
+            guard !d.emitted else {
+                return
+            }
             emit(declaration: d)
         default:
             print("Warning: statement didn't codegen: \(stmt)")
@@ -426,6 +429,7 @@ extension IRGenerator {
         } else {
             emit(variableDecl: declaration)
         }
+        declaration.emitted = true
     }
 
     mutating func emit(statement stmt: Stmt) {
@@ -1249,20 +1253,23 @@ extension IRGenerator {
 
         // TODO: Array bounds checks
 
-        switch sub.checked! {
-        case .array:
+        switch sub.rec.type {
+        case is ty.Array:
             aggregate = emit(expr: sub.rec, returnAddress: true)
             indicies = [0, index]
 
-        case .slice:
+        case is ty.Slice:
             let structPtr = emit(expr: sub.rec, returnAddress: true)
             let arrayPtr = b.buildStructGEP(structPtr, index: 0)
             aggregate = b.buildLoad(arrayPtr)
             indicies = [index]
 
-        case .pointer:
+        case is ty.Pointer:
             aggregate = emit(expr: sub.rec)
             indicies = [index]
+
+        default:
+            preconditionFailure()
         }
 
         let val = b.buildInBoundsGEP(aggregate, indices: indicies)

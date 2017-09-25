@@ -197,6 +197,7 @@ extension Checker {
         }
 
         decl.entities = entities
+        decl.declaringScope = context.scope
     }
 
     mutating func collect(foreignDecl d: Declaration) {
@@ -229,8 +230,12 @@ extension Checker {
             let dependencies = check(foreignDecl: f.decl as! Declaration)
             f.dependsOn = dependencies
         case let d as Declaration:
+            guard !d.checked else {
+                return
+            }
             let dependencies = check(decl: d)
             d.dependsOn = dependencies
+            d.checked = true
         case let block as DeclBlock:
             let dependencies = check(declBlock: block)
             block.dependsOn = dependencies
@@ -310,6 +315,15 @@ extension Checker {
     /// - returns: The entities this declaration depends on (not the entities declared)
     mutating func check(decl: Declaration) -> Set<Entity> {
         var dependencies: Set<Entity> = []
+
+        // only has an effect if there is a declaring scope
+        let prevScope = context.scope
+        defer {
+            context.scope = prevScope
+        }
+        if let declaringScope = decl.declaringScope {
+            context.scope = declaringScope
+        }
 
         var expectedType: Type?
         if decl.entities == nil {
@@ -2023,6 +2037,11 @@ extension Checker {
         dependencies.formUnion(receiver.dependencies)
         dependencies.formUnion(index.dependencies)
 
+        guard receiver.mode != .invalid && index.mode != .invalid else {
+            sub.type = ty.invalid
+            return Operand.invalid
+        }
+
         if !canConvert(index.type, to: ty.i64) && !implicitlyConvert(index.type, to: ty.i64) && !(index.type is ty.Integer) && !(index.type is ty.UntypedInteger) {
             reportError("Cannot subscript with non-integer type", at: sub.index.start)
         }
@@ -2031,7 +2050,6 @@ extension Checker {
         switch receiver.type {
         case let array as ty.Array:
             sub.type = array.elementType
-            sub.checked = .array
             type = array.elementType
 
             // TODO: support compile time constants. Compile time constant support
@@ -2044,17 +2062,14 @@ extension Checker {
 
         case let slice as ty.Slice:
             sub.type = slice.elementType
-            sub.checked = .slice
             type = slice.elementType
 
         case let pointer as ty.Pointer:
             sub.type = pointer.pointeeType
-            sub.checked = .pointer
             type = pointer.pointeeType
 
         case is ty.KaiString:
             sub.type = ty.u8
-            sub.checked = .slice
             type = ty.u8
 
         default:

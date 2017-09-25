@@ -228,6 +228,8 @@ func copy(_ node: Declaration) -> Declaration {
         linkname: node.linkname,
         entities: node.entities,
         dependsOn: node.dependsOn,
+        declaringScope: node.declaringScope,
+        checked: node.checked,
         emitted: node.emitted
     )
 }
@@ -675,8 +677,7 @@ func copy(_ node: Subscript) -> Subscript {
         lbrack: node.lbrack,
         index: copy(node.index),
         rbrack: node.rbrack,
-        type: node.type,
-        checked: node.checked
+        type: node.type
     )
 }
 

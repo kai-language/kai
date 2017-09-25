@@ -215,7 +215,7 @@ extension Parser {
                     break S
                 }
                 let rbrack = expect(.rbrack)
-                x = Subscript(rec: x, lbrack: lbrack, index: index, rbrack: rbrack, type: nil, checked: nil)
+                x = Subscript(rec: x, lbrack: lbrack, index: index, rbrack: rbrack, type: nil)
             case .lparen:
                 let lparen = eatToken()
                 var args: [Expr] = []
@@ -847,24 +847,24 @@ extension Parser {
             if tok == .assign {
                 next()
                 let values = parseExprList()
-                return Declaration(names: names, explicitType: nil, values: values, isConstant: false, callconv: nil, linkname: nil, entities: nil)
+                return Declaration(names: names, explicitType: nil, values: values, isConstant: false, callconv: nil, linkname: nil)
             } else if tok == .colon {
                 next()
                 let values = parseExprList()
-                return Declaration(names: names, explicitType: nil, values: values, isConstant: true, callconv: nil, linkname: nil, entities: nil)
+                return Declaration(names: names, explicitType: nil, values: values, isConstant: true, callconv: nil, linkname: nil)
             }
             let type = parseType()
             switch tok {
             case .assign:
                 next()
                 let values = parseExprList()
-                return Declaration(names: names, explicitType: type, values: values, isConstant: false, callconv: nil, linkname: nil, entities: nil)
+                return Declaration(names: names, explicitType: type, values: values, isConstant: false, callconv: nil, linkname: nil)
             case .colon:
                 next()
                 let values = parseExprList()
-                return Declaration(names: names, explicitType: type, values: values, isConstant: true, callconv: nil, linkname: nil, entities: nil)
+                return Declaration(names: names, explicitType: type, values: values, isConstant: true, callconv: nil, linkname: nil)
             default:
-                return Declaration(names: names, explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil, entities: nil)
+                return Declaration(names: names, explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil)
             }
         case .in:
             return IdentList(idents: x)
@@ -1194,11 +1194,11 @@ extension Parser {
         } else if tok == .colon {
             next()
             let type = parseType()
-            let decl = Declaration(names: [name], explicitType: type, values: [], isConstant: true, callconv: nil, linkname: nil, entities: nil)
+            let decl = Declaration(names: [name], explicitType: type, values: [], isConstant: true, callconv: nil, linkname: nil)
             return parseTrailingDirectives(for: decl) as! Decl
         } else {
             let type = parseType()
-            let decl = Declaration(names: [name], explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil, entities: nil)
+            let decl = Declaration(names: [name], explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil)
             return parseTrailingDirectives(for: decl) as! Decl
         }
     }

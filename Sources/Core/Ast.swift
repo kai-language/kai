@@ -13,6 +13,7 @@ protocol Stmt: Node {}
 protocol TopLevelStmt: Stmt {}
 protocol Decl: TopLevelStmt {
     var dependsOn: Set<Entity> { get set }
+    var checked: Bool { get set }
     var emitted: Bool { get set }
 }
 protocol LinknameApplicable: Stmt {
@@ -390,26 +391,17 @@ class Subscript: Expr, Node {
     let rbrack: Pos
 
     var type: Type! 
-    var checked: Checked!
-
-    // TODO: Isn't this implied from rec.type?
-    enum Checked {
-        case array
-        case slice
-        case pointer
-    }
 
     var start: Pos { return rec.start }
     var end: Pos { return rbrack }
 
 // sourcery:inline:auto:Subscript.Init
-init(rec: Expr, lbrack: Pos, index: Expr, rbrack: Pos, type: Type!, checked: Checked!) {
+init(rec: Expr, lbrack: Pos, index: Expr, rbrack: Pos, type: Type!) {
     self.rec = rec
     self.lbrack = lbrack
     self.index = index
     self.rbrack = rbrack
     self.type = type
-    self.checked = checked
 }
 // sourcery:end
 }
@@ -1256,7 +1248,6 @@ class DeclBlock: Node, TopLevelStmt, CallConvApplicable {
     }
 }
 
-// sourcery:noinit
 class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplicable {
 
     var names: [Ident]
@@ -1270,22 +1261,42 @@ class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplica
 
     var entities: [Entity]!
     var dependsOn: Set<Entity>
+    var declaringScope: Scope?
+    var checked: Bool
     var emitted: Bool
 
     var start: Pos { return names.first!.start }
     var end: Pos { return values.first!.end }
 
-    init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?, entities: [Entity]! = nil, dependsOn: Set<Entity> = [], emitted: Bool = false) {
+    init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?) {
         self.names = names
         self.explicitType = explicitType
         self.values = values
         self.isConstant = isConstant
         self.callconv = callconv
         self.linkname = linkname
-        self.entities = entities
-        self.dependsOn = dependsOn
-        self.emitted = emitted
+        self.entities = nil
+        self.dependsOn = []
+        self.declaringScope = nil
+        self.checked = false
+        self.emitted = false
     }
+
+// sourcery:inline:auto:Declaration.Init
+init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?, entities: [Entity]!, dependsOn: Set<Entity>, declaringScope: Scope?, checked: Bool, emitted: Bool) {
+    self.names = names
+    self.explicitType = explicitType
+    self.values = values
+    self.isConstant = isConstant
+    self.callconv = callconv
+    self.linkname = linkname
+    self.entities = entities
+    self.dependsOn = dependsOn
+    self.declaringScope = declaringScope
+    self.checked = checked
+    self.emitted = emitted
+}
+// sourcery:end
 }
 
 class BadDecl: Node, Decl {
@@ -1294,6 +1305,10 @@ class BadDecl: Node, Decl {
 
     var dependsOn: Set<Entity> {
         get { return [] }
+        set { }
+    }
+    var checked: Bool {
+        get { return true }
         set { }
     }
     var emitted: Bool {
