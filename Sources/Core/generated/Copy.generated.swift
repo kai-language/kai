@@ -136,6 +136,7 @@ func copy(_ node: Call) -> Call {
     return Call(
         fun: copy(node.fun),
         lparen: node.lparen,
+        labels: copy(node.labels),
         args: copy(node.args),
         rparen: node.rparen,
         type: node.type,
@@ -889,6 +890,11 @@ func copy(_ node: Decl) -> Decl {
 
 func copy(_ nodes: [Decl]) -> [Decl] {
     return nodes.map(copy)
+}
+
+// used for arg labels in calls
+func copy(_ labels: [Ident?]) -> [Ident?] {
+    return []
 }
 
 func copy(_ scope: Scope) -> Scope {

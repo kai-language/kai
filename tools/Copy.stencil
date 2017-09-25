@@ -51,6 +51,11 @@ func copy(_ nodes: [Decl]) -> [Decl] {
     return nodes.map(copy)
 }
 
+// used for arg labels in calls
+func copy(_ labels: [Ident?]) -> [Ident?] {
+    return []
+}
+
 func copy(_ scope: Scope) -> Scope {
     return Scope(
         parent: scope.parent,

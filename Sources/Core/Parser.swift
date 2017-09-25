@@ -88,6 +88,30 @@ extension Parser {
         return list
     }
 
+    mutating func parseArgumentList() -> ([Ident?], [Expr]) {
+        var labels: [Ident?] = []
+        var exprs: [Expr] = []
+        while true {
+            let expr = parseExpr()
+            if let label = expr as? Ident, tok == .colon {
+                next()
+                labels.append(label)
+                exprs.append(parseExpr())
+            } else {
+                labels.append(nil)
+                exprs.append(expr)
+            }
+            if tok != .comma {
+                break
+            }
+            guard tok == .comma else {
+                break
+            }
+            next()
+        }
+        return (labels, exprs)
+    }
+
     mutating func parseTypeList(allowPolyType: Bool = false) -> [Expr] {
         var list = [parseType(allowPolyType: allowPolyType)]
         while tok == .comma {
@@ -218,12 +242,13 @@ extension Parser {
                 x = Subscript(rec: x, lbrack: lbrack, index: index, rbrack: rbrack, type: nil)
             case .lparen:
                 let lparen = eatToken()
-                var args: [Expr] = []
+                var labels: [Ident?] = []
+                var exprs: [Expr] = []
                 if tok != .rparen {
-                    args = parseExprList()
+                    (labels, exprs) = parseArgumentList()
                 }
                 let rparen = expect(.rparen)
-                x = Call(fun: x, lparen: lparen, args: args, rparen: rparen, type: nil, checked: nil)
+                x = Call(fun: x, lparen: lparen, labels: labels, args: exprs, rparen: rparen, type: nil, checked: nil)
             case .lbrace:
                 if x is FuncType {
                     reportError("Unexpected '{' after function type", at: x.end)

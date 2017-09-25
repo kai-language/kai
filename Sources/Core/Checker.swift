@@ -2237,6 +2237,14 @@ extension Checker {
             }
         }
 
+        if let fn = calleeFn.node {
+            for (label, parameter) in zip(call.labels, fn.params.list) {
+                if let label = label, label.name != parameter.name.name {
+                    reportError("Argument label '\(label.name)' does not match expected label: '\(parameter.name.name)'", at: label.start)
+                }
+            }
+        }
+
         if let builtin = builtin {
             call.checked = .builtinCall(builtin)
         } else {

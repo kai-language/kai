@@ -498,6 +498,7 @@ init(keyword: Pos, kind: Token, explicitType: Expr, expr: Expr, type: Type!, op:
 class Call: Node, Expr {
     var fun: Expr
     var lparen: Pos
+    var labels: [Ident?]
     var args: [Expr]
     var rparen: Pos
 
@@ -514,9 +515,10 @@ class Call: Node, Expr {
     }
 
 // sourcery:inline:auto:Call.Init
-init(fun: Expr, lparen: Pos, args: [Expr], rparen: Pos, type: Type!, checked: Checked!) {
+init(fun: Expr, lparen: Pos, labels: [Ident?], args: [Expr], rparen: Pos, type: Type!, checked: Checked!) {
     self.fun = fun
     self.lparen = lparen
+    self.labels = labels
     self.args = args
     self.rparen = rparen
     self.type = type
