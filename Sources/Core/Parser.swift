@@ -805,7 +805,7 @@ extension Parser {
         switch tok {
         case .ident, .int, .float, .string, .fn, .lparen, // operands
              .lbrack, .struct, .union, .enum,             // composite types
-             .add, .sub, .mul, .and, .xor, .not:          // unary operators
+             .add, .sub, .mul, .and, .xor, .not, .lss:          // unary operators
              let s = parseSimpleStmt()
             expectTerm()
             return s

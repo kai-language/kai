@@ -1617,6 +1617,7 @@ extension Checker {
     mutating func check(unary: Unary, desiredType: Type?) -> Operand {
         let operand = check(expr: unary.element, desiredType: desiredType)
         var type = operand.type!
+        var mode = Operand.Mode.computed
 
         // in case we early exit
         unary.type = ty.invalid
@@ -1646,7 +1647,7 @@ extension Checker {
                 return Operand.invalid
             }
             type = pointer.pointeeType
-
+            mode = .addressable
         case .and:
             guard operand.mode == .addressable else {
                 reportError("Cannot take the address of a non lvalue", at: unary.start)
@@ -1660,7 +1661,7 @@ extension Checker {
         }
 
         unary.type = type
-        return Operand(mode: .computed, expr: unary, type: type, constant: constant, dependencies: operand.dependencies)
+        return Operand(mode: mode, expr: unary, type: type, constant: constant, dependencies: operand.dependencies)
     }
 
 

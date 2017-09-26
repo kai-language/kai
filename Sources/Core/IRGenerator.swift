@@ -814,7 +814,7 @@ extension IRGenerator {
         case let paren as Paren:
             return emit(expr: paren.element, returnAddress: returnAddress, entity: entity)
         case let unary as Unary:
-            return emit(unary: unary)
+            return emit(unary: unary, returnAddress: returnAddress)
         case let binary as Binary:
             return emit(binary: binary)
         case let ternary as Ternary:
@@ -956,7 +956,7 @@ extension IRGenerator {
         return b.buildLoad(value(for: ident.entity))
     }
 
-    mutating func emit(unary: Unary) -> IRValue {
+    mutating func emit(unary: Unary, returnAddress: Bool) -> IRValue {
         let val = emit(expr: unary.element, returnAddress: unary.op == .and)
         switch unary.op {
         case .add:
@@ -964,6 +964,9 @@ extension IRGenerator {
         case .sub:
             return b.buildNeg(val)
         case .lss:
+            if returnAddress {
+                return val
+            }
             return b.buildLoad(val)
         case .not:
             return b.buildNot(val)
