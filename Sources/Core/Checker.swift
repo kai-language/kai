@@ -860,8 +860,9 @@ extension Checker {
             }
 
             context.nextCase = nextCase
-
+            pushContext()
             let deps = check(stmt: c.block)
+            popContext()
             dependencies.formUnion(deps)
         }
 
