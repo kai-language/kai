@@ -297,6 +297,7 @@ class FuncLit: Node, Expr {
         case polymorphic(declaringScope: Scope, specializations: [FunctionSpecialization])
     }
 
+    var labels: [Ident]? { return params.list.map({ $0.name }) }
     var start: Pos { return keyword }
     var end: Pos { return body.end }
 
@@ -864,6 +865,7 @@ init(ellipsis: Pos, explicitType: Expr, isCvargs: Bool, type: Type!) {
 
 class FuncType: Node, Expr {
     var lparen: Pos
+    var labels: [Ident]?
     var params: [Expr]
     var results: [Expr]
     var flags: FunctionFlags
@@ -874,8 +876,9 @@ class FuncType: Node, Expr {
     var end: Pos { return results.last!.end }
 
 // sourcery:inline:auto:FuncType.Init
-init(lparen: Pos, params: [Expr], results: [Expr], flags: FunctionFlags, type: Type!) {
+init(lparen: Pos, labels: [Ident]?, params: [Expr], results: [Expr], flags: FunctionFlags, type: Type!) {
     self.lparen = lparen
+    self.labels = labels
     self.params = params
     self.results = results
     self.flags = flags

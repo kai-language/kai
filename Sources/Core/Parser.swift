@@ -88,6 +88,15 @@ extension Parser {
         return list
     }
 
+    mutating func parseExprOrArgumentTypeList() -> [Expr] {
+        var list = [parseExpr(allowPolyOrVariadicType: true)]
+        while tok == .comma {
+            next()
+            list.append(parseExpr(allowPolyOrVariadicType: true))
+        }
+        return list
+    }
+
     mutating func parseArgumentList() -> ([Ident?], [Expr]) {
         var labels: [Ident?] = []
         var exprs: [Expr] = []
@@ -153,11 +162,11 @@ extension Parser {
 
 extension Parser {
 
-    mutating func parseExpr() -> Expr {
-        return parseBinaryExpr(Parser.lowestPrecedence + 1)
+    mutating func parseExpr(allowPolyOrVariadicType: Bool = false) -> Expr {
+        return parseBinaryExpr(Parser.lowestPrecedence + 1, allowPolyOrVariadicType: allowPolyOrVariadicType)
     }
 
-    mutating func parseUnaryExpr() -> Expr {
+    mutating func parseUnaryExpr(allowPolyOrVariadicType: Bool = false) -> Expr {
         switch tok {
         case .add, .sub, .not, .xor, .and, .lss:
             let op = tok
@@ -168,13 +177,13 @@ extension Parser {
             let star = eatToken()
             return PointerType(star: star, explicitType: parseType(), type: nil)
         default:
-            return parsePrimaryExpr()
+            return parsePrimaryExpr(allowPolyOrVariadicType: allowPolyOrVariadicType)
         }
     }
 
-    mutating func parseBinaryExpr(_ prec1: Int) -> Expr {
+    mutating func parseBinaryExpr(_ prec1: Int, allowPolyOrVariadicType: Bool = false) -> Expr {
 
-        var lhs = parseUnaryExpr()
+        var lhs = parseUnaryExpr(allowPolyOrVariadicType: allowPolyOrVariadicType)
 
         while true {
             let op = tok
@@ -200,9 +209,9 @@ extension Parser {
         return Ternary(cond: cond, qmark: qmark, then: then, colon: colon, els: els, type: nil)
     }
 
-    mutating func parsePrimaryExpr() -> Expr {
+    mutating func parsePrimaryExpr(allowPolyOrVariadicType: Bool = false) -> Expr {
 
-        var x = parseOperand()
+        var x = parseOperand(allowPolyOrVariadicType: allowPolyOrVariadicType)
 
         while true {
             S: switch tok {
@@ -263,7 +272,7 @@ extension Parser {
         }
     }
 
-    mutating func parseOperand() -> Expr {
+    mutating func parseOperand(allowPolyOrVariadicType: Bool = false) -> Expr {
         switch tok {
         case .nil:
             let start = eatToken()
@@ -290,8 +299,7 @@ extension Parser {
             let name = lit
             let pos = eatToken()
             guard let directive = LoneDirective(rawValue: name) else {
-                reportError("Unknown directive '\(name)'", at: pos)
-                return BadExpr(start: pos, end: pos + name.count)
+                fallthrough
             }
             switch directive {
             case .asm:
@@ -300,7 +308,7 @@ extension Parser {
                 return LocationDirective(directive: pos, kind: directive, type: nil, constant: nil)
             }
         default:
-            return parseType()
+            return parseType(allowPolyType: allowPolyOrVariadicType, allowVariadic: allowPolyOrVariadicType)
         }
     }
 
@@ -422,75 +430,71 @@ extension Parser {
             next()
             expect(.retArrow)
             let results = parseResultList()
-
-            return FuncType(lparen: lparen, params: [], results: results.types, flags: .none, type: nil)
+            return FuncType(lparen: lparen, labels: [], params: [], results: results.types, flags: .none, type: nil)
         }
 
-        var parametersShouldBeNamed: Bool = false
-        var types: [Expr] = []
-        let firstExpr = parseExpr()
-        if tok == .rparen {
-            // covers "(" Expr ")" and "(" Type ")" "->" ResultList
+        var requireParamNames = false
+
+        var params: [Expr] = []
+        var labels: [Ident]? = nil
+
+        let exprs = parseExprOrArgumentTypeList()
+        if exprs.reduce(true, { $0 && $1 is Ident }), tok == .colon {
+            next()
+            labels = exprs.map({ $0 as! Ident })
+            requireParamNames = true
+            let type = parseType(allowVariadic: true)
+            params.append(contentsOf: repeatElement(type, count: labels!.count))
+        } else if exprs.count == 1, tok == .rparen {
             let rparen = eatToken()
-            if tok != .retArrow && allowParenthesizedExpr {
-                return Paren(lparen: lparen, element: firstExpr, rparen: rparen)
+            if tok != .retArrow {
+                return Paren(lparen: lparen, element: exprs[0], rparen: rparen)
             }
+            next()
+            let results = parseResultList()
+            return FuncType(lparen: lparen, labels: nil, params: exprs, results: results.types, flags: .none, type: nil)
+        } else {
+            params = exprs
+        }
+
+        if tok == .comma {
+            next()
+        }
+
+        if requireParamNames {
+            if tok != .rparen {
+                while !(params.last! is VariadicType) && tok != .eof {
+                    let names = parseIdentList()
+                    expect(.colon)
+                    let type = parseType(allowVariadic: true)
+                    labels!.append(contentsOf: names)
+                    params.append(contentsOf: repeatElement(type, count: names.count))
+                    if tok == .rparen {
+                        break
+                    }
+                    expect(.comma)
+                }
+            }
+            expect(.rparen)
             expect(.retArrow)
             let results = parseResultList()
-            return FuncType(lparen: lparen, params: [firstExpr], results: results.types, flags: .none, type: nil)
-        }
-
-        // Determine if FuncType includes named parameters
-        if firstExpr is Ident && tok == .comma {
-            next()
-            let rest = parseExprList()
-            if rest.reduce(true, { $0 && $1 is Ident }), tok == .colon {
-                next()
-                // If all expressions are idents followed by a colon, they are argument labels
-                let type = parseType(allowPolyType: true, allowVariadic: false)
-                types.append(contentsOf: repeatElement(type, count: rest.count + 1)) // +1 for firstExpr
-                parametersShouldBeNamed = true
-            } else {
-                types.append(firstExpr)
-                types.append(contentsOf: rest)
-            }
-        } else if firstExpr is Ident && tok == .colon {
-            next()
-            let type = parseType(allowPolyType: true, allowVariadic: true)
-            types.append(type)
-            parametersShouldBeNamed = true
-            if type is VariadicType || tok == .rparen {
-                expect(.rparen)
-                expect(.retArrow)
-                let results = parseResultList()
-                return FuncType(lparen: lparen, params: types, results: results.types, flags: .none, type: nil)
-            }
+            return FuncType(lparen: lparen, labels: labels, params: params, results: results.types, flags: .none, type: nil)
         } else {
-            types.append(firstExpr)
-        }
-
-        while tok == .comma {
-            next()
-            if parametersShouldBeNamed {
-                let idents = parseIdentList()
-                expect(.colon)
-                let type = parseType(allowPolyType: true, allowVariadic: idents.count == 1)
-                types.append(contentsOf: repeatElement(type, count: idents.count))
-                if type is VariadicType || tok == .rparen {
-                    break
-                }
-            } else {
-                let type = parseType(allowPolyType: true, allowVariadic: true)
-                types.append(type)
-                if type is VariadicType || tok == .rparen {
-                    break
+            if tok != .rparen {
+                while !(params.last! is VariadicType) && tok != .eof {
+                    let type = parseType(allowVariadic: true)
+                    params.append(type)
+                    if tok == .rparen {
+                        break
+                    }
+                    expect(.comma)
                 }
             }
+            expect(.rparen)
+            expect(.retArrow)
+            let results = parseResultList()
+            return FuncType(lparen: lparen, labels: nil, params: params, results: results.types, flags: .none, type: nil)
         }
-        expect(.rparen)
-        expect(.retArrow)
-        let results = parseResultList()
-        return FuncType(lparen: lparen, params: types, results: results.types, flags: .none, type: nil)
     }
 
     mutating func parseParameterTypeList() -> [Expr] {

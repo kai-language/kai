@@ -377,6 +377,7 @@ func copy(_ nodes: [FuncLit]) -> [FuncLit] {
 func copy(_ node: FuncType) -> FuncType {
     return FuncType(
         lparen: node.lparen,
+        labels: node.labels.map(copy),
         params: copy(node.params),
         results: copy(node.results),
         flags: node.flags,

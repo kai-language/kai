@@ -1365,10 +1365,10 @@ extension Checker {
 
         if needsSpecialization && !fn.isSpecialization {
             typeFlags.insert(.polymorphic)
-            fn.type = ty.Function(entity: nil, node: fn, params: params, returnType: returnType, flags: .polymorphic)
+            fn.type = ty.Function(entity: nil, node: fn, labels: fn.labels, params: params, returnType: returnType, flags: .polymorphic)
             fn.checked = .polymorphic(declaringScope: context.scope, specializations: [])
         } else {
-            fn.type = ty.Function(entity: nil, node: fn, params: params, returnType: returnType, flags: typeFlags)
+            fn.type = ty.Function(entity: nil, node: fn, labels: fn.labels, params: params, returnType: returnType, flags: typeFlags)
             fn.checked = .regular(context.scope)
         }
 
@@ -1416,7 +1416,7 @@ extension Checker {
         }
 
         var type: Type
-        type = ty.Function(entity: nil, node: nil, params: params, returnType: returnType, flags: typeFlags)
+        type = ty.Function(entity: nil, node: nil, labels: fn.labels, params: params, returnType: returnType, flags: typeFlags)
         type = ty.Pointer(pointeeType: type)
         type = ty.Metatype(instanceType: type)
         fn.type = type
@@ -2239,10 +2239,10 @@ extension Checker {
             }
         }
 
-        if let fn = calleeFn.node {
-            for (label, parameter) in zip(call.labels, fn.params.list) {
-                if let label = label, label.name != parameter.name.name {
-                    reportError("Argument label '\(label.name)' does not match expected label: '\(parameter.name.name)'", at: label.start)
+        if let labels = calleeFn.labels {
+            for (label, parameter) in zip(call.labels, labels) {
+                if let label = label, label.name != parameter.name {
+                    reportError("Argument label '\(label.name)' does not match expected label: '\(parameter.name)'", at: label.start)
                 }
             }
         }

@@ -127,7 +127,7 @@ class BuiltinFunction {
     /// - Note: OutTypes must be metatypes and will be made instance instanceTypes
     static func make(_ name: String, in inTypes: [Type], out outTypes: [Type], isVariadic: Bool = false, gen: @escaping Generate, onCallCheck: CallCheck? = nil) -> BuiltinFunction {
         let returnType = ty.Tuple.make(outTypes.map(ty.Metatype.init))
-        let type = ty.Function(entity: nil, node: nil, params: inTypes, returnType: returnType, flags: .none)
+        let type = ty.Function(entity: nil, node: nil, labels: nil, params: inTypes, returnType: returnType, flags: .none)
 
         let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
         let entity = Entity(ident: ident, type: type)

@@ -312,6 +312,7 @@ enum ty {
     struct Function: Type, NamableType {
         weak var entity: Entity?
         var node: FuncLit?
+        var labels: [Ident]?
         var params: [Type]
         var returnType: Tuple
         var flags: Flags
@@ -327,7 +328,7 @@ enum ty {
         }
 
         static func make(_ params: [Type], _ returnType: [Type], _ flags: Flags = .builtin) -> Function {
-            return Function(entity: nil, node: nil, params: params, returnType: ty.Tuple.init(width: nil, types: returnType), flags: flags)
+            return Function(entity: nil, node: nil, labels: nil, params: params, returnType: ty.Tuple.init(width: nil, types: returnType), flags: flags)
         }
     }
 
