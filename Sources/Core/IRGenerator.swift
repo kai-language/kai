@@ -128,8 +128,24 @@ struct IRGenerator {
         return FloatType(kind: .double, in: module.context)
     }()
 
+    lazy var void: VoidType = {
+        return VoidType(in: module.context)
+    }()
+
+    lazy var signalCallbackType: FunctionType = {
+        return LLVM.FunctionType(argTypes: [i32], returnType: void)
+    }()
+
+    lazy var raise: Function = {
+        if let raise = module.function(named: "raise") {
+            return raise
+        }
+
+        return b.addFunction("raise", type: FunctionType(argTypes:[i32], returnType: void))
+    }()
+
     lazy var trap: Function = {
-        return b.addFunction("llvm.trap", type: FunctionType(argTypes: [], returnType: VoidType(in: module.context)))
+        return b.addFunction("llvm.trap", type: FunctionType(argTypes: [], returnType: void))
     }()
 }
 
@@ -146,7 +162,43 @@ extension IRGenerator {
 
         if !package.isInitialPackage {
             popContext()
+        } else if Options.instance.isTestMode {
+            let callback = synthesizeSignalCallback()
+            synthesizeTestMain(signalCallback: callback)
         }
+    }
+
+    mutating func synthesizeTestMain(signalCallback: Function) {
+        let mainType = LLVM.FunctionType(argTypes: [], returnType: void)
+        let main = b.addFunction("main", type: mainType)
+        let entry = main.appendBasicBlock(named: "entry")
+        b.positionAtEnd(of: entry)
+
+        let signalType = LLVM.FunctionType(argTypes: [i32, LLVM.PointerType(pointee:signalCallbackType)], returnType: void)
+        let signal = b.addFunction("signal", type: signalType)
+
+        // capture 'SIGSEGV'
+        _ = b.buildCall(signal, args: [i32.constant(11), signalCallback])
+
+        for node in file.nodes {
+            guard let decl = node as? Declaration, decl.isTest else {
+                continue
+            }
+
+            _ = b.buildCall(decl.entities.first!.value!, args: [])
+        }
+
+
+        b.buildRetVoid()
+    }
+
+    mutating func synthesizeSignalCallback() -> Function {
+        let signalCallbackType = LLVM.FunctionType(argTypes: [i32], returnType: void)
+        let signalCallback = b.addFunction("@test.signal.callback", type: signalCallbackType)
+        let entry = signalCallback.appendBasicBlock(named: "entry")
+        b.positionAtEnd(of: entry)
+        b.buildRetVoid()
+        return signalCallback
     }
 
     mutating func emit(topLevelStmt stmt: TopLevelStmt) {
@@ -189,7 +241,12 @@ extension IRGenerator {
     }
 
     mutating func emit(constantDecl decl: Declaration) {
-        guard !decl.isTest else {
+        if decl.isTest && !Options.instance.isTestMode {
+            return
+        }
+
+        // ignore main while in test mode
+        if file.isInitialFile && decl.names.first?.name == "main" && Options.instance.isTestMode {
             return
         }
 

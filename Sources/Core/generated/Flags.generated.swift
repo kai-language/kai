@@ -117,6 +117,10 @@ extension Options {
     var isEmitAst: Bool {
         return flags.contains(.emitAst) 
     }
+
+    var isTestMode: Bool {
+        return flags.contains(.testMode) 
+    }
 }
 
 extension ty.Function {

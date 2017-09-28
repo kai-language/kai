@@ -35,6 +35,8 @@ public struct Options {
                 flags.insert(.emitBitcode)
             case "-emit-asm", "-S":
                 flags.insert(.emitAssembly)
+            case "-test":
+                flags.insert(.testMode)
             case "-jobs":
                 guard let v = val, let j = Int(v) else {
                     print("ERROR: -jobs expects an integer following it")
@@ -99,5 +101,7 @@ public struct Options {
         public static let emitTimes      = Flags(rawValue: 0b0001 << 8)
         public static let emitDebugTimes = Flags(rawValue: 0b0010 << 8)
         public static let emitAst        = Flags(rawValue: 0b0100 << 8)
+
+        public static let testMode = Flags(rawValue: 0b1000 << 8)
     }
 }
