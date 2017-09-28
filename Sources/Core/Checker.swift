@@ -186,6 +186,10 @@ extension Checker {
     }
 
     mutating func collect(decl: Declaration) {
+        guard !decl.isTest else {
+            return
+        }
+
         var entities: [Entity] = []
 
         for ident in decl.names {
@@ -238,6 +242,11 @@ extension Checker {
             guard !d.checked else {
                 return
             }
+
+            guard !d.isTest else {
+                return
+            }
+
             let dependencies = check(decl: d)
             d.dependsOn = dependencies
             d.checked = true

@@ -227,6 +227,7 @@ func copy(_ node: Declaration) -> Declaration {
         isConstant: node.isConstant,
         callconv: node.callconv,
         linkname: node.linkname,
+        isTest: node.isTest,
         entities: node.entities,
         dependsOn: node.dependsOn,
         declaringScope: node.declaringScope,

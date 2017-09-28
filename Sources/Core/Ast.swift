@@ -22,6 +22,9 @@ protocol LinknameApplicable: Stmt {
 protocol CallConvApplicable: Stmt {
     var callconv: String? { get set }
 }
+protocol TestApplicable: Stmt {
+    var isTest: Bool { get set }
+}
 
 class Comment: Node {
     /// Position of the '/' starting the comment
@@ -1272,7 +1275,7 @@ class DeclBlock: Node, TopLevelStmt, CallConvApplicable {
     }
 }
 
-class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplicable {
+class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplicable, TestApplicable {
 
     var names: [Ident]
     var explicitType: Expr?
@@ -1282,6 +1285,7 @@ class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplica
 
     var callconv: String?
     var linkname: String?
+    var isTest: Bool
 
     var entities: [Entity]!
     var dependsOn: Set<Entity>
@@ -1292,13 +1296,14 @@ class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplica
     var start: Pos { return names.first!.start }
     var end: Pos { return values.first!.end }
 
-    init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?) {
+    init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?, isTest: Bool) {
         self.names = names
         self.explicitType = explicitType
         self.values = values
         self.isConstant = isConstant
         self.callconv = callconv
         self.linkname = linkname
+        self.isTest = isTest
         self.entities = nil
         self.dependsOn = []
         self.declaringScope = nil
@@ -1307,13 +1312,14 @@ class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplica
     }
 
 // sourcery:inline:auto:Declaration.Init
-init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?, entities: [Entity]!, dependsOn: Set<Entity>, declaringScope: Scope?, checked: Bool, emitted: Bool) {
+init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?, isTest: Bool, entities: [Entity]!, dependsOn: Set<Entity>, declaringScope: Scope?, checked: Bool, emitted: Bool) {
     self.names = names
     self.explicitType = explicitType
     self.values = values
     self.isConstant = isConstant
     self.callconv = callconv
     self.linkname = linkname
+    self.isTest = isTest
     self.entities = entities
     self.dependsOn = dependsOn
     self.declaringScope = declaringScope

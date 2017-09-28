@@ -189,6 +189,10 @@ extension IRGenerator {
     }
 
     mutating func emit(constantDecl decl: Declaration) {
+        guard !decl.isTest else {
+            return
+        }
+
         if decl.values.isEmpty {
             // this is in a decl block of some sort
 
@@ -388,7 +392,7 @@ extension IRGenerator {
             if entity.owningScope.isFile {
                 // FIXME: What should we do for things like global variable strings? They need to be mutable?
                 var global = b.addGlobal(symbol(for: entity), type: type)
-                global.initializer = type.undef()
+                global.initializer = ir
                 entity.value = global
             } else {
                 let stackValue = entryBlockAlloca(type: type, name: symbol(for: entity))

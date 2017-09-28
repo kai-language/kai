@@ -879,24 +879,24 @@ extension Parser {
             if tok == .assign {
                 next()
                 let values = parseExprList()
-                return Declaration(names: names, explicitType: nil, values: values, isConstant: false, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: nil, values: values, isConstant: false, callconv: nil, linkname: nil, isTest: false)
             } else if tok == .colon {
                 next()
                 let values = parseExprList()
-                return Declaration(names: names, explicitType: nil, values: values, isConstant: true, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: nil, values: values, isConstant: true, callconv: nil, linkname: nil, isTest: false)
             }
             let type = parseType()
             switch tok {
             case .assign:
                 next()
                 let values = parseExprList()
-                return Declaration(names: names, explicitType: type, values: values, isConstant: false, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: type, values: values, isConstant: false, callconv: nil, linkname: nil, isTest: false)
             case .colon:
                 next()
                 let values = parseExprList()
-                return Declaration(names: names, explicitType: type, values: values, isConstant: true, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: type, values: values, isConstant: true, callconv: nil, linkname: nil, isTest: false)
             default:
-                return Declaration(names: names, explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil)
+                return Declaration(names: names, explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil, isTest: false)
             }
         case .in:
             return IdentList(idents: x)
@@ -1150,6 +1150,16 @@ extension Parser {
             block.linkprefix = linkprefix.constant as! String!
             return block
 
+        case .test?:
+            let stmt = parseStmt()
+            guard let test = stmt as? TestApplicable else {
+                reportError("Expected a testable declaration", at: stmt.start)
+                return stmt
+            }
+
+            test.isTest = true
+            return stmt
+
         default:
             if TrailingDirective(rawValue: name) != nil {
                 reportError("'\(name)' is a trailing directive", at: directive)
@@ -1226,11 +1236,11 @@ extension Parser {
         } else if tok == .colon {
             next()
             let type = parseType()
-            let decl = Declaration(names: [name], explicitType: type, values: [], isConstant: true, callconv: nil, linkname: nil)
+            let decl = Declaration(names: [name], explicitType: type, values: [], isConstant: true, callconv: nil, linkname: nil, isTest: false)
             return parseTrailingDirectives(for: decl) as! Decl
         } else {
             let type = parseType()
-            let decl = Declaration(names: [name], explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil)
+            let decl = Declaration(names: [name], explicitType: type, values: [], isConstant: false, callconv: nil, linkname: nil, isTest: false)
             return parseTrailingDirectives(for: decl) as! Decl
         }
     }

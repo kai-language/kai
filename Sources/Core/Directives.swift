@@ -15,6 +15,7 @@ enum LeadingDirective: String {
     case callconv
     case linkname
     case linkprefix
+    case test
 }
 
 enum TrailingDirective: String {
