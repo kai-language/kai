@@ -1093,7 +1093,6 @@ extension Checker {
             mode = .addressable
         }
 
-
         return Operand(mode: mode, expr: ident, type: type, constant: entity.constant, dependencies: [entity])
     }
 
@@ -1358,12 +1357,6 @@ extension Checker {
 
         let returnType = ty.Tuple.make(returnTypes)
 
-
-        // TODO: Only allow single void return
-        if (returnType.types[0] is ty.Void) && fn.isDiscardable {
-            reportError("#discardable on void returning function is superflous", at: fn.start)
-        }
-
         let prevReturnType = context.expectedReturnType
         context.expectedReturnType = returnType
         if !needsSpecialization { // FIXME: We need to partially check polymorphics to determine dependencies
@@ -1371,6 +1364,17 @@ extension Checker {
             dependencies.formUnion(deps)
         }
         context.expectedReturnType = prevReturnType
+
+        // TODO: Only allow single void return
+        if (returnType.types[0] is ty.Void) {
+            if fn.isDiscardable {
+                reportError("#discardable on void returning function is superflous", at: fn.start)
+            }
+        } else {
+            if !allBranchesRet(fn.body.stmts) {
+                reportError("function missing return", at: fn.start)
+            }
+        }
 
         if needsSpecialization && !fn.isSpecialization {
             typeFlags.insert(.polymorphic)
@@ -2665,6 +2669,72 @@ func canVector(_ type: Type) -> Bool {
     default:
         return false
     }
+}
+
+func collectBranches(_ stmt: Stmt) -> [Stmt] {
+    switch stmt {
+    case is Return:
+        return [stmt]
+    case let b as Block:
+        var branches: [Stmt] = []
+        for s in b.stmts {
+            branches.append(contentsOf: collectBranches(s))
+        }
+        return branches
+
+    case let i as If:
+        var branches = collectBranches(i.body)
+        if let e = i.els {
+            branches.append(contentsOf: collectBranches(e))
+        }
+        return branches
+
+    default:
+        return []
+    }
+}
+
+func allBranchesRet(_ stmts: [Stmt]) -> Bool {
+    var hasReturn = false
+    var allChildrenRet: Bool?
+
+    for stmt in stmts {
+        var allRet = false
+
+        switch stmt {
+        case is Return:
+            hasReturn = true
+        case let iff as If:
+            var children = [iff.body]
+            if let e = iff.els {
+                children.append(e)
+            }
+
+            if allBranchesRet(children) {
+                allRet = true
+            }
+        case let block as Block:
+            allRet = allBranchesRet(block.stmts)
+        case let switc as Switch:
+            allRet = allBranchesRet(switc.cases)
+        case let cas as CaseClause:
+            allRet = allBranchesRet([cas.block])
+        case let f as For:
+            allRet = allBranchesRet(f.body.stmts)
+        case let f as ForIn:
+            allRet = allBranchesRet(f.body.stmts)
+        default:
+            continue
+        }
+
+        if let a = allChildrenRet {
+            allChildrenRet = a && allRet
+        } else {
+            allChildrenRet = allRet
+        }
+    }
+
+    return hasReturn || (allChildrenRet ?? false)
 }
 
 let identChars  = Array("_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".unicodeScalars)
