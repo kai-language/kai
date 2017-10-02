@@ -497,7 +497,7 @@ extension IRGenerator {
             emit(defer: d)
         case let stmt as ExprStmt:
             // return address so that we don't bother with the load
-            _ = emit(expr: stmt.expr, returnAddress: true)
+            _ = emit(expr: stmt.expr)
         case let decl as Declaration where decl.isConstant:
             emit(constantDecl: decl)
         case let decl as Declaration where !decl.isConstant:
@@ -883,7 +883,7 @@ extension IRGenerator {
         case let fn as FuncLit:
             return emit(funcLit: fn, entity: entity)
         case let call as Call:
-            return emit(call: call)
+            return emit(call: call, returnAddress: returnAddress)
         case let cast as Cast:
             return emit(cast: cast)
         case let autocast as Autocast:
@@ -1096,7 +1096,7 @@ extension IRGenerator {
         return b.buildSelect(cond, then: then ?? cond, else: els)
     }
 
-    mutating func emit(call: Call) -> IRValue {
+    mutating func emit(call: Call, returnAddress: Bool = false) -> IRValue {
         switch call.checked! {
         case .builtinCall(let builtin):
             return builtin.generate(builtin, call.args, &self)
@@ -1106,6 +1106,7 @@ extension IRGenerator {
             let args: [IRValue]
             // this code is structured in a way that non-variadic/non-function
             // calls don't get punished for C's insane ABI.
+            // TODO: Check the call convention instead of the isCVariadic
             if let function = call.fun.type as? ty.Function, function.isCVariadic {
                 args = call.args.map {
                     var val = emit(expr: $0)
@@ -1127,7 +1128,15 @@ extension IRGenerator {
                     emit(expr: $0)
                 }
             }
-            return b.buildCall(callee, args: args)
+            let val = b.buildCall(callee, args: args)
+            if returnAddress {
+                // allocate stack space to land this onto
+                let type = canonicalize(call.type)
+                let mem = b.buildAlloca(type: type)
+                b.buildStore(val, to: mem)
+                return mem
+            }
+            return val
         case .specializedCall(let specialization):
             let args = call.args.map({ emit(expr: $0) })
             return b.buildCall(specialization.llvm!, args: args)

@@ -23,6 +23,14 @@ extension Selector: CustomStringConvertible {
     }
 }
 
+extension Call: CustomStringConvertible {
+    var description: String {
+
+        let argumentList = "(" + args.map({ String(describing: $0) }).joined(separator: ", ") + ")"
+        return String(describing: fun) + argumentList
+    }
+}
+
 extension Unary: CustomStringConvertible {
     var description: String {
         return op.description + String(describing: element)
