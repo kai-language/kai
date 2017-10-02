@@ -61,7 +61,7 @@ extension Parser {
         } else {
             reportExpected("ident", at: pos)
         }
-        return Ident(start: pos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
+        return Ident(start: pos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
     }
 }
 
@@ -172,7 +172,7 @@ extension Parser {
             let op = tok
             let pos = eatToken()
             let expr = parseUnaryExpr()
-            return Unary(start: pos, op: op, element: expr, type: nil)
+            return Unary(start: pos, op: op, element: expr, type: nil, conversion: nil)
         case .mul:
             let star = eatToken()
             return PointerType(star: star, explicitType: parseType(), type: nil)
@@ -194,7 +194,7 @@ extension Parser {
             }
             next()
             let rhs = parseBinaryExpr(oprec + 1)
-            lhs = Binary(lhs: lhs, op: op, opPos: pos, rhs: rhs, type: nil, irOp: nil, irLCast: nil, irRCast: nil, isPointerArithmetic: nil)
+            lhs = Binary(lhs: lhs, op: op, opPos: pos, rhs: rhs, type: nil, conversion: nil, irOp: nil, isPointerArithmetic: nil)
         }
     }
 
@@ -206,7 +206,7 @@ extension Parser {
         }
         let colon = expect(.colon)
         let els = parseExpr()
-        return Ternary(cond: cond, qmark: qmark, then: then, colon: colon, els: els, type: nil)
+        return Ternary(cond: cond, qmark: qmark, then: then, colon: colon, els: els, type: nil, conversion: nil)
     }
 
     mutating func parsePrimaryExpr(allowPolyOrVariadicType: Bool = false) -> Expr {
@@ -219,7 +219,7 @@ extension Parser {
                 x = parseTernaryExpr(x)
             case .period:
                 next()
-                x = Selector(rec: x, sel: parseIdent(), checked: nil, type: nil, cast: nil, constant: nil)
+                x = Selector(rec: x, sel: parseIdent(), checked: nil, type: nil, conversion: nil, constant: nil)
             case .lbrack:
                 let lbrack = eatToken()
                 if tok == .colon {
@@ -248,7 +248,7 @@ extension Parser {
                     break S
                 }
                 let rbrack = expect(.rbrack)
-                x = Subscript(rec: x, lbrack: lbrack, index: index, rbrack: rbrack, type: nil)
+                x = Subscript(rec: x, lbrack: lbrack, index: index, rbrack: rbrack, type: nil, conversion: nil)
             case .lparen:
                 let lparen = eatToken()
                 var labels: [Ident?] = []
@@ -257,7 +257,7 @@ extension Parser {
                     (labels, exprs) = parseArgumentList()
                 }
                 let rparen = expect(.rparen)
-                x = Call(fun: x, lparen: lparen, labels: labels, args: exprs, rparen: rparen, type: nil, checked: nil)
+                x = Call(fun: x, lparen: lparen, labels: labels, args: exprs, rparen: rparen, type: nil, conversion: nil, checked: nil)
             case .lbrace:
                 if x is FuncType {
                     reportError("Unexpected '{' after function type", at: x.end)
@@ -319,13 +319,13 @@ extension Parser {
         let explicitType = parseType()
         expect(.rparen)
         let expr = parseExpr()
-        return Cast(keyword: keyword, kind: kind, explicitType: explicitType, expr: expr, type: nil, op: nil)
+        return Cast(keyword: keyword, kind: kind, explicitType: explicitType, expr: expr, type: nil)
     }
 
     mutating func parseAutocast() -> Autocast {
         let keyword = eatToken()
         let expr = parseExpr()
-        return Autocast(keyword: keyword, expr: expr, type: nil, op: nil)
+        return Autocast(keyword: keyword, expr: expr, type: nil)
     }
 
     mutating func parseUsingStmt() -> Using {
@@ -347,7 +347,7 @@ extension Parser {
             let x = parseIdent()
             if tok == .period {
                 next()
-                return Selector(rec: x, sel: parseIdent(), checked: nil, type: nil, cast: nil, constant: nil)
+                return Selector(rec: x, sel: parseIdent(), checked: nil, type: nil, conversion: nil, constant: nil)
             }
             return x
         case .lbrack:
@@ -448,7 +448,7 @@ extension Parser {
         } else if exprs.count == 1, tok == .rparen {
             let rparen = eatToken()
             if tok != .retArrow {
-                return Paren(lparen: lparen, element: exprs[0], rparen: rparen)
+                return Paren(lparen: lparen, element: exprs[0], rparen: rparen, conversion: nil)
             }
             next()
             let results = parseResultList()
@@ -759,15 +759,15 @@ extension Parser {
 
     mutating func parseElement() -> KeyValue {
         if tok == .lbrace {
-            return KeyValue(key: nil, colon: nil, value: parseCompositeLiteralBody(), type: nil, structField: nil)
+            return KeyValue(key: nil, colon: nil, value: parseCompositeLiteralBody(), type: nil, conversion: nil, structField: nil)
         }
 
         let el = parseExpr()
         if tok == .colon {
             let colon = eatToken()
-            return KeyValue(key: el, colon: colon, value: parseExpr(), type: nil, structField: nil)
+            return KeyValue(key: el, colon: colon, value: parseExpr(), type: nil, conversion: nil, structField: nil)
         }
-        return KeyValue(key: nil, colon: nil, value: el, type: nil, structField: nil)
+        return KeyValue(key: nil, colon: nil, value: el, type: nil, conversion: nil, structField: nil)
     }
 
     mutating func parseElementList() -> [KeyValue] {
@@ -861,7 +861,7 @@ extension Parser {
             if rhs.count > 1 || x.count > 1 {
                 reportError("Assignment macros only permit a single values", at: rhs[0].start)
             }
-            let operation = Binary(lhs: x[0], op: operatorFor(assignMacro: tok), opPos: pos, rhs: rhs[0], type: nil, irOp: nil, irLCast: nil, irRCast: nil, isPointerArithmetic: nil)
+            let operation = Binary(lhs: x[0], op: operatorFor(assignMacro: tok), opPos: pos, rhs: rhs[0], type: nil, conversion: nil, irOp: nil, isPointerArithmetic: nil)
             return Assign(lhs: x, equals: pos, rhs: [operation])
         case .colon: // could be label or decl
             let colon = eatToken()

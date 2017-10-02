@@ -26,6 +26,10 @@ protocol TestApplicable: Stmt {
     var isTest: Bool { get set }
 }
 
+protocol Convertable: Expr {
+    var conversion: (from: Type, to: Type)? { get set }
+}
+
 class Comment: Node {
     /// Position of the '/' starting the comment
     var slash: Pos
@@ -138,24 +142,25 @@ init(start: Pos, type: Type!) {
 // sourcery:end
 }
 
-class Ident: Node, Expr {
+class Ident: Node, Expr, Convertable {
     var start: Pos
     var name: String
 
     var entity: Entity!
     var type: Type!
-    var cast: OpCode.Cast?
+    var conversion: (from: Type, to: Type)?
     var constant: Value?
+
 
     var end: Pos { return start + name.count }
 
 // sourcery:inline:auto:Ident.Init
-init(start: Pos, name: String, entity: Entity!, type: Type!, cast: OpCode.Cast?, constant: Value?) {
+init(start: Pos, name: String, entity: Entity!, type: Type!, conversion: (from: Type, to: Type)?, constant: Value?) {
     self.start = start
     self.name = name
     self.entity = entity
     self.type = type
-    self.cast = cast
+    self.conversion = conversion
     self.constant = constant
 }
 // sourcery:end
@@ -177,6 +182,7 @@ init(start: Pos, element: Expr?, type: Type!) {
 // sourcery:end
 }
 
+// this is constrained, not converted
 class BasicLit: Node, Expr {
     var start: Pos
     var token: Token
@@ -339,7 +345,7 @@ init(explicitType: Expr?, lbrace: Pos, elements: [KeyValue], rbrace: Pos, type: 
 // sourcery:end
 }
 
-class Paren: Node, Expr {
+class Paren: Node, Expr, Convertable {
     var lparen: Pos
     var element: Expr
     var rparen: Pos
@@ -352,26 +358,28 @@ class Paren: Node, Expr {
             element.type = newValue
         }
     }
+    var conversion: (from: Type, to: Type)?
 
     var start: Pos { return lparen }
     var end: Pos { return rparen }
 
 // sourcery:inline:auto:Paren.Init
-init(lparen: Pos, element: Expr, rparen: Pos) {
+init(lparen: Pos, element: Expr, rparen: Pos, conversion: (from: Type, to: Type)?) {
     self.lparen = lparen
     self.element = element
     self.rparen = rparen
+    self.conversion = conversion
 }
 // sourcery:end
 }
 
-class Selector: Node, Expr {
+class Selector: Node, Expr, Convertable {
     var rec: Expr
     var sel: Ident
 
     var checked: Checked!
     var type: Type!
-    var cast: OpCode.Cast?
+    var conversion: (from: Type, to: Type)?
     var constant: Value?
 
     enum Checked {
@@ -396,35 +404,37 @@ class Selector: Node, Expr {
     var end: Pos { return sel.end }
 
 // sourcery:inline:auto:Selector.Init
-init(rec: Expr, sel: Ident, checked: Checked!, type: Type!, cast: OpCode.Cast?, constant: Value?) {
+init(rec: Expr, sel: Ident, checked: Checked!, type: Type!, conversion: (from: Type, to: Type)?, constant: Value?) {
     self.rec = rec
     self.sel = sel
     self.checked = checked
     self.type = type
-    self.cast = cast
+    self.conversion = conversion
     self.constant = constant
 }
 // sourcery:end
 }
 
-class Subscript: Expr, Node {
+class Subscript: Expr, Node, Convertable {
     var rec: Expr
     let lbrack: Pos
     var index: Expr
     let rbrack: Pos
 
-    var type: Type! 
+    var type: Type!
+    var conversion: (from: Type, to: Type)?
 
     var start: Pos { return rec.start }
     var end: Pos { return rbrack }
 
 // sourcery:inline:auto:Subscript.Init
-init(rec: Expr, lbrack: Pos, index: Expr, rbrack: Pos, type: Type!) {
+init(rec: Expr, lbrack: Pos, index: Expr, rbrack: Pos, type: Type!, conversion: (from: Type, to: Type)?) {
     self.rec = rec
     self.lbrack = lbrack
     self.index = index
     self.rbrack = rbrack
     self.type = type
+    self.conversion = conversion
 }
 // sourcery:end
 }
@@ -460,17 +470,15 @@ class Autocast: Node, Expr {
     var expr: Expr
 
     var type: Type!
-    var op: OpCode.Cast!
 
     var start: Pos { return keyword }
     var end: Pos { return expr.end }
 
 // sourcery:inline:auto:Autocast.Init
-init(keyword: Pos, expr: Expr, type: Type!, op: OpCode.Cast!) {
+init(keyword: Pos, expr: Expr, type: Type!) {
     self.keyword = keyword
     self.expr = expr
     self.type = type
-    self.op = op
 }
 // sourcery:end
 }
@@ -482,24 +490,22 @@ class Cast: Node, Expr {
     var expr: Expr
 
     var type: Type!
-    var op: OpCode.Cast!
 
     var start: Pos { return keyword }
     var end: Pos { return expr.end }
 
 // sourcery:inline:auto:Cast.Init
-init(keyword: Pos, kind: Token, explicitType: Expr, expr: Expr, type: Type!, op: OpCode.Cast!) {
+init(keyword: Pos, kind: Token, explicitType: Expr, expr: Expr, type: Type!) {
     self.keyword = keyword
     self.kind = kind
     self.explicitType = explicitType
     self.expr = expr
     self.type = type
-    self.op = op
 }
 // sourcery:end
 }
 
-class Call: Node, Expr {
+class Call: Node, Expr, Convertable {
     var fun: Expr
     var lparen: Pos
     var labels: [Ident?]
@@ -507,6 +513,7 @@ class Call: Node, Expr {
     var rparen: Pos
 
     var type: Type!
+    var conversion: (from: Type, to: Type)?
     var checked: Checked!
 
     var start: Pos { return fun.start }
@@ -519,70 +526,71 @@ class Call: Node, Expr {
     }
 
 // sourcery:inline:auto:Call.Init
-init(fun: Expr, lparen: Pos, labels: [Ident?], args: [Expr], rparen: Pos, type: Type!, checked: Checked!) {
+init(fun: Expr, lparen: Pos, labels: [Ident?], args: [Expr], rparen: Pos, type: Type!, conversion: (from: Type, to: Type)?, checked: Checked!) {
     self.fun = fun
     self.lparen = lparen
     self.labels = labels
     self.args = args
     self.rparen = rparen
     self.type = type
+    self.conversion = conversion
     self.checked = checked
 }
 // sourcery:end
 }
 
-class Unary: Node, Expr {
+class Unary: Node, Expr, Convertable {
     var start: Pos
     var op: Token
     var element: Expr
 
     var type: Type!
+    var conversion: (from: Type, to: Type)?
 
     var end: Pos { return element.end }
 
 // sourcery:inline:auto:Unary.Init
-init(start: Pos, op: Token, element: Expr, type: Type!) {
+init(start: Pos, op: Token, element: Expr, type: Type!, conversion: (from: Type, to: Type)?) {
     self.start = start
     self.op = op
     self.element = element
     self.type = type
+    self.conversion = conversion
 }
 // sourcery:end
 }
 
 // sourcery:noinit
-class Binary: Node, Expr {
+class Binary: Node, Expr, Convertable {
     var lhs: Expr
     var op: Token
     var opPos: Pos
     var rhs: Expr
 
     var type: Type!
+    var conversion: (from: Type, to: Type)?
 
     var irOp: OpCode.Binary!
-    var irLCast: OpCode.Cast!
-    var irRCast: OpCode.Cast!
     var isPointerArithmetic: Bool!
 
     var start: Pos { return lhs.start }
     var end: Pos { return rhs.end }
 
 // sourcery:inline:auto:Binary.Init
-init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr, type: Type! = nil, irOp: OpCode.Binary! = nil, irLCast: OpCode.Cast! = nil, irRCast: OpCode.Cast! = nil, isPointerArithmetic: Bool! = nil) {
+init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr, type: Type! = nil, conversion: (from: Type, to: Type)?, irOp: OpCode.Binary! = nil, isPointerArithmetic: Bool! = nil) {
     self.lhs = lhs
     self.op = op
     self.opPos = opPos
     self.rhs = rhs
     self.type = type
+    self.conversion = conversion
     self.irOp = irOp
-    self.irLCast = irLCast
-    self.irRCast = irRCast
     self.isPointerArithmetic = isPointerArithmetic
 }
 // sourcery:end
 }
 
-class Ternary: Node, Expr {
+class Ternary: Node, Expr, Convertable {
     var cond: Expr
     var qmark: Pos
     var then: Expr?
@@ -590,39 +598,43 @@ class Ternary: Node, Expr {
     var els: Expr
 
     var type: Type!
+    var conversion: (from: Type, to: Type)?
 
     var start: Pos { return cond.start }
     var end: Pos { return els.end }
 
 // sourcery:inline:auto:Ternary.Init
-init(cond: Expr, qmark: Pos, then: Expr?, colon: Pos, els: Expr, type: Type!) {
+init(cond: Expr, qmark: Pos, then: Expr?, colon: Pos, els: Expr, type: Type!, conversion: (from: Type, to: Type)?) {
     self.cond = cond
     self.qmark = qmark
     self.then = then
     self.colon = colon
     self.els = els
     self.type = type
+    self.conversion = conversion
 }
 // sourcery:end
 }
 
-class KeyValue: Node, Expr {
+class KeyValue: Node, Expr, Convertable {
     var key: Expr?
     var colon: Pos?
     var value: Expr
 
     var type: Type!
+    var conversion: (from: Type, to: Type)?
     var structField: ty.Struct.Field?
 
     var start: Pos { return key?.start ?? value.start }
     var end: Pos { return value.end }
 
 // sourcery:inline:auto:KeyValue.Init
-init(key: Expr?, colon: Pos?, value: Expr, type: Type!, structField: ty.Struct.Field?) {
+init(key: Expr?, colon: Pos?, value: Expr, type: Type!, conversion: (from: Type, to: Type)?, structField: ty.Struct.Field?) {
     self.key = key
     self.colon = colon
     self.value = value
     self.type = type
+    self.conversion = conversion
     self.structField = structField
 }
 // sourcery:end

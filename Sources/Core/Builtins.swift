@@ -78,8 +78,8 @@ class BuiltinEntity {
     }
 
     init(name: String, type: Type, gen: @escaping (IRBuilder) -> IRValue) {
-        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-        let entity = Entity(ident: ident, type: type, flags: .builtin, constant: nil, package: nil, memberScope: nil, owningScope: nil, callconv: nil, linkname: nil, mangledName: nil, value: nil)
+        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+        let entity = Entity(ident: ident, type: type, flags: .builtin, constant: nil, file: nil, memberScope: nil, owningScope: nil, callconv: nil, linkname: nil, mangledName: nil, value: nil)
         self.entity = entity
         self.type = type
         self.gen = {
@@ -129,7 +129,7 @@ class BuiltinFunction {
         let returnType = ty.Tuple.make(outTypes.map(ty.Metatype.init))
         let type = ty.Function(entity: nil, node: nil, labels: nil, params: inTypes, returnType: returnType, flags: .none)
 
-        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
+        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
         let entity = Entity(ident: ident, type: type)
 
         return BuiltinFunction(entity: entity, generate: gen, onCallCheck: onCallCheck)

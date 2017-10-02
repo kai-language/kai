@@ -305,36 +305,38 @@ extension IRGenerator {
                     }
                     irType.setBody(irTypes)
 
-                case let e as ty.Enum:
-                    let sym = symbol(for: entity)
-                    let type = IntType(width: e.width!, in: module.context)
-                    let irType = b.createStruct(name: sym, types: [type], isPacked: true)
-                    var globals: [Global] = []
-                    for c in e.cases {
-                        let name = sym.appending("." + c.ident.name)
-                        let value = irType.constant(values: [type.constant(c.number)])
-                        let global = b.addGlobal(name, initializer: value)
-                        globals.append(global)
-                    }
-                    _ = b.addGlobal(sym.appending("..cases"), initializer: LLVM.ArrayType.constant(globals, type: irType))
-                    if let associatedType = e.associatedType, !(associatedType is ty.Integer)  {
-                        var associatedGlobals: [Global] = []
-                        for c in e.cases {
-                            let name = sym.appending("." + c.ident.name).appending(".raw")
-                            var ir: IRValue
-                            switch c.constant {
-                            case let val as String:
-                                ir = emit(constantString: val)
-                            case let val as Double:
-                                ir = canonicalize(associatedType as! ty.FloatingPoint).constant(val)
-                            default:
-                                fatalError()
-                            }
-                            let global = b.addGlobal(name, initializer: ir)
-                            associatedGlobals.append(global)
-                        }
-                        _ = b.addGlobal(sym.appending("..associated"), initializer: LLVM.ArrayType.constant(associatedGlobals, type: canonicalize(associatedType)))
-                    }
+                case is ty.Enum:
+                    return
+// TODO: Create global values for enum types and expose them in TypeInfo
+//                    let sym = symbol(for: entity)
+//                    let type = IntType(width: e.width!, in: module.context)
+//                    let irType = b.createStruct(name: sym, types: [type], isPacked: true)
+//                    var globals: [Global] = []
+//                    for c in e.cases {
+//                        let name = sym.appending("." + c.ident.name)
+//                        let value = irType.constant(values: [type.constant(c.number)])
+//                        let global = b.addGlobal(name, initializer: value)
+//                        globals.append(global)
+//                    }
+//                    _ = b.addGlobal(sym.appending("..cases"), initializer: LLVM.ArrayType.constant(globals, type: irType))
+//                    if let associatedType = e.associatedType, !(associatedType is ty.Integer)  {
+//                        var associatedGlobals: [Global] = []
+//                        for c in e.cases {
+//                            let name = sym.appending("." + c.ident.name).appending(".raw")
+//                            var ir: IRValue
+//                            switch c.constant {
+//                            case let val as String:
+//                                ir = emit(constantString: val)
+//                            case let val as Double:
+//                                ir = canonicalize(associatedType as! ty.FloatingPoint).constant(val)
+//                            default:
+//                                fatalError()
+//                            }
+//                            let global = b.addGlobal(name, initializer: ir)
+//                            associatedGlobals.append(global)
+//                        }
+//                        _ = b.addGlobal(sym.appending("..associated"), initializer: LLVM.ArrayType.constant(associatedGlobals, type: canonicalize(associatedType)))
+//                    }
 
                 default:
                     // Type alias
@@ -863,42 +865,50 @@ extension IRGenerator {
     // MARK: Expressions
 
     mutating func emit(expr: Expr, returnAddress: Bool = false, entity: Entity? = nil) -> IRValue {
+        var val: IRValue
         switch expr {
         case is Nil:
-            return canonicalize(expr.type as! ty.Pointer).null()
+            val = canonicalize(expr.type as! ty.Pointer).null()
         case let lit as BasicLit:
-            return emit(lit: lit, returnAddress: returnAddress, entity: entity)
+            val = emit(lit: lit, returnAddress: returnAddress, entity: entity)
         case let lit as CompositeLit:
-            return emit(lit: lit, returnAddress: returnAddress, entity: entity)
+            val = emit(lit: lit, returnAddress: returnAddress, entity: entity)
         case let ident as Ident:
-            return emit(ident: ident, returnAddress: returnAddress)
+            val = emit(ident: ident, returnAddress: returnAddress)
         case let paren as Paren:
-            return emit(expr: paren.element, returnAddress: returnAddress, entity: entity)
+            val = emit(expr: paren.element, returnAddress: returnAddress, entity: entity)
         case let unary as Unary:
-            return emit(unary: unary, returnAddress: returnAddress)
+            val = emit(unary: unary, returnAddress: returnAddress)
         case let binary as Binary:
-            return emit(binary: binary)
+            val = emit(binary: binary)
         case let ternary as Ternary:
-            return emit(ternary: ternary)
+            val = emit(ternary: ternary)
         case let fn as FuncLit:
-            return emit(funcLit: fn, entity: entity)
+            val = emit(funcLit: fn, entity: entity)
         case let call as Call:
-            return emit(call: call, returnAddress: returnAddress)
-        case let cast as Cast:
+            val = emit(call: call, returnAddress: returnAddress)
+        case let sel as Selector:
+            val = emit(selector: sel, returnAddress: returnAddress)
+        case let sub as Subscript:
+            val = emit(subscript: sub, returnAddress: returnAddress)
+        case let slice as Slice:
+            val = emit(slice: slice, returnAddress: returnAddress)
+        case let l as LocationDirective:
+            val = emit(locationDirective: l, returnAddress: returnAddress)
+        case let cast as Cast: // These return directly
             return emit(cast: cast)
         case let autocast as Autocast:
             return emit(autocast: autocast)
-        case let sel as Selector:
-            return emit(selector: sel, returnAddress: returnAddress)
-        case let sub as Subscript:
-            return emit(subscript: sub, returnAddress: returnAddress)
-        case let slice as Slice:
-            return emit(slice: slice, returnAddress: returnAddress)
-        case let l as LocationDirective:
-            return emit(locationDirective: l, returnAddress: returnAddress)
         default:
             preconditionFailure()
         }
+
+        if let conversion = (expr as? Convertable)?.conversion {
+            assert(!returnAddress, "Likely a bug in the checker. Be suspicious.")
+            val = performConversion(from: conversion.from, to: conversion.to, with: val)
+        }
+
+        return val
     }
 
     mutating func emit(lit: BasicLit, returnAddress: Bool, entity: Entity?) -> IRValue {
@@ -1039,14 +1049,8 @@ extension IRGenerator {
     }
 
     mutating func emit(binary: Binary) -> IRValue {
-        var lhs = emit(expr: binary.lhs)
+        let lhs = emit(expr: binary.lhs)
         var rhs = emit(expr: binary.rhs)
-        if let lcast = binary.irLCast {
-            lhs = b.buildCast(lcast, value: lhs, type: canonicalize(binary.rhs.type))
-        }
-        if let rcast = binary.irRCast {
-            rhs = b.buildCast(rcast, value: rhs, type: canonicalize(binary.lhs.type))
-        }
 
         switch binary.irOp! {
         case .icmp:
@@ -1145,12 +1149,12 @@ extension IRGenerator {
 
     mutating func emit(autocast: Autocast) -> IRValue {
         let val = emit(expr: autocast.expr, returnAddress: autocast.expr.type is ty.Array)
-        return b.buildCast(autocast.op, value: val, type: canonicalize(autocast.type))
+        return performConversion(from: autocast.expr.type, to: autocast.type, with: val)
     }
 
     mutating func emit(cast: Cast) -> IRValue {
         let val = emit(expr: cast.expr, returnAddress: cast.expr.type is ty.Array)
-        return b.buildCast(cast.op, value: val, type: canonicalize(cast.type))
+        return performConversion(from: cast.expr.type, to: cast.type, with: val)
     }
 
     mutating func emit(funcLit fn: FuncLit, entity: Entity?, specializationMangle: String? = nil) -> Function {
@@ -1233,26 +1237,16 @@ extension IRGenerator {
                     break
                 }
             }
-            let val = b.buildLoad(value(for: entity))
-            if let cast = sel.cast {
-                return b.buildCast(cast, value: val, type: canonicalize(sel.type))
-            }
-            return val
+            return b.buildLoad(value(for: entity))
         case .struct(let field):
             let aggregate = emit(expr: sel.rec, returnAddress: true)
             let fieldAddress = b.buildStructGEP(aggregate, index: field.index)
             if returnAddress {
                 return fieldAddress
             }
-            let val = b.buildLoad(fieldAddress)
-            if let cast = sel.cast {
-                return b.buildCast(cast, value: val, type: canonicalize(sel.type))
-            }
-            return val
+            return b.buildLoad(fieldAddress)
         case .enum(let c):
-            let type = canonicalize(sel.type as! ty.Enum)
-            let val = IntType(width: sel.type.width!, in: module.context).constant(c.number)
-            return type.constant(values: [val])
+            return canonicalize(sel.type as! ty.Enum).constant(c.number)
         case .union(let c):
             let aggregate = emit(expr: sel.rec, returnAddress: true)
             let type = canonicalize(c.type)
@@ -1260,9 +1254,7 @@ extension IRGenerator {
             if returnAddress {
                 return address
             }
-
             return b.buildLoad(address)
-
         case .array(let member):
             let aggregate = emit(expr: sel.rec, returnAddress: true)
             let index = member.rawValue
@@ -1270,11 +1262,7 @@ extension IRGenerator {
             if returnAddress {
                 return fieldAddress
             }
-            let val = b.buildLoad(fieldAddress)
-            if let cast = sel.cast {
-                return b.buildCast(cast, value: val, type: canonicalize(sel.type))
-            }
-            return val
+            return b.buildLoad(fieldAddress)
         case .staticLength(let length):
             return i64.constant(length)
         case .scalar(let index):
@@ -1420,6 +1408,81 @@ extension IRGenerator {
             return global
         }
         return ir
+    }
+
+    mutating func performConversion(from: Type, to target: Type, with value: IRValue) -> IRValue {
+        let type = canonicalize(target)
+        switch (from, target) {
+        case (let from as ty.UntypedInteger, let target as ty.Integer):
+            if from.width! == target.width! {
+                return value
+            }
+            if from.width! > target.width! {
+                return b.buildCast(.trunc, value: value, type: type)
+            } else {
+                return b.buildCast(.sext, value: value, type: type)
+            }
+        case (is ty.UntypedInteger, is ty.FloatingPoint):
+            return b.buildCast(.siToFP, value: value, type: type)
+        case (is ty.UntypedInteger, is ty.Pointer):
+            return b.buildIntToPtr(value, type: type as! LLVM.PointerType)
+
+        case (let from as ty.UntypedFloatingPoint, let target as ty.FloatingPoint):
+            if from.width! == target.width! {
+                return value
+            }
+            let ext = from.width! < target.width!
+            return b.buildCast(ext ? .fpext : .fpTrunc, value: value, type: type)
+        case (is ty.UntypedFloatingPoint, let target as ty.Integer):
+            return b.buildCast(target.isSigned ? .fpToSI : .fpToUI, value: value, type: type)
+
+        case (let from as ty.Integer, let target as ty.Integer):
+            if from.width! == target.width! {
+                return value
+            }
+            if from.width! > target.width! {
+                return b.buildCast(.trunc, value: value, type: type)
+            } else {
+                return b.buildCast(from.isSigned ? .sext : .zext, value: value, type: type)
+            }
+        case (let from as ty.Integer, is ty.FloatingPoint):
+            return b.buildCast(from.isSigned ? .siToFP : .uiToFP, value: value, type: type)
+        case (is ty.Integer, is ty.Pointer):
+            return b.buildIntToPtr(value, type: type as! LLVM.PointerType)
+
+        case (let from as ty.FloatingPoint, let target as ty.FloatingPoint):
+            let ext = from.width! < target.width!
+            return b.buildCast(ext ? .fpext : .fpTrunc, value: value, type: type)
+        case (is ty.FloatingPoint, let target as ty.Integer):
+            return b.buildCast(target.isSigned ? .fpToSI : .fpToUI, value: value, type: type)
+
+        case (is ty.Pointer, is ty.Boolean):
+            return b.buildPtrToInt(value, type: i1)
+        case (is ty.Pointer, is ty.Integer):
+            return b.buildPtrToInt(value, type: type as! IntType)
+        case (is ty.Pointer, is ty.Pointer),
+             (is ty.Pointer, is ty.Function):
+            return b.buildBitCast(value, type: type)
+
+        case (is ty.Function, is ty.Pointer),
+             (is ty.Function, is ty.Function):
+            return b.buildBitCast(value, type: type)
+
+        // enums with an associated type perform conversions per that type
+        // enums without an associated type may be converted to any Integer
+        case (let from as ty.Enum, let target):
+            if let associatedType = from.associatedType as? ty.Integer {
+                return performConversion(from: associatedType, to: target, with: value)
+            }
+            if from.width! == target.width! {
+                return value
+            }
+            let ext = from.width! < target.width!
+            return b.buildCast(ext ? .zext : .trunc, value: value, type: type)
+
+        default:
+            fatalError()
+        }
     }
 }
 
@@ -1572,35 +1635,36 @@ extension IRGenerator {
         return LLVM.StructType(elementTypes: struc.fields.map({ canonicalize($0.type) }), in: module.context)
     }
 
-    mutating func canonicalize(_ e: ty.Enum) -> LLVM.StructType {
-        if let entity = e.entity {
-            let sym = symbol(for: entity)
-            if let ptr = module.type(named: sym) {
-                return ptr as! LLVM.StructType
-            }
-            let type = IntType(width: e.width!, in: module.context)
-            let irType = b.createStruct(name: sym, types: [type], isPacked: true)
-            var globals: [Global] = []
-            for c in e.cases {
-                let name = sym.appending("." + c.ident.name)
-                let value = irType.constant(values: [type.constant(c.number)])
-                let global = b.addGlobal(name, initializer: value)
-                globals.append(global)
-            }
-            _ = b.addGlobal(sym.appending("..cases"), initializer: LLVM.ArrayType.constant(globals, type: irType))
-            if let associatedType = e.associatedType, !(associatedType is ty.Integer)  {
-                var associatedGlobals: [Global] = []
-                for c in e.cases {
-                    let name = sym.appending("." + c.ident.name).appending(".raw")
-                    let value = emit(expr: c.value!)
-                    let global = b.addGlobal(name, initializer: value)
-                    associatedGlobals.append(global)
-                }
-                _ = b.addGlobal(sym.appending("..associated"), initializer: LLVM.ArrayType.constant(associatedGlobals, type: canonicalize(associatedType)))
-            }
-        }
-
-        return LLVM.StructType(elementTypes: [IntType(width: e.width!, in: module.context)], isPacked: true, in: module.context)
+    mutating func canonicalize(_ e: ty.Enum) -> IntType {
+        return IntType(width: e.width!, in: module.context)
+//        if let entity = e.entity {
+//            let sym = symbol(for: entity)
+//            if let ptr = module.type(named: sym) {
+//                return ptr as! LLVM.StructType
+//            }
+//            let type = IntType(width: e.width!, in: module.context)
+//            let irType = b.createStruct(name: sym, types: [type], isPacked: true)
+//            var globals: [Global] = []
+//            for c in e.cases {
+//                let name = sym.appending("." + c.ident.name)
+//                let value = irType.constant(values: [type.constant(c.number)])
+//                let global = b.addGlobal(name, initializer: value)
+//                globals.append(global)
+//            }
+//            _ = b.addGlobal(sym.appending("..cases"), initializer: LLVM.ArrayType.constant(globals, type: irType))
+//            if let associatedType = e.associatedType, !(associatedType is ty.Integer)  {
+//                var associatedGlobals: [Global] = []
+//                for c in e.cases {
+//                    let name = sym.appending("." + c.ident.name).appending(".raw")
+//                    let value = emit(expr: c.value!)
+//                    let global = b.addGlobal(name, initializer: value)
+//                    associatedGlobals.append(global)
+//                }
+//                _ = b.addGlobal(sym.appending("..associated"), initializer: LLVM.ArrayType.constant(associatedGlobals, type: canonicalize(associatedType)))
+//            }
+//        }
+//
+//        return LLVM.StructType(elementTypes: [IntType(width: e.width!, in: module.context)], isPacked: true, in: module.context)
     }
 
     mutating func canonicalize(_ u: ty.Union) -> LLVM.StructType {

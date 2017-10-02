@@ -33,8 +33,7 @@ func copy(_ node: Autocast) -> Autocast {
     return Autocast(
         keyword: node.keyword,
         expr: copy(node.expr),
-        type: node.type,
-        op: node.op
+        type: node.type
     )
 }
 
@@ -96,9 +95,8 @@ func copy(_ node: Binary) -> Binary {
         opPos: node.opPos,
         rhs: copy(node.rhs),
         type: node.type,
+        conversion: node.conversion,
         irOp: node.irOp,
-        irLCast: node.irLCast,
-        irRCast: node.irRCast,
         isPointerArithmetic: node.isPointerArithmetic
     )
 }
@@ -140,6 +138,7 @@ func copy(_ node: Call) -> Call {
         args: copy(node.args),
         rparen: node.rparen,
         type: node.type,
+        conversion: node.conversion,
         checked: node.checked
     )
 }
@@ -168,8 +167,7 @@ func copy(_ node: Cast) -> Cast {
         kind: node.kind,
         explicitType: copy(node.explicitType),
         expr: copy(node.expr),
-        type: node.type,
-        op: node.op
+        type: node.type
     )
 }
 
@@ -396,7 +394,7 @@ func copy(_ node: Ident) -> Ident {
         name: node.name,
         entity: node.entity,
         type: node.type,
-        cast: node.cast,
+        conversion: node.conversion,
         constant: node.constant
     )
 }
@@ -450,6 +448,7 @@ func copy(_ node: KeyValue) -> KeyValue {
         colon: node.colon,
         value: copy(node.value),
         type: node.type,
+        conversion: node.conversion,
         structField: node.structField
     )
 }
@@ -535,7 +534,8 @@ func copy(_ node: Paren) -> Paren {
     return Paren(
         lparen: node.lparen,
         element: copy(node.element),
-        rparen: node.rparen
+        rparen: node.rparen,
+        conversion: node.conversion
     )
 }
 
@@ -622,7 +622,7 @@ func copy(_ node: Selector) -> Selector {
         sel: copy(node.sel),
         checked: node.checked,
         type: node.type,
-        cast: node.cast,
+        conversion: node.conversion,
         constant: node.constant
     )
 }
@@ -693,7 +693,8 @@ func copy(_ node: Subscript) -> Subscript {
         lbrack: node.lbrack,
         index: copy(node.index),
         rbrack: node.rbrack,
-        type: node.type
+        type: node.type,
+        conversion: node.conversion
     )
 }
 
@@ -722,7 +723,8 @@ func copy(_ node: Ternary) -> Ternary {
         then: node.then.map(copy),
         colon: node.colon,
         els: copy(node.els),
-        type: node.type
+        type: node.type,
+        conversion: node.conversion
     )
 }
 
@@ -735,7 +737,8 @@ func copy(_ node: Unary) -> Unary {
         start: node.start,
         op: node.op,
         element: copy(node.element),
-        type: node.type
+        type: node.type,
+        conversion: node.conversion
     )
 }
 
@@ -915,7 +918,7 @@ func copy(_ entity: Entity) -> Entity {
         type: entity.type,
         flags: entity.flags,
         constant: entity.constant,
-        package: entity.package,
+        file: entity.file,
         memberScope: entity.memberScope,
         owningScope: entity.owningScope,
         callconv: entity.callconv,
