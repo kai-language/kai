@@ -114,13 +114,17 @@ extension Array where Element == Type {
     }
 }
 
-func canImplicitlyConvert(_ type: Type, to targetType: Type) -> Bool {
-
-    if type == targetType {
+func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
+    if type == target {
         return true
     }
 
-    switch (type, targetType) {
+    guard let expr = expr as? Convertable else {
+        return false
+    }
+
+    var allowed = false
+    switch (type, target) {
     case (is ty.UntypedNil, is ty.Pointer),
 
          (is ty.UntypedInteger, is ty.Integer),
@@ -129,23 +133,31 @@ func canImplicitlyConvert(_ type: Type, to targetType: Type) -> Bool {
          (is ty.UntypedFloatingPoint, is ty.FloatingPoint),
 
          (is ty.Array, is ty.Slice):
-        return true
+        allowed = true
+
+    case (is ty.Pointer, let target as ty.Pointer):
+        allowed = target.entity === Entity.rawptr
 
     case (let exprType as ty.Enum, let targetType):
         if let associatedType = exprType.associatedType {
-            return canCast(associatedType, to: targetType)
+            allowed = canCast(associatedType, to: targetType)
+            break
         }
-        return targetType is ty.Integer || targetType is ty.UntypedInteger
+        allowed = targetType is ty.Integer || targetType is ty.UntypedInteger
 
     case (_, is ty.Anyy):
-        return true
+        allowed = true
 
     case (_, is ty.CVarArg):
-        return true
+        return true // return immediately, don't perform conversion
 
     default:
-        return false
+        allowed = false
     }
+    if allowed {
+        expr.conversion = (type, target)
+    }
+    return allowed
 }
 
 func canCast(_ exprType: Type, to targetType: Type) -> Bool {

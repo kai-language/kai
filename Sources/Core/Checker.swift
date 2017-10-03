@@ -551,7 +551,7 @@ extension Checker {
                     reportError("Cannot assign to \(lhsOperand)", at: lhs.start)
                     continue
                 }
-                guard canImplicitlyConvert(type, to: lhsOperand.type) else {
+                guard type == lhsOperand.type else {
                     reportError("Cannot assign \(operand) to \(lhsOperand)", at: call.start)
                     continue
                 }
@@ -568,7 +568,7 @@ extension Checker {
                     reportError("Cannot assign to \(lhsOperand)", at: lhs.start)
                     continue
                 }
-                guard canImplicitlyConvert(rhsOperand.type, to: lhsOperand.type) else {
+                guard convert(rhsOperand.type, to: lhsOperand.type, at: rhs) else {
                     reportError("Cannot assign \(rhsOperand) to \(lhsOperand)", at: rhs.start)
                     continue
                 }
@@ -721,7 +721,7 @@ extension Checker {
 
         if let cond = fór.cond {
             let operand = check(expr: cond, desiredType: ty.bool)
-            if !canImplicitlyConvert(operand.type, to: ty.bool) {
+            if !convert(operand.type, to: ty.bool, at: cond) {
                 reportError("Cannot convert '\(operand)' to expected type '\(ty.bool)'", at: cond.start)
             }
         }
@@ -802,7 +802,7 @@ extension Checker {
 
         let operand = check(expr: iff.cond, desiredType: ty.bool)
         dependencies.formUnion(operand.dependencies)
-        if !canImplicitlyConvert(operand.type, to: ty.bool) {
+        if !convert(operand.type, to: ty.bool, at: iff.cond) {
             reportError("Cannot convert '\(operand)' to expected type '\(ty.bool)'", at: iff.cond.start)
         }
 
@@ -850,7 +850,7 @@ extension Checker {
                     let operand = check(expr: match, desiredType: desiredType)
                     dependencies.formUnion(operand.dependencies)
 
-                    guard canImplicitlyConvert(operand.type, to: desiredType) else {
+                    guard convert(operand.type, to: desiredType, at: match) else {
                         reportError("Cannot convert '\(operand)' to expected type '\(desiredType)'", at: match.start)
                         continue
                     }
@@ -858,7 +858,7 @@ extension Checker {
                     let operand = check(expr: match, desiredType: ty.bool)
                     dependencies.formUnion(operand.dependencies)
 
-                    guard canImplicitlyConvert(operand.type, to: ty.bool) else {
+                    guard convert(operand.type, to: ty.bool, at: match) else {
                         reportError("Cannot convert '\(operand)' to expected type '\(ty.bool)'", at: match.start)
                         continue
                     }
@@ -1178,7 +1178,7 @@ extension Checker {
                     dependencies.formUnion(operand.dependencies)
 
                     el.type = operand.type
-                    guard canImplicitlyConvert(el.type, to: field.type) else {
+                    guard convert(el.type, to: field.type, at: el.value) else {
                         reportError("Cannot convert element '\(operand)' to expected type '\(field.type)'", at: el.value.start)
                         continue
                     }
@@ -1188,7 +1188,7 @@ extension Checker {
                     dependencies.formUnion(operand.dependencies)
 
                     el.type = operand.type
-                    guard canImplicitlyConvert(el.type, to: field.type) else {
+                    guard convert(el.type, to: field.type, at: el.value) else {
                         reportError("Cannot convert element '\(operand)' to expected type '\(field.type)'", at: el.value.start)
                         continue
                     }
@@ -1212,7 +1212,7 @@ extension Checker {
                 dependencies.formUnion(operand.dependencies)
 
                 el.type = operand.type
-                guard canImplicitlyConvert(el.type, to: type.elementType) else {
+                guard convert(el.type, to: type.elementType, at: el.value) else {
                     reportError("Cannot convert element '\(operand)' to expected type '\(type.elementType)'", at: el.value.start)
                     continue
                 }
@@ -1227,7 +1227,7 @@ extension Checker {
                 dependencies.formUnion(operand.dependencies)
 
                 el.type = operand.type
-                guard canImplicitlyConvert(el.type, to: slice.elementType) else {
+                guard convert(el.type, to: slice.elementType, at: el.value) else {
                     reportError("Cannot convert element '\(operand)' to expected type '\(slice.elementType)'", at: el.value.start)
                     continue
                 }
@@ -1246,7 +1246,7 @@ extension Checker {
                 dependencies.formUnion(operand.dependencies)
 
                 el.type = operand.type
-                guard canImplicitlyConvert(el.type, to: type.elementType) else {
+                guard convert(el.type, to: type.elementType, at: el.value) else {
                     reportError("Cannot convert element '\(operand)' to expected type '\(type.elementType)'", at: el.value.start)
                     continue
                 }
@@ -1591,7 +1591,7 @@ extension Checker {
                 constant = operand.constant
 
                 if let explicitType = explicitType {
-                    if !canImplicitlyConvert(operand.type, to: explicitType) {
+                    if !convert(operand.type, to: explicitType, at: value) {
                         reportError("Cannot convert value \(operand) to expected type \(explicitType)", at: value.start)
                     } else {
                         if let constant = operand.constant as? UInt64 {
@@ -1886,7 +1886,7 @@ extension Checker {
         let elseOperand = check(expr: ternary.els, desiredType: thenOperand?.type)
         dependencies.formUnion(elseOperand.dependencies)
         
-        if let thenType = thenOperand?.type, !canImplicitlyConvert(elseOperand.type, to: thenType) {
+        if let thenType = thenOperand?.type, !convert(elseOperand.type, to: thenType, at: ternary.els) {
             reportError("Expected matching types", at: ternary.start)
         }
         ternary.type = elseOperand.type
@@ -2211,7 +2211,7 @@ extension Checker {
                 let argument = check(expr: arg, desiredType: expectedType)
                 dependencies.formUnion(argument.dependencies)
 
-                guard canImplicitlyConvert(argument.type, to: expectedType) else {
+                guard convert(argument.type, to: expectedType, at: arg) else {
                     reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
                     file.attachNote("In call to '\(callee)'")
                     continue
@@ -2253,7 +2253,7 @@ extension Checker {
             let argument = check(expr: arg, desiredType: expectedType)
             dependencies.formUnion(argument.dependencies)
 
-            guard canImplicitlyConvert(argument.type, to: expectedType) else {
+            guard convert(argument.type, to: expectedType, at: arg) else {
                 reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
                 file.attachNote("In call to \(callee)")
                 continue
@@ -2392,7 +2392,7 @@ extension Checker {
             specializationTypes.append(argType)
 
             if param.isExplicitPoly, let polyType = param.type as? ty.Polymorphic {
-                guard canImplicitlyConvert(argType, to: param.type) else {
+                guard convert(argType, to: param.type, at: arg) else {
                     reportError("Cannot convert '\(argument)' to expected type '\(param.type)'", at: arg.start)
                     continue
                 }
@@ -2425,7 +2425,7 @@ extension Checker {
             {
                 let argument = check(expr: arg, desiredType: expectedType)
 
-                guard canImplicitlyConvert(argument.type, to: expectedType) else {
+                guard convert(argument.type, to: expectedType, at: arg) else {
                     reportError("Cannot convert '\(argument)' to expected type '\(expectedType)'", at: arg.start)
                     continue
                 }
@@ -2467,7 +2467,7 @@ extension Checker {
                 argType = check(expr: arg, desiredType: expectedType).type
             }
 
-            guard canImplicitlyConvert(argType, to: expectedType) else {
+            guard convert(argType, to: expectedType, at: arg) else {
                 reportError("Cannot convert type '\(argType)' to expected type '\(expectedType)'", at: arg.start)
                 continue
             }
