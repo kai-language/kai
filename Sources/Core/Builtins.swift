@@ -10,10 +10,18 @@ struct BuiltinType {
         self.entity = entity
         self.type = type
     }
+
+    init(entity: Entity, type: NamableType) {
+        var type = type
+        entity.flags.insert(.builtin)
+        self.entity = entity
+        type.entity = entity
+        self.type = type
+    }
     static let void = BuiltinType(entity: .void, type: ty.Void())
     static let any  = BuiltinType(entity: .any,  type: ty.Anyy())
 
-    static let bool = BuiltinType(entity: .bool,    type: ty.Boolean())
+    static let bool = BuiltinType(entity:   .bool,   type: ty.Boolean())
     static let rawptr = BuiltinType(entity: .rawptr, type: ty.Pointer(pointeeType: ty.u8))
     static let string = BuiltinType(entity: .string, type: ty.KaiString())
 
