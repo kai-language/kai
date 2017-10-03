@@ -114,26 +114,92 @@ extension Array where Element == Type {
     }
 }
 
-func canConvert(_ lhs: Type, to rhs: Type) -> Bool {
+func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
+    if type == target {
+        return true
+    }
 
-    if lhs is ty.Metatype || rhs is ty.Metatype {
-        // If either the left or right side is a `type` as denoted by an empty tuple
-        return ((rhs as? ty.Metatype)?.instanceType as? ty.Tuple)?.types.count == 0 ||
-               ((lhs as? ty.Metatype)?.instanceType as? ty.Tuple)?.types.count == 0
+    guard let expr = expr as? Convertable else {
+        return false
     }
-    if let lhs = lhs as? ty.Metatype, let rhs = rhs as? ty.Metatype {
-        return canConvert(lhs.instanceType, to: rhs.instanceType)
+
+    var allowed = false
+    switch (type, target) {
+    case (is ty.UntypedNil, is ty.Pointer),
+
+         (is ty.UntypedInteger, is ty.Integer),
+         (is ty.UntypedInteger, is ty.FloatingPoint),
+
+         (is ty.UntypedFloatingPoint, is ty.FloatingPoint),
+
+         (is ty.Array, is ty.Slice):
+        allowed = true
+
+    case (is ty.Pointer, let target as ty.Pointer):
+        allowed = target.entity === Entity.rawptr
+
+    case (let exprType as ty.Enum, let targetType):
+        if let associatedType = exprType.associatedType {
+            allowed = canCast(associatedType, to: targetType)
+            break
+        }
+        allowed = targetType is ty.Integer || targetType is ty.UntypedInteger
+
+    case (_, is ty.Anyy):
+        allowed = true
+
+    case (_, is ty.CVarArg):
+        return true // return immediately, don't perform conversion
+
+    default:
+        allowed = false
     }
-    if let lhs = lhs as? ty.Tuple, lhs.types.count == 1 {
-        return canConvert(lhs.types[0], to: rhs)
+    if allowed {
+        expr.conversion = (type, target)
     }
-    if let rhs = rhs as? ty.Tuple, rhs.types.count == 1 {
-        return canConvert(rhs.types[0], to: lhs)
+    return allowed
+}
+
+func canCast(_ exprType: Type, to targetType: Type) -> Bool {
+    switch (exprType, targetType) {
+    case (is ty.UntypedNil, is ty.Pointer),
+         
+         (is ty.UntypedInteger, is ty.Integer),
+         (is ty.UntypedInteger, is ty.FloatingPoint),
+         (is ty.UntypedInteger, is ty.Pointer),
+         
+         (is ty.UntypedFloatingPoint, is ty.Integer),
+         (is ty.UntypedFloatingPoint, is ty.FloatingPoint),
+         
+         (is ty.Integer, is ty.Integer),
+         (is ty.Integer, is ty.FloatingPoint),
+         (is ty.Integer, is ty.Pointer),
+         
+         (is ty.FloatingPoint, is ty.FloatingPoint),
+         (is ty.FloatingPoint, is ty.Integer),
+         
+         (is ty.Pointer, is ty.Boolean),
+         (is ty.Pointer, is ty.Integer),
+         (is ty.Pointer, is ty.Pointer),
+         (is ty.Pointer, is ty.Function),
+
+         (is ty.Function, is ty.Pointer),
+         
+         (is ty.Array, is ty.Slice):
+        return true
+
+    case (is ty.Function, is ty.Function):
+        return true // TODO: Only if bitcasting.
+
+    case (let exprType as ty.Enum, let targetType):
+        if let associatedType = exprType.associatedType {
+            return canCast(associatedType, to: targetType)
+        }
+        return targetType is ty.Integer || targetType is ty.UntypedInteger
+
+    default:
+        return false
     }
-    if let lhs = lhs as? ty.Array, let rhs = rhs as? ty.Pointer {
-        return canConvert(lhs.elementType, to: rhs.pointeeType)
-    }
-    return lhs == rhs
 }
 
 /// A name space containing all type specifics

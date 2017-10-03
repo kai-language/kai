@@ -10,10 +10,18 @@ struct BuiltinType {
         self.entity = entity
         self.type = type
     }
+
+    init(entity: Entity, type: NamableType) {
+        var type = type
+        entity.flags.insert(.builtin)
+        self.entity = entity
+        type.entity = entity
+        self.type = type
+    }
     static let void = BuiltinType(entity: .void, type: ty.Void())
     static let any  = BuiltinType(entity: .any,  type: ty.Anyy())
 
-    static let bool = BuiltinType(entity: .bool,    type: ty.Boolean())
+    static let bool = BuiltinType(entity:   .bool,   type: ty.Boolean())
     static let rawptr = BuiltinType(entity: .rawptr, type: ty.Pointer(pointeeType: ty.u8))
     static let string = BuiltinType(entity: .string, type: ty.KaiString())
 
@@ -78,8 +86,8 @@ class BuiltinEntity {
     }
 
     init(name: String, type: Type, gen: @escaping (IRBuilder) -> IRValue) {
-        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-        let entity = Entity(ident: ident, type: type, flags: .builtin, constant: nil, package: nil, memberScope: nil, owningScope: nil, callconv: nil, linkname: nil, mangledName: nil, value: nil)
+        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+        let entity = Entity(ident: ident, type: type, flags: .builtin, constant: nil, file: nil, memberScope: nil, owningScope: nil, callconv: nil, linkname: nil, mangledName: nil, value: nil)
         self.entity = entity
         self.type = type
         self.gen = {
@@ -129,7 +137,7 @@ class BuiltinFunction {
         let returnType = ty.Tuple.make(outTypes.map(ty.Metatype.init))
         let type = ty.Function(entity: nil, node: nil, labels: nil, params: inTypes, returnType: returnType, flags: .none)
 
-        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
+        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
         let entity = Entity(ident: ident, type: type)
 
         return BuiltinFunction(entity: entity, generate: gen, onCallCheck: onCallCheck)

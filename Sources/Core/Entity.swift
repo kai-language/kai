@@ -5,7 +5,10 @@ class Entity: CustomStringConvertible {
     var type: Type?
     var flags: Flag = .none
     var constant: Value?
-    var package: SourcePackage?
+    var file: SourceFile?
+    var package: SourcePackage? {
+        return file?.package
+    }
 
     var memberScope: Scope?
 
@@ -55,12 +58,12 @@ class Entity: CustomStringConvertible {
     }
 
 // sourcery:inline:auto:Entity.Init
-init(ident: Ident, type: Type? = nil, flags: Flag, constant: Value? = nil, package: SourcePackage? = nil, memberScope: Scope? = nil, owningScope: Scope! = nil, callconv: String? = nil, linkname: String? = nil, declaration: Decl? = nil, dependencies: [Decl]! = nil, mangledName: String! = nil, value: IRValue? = nil) {
+init(ident: Ident, type: Type? = nil, flags: Flag, constant: Value? = nil, file: SourceFile? = nil, memberScope: Scope? = nil, owningScope: Scope! = nil, callconv: String? = nil, linkname: String? = nil, declaration: Decl? = nil, dependencies: [Decl]! = nil, mangledName: String! = nil, value: IRValue? = nil) {
     self.ident = ident
     self.type = type
     self.flags = flags
     self.constant = constant
-    self.package = package
+    self.file = file
     self.memberScope = memberScope
     self.owningScope = owningScope
     self.callconv = callconv
@@ -77,7 +80,7 @@ extension Entity {
 
     static func makeBuiltin(_ name: String, type: Type? = nil, flags: Flag = .none) -> Entity {
 
-        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
+        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
         let entity = Entity(ident: ident, type: type, flags: flags)
         return entity
     }

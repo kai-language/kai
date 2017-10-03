@@ -76,7 +76,7 @@ struct Checker {
 
     func declare(_ entity: Entity, scopeOwnsEntity: Bool = true) {
         let previous = context.scope.insert(entity, scopeOwnsEntity: scopeOwnsEntity)
-        if let previous = previous {
+        if let previous = previous, entity.file === previous.file {
             reportError("Invalid redeclaration of '\(previous.name)'", at: entity.ident.start)
             file.attachNote("Previous declaration here: \(file.position(for: previous.ident.start).description)")
         }
@@ -134,14 +134,14 @@ extension Checker {
                 file.attachNote("You will need to manually specify one")
                 return
             }
-            let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
+            let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
             entity = newEntity(ident: ident, flags: .file)
         }
 
         // TODO: Ensure the import has been fully checked
         if i.importSymbolsIntoScope {
             for member in i.scope.members.values {
-                guard !member.isFile else {
+                guard !member.isFile && !member.isLibrary else {
                     continue
                 }
 
@@ -171,7 +171,7 @@ extension Checker {
             file.attachNote("You will need to manually specify one")
             return
         }
-        let ident = l.alias ?? Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
+        let ident = l.alias ?? Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
         let entity = newEntity(ident: ident, flags: .library)
         declare(entity)
 
@@ -551,8 +551,9 @@ extension Checker {
                     reportError("Cannot assign to \(lhsOperand)", at: lhs.start)
                     continue
                 }
-                if !canConvert(type, to: lhsOperand.type) && !implicitlyConvert(type, to: lhsOperand.type) {
+                guard type == lhsOperand.type else {
                     reportError("Cannot assign \(operand) to \(lhsOperand)", at: call.start)
+                    continue
                 }
             }
         } else {
@@ -567,8 +568,9 @@ extension Checker {
                     reportError("Cannot assign to \(lhsOperand)", at: lhs.start)
                     continue
                 }
-                if !canConvert(rhsOperand.type, to: lhsOperand.type) && !implicitlyConvert(rhsOperand.type, to: lhsOperand.type) {
+                guard convert(rhsOperand.type, to: lhsOperand.type, at: rhs) else {
                     reportError("Cannot assign \(rhsOperand) to \(lhsOperand)", at: rhs.start)
+                    continue
                 }
             }
 
@@ -719,7 +721,7 @@ extension Checker {
 
         if let cond = fór.cond {
             let operand = check(expr: cond, desiredType: ty.bool)
-            if !canConvert(operand.type, to: ty.bool) && !implicitlyConvert(operand.type, to: ty.bool) {
+            if !convert(operand.type, to: ty.bool, at: cond) {
                 reportError("Cannot convert '\(operand)' to expected type '\(ty.bool)'", at: cond.start)
             }
         }
@@ -800,7 +802,7 @@ extension Checker {
 
         let operand = check(expr: iff.cond, desiredType: ty.bool)
         dependencies.formUnion(operand.dependencies)
-        if !canConvert(operand.type, to: ty.bool) && !implicitlyConvert(operand.type, to: ty.bool) {
+        if !convert(operand.type, to: ty.bool, at: iff.cond) {
             reportError("Cannot convert '\(operand)' to expected type '\(ty.bool)'", at: iff.cond.start)
         }
 
@@ -830,9 +832,8 @@ extension Checker {
             dependencies.formUnion(operand.dependencies)
 
             type = operand.type
-            guard operand.type is ty.Integer || operand.type is ty.UntypedInteger else {
-                reportError("Can only switch on integer types", at: match.start)
-                file.attachNote("For now...")
+            guard operand.type is ty.Integer || operand.type is ty.UntypedInteger || operand.type is ty.Enum else {
+                reportError("Can only switch on integer and enum types", at: match.start)
                 return dependencies
             }
         }
@@ -849,7 +850,7 @@ extension Checker {
                     let operand = check(expr: match, desiredType: desiredType)
                     dependencies.formUnion(operand.dependencies)
 
-                    guard canConvert(operand.type, to: desiredType) || implicitlyConvert(operand.type, to: desiredType) else {
+                    guard convert(operand.type, to: desiredType, at: match) else {
                         reportError("Cannot convert '\(operand)' to expected type '\(desiredType)'", at: match.start)
                         continue
                     }
@@ -857,7 +858,7 @@ extension Checker {
                     let operand = check(expr: match, desiredType: ty.bool)
                     dependencies.formUnion(operand.dependencies)
 
-                    guard canConvert(operand.type, to: ty.bool) || implicitlyConvert(operand.type, to: ty.bool) else {
+                    guard convert(operand.type, to: ty.bool, at: match) else {
                         reportError("Cannot convert '\(operand)' to expected type '\(ty.bool)'", at: match.start)
                         continue
                     }
@@ -1064,19 +1065,21 @@ extension Checker {
         if entity.isConstant {
             ident.constant = entity.constant
         }
-        if let desiredType = desiredType, entity.type! is ty.UntypedInteger || entity.type! is ty.UntypedFloatingPoint {
-            if let cast = constrainUntyped(entity.type!, to: desiredType) {
-                ident.cast = cast
-                ident.type = desiredType
-                return Operand(mode: entity.isType ? .type : .addressable, expr: ident, type: desiredType, constant: entity.constant, dependencies: [entity])
-            }
-        }
+
         assert(entity.type != nil || !entity.isChecked, "Either we have a type or the entity is yet to be checked")
         var type = entity.type
         if entity.type == nil {
             check(topLevelStmt: entity.declaration!)
             assert(entity.isChecked && entity.type != nil)
             type = entity.type
+        }
+
+        if let desiredType = desiredType, entity.type! is ty.UntypedInteger || entity.type! is ty.UntypedFloatingPoint {
+            if constrainUntyped(type!, to: desiredType) {
+                ident.conversion = (from: entity.type!, to: desiredType)
+                ident.type = desiredType
+                return Operand(mode: entity.isType ? .type : .addressable, expr: ident, type: desiredType, constant: entity.constant, dependencies: [entity])
+            }
         }
         ident.type = type
 
@@ -1175,7 +1178,7 @@ extension Checker {
                     dependencies.formUnion(operand.dependencies)
 
                     el.type = operand.type
-                    guard canConvert(el.type, to: field.type) || implicitlyConvert(el.type, to: field.type) else {
+                    guard convert(el.type, to: field.type, at: el.value) else {
                         reportError("Cannot convert element '\(operand)' to expected type '\(field.type)'", at: el.value.start)
                         continue
                     }
@@ -1185,7 +1188,7 @@ extension Checker {
                     dependencies.formUnion(operand.dependencies)
 
                     el.type = operand.type
-                    guard canConvert(el.type, to: field.type) || implicitlyConvert(el.type, to: field.type) else {
+                    guard convert(el.type, to: field.type, at: el.value) else {
                         reportError("Cannot convert element '\(operand)' to expected type '\(field.type)'", at: el.value.start)
                         continue
                     }
@@ -1209,7 +1212,7 @@ extension Checker {
                 dependencies.formUnion(operand.dependencies)
 
                 el.type = operand.type
-                guard canConvert(el.type, to: type.elementType) || implicitlyConvert(el.type, to: type.elementType) else {
+                guard convert(el.type, to: type.elementType, at: el.value) else {
                     reportError("Cannot convert element '\(operand)' to expected type '\(type.elementType)'", at: el.value.start)
                     continue
                 }
@@ -1224,7 +1227,7 @@ extension Checker {
                 dependencies.formUnion(operand.dependencies)
 
                 el.type = operand.type
-                guard canConvert(el.type, to: slice.elementType) || implicitlyConvert(el.type, to: slice.elementType) else {
+                guard convert(el.type, to: slice.elementType, at: el.value) else {
                     reportError("Cannot convert element '\(operand)' to expected type '\(slice.elementType)'", at: el.value.start)
                     continue
                 }
@@ -1243,7 +1246,7 @@ extension Checker {
                 dependencies.formUnion(operand.dependencies)
 
                 el.type = operand.type
-                guard canConvert(el.type, to: type.elementType) || implicitlyConvert(el.type, to: type.elementType) else {
+                guard convert(el.type, to: type.elementType, at: el.value) else {
                     reportError("Cannot convert element '\(operand)' to expected type '\(type.elementType)'", at: el.value.start)
                     continue
                 }
@@ -1588,7 +1591,7 @@ extension Checker {
                 constant = operand.constant
 
                 if let explicitType = explicitType {
-                    if !canConvert(operand.type, to: explicitType) && !implicitlyConvert(operand.type, to: explicitType) {
+                    if !convert(operand.type, to: explicitType, at: value) {
                         reportError("Cannot convert value \(operand) to expected type \(explicitType)", at: value.start)
                     } else {
                         if let constant = operand.constant as? UInt64 {
@@ -1705,32 +1708,49 @@ extension Checker {
 
         binary.isPointerArithmetic = false
 
-        // Used to communicate any implicit casts to perform for this operation
-        var (lCast, rCast): (OpCode.Cast?, OpCode.Cast?) = (nil, nil)
-
         // Handle constraining untyped's etc..
         if (lhsType is ty.UntypedNil || lhsType is ty.UntypedInteger || lhsType is ty.UntypedFloatingPoint) && rhsType != lhsType {
-            guard let cast = constrainUntyped(lhsType, to: rhsType) else {
+
+            guard constrainUntyped(lhsType, to: rhsType) else {
                 reportError("Invalid operation '\(binary.op)' between untyped '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
                 return Operand.invalid
             }
             if lhsType is ty.UntypedNil {
                 (binary.lhs as! Nil).type = rhsType
+            } else if let lhs = binary.lhs as? BasicLit {
+                lhs.type = rhsType
+            } else if let lhs = binary.lhs as? Convertable {
+                lhs.conversion = (lhsType, rhsType)
+            } else {
+                preconditionFailure("Only convertables should get here")
             }
             lhsType = rhsType
-            lCast = cast
         } else if (rhsType is ty.UntypedNil || rhsType is ty.UntypedInteger || rhsType is ty.UntypedFloatingPoint) && rhsType != lhsType {
-            guard let cast = constrainUntyped(rhsType, to: lhsType) else {
+
+            guard constrainUntyped(rhsType, to: lhsType) else {
                 reportError("Invalid operation '\(binary.op)' between '\(lhsType)' and untyped '\(rhsType)'", at: binary.opPos)
-                binary.type = ty.invalid
                 return Operand.invalid
             }
+
             if rhsType is ty.UntypedNil {
                 (binary.rhs as! Nil).type = lhsType
+            } else if let rhs = binary.rhs as? BasicLit {
+                rhs.type = lhsType
+            } else if let rhs = binary.rhs as? Convertable {
+                rhs.conversion = (rhsType, lhsType)
+            } else {
+                preconditionFailure("Only convertables should get here")
             }
             rhsType = lhsType
-            rCast = cast
         }
+
+        // TODO: REFACTOR
+        // TODO: REFACTOR
+        // TODO: REFACTOR
+        // TODO: REFACTOR
+        // TODO: REFACTOR
+        // TODO: REFACTOR
+        // TODO: REFACTOR
 
         // Handle extending or truncating
         if lhsType == rhsType && lhsType is ty.UntypedInteger {
@@ -1743,20 +1763,16 @@ extension Checker {
             resultType = ty.untypedFloat
         } else if lhsType == rhsType && !(lhsType is ty.Pointer) && !(rhsType is ty.Pointer){
             resultType = lhsType
-        } else if let lhsType = lhsType as? ty.Integer, rhsType is ty.FloatingPoint {
-            lCast = lhsType.isSigned ? .siToFP : .uiToFP
+        } else if lhsType is ty.Integer, rhsType is ty.FloatingPoint {
             resultType = rhsType
-        } else if let rhsType = rhsType as? ty.Integer, lhsType is ty.FloatingPoint {
-            rCast = rhsType.isSigned ? .siToFP : .uiToFP
+        } else if rhsType is ty.Integer, lhsType is ty.FloatingPoint {
             resultType = lhsType
         } else if lhsType is ty.FloatingPoint && rhsType is ty.FloatingPoint {
             // select the largest
             if lhsType.width! < rhsType.width! {
                 resultType = rhsType
-                lCast = .fpext
             } else {
                 resultType = lhsType
-                rCast = .fpext
             }
         } else if let lhsType = lhsType as? ty.Integer, let rhsType = rhsType as? ty.Integer {
             guard lhsType.isSigned == rhsType.isSigned else {
@@ -1766,10 +1782,8 @@ extension Checker {
             // select the largest
             if lhsType.width! < rhsType.width! {
                 resultType = rhsType
-                lCast = lhsType.isSigned ? OpCode.Cast.sext : OpCode.Cast.zext
             } else {
                 resultType = lhsType
-                rCast = rhsType.isSigned ? OpCode.Cast.sext : OpCode.Cast.zext
             }
         } else if let lhsType = lhsType as? ty.Pointer, rhsType is ty.Integer {
             // Can only increment/decrement a pointer
@@ -1795,8 +1809,6 @@ extension Checker {
             reportError("Invalid operation '\(binary.op)' between types '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
             return Operand.invalid
         }
-
-        assert((lhsType == rhsType) || lCast != nil || rCast != nil || binary.isPointerArithmetic, "We must have 2 same types or a way to acheive them by here")
 
         let underlyingLhs = (lhsType as? ty.Vector)?.elementType ?? lhsType
         let isIntegerOp = underlyingLhs is ty.Integer || underlyingLhs is ty.Integer || underlyingLhs is ty.Pointer
@@ -1849,8 +1861,6 @@ extension Checker {
 
         binary.type = type
         binary.irOp = op
-        binary.irLCast = lCast
-        binary.irRCast = rCast
         // TODO: Constants
         return Operand(mode: .computed, expr: binary, type: type, constant: apply(lhs.constant, rhs.constant, op: binary.op), dependencies: dependencies)
     }
@@ -1876,7 +1886,7 @@ extension Checker {
         let elseOperand = check(expr: ternary.els, desiredType: thenOperand?.type)
         dependencies.formUnion(elseOperand.dependencies)
         
-        if let thenType = thenOperand?.type, !canConvert(elseOperand.type, to: thenType) {
+        if let thenType = thenOperand?.type, !convert(elseOperand.type, to: thenType, at: ternary.els) {
             reportError("Expected matching types", at: ternary.start)
         }
         ternary.type = elseOperand.type
@@ -1909,16 +1919,16 @@ extension Checker {
             if member.isConstant {
                 selector.constant = member.constant
             }
+            selector.sel.entity = member
             if let desiredType = desiredType, member.type! is ty.UntypedInteger || member.type! is ty.UntypedFloatingPoint {
-                if let cast = constrainUntyped(member.type!, to: desiredType) {
-                    selector.cast = cast
+                if constrainUntyped(member.type!, to: desiredType) {
+                    selector.conversion = (member.type!, desiredType)
                     selector.type = desiredType
-                    // TODO: Constants
+                    // TODO: Check for safe constant conversion
                     return Operand(mode: .addressable, expr: selector, type: desiredType, constant: member.constant, dependencies: dependencies)
                 }
             }
             selector.type = member.type
-            selector.sel.entity = member
             return Operand(mode: .addressable, expr: selector, type: member.type, constant: member.constant, dependencies: dependencies)
 
         case let strućt as ty.Struct:
@@ -2071,7 +2081,7 @@ extension Checker {
             return Operand.invalid
         }
 
-        if !canConvert(index.type, to: ty.i64) && !implicitlyConvert(index.type, to: ty.i64) && !(index.type is ty.Integer) && !(index.type is ty.UntypedInteger) {
+        if !(index.type is ty.Integer || index.type is ty.UntypedInteger) {
             reportError("Cannot subscript with non-integer type", at: sub.index.start)
         }
 
@@ -2122,15 +2132,13 @@ extension Checker {
         dependencies.formUnion(receiver.dependencies)
         if let lo = lo {
             dependencies.formUnion(lo.dependencies)
-            // TODO: Can we clean this up to just check if this is an integer of any kind?
-            if !canConvert(lo.type, to: ty.i64) && !implicitlyConvert(lo.type, to: ty.i64) && !(lo.type is ty.Integer) && !(lo.type is ty.UntypedInteger) {
+            if  !(lo.type is ty.Integer || lo.type is ty.UntypedInteger) {
                 reportError("Cannot subscript with non-integer type", at: slice.lo!.start)
             }
         }
         if let hi = hi {
             dependencies.formUnion(hi.dependencies)
-            // TODO: Can we clean this up to just check if this is an integer of any kind?
-            if !canConvert(hi.type, to: ty.i64) && !implicitlyConvert(hi.type, to: ty.i64) && !(hi.type is ty.Integer) && !(hi.type is ty.UntypedInteger) {
+            if !(hi.type is ty.Integer || hi.type is ty.UntypedInteger) {
                 reportError("Cannot subscript with non-integer type", at: slice.lo!.start)
             }
         }
@@ -2203,7 +2211,7 @@ extension Checker {
                 let argument = check(expr: arg, desiredType: expectedType)
                 dependencies.formUnion(argument.dependencies)
 
-                guard argument.type == expectedType || implicitlyConvert(argument.type, to: expectedType) else {
+                guard convert(argument.type, to: expectedType, at: arg) else {
                     reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
                     file.attachNote("In call to '\(callee)'")
                     continue
@@ -2245,7 +2253,7 @@ extension Checker {
             let argument = check(expr: arg, desiredType: expectedType)
             dependencies.formUnion(argument.dependencies)
 
-            guard argument.type == expectedType || implicitlyConvert(argument.type, to: expectedType) else {
+            guard convert(argument.type, to: expectedType, at: arg) else {
                 reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
                 file.attachNote("In call to \(callee)")
                 continue
@@ -2276,36 +2284,17 @@ extension Checker {
     mutating func check(autocast: Autocast, desiredType: Type?) -> Operand {
         guard let desiredType = desiredType else {
             reportError("Unabled to infer type for autocast", at: autocast.keyword)
-            autocast.op = .bitCast
             autocast.type = ty.invalid
             return Operand.invalid
         }
 
         let operand = check(expr: autocast.expr, desiredType: desiredType)
-        let type = operand.type!
 
         autocast.type = desiredType
-        if let argType = type as? ty.Integer, let targetType = desiredType as? ty.Integer { // 2 integers
-            autocast.op = (argType.width! > targetType.width!) ? .trunc : (targetType.isSigned ? .sext : .zext)
-        } else if let argType = type as? ty.FloatingPoint, let targetType = desiredType as? ty.FloatingPoint { // 2 floats
-            autocast.op = (argType.width! > targetType.width!) ? .fpTrunc : .fpext
-        } else if let argType = type as? ty.Integer, desiredType is ty.FloatingPoint { // TODO: Cast from int to float of different size
-            autocast.op = argType.isSigned ? .siToFP : .uiToFP
-        } else if type is ty.FloatingPoint, let targetType = desiredType as? ty.Integer { // TODO: Cast from float to int of different size
-            autocast.op = targetType.isSigned ? .fpToSI : .fpToUI
-        } else if type is ty.Array, desiredType is ty.Pointer {
-            // If the user performs a reinterpret cast, we don't care if the
-            // underlying types match/are the same width
-            autocast.op = .bitCast
-        } else if type is ty.Function && desiredType is ty.Pointer {
-            autocast.op = .bitCast
-        } else if type is ty.Pointer && desiredType is ty.Pointer {
-            autocast.op = .bitCast
-        } else if type == desiredType {
-            autocast.op = .bitCast
-        } else {
-            autocast.op = .bitCast
+        guard canCast(operand.type, to: desiredType) else {
             reportError("Cannot cast between '\(operand)' and unrelated type '\(desiredType)'", at: autocast.start)
+            autocast.type = ty.invalid
+            return Operand(mode: .computed, expr: autocast, type: ty.invalid, constant: nil, dependencies: operand.dependencies)
         }
 
         return Operand(mode: .computed, expr: autocast, type: desiredType, constant: nil, dependencies: operand.dependencies)
@@ -2334,45 +2323,17 @@ extension Checker {
 
         if exprType == targetType {
             reportError("Unnecissary cast to same type", at: cast.start)
-            cast.op = .bitCast
             return Operand(mode: .computed, expr: cast, type: targetType, constant: nil, dependencies: dependencies)
         }
 
         switch cast.kind {
         case .cast:
-            if let argType = exprType as? ty.UntypedInteger, let targetType = targetType as? ty.Integer {
-                cast.op = (argType.width! > targetType.width!) ? .trunc : (targetType.isSigned ? .sext : .zext)
-            } else if let argType = exprType as? ty.UntypedFloatingPoint, let targetType = targetType as? ty.FloatingPoint {
-                cast.op = (argType.width! > targetType.width!) ? .fpTrunc : .fpext
-            } else if let argType = exprType as? ty.Integer, let targetType = targetType as? ty.Integer { // 2 integers
-                cast.op = (argType.width! > targetType.width!) ? .trunc : (targetType.isSigned ? .sext : .zext)
-            } else if let argType = exprType as? ty.FloatingPoint, let targetType = targetType as? ty.FloatingPoint { // 2 floats
-                cast.op = (argType.width! > targetType.width!) ? .fpTrunc : .fpext
-            } else if let argType = exprType as? ty.Integer, targetType is ty.FloatingPoint { // TODO: Cast from int to float of different size
-                cast.op = argType.isSigned ? .siToFP : .uiToFP
-            } else if exprType is ty.FloatingPoint, let targetType = targetType as? ty.Integer { // TODO: Cast from float to int of different size
-                cast.op = targetType.isSigned ? .fpToSI : .fpToUI
-            } else if exprType is ty.Array, targetType is ty.Pointer {
-                // If the user performs a reinterpret cast, we don't care if the
-                // underlying types match/are the same width
-                cast.op = .bitCast
-            } else if exprType is ty.Function && targetType is ty.Pointer {
-                cast.op = .bitCast
-            } else if exprType is ty.Pointer && targetType is ty.Pointer {
-                cast.op = .bitCast
-            } else {
-                cast.op = .bitCast
+            guard canCast(exprType, to: targetType) else {
                 reportError("Cannot cast '\(operand)' to unrelated type '\(targetType)'", at: cast.start)
+                return Operand(mode: .computed, expr: cast, type: targetType, constant: nil, dependencies: dependencies)
             }
 
         case .bitcast:
-            if exprType is ty.Integer || exprType is ty.UntypedInteger, targetType is ty.Pointer {
-                cast.op = OpCode.Cast.intToPtr
-            } else if exprType is ty.Pointer, targetType is ty.Integer {
-                cast.op = OpCode.Cast.ptrToInt
-            } else {
-                cast.op = .bitCast
-            }
             guard exprType.width == targetType.width else {
                 reportError("Cannot bitcast '\(operand)' to type of different size (\(targetType))", at: cast.keyword)
                 return Operand(mode: .computed, expr: cast, type: targetType, constant: nil, dependencies: dependencies)
@@ -2431,7 +2392,7 @@ extension Checker {
             specializationTypes.append(argType)
 
             if param.isExplicitPoly, let polyType = param.type as? ty.Polymorphic {
-                guard canConvert(argType, to: param.type) || implicitlyConvert(argType, to: param.type) else {
+                guard convert(argType, to: param.type, at: arg) else {
                     reportError("Cannot convert '\(argument)' to expected type '\(param.type)'", at: arg.start)
                     continue
                 }
@@ -2464,7 +2425,7 @@ extension Checker {
             {
                 let argument = check(expr: arg, desiredType: expectedType)
 
-                guard canConvert(argument.type, to: expectedType) || implicitlyConvert(argument.type, to: expectedType) else {
+                guard convert(argument.type, to: expectedType, at: arg) else {
                     reportError("Cannot convert '\(argument)' to expected type '\(expectedType)'", at: arg.start)
                     continue
                 }
@@ -2506,7 +2467,7 @@ extension Checker {
                 argType = check(expr: arg, desiredType: expectedType).type
             }
 
-            guard canConvert(argType, to: expectedType) || implicitlyConvert(argType, to: expectedType) else {
+            guard convert(argType, to: expectedType, at: arg) else {
                 reportError("Cannot convert type '\(argType)' to expected type '\(expectedType)'", at: arg.start)
                 continue
             }
@@ -2553,45 +2514,24 @@ extension Checker {
         return ty.invalid
     }
 
-    /// - Returns: Was a conversion performed
-    func implicitlyConvert(_ type: Type, to targetType: Type) -> Bool {
-
-        if targetType is ty.Anyy {
-            return true
-//            fatalError("Implement this once we have an any type")
-        }
-
-        if targetType is ty.CVarArg {
-            // No actual conversion need be done.
-            return true
-        }
-
-        if targetType is ty.Pointer, let type = type as? ty.Metatype, type.instanceType is ty.UntypedNil {
-            return true
-        }
-
-        return false
-    }
-
-    func constrainUntyped(_ type: Type, to targetType: Type) -> OpCode.Cast? {
+    func constrainUntyped(_ type: Type, to targetType: Type) -> Bool {
         switch (type, targetType) {
-        case (is ty.UntypedNil, is ty.Pointer):
-            return .bitCast
-        case (let type as ty.UntypedInteger, let targetType as ty.Integer) where  targetType.isSigned:
-            return type.width! < targetType.width! ? OpCode.Cast.sext : .trunc
-        case (let type as ty.UntypedInteger, let targetType as ty.Integer) where !targetType.isSigned:
-            return type.width! < targetType.width! ? OpCode.Cast.zext : .trunc
-        case (is ty.UntypedFloatingPoint, let targetType as ty.Integer):
-            return targetType.isSigned ? OpCode.Cast.fpToSI : .fpToUI
-        case (let type as ty.UntypedFloatingPoint, let targetType as ty.FloatingPoint):
-            return type.width! < targetType.width! ? OpCode.Cast.fpext : .fpTrunc
+        case (is ty.UntypedNil, is ty.Pointer),
+
+             (is ty.UntypedInteger, is ty.Integer),
+             (is ty.UntypedInteger, is ty.FloatingPoint),
+             (is ty.UntypedInteger, is ty.Pointer),
+
+             (is ty.UntypedFloatingPoint, is ty.Integer),
+             (is ty.UntypedFloatingPoint, is ty.FloatingPoint):
+            return true
         default:
-            return nil
+            return false
         }
     }
 
     func newEntity(ident: Ident, type: Type? = nil, flags: Entity.Flag = .none, memberScope: Scope? = nil, owningScope: Scope? = nil, constant: Value? = nil) -> Entity {
-        return Entity(ident: ident, type: type, flags: flags, constant: constant, package: file.package, memberScope: memberScope, owningScope: owningScope, callconv: nil, linkname: nil, mangledName: nil, value: nil)
+        return Entity(ident: ident, type: type, flags: flags, constant: constant, file: file, memberScope: memberScope, owningScope: owningScope, callconv: nil, linkname: nil, mangledName: nil, value: nil)
     }
 }
 

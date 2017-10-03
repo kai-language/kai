@@ -72,7 +72,7 @@ func copy(_ entity: Entity) -> Entity {
         type: entity.type,
         flags: entity.flags,
         constant: entity.constant,
-        package: entity.package,
+        file: entity.file,
         memberScope: entity.memberScope,
         owningScope: entity.owningScope,
         callconv: entity.callconv,
