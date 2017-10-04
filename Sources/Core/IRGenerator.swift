@@ -923,10 +923,6 @@ extension IRGenerator {
             let val = type.constant(lit.constant as! UInt64)
             return val
         case let type as FloatType:
-            if lit.token == .int {
-                let val = Double(lit.constant as! UInt64)
-                return type.constant(val)
-            }
             let val = type.constant(lit.constant as! Double)
             return val
         default:
@@ -1143,6 +1139,7 @@ extension IRGenerator {
             return val
         case .specializedCall(let specialization):
             let args = call.args.map({ emit(expr: $0) })
+            _ = emit(expr: call.fun) // NOTE: This will ensure the function is emitted
             return b.buildCall(specialization.llvm!, args: args)
         }
     }
@@ -1527,10 +1524,10 @@ extension IRGenerator {
             return canonicalize(type)
         case let type as ty.UntypedFloatingPoint:
             return canonicalize(type)
+        case let type as ty.Polymorphic:
+            return canonicalize(type.specialization.val!)
         case is ty.UntypedNil:
             fatalError("Untyped nil should be constrained to target type")
-        case is ty.Polymorphic:
-            fatalError()
         default:
             preconditionFailure()
         }

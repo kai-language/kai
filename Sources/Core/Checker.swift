@@ -1116,8 +1116,11 @@ extension Checker {
             default:
                 lit.constant = UInt64(lit.text, radix: 10)!
             }
-            if let desiredType = desiredType, desiredType is ty.Integer || desiredType is ty.FloatingPoint {
+            if let desiredType = desiredType, desiredType is ty.Integer {
                 lit.type = desiredType
+            } else if let desiredType = desiredType, desiredType is ty.FloatingPoint || desiredType is ty.UntypedFloatingPoint {
+                lit.type = desiredType
+                lit.constant = Double(lit.constant as! UInt64)
             } else {
                 lit.type = ty.untypedInteger
             }
@@ -1946,7 +1949,7 @@ extension Checker {
             switch selector.sel.name {
             case "len":
                 selector.checked = .staticLength(array.length)
-                selector.type = ty.i64
+                selector.type = ty.u64
             default:
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
                 selector.checked = .invalid
@@ -1962,10 +1965,10 @@ extension Checker {
                 selector.type = ty.Pointer(pointeeType: slice.elementType)
             case "len":
                 selector.checked = .array(.length)
-                selector.type = ty.i64
+                selector.type = ty.u64
             case "cap":
                 selector.checked = .array(.capacity)
-                selector.type = ty.i64
+                selector.type = ty.u64
             default:
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
                 selector.checked = .invalid
@@ -2012,10 +2015,10 @@ extension Checker {
                 selector.type = ty.Pointer(pointeeType: ty.u8)
             case "len":
                 selector.checked = .array(.length)
-                selector.type = ty.i64
+                selector.type = ty.u64
             case "cap":
                 selector.checked = .array(.capacity)
-                selector.type = ty.i64
+                selector.type = ty.u64
             default:
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
                 selector.checked = .invalid
@@ -2460,6 +2463,10 @@ extension Checker {
 
         var typesCopy = specializationTypes
         for (arg, expectedType) in zip(strippedArgs, type.params) {
+            var expectedType = expectedType
+            if let polyType = expectedType as? ty.Polymorphic {
+                expectedType = polyType.specialization.val!
+            }
             var argType: Type
             if arg.type != nil {
                 argType = typesCopy.removeFirst()

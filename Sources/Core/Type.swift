@@ -119,8 +119,16 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
         return true
     }
 
-    guard let expr = expr as? Convertable else {
-        return false
+    if let lit = expr as? BasicLit {
+        switch (lit.constant, target) {
+        case (let const as UInt64, is ty.FloatingPoint):
+            lit.constant = Double(const)
+            lit.type = target
+            return true
+
+        default:
+            return false
+        }
     }
 
     var allowed = false
@@ -154,6 +162,11 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
     default:
         allowed = false
     }
+
+    guard let expr = expr as? Convertable else {
+        return false
+    }
+
     if allowed {
         expr.conversion = (type, target)
     }
