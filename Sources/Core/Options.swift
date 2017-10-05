@@ -7,7 +7,7 @@ public struct Options {
     public static var instance = Options(arguments: [])
 
     public var flags: Flags = []
-    public var jobs: Int = 4
+    public var jobs: Int = 1
 
     public init(arguments: ArraySlice<String>) {
 
