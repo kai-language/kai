@@ -1317,7 +1317,7 @@ extension Checker {
         var needsSpecialization = false
         var params: [Type] = []
         for param in fn.params.list {
-            if fn.isSpecialization && param.type != nil {
+            if fn.isSpecialization && param.type != nil && !(param.type is ty.Polymorphic) {
                 // The polymorphic parameters type has been set by the callee
                 params.append(param.type)
                 continue
@@ -1337,8 +1337,8 @@ extension Checker {
                 }
             }
 
-            if let polyType = type as? ty.Polymorphic, fn.isSpecialization && !param.isExplicitPoly {
-                type = polyType.specialization.val!
+            if fn.isSpecialization {
+                type = lowerSpecializedPolymorphics(type)
             }
 
             if fn.isSpecialization {
@@ -1354,9 +1354,11 @@ extension Checker {
             dependencies.formUnion(operand.dependencies)
 
             var type = lowerFromMetatype(operand.type, atNode: resultType)
-            if let polyType = type as? ty.Polymorphic, fn.isSpecialization {
-                type = polyType.specialization.val!
+            if fn.isSpecialization {
+                type = lowerSpecializedPolymorphics(type)
             }
+
+            assert(!(type is ty.Polymorphic))
             
             returnTypes.append(type)
         }
@@ -2519,6 +2521,67 @@ extension Checker {
 
         reportError("'\(type)' cannot be used as a type", at: node.start, function: function, line: line)
         return ty.invalid
+    }
+
+    func lowerSpecializedPolymorphics(_ type: Type) -> Type {
+
+        switch type {
+        case is ty.Anyy,
+             is ty.Boolean,
+             is ty.CVarArg,
+             is ty.FloatingPoint,
+             is ty.Integer,
+             is ty.KaiString,
+             is ty.Void:
+            return type
+
+        case let type as ty.Polymorphic:
+            return type.specialization.val!
+
+        case var type as ty.Array:
+            let elType = lowerSpecializedPolymorphics(type.elementType)
+            type.elementType = elType
+            return type
+
+        case var type as ty.Vector:
+            let elType = lowerSpecializedPolymorphics(type.elementType)
+            type.elementType = elType
+            return type
+
+        case var type as ty.Slice:
+            let elType = lowerSpecializedPolymorphics(type.elementType)
+            type.elementType = elType
+            return type
+
+        case var type as ty.Pointer:
+            let pType = lowerSpecializedPolymorphics(type.pointeeType)
+            type.pointeeType = pType
+            return type
+
+            case is ty.Enum,
+                 is ty.Union,
+                 is ty.Struct,
+                 is ty.Variant:
+            // TODO: do we permit anonymous polymorphic complex types???
+            return type
+
+        case is ty.Metatype:
+            preconditionFailure("Not sure this is possible")
+
+        case let type as ty.Function:
+//            assert(type.params.reduce(true, { $0 && isPolymorphic($1) }))
+//            assert(type.returnType.types.reduce(true, { $0 && isPolymorphic($1) }))
+            return type
+
+        case is ty.File,
+             is ty.UntypedNil,
+             is ty.UntypedInteger,
+             is ty.UntypedFloatingPoint:
+            preconditionFailure()
+
+        default:
+            preconditionFailure("New Type?")
+        }
     }
 
     func constrainUntyped(_ type: Type, to targetType: Type) -> Bool {
