@@ -177,7 +177,7 @@ extension SourceFile {
     }
 
     func addRemoteGithubPackage(user: String, repo: String, import i: Import, importedFrom: SourceFile) {
-        let packageDirectory = dirname(path: importedFrom.package.fullpath) + "deps/" + user + "/" + repo
+        let packageDirectory = dependencyPath + "/" + user + "/" + repo
 
         i.resolvedName = pathToEntityName(packageDirectory)
         if !isDirectory(path: packageDirectory) {

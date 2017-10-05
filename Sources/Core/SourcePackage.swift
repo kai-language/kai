@@ -7,6 +7,7 @@ let fileExtension = ".kai"
 var buildDirectory = currentDirectory + "/" + fileExtension + "/"
 
 var knownSourcePackages: [String: SourcePackage] = [:]
+var dependencyPath = currentDirectory + "/deps"
 
 // sourcery:noinit
 public final class SourcePackage {
