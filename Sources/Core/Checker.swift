@@ -2355,7 +2355,7 @@ extension Checker {
             l.type = ty.string
             l.constant = file.pathFirstImportedAs
         case .line:
-            l.type = ty.untypedInteger
+            l.type = (desiredType as? ty.Integer) ?? ty.untypedInteger
             l.constant = UInt64(file.position(for: l.directive).line)
         case .location:
             // TODO: We need to support complex constants first.
