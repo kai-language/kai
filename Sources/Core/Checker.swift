@@ -281,7 +281,7 @@ extension Checker {
 
             default:
                 if !(operand.type is ty.Invalid) {
-                    reportError("Expression of type '\(operand.type)' is unused", at: stmt.start)
+                    reportError("Expression of type \(operand.type) is unused", at: stmt.start)
                 }
             }
             return operand.dependencies
@@ -428,11 +428,11 @@ extension Checker {
                 ident.entity.flags.insert(.checked)
                 if let expectedType = expectedType, type is ty.Function, let pointer = expectedType as? ty.Pointer {
                     if type != pointer.pointeeType {
-                        reportError("Cannot convert '\(operand)' to specified type '\(expectedType)'", at: value.start)
+                        reportError("Cannot convert \(operand) to specified type '\(expectedType)'", at: value.start)
                         type = expectedType
                     }
                 } else if let expectedType = expectedType, type != expectedType {
-                    reportError("Cannot convert '\(operand)' to specified type '\(expectedType)'", at: value.start)
+                    reportError("Cannot convert \(operand) to specified type '\(expectedType)'", at: value.start)
                     type = expectedType
                 }
 
@@ -617,7 +617,7 @@ extension Checker {
                 declare(entity)
             }
         default:
-            reportError("using is invalid on '\(operand)'", at: using.expr.start)
+            reportError("using is invalid on \(operand)", at: using.expr.start)
         }
     }
 
@@ -701,7 +701,7 @@ extension Checker {
                     reportError("Void function should not return a value", at: value.start)
                     return dependencies
                 } else {
-                    reportError("Cannot convert '\(operand)' to expected type '\(expected)'", at: value.start)
+                    reportError("Cannot convert \(operand) to expected type '\(expected)'", at: value.start)
                 }
             }
         }
@@ -736,7 +736,7 @@ extension Checker {
         if let cond = fór.cond {
             let operand = check(expr: cond, desiredType: ty.bool)
             if !convert(operand.type, to: ty.bool, at: cond) {
-                reportError("Cannot convert '\(operand)' to expected type '\(ty.bool)'", at: cond.start)
+                reportError("Cannot convert \(operand) to expected type '\(ty.bool)'", at: cond.start)
             }
         }
 
@@ -772,7 +772,7 @@ extension Checker {
         dependencies.formUnion(operand.dependencies)
         guard canSequence(operand.type) else {
             forIn.aggregate.type = ty.invalid
-            reportError("Cannot create a sequence for '\(operand)'", at: forIn.aggregate.start)
+            reportError("Cannot create a sequence for \(operand)", at: forIn.aggregate.start)
             return dependencies
         }
 
@@ -817,7 +817,7 @@ extension Checker {
         let operand = check(expr: iff.cond, desiredType: ty.bool)
         dependencies.formUnion(operand.dependencies)
         if !convert(operand.type, to: ty.bool, at: iff.cond) {
-            reportError("Cannot convert '\(operand)' to expected type '\(ty.bool)'", at: iff.cond.start)
+            reportError("Cannot convert \(operand) to expected type '\(ty.bool)'", at: iff.cond.start)
         }
 
         let deps = check(stmt: iff.body)
@@ -865,7 +865,7 @@ extension Checker {
                     dependencies.formUnion(operand.dependencies)
 
                     guard convert(operand.type, to: desiredType, at: match) else {
-                        reportError("Cannot convert '\(operand)' to expected type '\(desiredType)'", at: match.start)
+                        reportError("Cannot convert \(operand) to expected type '\(desiredType)'", at: match.start)
                         continue
                     }
                 } else {
@@ -873,7 +873,7 @@ extension Checker {
                     dependencies.formUnion(operand.dependencies)
 
                     guard convert(operand.type, to: ty.bool, at: match) else {
-                        reportError("Cannot convert '\(operand)' to expected type '\(ty.bool)'", at: match.start)
+                        reportError("Cannot convert \(operand) to expected type '\(ty.bool)'", at: match.start)
                         continue
                     }
                 }
@@ -1196,7 +1196,7 @@ extension Checker {
 
                     el.type = operand.type
                     guard convert(el.type, to: field.type, at: el.value) else {
-                        reportError("Cannot convert element '\(operand)' to expected type '\(field.type)'", at: el.value.start)
+                        reportError("Cannot convert element \(operand) to expected type '\(field.type)'", at: el.value.start)
                         continue
                     }
                 } else {
@@ -1206,7 +1206,7 @@ extension Checker {
 
                     el.type = operand.type
                     guard convert(el.type, to: field.type, at: el.value) else {
-                        reportError("Cannot convert element '\(operand)' to expected type '\(field.type)'", at: el.value.start)
+                        reportError("Cannot convert element \(operand) to expected type '\(field.type)'", at: el.value.start)
                         continue
                     }
                 }
@@ -1230,7 +1230,7 @@ extension Checker {
 
                 el.type = operand.type
                 guard convert(el.type, to: type.elementType, at: el.value) else {
-                    reportError("Cannot convert element '\(operand)' to expected type '\(type.elementType)'", at: el.value.start)
+                    reportError("Cannot convert element \(operand) to expected type '\(type.elementType)'", at: el.value.start)
                     continue
                 }
             }
@@ -1245,7 +1245,7 @@ extension Checker {
 
                 el.type = operand.type
                 guard convert(el.type, to: slice.elementType, at: el.value) else {
-                    reportError("Cannot convert element '\(operand)' to expected type '\(slice.elementType)'", at: el.value.start)
+                    reportError("Cannot convert element \(operand) to expected type '\(slice.elementType)'", at: el.value.start)
                     continue
                 }
             }
@@ -1264,7 +1264,7 @@ extension Checker {
 
                 el.type = operand.type
                 guard convert(el.type, to: type.elementType, at: el.value) else {
-                    reportError("Cannot convert element '\(operand)' to expected type '\(type.elementType)'", at: el.value.start)
+                    reportError("Cannot convert element \(operand) to expected type '\(type.elementType)'", at: el.value.start)
                     continue
                 }
             }
@@ -1664,20 +1664,20 @@ extension Checker {
 
         case .add:
             guard type is ty.Integer || type is ty.FloatingPoint || type is ty.UntypedInteger || type is ty.UntypedFloatingPoint else {
-                reportError("Invalid operation '\(unary.op)' on '\(operand)'", at: unary.start)
+                reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
                 return Operand.invalid
             }
 
         case .not:
             guard type is ty.Boolean else {
-                reportError("Invalid operation '\(unary.op)' on '\(operand)'", at: unary.start)
+                reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
                 return Operand.invalid
             }
             constant = operand.constant.map(not)
 
         case .lss:
             guard let pointer = type as? ty.Pointer else {
-                reportError("Invalid operation '\(unary.op)' on '\(operand)'", at: unary.start)
+                reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
                 return Operand.invalid
             }
             type = pointer.pointeeType
@@ -1690,7 +1690,7 @@ extension Checker {
             type = ty.Pointer(pointeeType: type)
 
         default:
-            reportError("Invalid operation '\(unary.op)' on '\(operand)'", at: unary.start)
+            reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
             return Operand.invalid
         }
 
@@ -2074,7 +2074,7 @@ extension Checker {
         default:
             // Don't spam diagnostics if the type is already invalid
             if !(operand.type is ty.Invalid) {
-                reportError("'\(operand)', does not have a member scope", at: selector.start)
+                reportError("\(operand), does not have a member scope", at: selector.start)
             }
 
             selector.checked = .invalid
@@ -2309,7 +2309,7 @@ extension Checker {
 
         autocast.type = desiredType
         guard canCast(operand.type, to: desiredType) else {
-            reportError("Cannot cast between '\(operand)' and unrelated type '\(desiredType)'", at: autocast.start)
+            reportError("Cannot cast between \(operand) and unrelated type '\(desiredType)'", at: autocast.start)
             autocast.type = ty.invalid
             return Operand(mode: .computed, expr: autocast, type: ty.invalid, constant: nil, dependencies: operand.dependencies)
         }
@@ -2346,13 +2346,13 @@ extension Checker {
         switch cast.kind {
         case .cast:
             guard canCast(exprType, to: targetType) else {
-                reportError("Cannot cast '\(operand)' to unrelated type '\(targetType)'", at: cast.start)
+                reportError("Cannot cast \(operand) to unrelated type '\(targetType)'", at: cast.start)
                 return Operand(mode: .computed, expr: cast, type: targetType, constant: nil, dependencies: dependencies)
             }
 
         case .bitcast:
             guard exprType.width == targetType.width else {
-                reportError("Cannot bitcast '\(operand)' to type of different size (\(targetType))", at: cast.keyword)
+                reportError("Cannot bitcast \(operand) to type of different size (\(targetType))", at: cast.keyword)
                 return Operand(mode: .computed, expr: cast, type: targetType, constant: nil, dependencies: dependencies)
             }
 
