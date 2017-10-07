@@ -79,6 +79,20 @@ struct IRGenerator {
                 return b.addGlobal(symbol, type: canonicalize(entity.type!))
             }
         }
+
+        if let constant = entity.constant {
+            switch constant {
+            case let c as UInt64:
+                let type = LLVM.IntType(width: entity.type!.width!, in: module.context)
+                let ptr = b.buildAlloca(type: type)
+                _ = b.buildStore(type.constant(c), to: ptr)
+                entity.value = ptr
+
+            default:
+                fatalError()
+            }
+        }
+
         // FIXME: We need to ensure we are in the declarations context for correct mangling.
         if entity.value == nil {
             emit(decl: entity.declaration!)

@@ -298,6 +298,10 @@ extension Checker {
                 dependencies.formUnion(deps)
             }
             return dependencies
+        case let using as Using:
+            check(using: using)
+            return []
+
         case let ret as Return:
             return check(return: ret)
 
@@ -600,6 +604,16 @@ extension Checker {
         case let type as ty.Struct:
             for field in type.fields {
                 let entity = newEntity(ident: field.ident, type: field.type, flags: .field, owningScope: context.scope)
+                declare(entity)
+            }
+        case let meta as ty.Metatype:
+            guard let type = lowerFromMetatype(meta, atNode: using.expr) as? ty.Enum else {
+                fallthrough
+            }
+
+            for c in type.cases {
+                let entity = newEntity(ident: c.ident, type: type, flags: .field, owningScope: context.scope)
+                entity.constant = c.constant ?? UInt64(c.number)
                 declare(entity)
             }
         default:
