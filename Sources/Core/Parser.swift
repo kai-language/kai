@@ -706,17 +706,10 @@ extension Parser {
     }
 
     mutating func parseParameters() -> [Parameter] {
-        if tok == .dollar {
-            let dollar = eatToken()
-            let name = parseIdent()
-            expect(.colon)
-            let type = parseType(allowPolyType: false)
-            return [Parameter(dollar: dollar, name: name, explicitType: type, entity: nil)]
-        }
         let names = parseIdentList()
         expect(.colon)
         let type = parseType(allowPolyType: true, allowVariadic: true)
-        return names.map({ Parameter(dollar: nil, name: $0, explicitType: type, entity: nil) })
+        return names.map({ Parameter(name: $0, explicitType: type, entity: nil) })
     }
 
     mutating func parseResultList() -> ResultList {

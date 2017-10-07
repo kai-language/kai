@@ -294,7 +294,7 @@ extension SourceFile {
     }
 
     func offset(pos: Pos) -> UInt32 {
-        assert(pos.offset <= size)
+//        assert(pos.offset <= size)
         return pos.offset
     }
 

@@ -1,0 +1,58 @@
+
+#import kai("libc")
+
+main :: fn() -> void {
+
+    floats := []f32{}
+    floats = append(floats, 8.0)
+    floats = append(floats, 9.0)
+
+    for el in floats {
+        libc.printf("%f\n".raw, el)
+    }
+
+    ints := []i32{}
+    ints = append(ints, 8)
+    ints = append(ints, 9)
+
+    for el in ints {
+        libc.printf("%d\n".raw, el)
+    }
+
+    strings := []string{}
+    strings = append(strings, "Hello")
+    strings = append(strings, "World")
+
+    for el in strings {
+        libc.printf("%s\n".raw, el.raw)
+    }
+}
+
+
+// From kai("arrays")
+
+EXPANSION_FACTOR : f32 : 2
+
+append :: fn(arr: []$T, val: T) -> []T {
+    arr.len += 1
+    arr = reserve(arr, arr.len)
+    arr[arr.len - 1] = val
+    return arr
+}
+
+reserve :: fn(arr: []$T, cap: u64) -> []T {
+    if arr.cap == 0 {
+        buf := cast(*T) libc.malloc(cap * sizeof(T))
+        cpy := cast(*T) libc.memcpy(buf, arr.raw, arr.len * sizeof(T))
+        arr.raw = cpy
+    }
+    else if arr.cap < cap {
+        buf := cast(*T) libc.realloc(arr.raw, cap * sizeof(T))
+        arr.raw = buf
+    }
+    else { // arr.cap >= cap
+        return arr
+    }
+    arr.cap = cap
+    return arr
+}
