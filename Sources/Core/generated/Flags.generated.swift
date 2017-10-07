@@ -44,6 +44,10 @@ extension Entity {
     var isField: Bool {
         return flags.contains(.field) 
     }
+
+    var isParameter: Bool {
+        return flags.contains(.parameter) 
+    }
 }
 
 extension FuncLit {

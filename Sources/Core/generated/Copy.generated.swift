@@ -507,7 +507,6 @@ func copy(_ nodes: [Nil]) -> [Nil] {
 
 func copy(_ node: Parameter) -> Parameter {
     return Parameter(
-        dollar: node.dollar,
         name: copy(node.name),
         explicitType: copy(node.explicitType),
         entity: node.entity
