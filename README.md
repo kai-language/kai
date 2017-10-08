@@ -1,4 +1,4 @@
-  # The Kai Programming Language
+  # Kai Programming Language
 An expressive low level programming language.
 
 ## Documentation
