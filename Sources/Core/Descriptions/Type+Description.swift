@@ -169,7 +169,11 @@ extension ty.Metatype {
 
 extension ty.Polymorphic {
     var description: String {
-        return entity.name
+        if let specialization = self.specialization.val {
+            return entity.name + " specialized to " + specialization.description
+        } else {
+            return "$" + entity.name
+        }
     }
 }
 

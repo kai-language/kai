@@ -23,36 +23,6 @@ extension Type {
     }
 }
 
-func findPolymorphicType(arg: Type, param: Type) -> (argType: Type, polyParam: ty.Polymorphic)? {
-    switch (arg, param) {
-    case (let lhs as ty.Array, let rhs as ty.Array):
-        guard let poly = rhs.elementType as? ty.Polymorphic else {
-            return findPolymorphicType(arg: lhs.elementType, param: rhs.elementType)
-        }
-
-        return (lhs.elementType, poly)
-    case (let lhs as ty.Slice, let rhs as ty.Slice):
-        guard let poly = rhs.elementType as? ty.Polymorphic else {
-            return findPolymorphicType(arg: lhs.elementType, param: rhs.elementType)
-        }
-
-        return (lhs.elementType, poly)
-    case (let lhs as ty.Vector, let rhs as ty.Vector):
-        guard let poly = rhs.elementType as? ty.Polymorphic else {
-            return findPolymorphicType(arg: lhs.elementType, param: rhs.elementType)
-        }
-
-        return (lhs.elementType, poly)
-    case (let lhs as ty.Pointer, let rhs as ty.Pointer):
-        guard let poly = rhs.pointeeType as? ty.Polymorphic else {
-            return findPolymorphicType(arg: lhs.pointeeType, param: rhs.pointeeType)
-        }
-
-        return (lhs.pointeeType, poly)
-    default: return nil
-    }
-}
-
 func != (lhs: Type, rhs: Type) -> Bool {
     return !(lhs == rhs)
 }
@@ -103,6 +73,161 @@ func == (lhs: Type, rhs: Type) -> Bool {
     }
 }
 
+/// Rescursively searches type for a ty.Polymorphic
+func findPolymorphic(_ type: Type) -> ty.Polymorphic? {
+    switch type {
+    case let type as ty.Array:
+        return findPolymorphic(type.elementType)
+    case let type as ty.Slice:
+        return findPolymorphic(type.elementType)
+    case let type as ty.Vector:
+        return findPolymorphic(type.elementType)
+    case let type as ty.Pointer:
+        return findPolymorphic(type.pointeeType)
+
+    case let type as ty.Function:
+        // FIXME: This needs to return multiple polymorphics. Since functions can have multiple bits
+        return type.params.map(findPolymorphic).first ?? nil
+
+        // TODO: @PolyStruct
+
+    case let type as ty.Polymorphic:
+        return type
+    default:
+        return nil
+    }
+}
+
+/// Recursively searches polyType for a ty.Polymorphic to pair
+///  with a matching argType. If found the ty.Polymorphic has
+///  its specialization.val set for future use.
+///
+///     specialize(polyType: "[]$T", with: []f32)
+///
+/// In this example T matches to f32
+///
+/// - Returns: Was specialization possible?
+func specialize(polyType: Type, with argType: Type) -> Bool {
+    switch (polyType, argType) {
+    case (let polyType as ty.Array, let argType as ty.Array):
+        return specialize(polyType: polyType.elementType, with: argType.elementType)
+    case (let polyType as ty.Slice, let argType as ty.Slice):
+        return specialize(polyType: polyType.elementType, with: argType.elementType)
+    case (let polyType as ty.Vector, let argType as ty.Vector):
+        return specialize(polyType: polyType.elementType, with: argType.elementType)
+    case (let polyType as ty.Pointer, let argType as ty.Pointer):
+        return specialize(polyType: polyType.pointeeType, with: argType.pointeeType)
+
+    case (let polyType as ty.Polymorphic, _):
+        polyType.specialization.val = argType
+        return true
+    default:
+        return false
+    }
+}
+
+func lowerSpecializedPolymorphics(_ type: Type) -> Type {
+
+    switch type {
+    case is ty.Anyy,
+         is ty.Boolean,
+         is ty.CVarArg,
+         is ty.FloatingPoint,
+         is ty.Integer,
+         is ty.KaiString,
+         is ty.Void:
+        return type
+
+    case let type as ty.Polymorphic:
+        return type.specialization.val!
+
+    case var type as ty.Array:
+        let elType = lowerSpecializedPolymorphics(type.elementType)
+        type.elementType = elType
+        return type
+
+    case var type as ty.Vector:
+        let elType = lowerSpecializedPolymorphics(type.elementType)
+        type.elementType = elType
+        return type
+
+    case var type as ty.Slice:
+        let elType = lowerSpecializedPolymorphics(type.elementType)
+        type.elementType = elType
+        return type
+
+    case var type as ty.Pointer:
+        let pType = lowerSpecializedPolymorphics(type.pointeeType)
+        type.pointeeType = pType
+        return type
+
+    case is ty.Enum,
+         is ty.Union,
+         is ty.Struct,
+         is ty.Variant:
+        // TODO: do we permit anonymous polymorphic complex types???
+        return type
+
+    case let type as ty.Metatype:
+        return ty.Metatype(instanceType: lowerSpecializedPolymorphics(type.instanceType))
+
+    case let type as ty.Function:
+        //            assert(type.params.reduce(true, { $0 && isPolymorphic($1) }))
+        //            assert(type.returnType.types.reduce(true, { $0 && isPolymorphic($1) }))
+        return type
+
+    case let type as ty.Tuple:
+        return ty.Tuple(width: type.width, types: type.types.map(lowerSpecializedPolymorphics))
+
+    case is ty.UntypedNil,
+         is ty.UntypedInteger,
+         is ty.UntypedFloatingPoint:
+        return type
+
+    case is ty.Invalid:
+        return type
+
+    case is ty.File:
+        return type
+
+    default:
+        preconditionFailure("New Type?")
+    }
+}
+
+func constrainUntyped(_ type: Type, to targetType: Type) -> Bool {
+    switch (type, targetType) {
+    case (is ty.UntypedNil, is ty.Pointer),
+
+         (is ty.UntypedInteger, is ty.Integer),
+         (is ty.UntypedInteger, is ty.FloatingPoint),
+         (is ty.UntypedInteger, is ty.Pointer),
+
+         (is ty.UntypedFloatingPoint, is ty.Integer),
+         (is ty.UntypedFloatingPoint, is ty.FloatingPoint):
+        return true
+    default:
+        return false
+    }
+}
+
+/// - Returns: No default type available for constraint
+func constrainUntypedToDefault(_ type: Type) -> Type {
+    switch type {
+    case is ty.UntypedNil:
+        preconditionFailure("You must check for this prior to calling")
+
+    case is ty.UntypedInteger:
+        return ty.i64
+
+    case is ty.UntypedFloatingPoint:
+        return ty.f64
+
+    default:
+        return type
+    }
+}
+
 extension Array where Element == Type {
     static func == (lhs: [Type], rhs: [Type]) -> Bool {
         for (l, r) in zip(lhs, rhs) {
@@ -115,6 +240,8 @@ extension Array where Element == Type {
 }
 
 func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
+    let type = lowerSpecializedPolymorphics(type)
+    let target = lowerSpecializedPolymorphics(target)
     if type == target {
         return true
     }
@@ -465,4 +592,112 @@ enum ty {
             self.memberScope = memberScope
         }
     }
+}
+
+func isUntyped(_ type: Type) -> Bool {
+    return type is ty.UntypedNil || isUntypedNumber(type)
+}
+
+func isUntypedNumber(_ type: Type) -> Bool {
+    return type is ty.UntypedInteger || type is ty.UntypedFloatingPoint
+}
+
+func isNumber(_ type: Type) -> Bool {
+    return isUntypedNumber(type) || isInteger(type) || isFloatingPoint(type)
+}
+
+func isVoid(_ type: Type) -> Bool {
+    return type is ty.Void
+}
+
+func isBoolean(_ type: Type) -> Bool {
+    return type is ty.Boolean
+}
+
+func isInteger(_ type: Type) -> Bool {
+    return type is ty.Integer || type is ty.UntypedInteger
+}
+
+func isFloatingPoint(_ type: Type) -> Bool {
+    return type is ty.FloatingPoint || type is ty.UntypedFloatingPoint
+}
+
+func isKaiString(_ type: Type) -> Bool {
+    return type is ty.KaiString
+}
+
+func isPointer(_ type: Type) -> Bool {
+    return type is ty.Pointer
+}
+
+func isArray(_ type: Type) -> Bool {
+    return type is ty.Array
+}
+
+func isSlice(_ type: Type) -> Bool {
+    return type is ty.Slice
+}
+
+func isVector(_ type: Type) -> Bool {
+    return type is ty.Vector
+}
+
+func isAnyy(_ type: Type) -> Bool {
+    return type is ty.Anyy
+}
+
+func isStruct(_ type: Type) -> Bool {
+    return type is ty.Struct
+}
+
+func isUnion(_ type: Type) -> Bool {
+    return type is ty.Union
+}
+
+func isVariant(_ type: Type) -> Bool {
+    return type is ty.Variant
+}
+
+func isEnum(_ type: Type) -> Bool {
+    return type is ty.Enum
+}
+
+func isFunction(_ type: Type) -> Bool {
+    return type is ty.Function
+}
+
+func isNil(_ type: Type) -> Bool {
+    return type is ty.UntypedNil
+}
+
+func isUntypedInteger(_ type: Type) -> Bool {
+    return type is ty.UntypedInteger
+}
+
+func isUntypedFloatingPoint(_ type: Type) -> Bool {
+    return type is ty.UntypedFloatingPoint
+}
+
+func isMetatype(_ type: Type) -> Bool {
+    return type is ty.Metatype
+}
+
+func isPolymorphic(_ type: Type) -> Bool {
+    return findPolymorphic(type) != nil
+}
+
+func isTuple(_ type: Type) -> Bool {
+    return type is ty.Tuple
+}
+
+func isInvalid(_ type: Type) -> Bool {
+    return type is ty.Invalid
+}
+
+func isCVarArg(_ type: Type) -> Bool {
+    return type is ty.CVarArg
+}
+
+func isFile(_ type: Type) -> Bool {
+    return type is ty.File
 }

@@ -59,6 +59,10 @@ struct IRGenerator {
     }
 
     mutating func value(for entity: Entity) -> IRValue {
+        if entity.isParameter {
+            // parameters are always in the same package.
+            return entity.value!
+        }
         guard let entityPackage = entity.package else {
             return entity.value!
         }
@@ -1152,9 +1156,30 @@ extension IRGenerator {
             }
             return val
         case .specializedCall(let specialization):
+
             let args = call.args.map({ emit(expr: $0) })
-            _ = emit(expr: call.fun) // NOTE: This will ensure the function is emitted
-            return b.buildCall(specialization.llvm!, args: args)
+            if let mangledName = specialization.mangledName {
+
+                guard let fn = module.function(named: mangledName) else {
+                    // There exists a specialization in another package. Emit a stub
+                    let ir = b.addFunction(specialization.mangledName, type: canonicalize(specialization.strippedType))
+                    return b.buildCall(ir, args: args)
+                }
+
+                return b.buildCall(fn, args: args)
+            }
+
+            let callee = entity(from: call.fun)!
+
+            let name = symbol(for: callee)
+            let suffix = specialization.specializedTypes
+                .reduce("", { $0 + "$" + $1.description })
+
+            let mangledName = name + suffix
+
+            let ir = emit(funcLit: specialization.generatedFunctionNode, entity: callee, specializationMangle: mangledName)
+
+            return b.buildCall(ir, args: args)
         }
     }
 
@@ -1214,12 +1239,14 @@ extension IRGenerator {
             return function
 
         case .polymorphic(_, let specializations):
+
             let mangledName = entity.map(symbol) ?? ".fn"
             for specialization in specializations {
-
-                let suffix = specialization.specializedTypes
-                    .reduce("", { $0 + "$" + $1.description })
-                specialization.mangledName = mangledName + suffix
+                if specialization.mangledName == nil {
+                    let suffix = specialization.specializedTypes
+                        .reduce("", { $0 + "$" + $1.description })
+                    specialization.mangledName = mangledName + suffix
+                }
 
                 specialization.llvm = emit(funcLit: specialization.generatedFunctionNode, entity: entity, specializationMangle: specialization.mangledName)
             }
@@ -1421,6 +1448,22 @@ extension IRGenerator {
         return ir
     }
 
+    func entity(from expr: Expr) -> Entity? {
+        switch expr {
+        case let expr as Ident:
+            return expr.entity
+
+        case let expr as Selector:
+            guard case .file(let entity)? = expr.checked else {
+                return nil
+            }
+            return entity
+
+        default:
+            return nil
+        }
+    }
+
     mutating func performConversion(from: Type, to target: Type, with value: IRValue) -> IRValue {
         let type = canonicalize(target)
         switch (from, target) {
@@ -1538,8 +1581,8 @@ extension IRGenerator {
             return canonicalize(type)
         case let type as ty.UntypedFloatingPoint:
             return canonicalize(type)
-        case let type as ty.Polymorphic:
-            return canonicalize(type.specialization.val!)
+        case is ty.Polymorphic:
+            fatalError("Polymorphic types must be specialized before reaching the IRGenerator")
         case is ty.UntypedNil:
             fatalError("Untyped nil should be constrained to target type")
         default:
