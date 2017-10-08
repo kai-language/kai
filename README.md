@@ -1,9 +1,6 @@
   # The Kai Programming Language
 An expressive low level programming language.
 
-#### Table of Contents
-[[toc]]
-
 ## Documentation
 Read the docs at [docs.kai-lang.org](http://docs.kai-lang.org)
 
