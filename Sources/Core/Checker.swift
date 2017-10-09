@@ -2488,7 +2488,7 @@ extension Checker {
                 context.scope = functionScope
 
                 guard convert(argument.type, to: param.type, at: arg) else {
-                    reportError("Cannot convert \(argument) to expected type '\(param.type)'", at: arg.start)
+                    reportError("Cannot convert \(argument) to expected type '\(param.type!)'", at: arg.start)
                     return Operand.invalid // We want to early exit if we encounter issues.
                 }
             }

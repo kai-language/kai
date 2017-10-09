@@ -637,13 +637,17 @@ extension Parser {
     }
 
     mutating func parseStructFieldList() -> [StructField] {
-        var list = [parseStructField()]
-        while tok == .semicolon {
-            next()
-            if tok == .rbrace {
+        var list: [StructField] = []
+        while true {
+            let stmt = parseStructField()
+            list.append(stmt)
+            if tok == .rbrace || tok == .eof {
                 break
             }
-            list.append(parseStructField())
+            expectTerm()
+            if tok == .rbrace || tok == .eof {
+                break
+            }
         }
         return list
     }
