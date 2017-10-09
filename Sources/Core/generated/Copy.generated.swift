@@ -621,6 +621,7 @@ func copy(_ node: Selector) -> Selector {
         sel: copy(node.sel),
         checked: node.checked,
         type: node.type,
+        levelsOfIndirection: node.levelsOfIndirection,
         conversion: node.conversion,
         constant: node.constant
     )

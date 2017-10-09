@@ -1918,7 +1918,9 @@ extension Checker {
         let operand = check(expr: selector.rec)
         dependencies.formUnion(operand.dependencies)
 
-        switch operand.type {
+        let (underlyingType, levelsOfIndirection) = lowerPointer(operand.type)
+        selector.levelsOfIndirection = levelsOfIndirection
+        switch underlyingType {
         case let file as ty.File:
             guard let member = file.memberScope.lookup(selector.sel.name) else {
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
@@ -2545,6 +2547,16 @@ extension Checker {
 
         reportError("'\(type)' cannot be used as a type", at: node.start, function: function, line: line)
         return ty.invalid
+    }
+
+    func lowerPointer(_ type: Type, levelsOfIndirection: Int = 0) -> (Type, levelsOfIndirection: Int) {
+        switch type {
+        case let type as ty.Pointer:
+            return lowerPointer(type.pointeeType, levelsOfIndirection: levelsOfIndirection + 1)
+
+        default:
+            return (type, levelsOfIndirection)
+        }
     }
 
     func newEntity(ident: Ident, type: Type? = nil, flags: Entity.Flag = .none, memberScope: Scope? = nil, owningScope: Scope? = nil, constant: Value? = nil) -> Entity {

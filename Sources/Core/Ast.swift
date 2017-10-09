@@ -377,6 +377,7 @@ class Selector: Node, Expr, Convertable {
 
     var checked: Checked!
     var type: Type!
+    var levelsOfIndirection: Int!
     var conversion: (from: Type, to: Type)?
     var constant: Value?
 
@@ -402,11 +403,12 @@ class Selector: Node, Expr, Convertable {
     var end: Pos { return sel.end }
 
 // sourcery:inline:auto:Selector.Init
-init(rec: Expr, sel: Ident, checked: Checked!, type: Type!, conversion: (from: Type, to: Type)?, constant: Value?) {
+init(rec: Expr, sel: Ident, checked: Checked!, type: Type!, levelsOfIndirection: Int!, conversion: (from: Type, to: Type)?, constant: Value?) {
     self.rec = rec
     self.sel = sel
     self.checked = checked
     self.type = type
+    self.levelsOfIndirection = levelsOfIndirection
     self.conversion = conversion
     self.constant = constant
 }
