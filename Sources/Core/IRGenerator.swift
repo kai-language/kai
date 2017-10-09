@@ -1177,7 +1177,12 @@ extension IRGenerator {
 
             let mangledName = name + suffix
 
+            let previousContext = context
+            context = Context(mangledNamePrefix: "", deferBlocks: [], returnBlock: nil, previous: nil)
+
             let ir = emit(funcLit: specialization.generatedFunctionNode, entity: callee, specializationMangle: mangledName)
+
+            context = previousContext
 
             return b.buildCall(ir, args: args)
         }
