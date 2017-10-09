@@ -35,7 +35,9 @@ if opts.flags.intersection([.emitIr, .emitBitcode, .emitAssembly]).isEmpty {
 
     package.emitObjects()
     package.linkObjects()
-    package.cleanupBuildProducts()
+    if !opts.flags.contains(.noCleanup) {
+        package.cleanupBuildProducts()
+    }
 } else {
     if opts.flags.contains(.emitIr) {
         package.emitIntermediateRepresentation()
