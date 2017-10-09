@@ -812,10 +812,6 @@ extension Checker {
 
     mutating func check(if iff: If) -> Set<Entity> {
         var dependencies: Set<Entity> = []
-        pushContext()
-        defer {
-            popContext()
-        }
 
         let operand = check(expr: iff.cond, desiredType: ty.bool)
         dependencies.formUnion(operand.dependencies)
@@ -823,10 +819,16 @@ extension Checker {
             reportError("Cannot convert \(operand) to expected type '\(ty.bool)'", at: iff.cond.start)
         }
 
+        // context for `if` body
+        pushContext()
         let deps = check(stmt: iff.body)
+        popContext()
         dependencies.formUnion(deps)
         if let els = iff.els {
+            // contex for `else` body
+            pushContext()
             let deps = check(stmt: els)
+            popContext()
             dependencies.formUnion(deps)
         }
         return dependencies
