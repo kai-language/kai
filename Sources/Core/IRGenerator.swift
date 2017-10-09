@@ -1282,7 +1282,10 @@ extension IRGenerator {
             }
             return b.buildLoad(value(for: entity))
         case .struct(let field):
-            let aggregate = emit(expr: sel.rec, returnAddress: true)
+            var aggregate = emit(expr: sel.rec, returnAddress: true)
+            for _ in 0 ..< sel.levelsOfIndirection {
+                aggregate = b.buildLoad(aggregate)
+            }
             let fieldAddress = b.buildStructGEP(aggregate, index: field.index)
             if returnAddress {
                 return fieldAddress
@@ -1291,7 +1294,10 @@ extension IRGenerator {
         case .enum(let c):
             return canonicalize(sel.type as! ty.Enum).constant(c.number)
         case .union(let c):
-            let aggregate = emit(expr: sel.rec, returnAddress: true)
+            var aggregate = emit(expr: sel.rec, returnAddress: true)
+            for _ in 0 ..< sel.levelsOfIndirection {
+                aggregate = b.buildLoad(aggregate)
+            }
             let type = canonicalize(c.type)
             let address = b.buildBitCast(aggregate, type: LLVM.PointerType(pointee: type))
             if returnAddress {
@@ -1299,7 +1305,10 @@ extension IRGenerator {
             }
             return b.buildLoad(address)
         case .array(let member):
-            let aggregate = emit(expr: sel.rec, returnAddress: true)
+            var aggregate = emit(expr: sel.rec, returnAddress: true)
+            for _ in 0 ..< sel.levelsOfIndirection {
+                aggregate = b.buildLoad(aggregate)
+            }
             let index = member.rawValue
             let fieldAddress = b.buildStructGEP(aggregate, index: index)
             if returnAddress {

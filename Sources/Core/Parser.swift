@@ -219,7 +219,7 @@ extension Parser {
                 x = parseTernaryExpr(x)
             case .period:
                 next()
-                x = Selector(rec: x, sel: parseIdent(), checked: nil, type: nil, conversion: nil, constant: nil)
+                x = Selector(rec: x, sel: parseIdent(), checked: nil, type: nil, levelsOfIndirection: nil, conversion: nil, constant: nil)
             case .lbrack:
                 let lbrack = eatToken()
                 if tok == .colon {
@@ -347,7 +347,7 @@ extension Parser {
             let x = parseIdent()
             if tok == .period {
                 next()
-                return Selector(rec: x, sel: parseIdent(), checked: nil, type: nil, conversion: nil, constant: nil)
+                return Selector(rec: x, sel: parseIdent(), checked: nil, type: nil, levelsOfIndirection: nil, conversion: nil, constant: nil)
             }
             return x
         case .lbrack:
