@@ -645,6 +645,9 @@ extension Parser {
                 break
             }
             expectTerm()
+            if tok == .rbrace || tok == .eof {
+                break
+            }
         }
         return list
     }
