@@ -1540,7 +1540,7 @@ extension IRGenerator {
             return b.buildCast(ext ? .zext : .trunc, value: value, type: type)
 
         default:
-            fatalError()
+            return b.buildBitCast(value, type: type)
         }
     }
 }
