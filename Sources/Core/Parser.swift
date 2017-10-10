@@ -819,7 +819,9 @@ extension Parser {
             return parseReturn()
         case .lbrace:
             let block = parseBlock()
-            expectTerm()
+            if tok != .else {
+                expectTerm()
+            }
             return block
         case .if:
             return parseIfStmt()
