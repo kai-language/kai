@@ -296,10 +296,12 @@ extension Checker {
             return check(assign: assign)
         case let block as Block:
             var dependencies: Set<Entity> = []
+            pushContext()
             for stmt in block.stmts {
                 let deps = check(stmt: stmt)
                 dependencies.formUnion(deps)
             }
+            popContext()
             return dependencies
         case let using as Using:
             check(using: using)
@@ -813,19 +815,17 @@ extension Checker {
     mutating func check(if iff: If) -> Set<Entity> {
         var dependencies: Set<Entity> = []
 
+        pushContext()
         let operand = check(expr: iff.cond, desiredType: ty.bool)
         dependencies.formUnion(operand.dependencies)
         if !convert(operand.type, to: ty.bool, at: iff.cond) {
             reportError("Cannot convert \(operand) to expected type '\(ty.bool)'", at: iff.cond.start)
         }
 
-        // context for `if` body
-        pushContext()
         let deps = check(stmt: iff.body)
         popContext()
         dependencies.formUnion(deps)
         if let els = iff.els {
-            // contex for `else` body
             pushContext()
             let deps = check(stmt: els)
             popContext()
