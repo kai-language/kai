@@ -1,6 +1,10 @@
 
 import LLVM
 
+var platformPointerWidth: Int = {
+    return targetMachine.dataLayout.pointerSize() * 8
+}()
+
 struct BuiltinType {
     var entity: Entity
     var type: Type

@@ -369,12 +369,12 @@ enum ty {
 
     struct KaiString: Type, NamableType {
         weak var entity: Entity?
-        var width: Int? { return 64 * 3 } // pointer, length, capacity
+        var width: Int? { return 3 * platformPointerWidth } // pointer, length, capacity
     }
 
     struct Pointer: Type, NamableType {
         weak var entity: Entity?
-        var width: Int? { return MemoryLayout<Int>.size * 8 }
+        var width: Int? { return platformPointerWidth }
         var pointeeType: Type
 
         init(pointeeType: Type) {
@@ -396,7 +396,7 @@ enum ty {
 
     struct Slice: Type, NamableType {
         weak var entity: Entity?
-        var width: Int? { return 64 * 3 } // pointer, length, capacity
+        var width: Int? { return 3 * platformPointerWidth } // pointer, length, capacity
         var elementType: Type
 
         init(elementType: Type) {
@@ -417,7 +417,7 @@ enum ty {
     }
 
     struct Anyy: Type {
-        var width: Int? { return 64 }
+        var width: Int? { return platformPointerWidth }
     }
 
     struct Struct: Type, NamableType {

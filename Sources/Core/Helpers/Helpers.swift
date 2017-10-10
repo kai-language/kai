@@ -5,15 +5,23 @@ import LLVM
 
 var targetMachine: TargetMachine!
 
-/// Ensures everything is preparred for compilation
-public func performEmissionPreflightChecks() {
-
+public func setupTargetMachine() {
     do {
         targetMachine = try TargetMachine()
+    } catch {
+        print("ERROR: \(error)")
+        print("  While setting up Target Machine")
+        exit(1)
+    }
+}
+
+public func setupBuildDirectories() {
+
+    do {
         try ensureBuildDirectoriesExist()
     } catch {
         print("ERROR: \(error)")
-        print("  While performing preflight checks")
+        print("  While setting up build directories")
         exit(1)
     }
 }
