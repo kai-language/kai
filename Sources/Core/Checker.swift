@@ -2337,7 +2337,7 @@ extension Checker {
         let exprType = operand.type!
 
         if exprType == targetType {
-            reportError("Unnecissary cast to same type", at: cast.start)
+            reportError("Unnecissary cast \(operand) to same type", at: cast.start)
             return Operand(mode: .computed, expr: cast, type: targetType, constant: nil, dependencies: dependencies)
         }
 

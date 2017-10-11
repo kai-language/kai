@@ -318,13 +318,13 @@ extension Parser {
         expect(.lparen)
         let explicitType = parseType()
         expect(.rparen)
-        let expr = parseExpr()
+        let expr = parseUnaryExpr()
         return Cast(keyword: keyword, kind: kind, explicitType: explicitType, expr: expr, type: nil)
     }
 
     mutating func parseAutocast() -> Autocast {
         let keyword = eatToken()
-        let expr = parseExpr()
+        let expr = parseUnaryExpr()
         return Autocast(keyword: keyword, expr: expr, type: nil)
     }
 
