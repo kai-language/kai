@@ -630,14 +630,6 @@ extension IRGenerator {
         context.deferBlocks.append(block)
     }
 
-    mutating func emit(parameter param: Parameter) {
-        let type = canonicalize(param.entity.type!)
-
-        let stackValue = entryBlockAlloca(type: type, name: param.entity.name)
-
-        param.entity.value = stackValue
-    }
-
     mutating func emit(if iff: If) {
         let ln = file.position(for: iff.start).line
 
@@ -1221,9 +1213,9 @@ extension IRGenerator {
 
             b.positionAtEnd(of: entryBlock)
 
-            for (param, var irParam) in zip(fn.params.list, function.parameters) {
-                irParam.name = param.entity.name
-                param.entity.value = entryBlockAlloca(type: irParam.type, name: param.name.name, default: irParam)
+            for (param, var irParam) in zip(fn.params, function.parameters) {
+                irParam.name = param.name
+                param.value = entryBlockAlloca(type: irParam.type, name: param.name, default: irParam)
             }
 
             // TODO: Do we need to push a named context or can we reset the mangling because we are in a function scope?

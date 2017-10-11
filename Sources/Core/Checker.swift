@@ -1285,16 +1285,6 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(param: Parameter) -> Operand {
-        let operand = check(expr: param.explicitType)
-        let type = lowerFromMetatype(operand.type, atNode: param.explicitType)
-        let entity = newEntity(ident: param.name, type: type, flags: .parameter)
-        declare(entity)
-        param.entity = entity
-        return Operand(mode: .computed, expr: nil, type: type, constant: nil, dependencies: operand.dependencies)
-    }
-
-    @discardableResult
     mutating func check(polyType: PolyType) -> Type {
         if polyType.type != nil {
             // Do not redeclare any poly types which have been checked before.
@@ -1326,27 +1316,33 @@ extension Checker {
 
         var needsSpecialization = false
         var typeFlags: ty.Function.Flags = .none
-        var params: [Type] = []
-        var returnTypes: [Type] = []
+        var inputs: [Type] = []
+        var outputs: [Type] = []
 
         if !fn.isSpecialization {
+            var params: [Entity] = []
             pushContext()
 
-            // TODO: We can save time here by using the checked parameter values from the specialization
-            for param in fn.params.list {
+            // FIXME: @unimplemented
+            assert(fn.explicitType.labels != nil, "Currently function literals without argument names are disallowed")
+
+            for (label, param) in zip(fn.explicitType.labels!, fn.explicitType.params) {
                 if fn.isSpecialization && param.type != nil && !(param.type is ty.Polymorphic) {
                     // The polymorphic parameters type has been set by the callee
-                    params.append(param.type)
+                    inputs.append(param.type)
                     continue
                 }
 
                 needsSpecialization = needsSpecialization || param.isPolymorphic
 
-                let operand = check(param: param)
+                let operand = check(expr: param)
+                var type = lowerFromMetatype(operand.type, atNode: param)
+                let entity = newEntity(ident: label, type: type, flags: param.isPolymorphic ? .polyParameter : .parameter)
+                declare(entity)
+                params.append(entity)
                 dependencies.formUnion(operand.dependencies)
 
-                var type = operand.type!
-                if let paramType = param.explicitType as? VariadicType {
+                if let paramType = param as? VariadicType {
                     fn.flags.insert(paramType.isCvargs ? .cVariadic : .variadic)
                     typeFlags.insert(paramType.isCvargs ? .cVariadic : .variadic)
                     if paramType.isCvargs && type is ty.Anyy {
@@ -1354,38 +1350,39 @@ extension Checker {
                     }
                 }
 
-                params.append(type)
+                inputs.append(type)
             }
+            fn.params = params
 
-            for resultType in fn.results.types {
-                let operand = check(expr: resultType)
+            for result in fn.explicitType.results {
+                let operand = check(expr: result)
                 dependencies.formUnion(operand.dependencies)
 
-                let type = lowerFromMetatype(operand.type, atNode: resultType)
+                let type = lowerFromMetatype(operand.type, atNode: result)
 
-                returnTypes.append(type)
+                outputs.append(type)
             }
         } else { // fn.isSpecialization
-            params = fn.params.list
-                .map({ $0.type })
+            inputs = fn.explicitType.params
+                .map({ lowerFromMetatype($0.type, atNode: $0) })
                 .map(lowerSpecializedPolymorphics)
-            returnTypes = fn.results.types
+            outputs = fn.explicitType.results
                 .map({ lowerFromMetatype($0.type, atNode: $0) })
                 .map(lowerSpecializedPolymorphics)
         }
 
-        let returnType = ty.Tuple.make(returnTypes)
+        let result = ty.Tuple.make(outputs)
 
         let prevReturnType = context.expectedReturnType
-        context.expectedReturnType = returnType
-        if !needsSpecialization { // FIXME: We need to partially check polymorphics to determine dependencies
+        context.expectedReturnType = result
+        if !needsSpecialization { // FIXME: We need to partially check polymorphics to determine dependencies, Do we?
             let deps = check(stmt: fn.body)
             dependencies.formUnion(deps)
         }
         context.expectedReturnType = prevReturnType
 
         // TODO: Only allow single void return
-        if (returnType.types[0] is ty.Void) {
+        if (result.types[0] is ty.Void) {
             if fn.isDiscardable {
                 reportError("#discardable on void returning function is superflous", at: fn.start)
             }
@@ -1397,10 +1394,10 @@ extension Checker {
 
         if needsSpecialization && !fn.isSpecialization {
             typeFlags.insert(.polymorphic)
-            fn.type = ty.Function(entity: nil, node: fn, labels: fn.labels, params: params, returnType: returnType, flags: .polymorphic)
+            fn.type = ty.Function(entity: nil, node: fn, labels: fn.labels, params: inputs, returnType: result, flags: .polymorphic)
             fn.checked = .polymorphic(declaringScope: context.scope.parent!, specializations: [])
         } else {
-            fn.type = ty.Function(entity: nil, node: fn, labels: fn.labels, params: params, returnType: returnType, flags: typeFlags)
+            fn.type = ty.Function(entity: nil, node: fn, labels: fn.labels, params: inputs, returnType: result, flags: typeFlags)
             fn.checked = .regular(context.scope)
         }
 
@@ -2402,8 +2399,8 @@ extension Checker {
         // Find the polymorphic parameters and determine their types using the arguments provided
 
         var specializationTypes: [Type] = []
-        for (arg, param) in zip(call.args, fnLitNode.params.list)
-            where param.isPolymorphic
+        for (arg, param) in zip(call.args, fnLitNode.params)
+            where param.isPolyParameter // FIXME: We don't want the polymorphic type we want the polymorphic Node
         {
             guard !(arg is Nil) else {
                 reportError("'nil' requires a contextual type", at: arg.start)
@@ -2413,8 +2410,8 @@ extension Checker {
             let argument = check(expr: arg)
             let type = constrainUntypedToDefault(argument.type!)
 
-            guard specialize(polyType: param.type, with: type) else {
-                reportError("Failed to specialize", at: arg.start) // FIXME: @Error Something better
+            guard specialize(polyType: param.type!, with: type) else {
+                reportError("Failed to specialize parameter \(param.name) (type \(param.type!)) with \(argument)", at: arg.start)
                 return Operand.invalid
             }
 
@@ -2450,7 +2447,7 @@ extension Checker {
         generated.flags.insert(.specialization)
 
         // There must be 1 param for a function to be polymorphic.
-        let originalFile = fnLitNode.params.list.first!.entity.file!
+        let originalFile = fnLitNode.params.first!.file!
 
         // create the specialization it's own scope
         let functionScope = Scope(parent: declaringScope)
@@ -2461,13 +2458,15 @@ extension Checker {
         context.scope = functionScope
         context.specializationCallNode = call
 
+        var params: [Entity] = []
+
         // Declare polymorphic types for all polymorphic parameters
-        for (arg, param) in zip(call.args, generated.params.list) {
+        for (arg, var param) in zip(call.args, generated.params) {
             // create a unique entity for every parameter
-            param.entity = copy(param.entity)
-            if param.isPolymorphic {
+            param = copy(param)
+            if param.isPolyParameter {
                 // Firstly find the polymorphic type and it's specialization
-                let type = findPolymorphic(param.type)!
+                let type = findPolymorphic(param.type!)!
 
                 // Create a unique entity for each specialization of each polymorphic type
                 let entity = copy(type.entity)
@@ -2489,24 +2488,24 @@ extension Checker {
 
                 context.scope = functionScope
 
-                guard convert(argument.type, to: param.type, at: arg) else {
+                guard convert(argument.type, to: param.type!, at: arg) else {
                     reportError("Cannot convert \(argument) to expected type '\(param.type!)'", at: arg.start)
                     return Operand.invalid // We want to early exit if we encounter issues.
                 }
             }
 
             // declare the parameter for and check if there is any previous declaration of T
-            declare(param.entity)
+            declare(param)
 
-            param.entity.type = arg.type
-            assert(!isPolymorphic(param.type))
+            params.append(param)
 
-            // incase we are specializing a polymorphic from another package we need to set the file so that in IRGen we don't assume it's a foreign entity.
-            // TODO: Because we will have the entity.type be a `ty.Polymorphic` we should be able to skip the emit global stub logic based on that.
-            param.entity.file = file
+            param.type = arg.type
+            assert(!isPolymorphic(param.type!))
         }
 
-        assert(functionScope.members.count > generated.params.list.count, "There had to be at least 1 polymorphic type declared")
+        generated.params = params
+
+        assert(functionScope.members.count > generated.explicitType.params.count, "There had to be at least 1 polymorphic type declared")
 
         let type = check(funcLit: generated).type as! ty.Function
 
@@ -2584,8 +2583,6 @@ extension Checker {
 extension Node {
     var isPolymorphic: Bool {
         switch self {
-        case let param as Parameter:
-            return param.explicitType.isPolymorphic
         case let array as ArrayType:
             return array.explicitType.isPolymorphic
         case let darray as SliceType:

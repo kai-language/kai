@@ -360,11 +360,11 @@ func copy(_ nodes: [Foreign]) -> [Foreign] {
 func copy(_ node: FuncLit) -> FuncLit {
     return FuncLit(
         keyword: node.keyword,
-        params: copy(node.params),
-        results: copy(node.results),
+        explicitType: copy(node.explicitType),
         body: copy(node.body),
         flags: node.flags,
         type: node.type,
+        params: node.params,
         checked: node.checked
     )
 }
@@ -502,30 +502,6 @@ func copy(_ node: Nil) -> Nil {
 }
 
 func copy(_ nodes: [Nil]) -> [Nil] {
-    return nodes.map(copy)
-}
-
-func copy(_ node: Parameter) -> Parameter {
-    return Parameter(
-        name: copy(node.name),
-        explicitType: copy(node.explicitType),
-        entity: node.entity
-    )
-}
-
-func copy(_ nodes: [Parameter]) -> [Parameter] {
-    return nodes.map(copy)
-}
-
-func copy(_ node: ParameterList) -> ParameterList {
-    return ParameterList(
-        lparen: node.lparen,
-        list: copy(node.list),
-        rparen: node.rparen
-    )
-}
-
-func copy(_ nodes: [ParameterList]) -> [ParameterList] {
     return nodes.map(copy)
 }
 

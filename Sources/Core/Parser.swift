@@ -686,37 +686,13 @@ extension Parser {
 
     mutating func parseFuncLit() -> Expr {
         let keyword = eatToken()
-        let signature = parseSignature()
-        expect(.retArrow)
-        let results = parseResultList()
+        let type = parseFuncType(allowParenthesizedExpr: false)
+        guard let fnType = type as? FuncType else {
+            // @Recovery what do we do to recover
+            return type
+        }
         let body = parseBlock()
-        return FuncLit(keyword: keyword, params: signature, results: results, body: body, flags: .none, type: nil, checked: nil)
-    }
-
-    mutating func parseSignature() -> ParameterList {
-        let lparen = expect(.lparen)
-        var list: [Parameter] = []
-        if tok != .rparen {
-            list = parseParameterList()
-        }
-        let rparen = expect(.rparen)
-        return ParameterList(lparen: lparen, list: list, rparen: rparen)
-    }
-
-    mutating func parseParameterList() -> [Parameter] {
-        var list = parseParameters()
-        while tok == .comma {
-            next()
-            list.append(contentsOf: parseParameters())
-        }
-        return list
-    }
-
-    mutating func parseParameters() -> [Parameter] {
-        let names = parseIdentList()
-        expect(.colon)
-        let type = parseType(allowPolyType: true, allowVariadic: true)
-        return names.map({ Parameter(name: $0, explicitType: type, entity: nil) })
+        return FuncLit(keyword: keyword, explicitType: fnType, body: body, flags: .none, type: nil, params: nil, checked: nil)
     }
 
     mutating func parseResultList() -> ResultList {

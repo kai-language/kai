@@ -37,15 +37,16 @@ class Entity: CustomStringConvertible {
         static let checked      = Flag(rawValue: 0b0010 << 12)
 
         // entity info
-        static let file         = Flag(rawValue: 0b00000001)
-        static let library      = Flag(rawValue: 0b00000010)
-        static let type         = Flag(rawValue: 0b00000100)
-        static let constant     = Flag(rawValue: 0b00001000)
-        static let implicitType = Flag(rawValue: 0b00011100) // implies constant & type
-        static let foreign      = Flag(rawValue: 0b00100000)
-        static let label        = Flag(rawValue: 0b01000000)
-        static let field        = Flag(rawValue: 0b10000000)
-        static let parameter    = Flag(rawValue: 0b00000001 << 8)
+        static let file          = Flag(rawValue: 0b00000001)
+        static let library       = Flag(rawValue: 0b00000010)
+        static let type          = Flag(rawValue: 0b00000100)
+        static let constant      = Flag(rawValue: 0b00001000)
+        static let implicitType  = Flag(rawValue: 0b00011100) // implies constant & type
+        static let foreign       = Flag(rawValue: 0b00100000)
+        static let label         = Flag(rawValue: 0b01000000)
+        static let field         = Flag(rawValue: 0b10000000)
+        static let parameter     = Flag(rawValue: 0b00000001 << 8)
+        static let polyParameter = Flag(rawValue: 0b00000011 << 8)
     }
 
     var description: String {

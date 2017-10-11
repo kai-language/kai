@@ -48,6 +48,10 @@ extension Entity {
     var isParameter: Bool {
         return flags.contains(.parameter) 
     }
+
+    var isPolyParameter: Bool {
+        return flags.contains(.polyParameter) 
+    }
 }
 
 extension FuncLit {

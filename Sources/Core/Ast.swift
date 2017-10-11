@@ -203,44 +203,6 @@ init(start: Pos, token: Token, text: String, type: Type!, constant: Value!) {
 // sourcery:end
 }
 
-class Parameter: Node {
-    var name: Ident
-    var explicitType: Expr
-
-    var entity: Entity!
-    var type: Type! {
-        return entity.type
-    }
-
-    var start: Pos { return name.start }
-    var end: Pos { return explicitType.end }
-
-// sourcery:inline:auto:Parameter.Init
-init(name: Ident, explicitType: Expr, entity: Entity!) {
-    self.name = name
-    self.explicitType = explicitType
-    self.entity = entity
-}
-// sourcery:end
-}
-
-class ParameterList: Node {
-    var lparen: Pos
-    var list: [Parameter]
-    var rparen: Pos
-
-    var start: Pos { return lparen }
-    var end: Pos { return rparen }
-
-// sourcery:inline:auto:ParameterList.Init
-init(lparen: Pos, list: [Parameter], rparen: Pos) {
-    self.lparen = lparen
-    self.list = list
-    self.rparen = rparen
-}
-// sourcery:end
-}
-
 class PolyParameterList: Node {
     var lparen: Pos
     var list: [PolyType]
@@ -291,31 +253,33 @@ init(idents: [Expr]) {
 
 class FuncLit: Node, Expr {
     var keyword: Pos
-    var params: ParameterList
-    var results: ResultList
+    var explicitType: FuncType
     var body: Block
     var flags: FunctionFlags
 
     var type: Type!
+    var params: [Entity]!
     var checked: Checked!
+    var labels: [Ident]? {
+        return explicitType.labels
+    }
 
     enum Checked {
         case regular(Scope)
         case polymorphic(declaringScope: Scope, specializations: [FunctionSpecialization])
     }
 
-    var labels: [Ident]? { return params.list.map({ $0.name }) }
     var start: Pos { return keyword }
     var end: Pos { return body.end }
 
 // sourcery:inline:auto:FuncLit.Init
-init(keyword: Pos, params: ParameterList, results: ResultList, body: Block, flags: FunctionFlags, type: Type!, checked: Checked!) {
+init(keyword: Pos, explicitType: FuncType, body: Block, flags: FunctionFlags, type: Type!, params: [Entity]!, checked: Checked!) {
     self.keyword = keyword
-    self.params = params
-    self.results = results
+    self.explicitType = explicitType
     self.body = body
     self.flags = flags
     self.type = type
+    self.params = params
     self.checked = checked
 }
 // sourcery:end
