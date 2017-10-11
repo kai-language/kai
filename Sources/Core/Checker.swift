@@ -607,7 +607,7 @@ extension Checker {
                 declare(entity)
             }
         case let type as ty.Struct:
-            for field in type.fields {
+            for field in type.fields.orderedValues {
                 let entity = newEntity(ident: field.ident, type: field.type, flags: .field, owningScope: context.scope)
                 declare(entity)
             }
@@ -616,7 +616,7 @@ extension Checker {
                 fallthrough
             }
 
-            for c in type.cases {
+            for c in type.cases.orderedValues {
                 let entity = newEntity(ident: c.ident, type: type, flags: .field, owningScope: context.scope)
                 entity.constant = c.constant ?? UInt64(c.number)
                 declare(entity)
@@ -1182,7 +1182,7 @@ extension Checker {
             if lit.elements.count > s.fields.count {
                 reportError("Too many values in struct initializer", at: lit.elements[s.fields.count].start)
             }
-            for (el, field) in zip(lit.elements, s.fields) {
+            for (el, field) in zip(lit.elements, s.fields.orderedValues) {
 
                 if let key = el.key {
                     guard let ident = key as? Ident else {
@@ -1190,7 +1190,7 @@ extension Checker {
                         // bail, likely everything is wrong
                         return Operand(mode: .invalid, expr: lit, type: type, constant: nil, dependencies: operand?.dependencies ?? [])
                     }
-                    guard let field = s.fields.first(where: { $0.name == ident.name }) else {
+                    guard let field = s.fields[ident.name] else {
                         reportError("Unknown field '\(ident)' for struct '\(s.entity!.name)'", at: ident.start)
                         continue
                     }
@@ -1483,7 +1483,7 @@ extension Checker {
             }
         }
         var type: Type
-        type = ty.Struct(entity: nil, width: width, node: s, fields: fields, isPolymorphic: false)
+        type = ty.Struct(width: width, node: s, fields: fields, isPolymorphic: false)
         type = ty.Metatype(instanceType: type)
         s.type = type
         return Operand(mode: .type, expr: s, type: type, constant: nil, dependencies: dependencies)
@@ -1516,7 +1516,7 @@ extension Checker {
             }
         }
         var type: Type
-        type = ty.Struct(entity: nil, width: width, node: polyStruct, fields: fields, isPolymorphic: true)
+        type = ty.Struct(width: width, node: polyStruct, fields: fields, isPolymorphic: true)
         type = ty.Metatype(instanceType: type)
         polyStruct.type = type
         return Operand(mode: .type, expr: polyStruct, type: type, constant: nil, dependencies: dependencies)
@@ -1542,7 +1542,7 @@ extension Checker {
         }
 
         var type: Type
-        type = ty.Union(entity: nil, width: largestWidth, cases: cases)
+        type = ty.Union(width: largestWidth, cases: cases)
         type = ty.Metatype(instanceType: type)
         u.type = type
         return Operand(mode: .type, expr: u, type: type, constant: nil, dependencies: dependencies)
@@ -1571,7 +1571,7 @@ extension Checker {
         }
 
         var type: Type
-        type = ty.Variant(entity: nil, width: largestWidth, cases: cases)
+        type = ty.Variant(width: largestWidth, cases: cases)
         type = ty.Metatype(instanceType: type)
         v.type = type
         return Operand(mode: .type, expr: v, type: type, constant: nil, dependencies: dependencies)
@@ -1635,9 +1635,9 @@ extension Checker {
             }
         }
 
-        let width = useExplicitTypeWidth ? explicitType!.width : biggest.bitsNeeded()
+        let width = useExplicitTypeWidth ? explicitType!.width! : biggest.bitsNeeded()
         var type: Type
-        type = ty.Enum(entity: nil, width: width, associatedType: explicitType, cases: cases)
+        type = ty.Enum(width: width, associatedType: explicitType, cases: cases)
         type = ty.Metatype(instanceType: type)
         e.type = type
         return Operand(mode: .type, expr: e, type: type, constant: nil, dependencies: dependencies)
@@ -1947,7 +1947,7 @@ extension Checker {
             return Operand(mode: .addressable, expr: selector, type: member.type, constant: member.constant, dependencies: dependencies)
 
         case let strućt as ty.Struct:
-            guard let field = strućt.fields.first(where: { $0.name == selector.sel.name }) else {
+            guard let field = strućt.fields[selector.sel.name] else {
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
@@ -2039,7 +2039,7 @@ extension Checker {
             return Operand(mode: .addressable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
 
         case let union as ty.Union:
-            guard let casé = union.cases.first(where: { $0.ident.name == selector.sel.name }) else {
+            guard let casé = union.cases[selector.sel.name] else {
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
@@ -2052,7 +2052,7 @@ extension Checker {
         case let meta as ty.Metatype:
             switch meta.instanceType {
             case let e as ty.Enum:
-                guard let c = e.cases.first(where: { $0.ident.name == selector.sel.name }) else {
+                guard let c = e.cases[selector.sel.name] else {
                     reportError("Case '\(selector.sel)' not found on enum \(operand)", at: selector.sel.start)
                     selector.type = ty.invalid
                     return Operand.invalid

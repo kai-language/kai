@@ -61,7 +61,7 @@ extension ty.Struct {
         if let name = entity?.name {
             return name
         }
-        return "struct{" + fields.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
+        return "struct{" + fields.orderedValues.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
     }
 }
 
@@ -71,7 +71,7 @@ extension ty.Union {
             return name
         }
 
-        return "union{" + cases.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
+        return "union{" + cases.orderedValues.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
     }
 }
 
@@ -81,7 +81,7 @@ extension ty.Variant {
             return name
         }
 
-        return "variant{" + cases.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
+        return "variant{" + cases.orderedValues.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
     }
 }
 
@@ -90,7 +90,7 @@ extension ty.Enum {
         if let name = entity?.name {
             return name
         }
-        return "enum{" + cases.map({ $0.ident.name + ($0.value.map({ " = " + String(describing: $0) }) ?? "") }).joined(separator: ", ") + "}"
+        return "enum{" + cases.orderedValues.map({ $0.ident.name + ($0.value.map({ " = " + String(describing: $0) }) ?? "") }).joined(separator: ", ") + "}"
     }
 }
 

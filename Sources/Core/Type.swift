@@ -1,4 +1,5 @@
 import LLVM
+import OrderedDictionary
 
 protocol Type: CustomStringConvertible {
     var width: Int? { get }
@@ -53,9 +54,9 @@ func == (lhs: Type, rhs: Type) -> Bool {
     case (let lhs as ty.Struct, let rhs as ty.Struct):
         return lhs.node.start == rhs.node.start
     case (let lhs as ty.Enum, let rhs as ty.Enum):
-        return lhs.cases.first?.ident.start == rhs.cases.first?.ident.start
+        return lhs.cases.orderedValues.first?.ident.start == rhs.cases.orderedValues.first?.ident.start
     case (let lhs as ty.Union, let rhs as ty.Union):
-        return lhs.cases.first?.ident.start == rhs.cases.first?.ident.start
+        return lhs.cases.orderedValues.first?.ident.start == rhs.cases.orderedValues.first?.ident.start
     case (let lhs as ty.Function, let rhs as ty.Function):
         return lhs.params == rhs.params && lhs.returnType == rhs.returnType
     case (let lhs as ty.Tuple, let rhs as ty.Tuple):
@@ -425,8 +426,19 @@ enum ty {
         var width: Int?
 
         var node: Node
-        var fields: [Field] = []
+        var fields: OrderedDictionary<String, Field>
+
         var isPolymorphic: Bool
+
+        init(width: Int, node: Node, fields: [Field], isPolymorphic: Bool = false) {
+            self.width = width
+            self.node = node
+            self.fields = [:]
+            for field in fields {
+                self.fields[field.ident.name] = field
+            }
+            self.isPolymorphic = isPolymorphic
+        }
 
         struct Field {
             let ident: Ident
@@ -481,7 +493,15 @@ enum ty {
     struct Union: Type, NamableType {
         weak var entity: Entity?
         var width: Int?
-        var cases: [Case]
+        var cases: OrderedDictionary<String, Case>
+
+        init(width: Int, cases: [Case]) {
+            self.width = width
+            self.cases = [:]
+            for c in cases {
+                self.cases[c.ident.name] = c
+            }
+        }
 
         struct Case {
             var ident: Ident
@@ -492,7 +512,15 @@ enum ty {
     struct Variant: Type, NamableType {
         weak var entity: Entity?
         var width: Int?
-        var cases: [Case]
+        var cases: OrderedDictionary<String, Case>
+
+        init(width: Int, cases: [Case]) {
+            self.width = width
+            self.cases = [:]
+            for c in cases {
+                self.cases[c.ident.name] = c
+            }
+        }
 
         struct Case {
             var ident: Ident
@@ -505,7 +533,16 @@ enum ty {
         weak var entity: Entity?
         var width: Int?
         var associatedType: Type?
-        var cases: [Case]
+        var cases: OrderedDictionary<String, Case>
+
+        init(width: Int, associatedType: Type?, cases: [Case]) {
+            self.width = width
+            self.associatedType = associatedType
+            self.cases = [:]
+            for c in cases {
+                self.cases[c.ident.name] = c
+            }
+        }
 
         struct Case {
             var ident: Ident

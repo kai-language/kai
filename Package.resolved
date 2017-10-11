@@ -20,6 +20,15 @@
         }
       },
       {
+        "package": "OrderedDictionary",
+        "repositoryURL": "https://github.com/vdka/OrderedDictionary.git",
+        "state": {
+          "branch": "master",
+          "revision": "950ad4134720bc95e3315f8f5c25d01090a0114a",
+          "version": null
+        }
+      },
+      {
         "package": "cllvm",
         "repositoryURL": "https://github.com/trill-lang/cllvm.git",
         "state": {

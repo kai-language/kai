@@ -317,7 +317,7 @@ extension IRGenerator {
                 case let type as ty.Struct:
                     let irType = b.createStruct(name: symbol(for: entity))
                     var irTypes: [IRType] = []
-                    for field in type.fields {
+                    for field in type.fields.orderedValues {
                         let fieldType = canonicalize(field.type)
                         irTypes.append(fieldType)
                     }
@@ -451,7 +451,7 @@ extension IRGenerator {
                 switch type.instanceType {
                 case let type as ty.Struct:
                     var irTypes: [IRType] = []
-                    for field in type.fields {
+                    for field in type.fields.orderedValues.sorted(by: { $0.index < $1.index }) {
                         let fieldType = canonicalize(field.type)
                         irTypes.append(fieldType)
                     }
@@ -1347,7 +1347,7 @@ extension IRGenerator {
         switch sub.rec.type {
         case is ty.Array:
             aggregate = emit(expr: sub.rec, returnAddress: true)
-            indicies = [0, index]
+            indicies = [i64.zero(), index]
 
         case is ty.Slice:
             let structPtr = emit(expr: sub.rec, returnAddress: true)
@@ -1684,7 +1684,7 @@ extension IRGenerator {
             }
             let irType = b.createStruct(name: sym)
             var irTypes: [IRType] = []
-            for field in struc.fields {
+            for field in struc.fields.orderedValues {
                 let fieldType = canonicalize(field.type)
                 irTypes.append(fieldType)
             }
@@ -1692,7 +1692,7 @@ extension IRGenerator {
             return irType
         }
 
-        return LLVM.StructType(elementTypes: struc.fields.map({ canonicalize($0.type) }), in: module.context)
+        return LLVM.StructType(elementTypes: struc.fields.orderedValues.map({ canonicalize($0.type) }), in: module.context)
     }
 
     mutating func canonicalize(_ e: ty.Enum) -> IntType {
