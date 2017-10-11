@@ -8,6 +8,8 @@ struct IRGenerator {
     var file: SourceFile
     var context: Context
 
+    var passManager: FunctionPassManager
+
     var module: Module
     var b: IRBuilder
 
@@ -17,6 +19,8 @@ struct IRGenerator {
         self.context = Context(mangledNamePrefix: "", deferBlocks: [], returnBlock: nil, previous: nil)
         self.module = package.module
         self.b = package.builder
+        self.passManager = FunctionPassManager(module: module)
+        self.setupFunctionPasses(for: passManager)
     }
 
     // sourcery:noinit
@@ -1233,6 +1237,8 @@ extension IRGenerator {
                 b.positionAtEnd(of: prevBlock)
             }
 
+            passManager.run(on: function)
+
             return function
 
         case .polymorphic(_, let specializations):
@@ -1543,6 +1549,21 @@ extension IRGenerator {
         default:
             return b.buildBitCast(value, type: type)
         }
+    }
+
+    func setupFunctionPasses(for pm: FunctionPassManager) {
+        let optLevel = Options.instance.optimizationLevel
+        guard optLevel > 0 else { return }
+
+        pm.add(.basicAliasAnalysis, .instructionCombining, .aggressiveDCE, .reassociate, .promoteMemoryToRegister)
+
+        guard optLevel > 1 else { return }
+
+        pm.add(.gvn, .cfgSimplification)
+
+        guard optLevel > 2 else { return }
+
+        pm.add(.tailCallElimination, .loopUnroll)
     }
 }
 

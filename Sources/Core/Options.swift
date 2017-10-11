@@ -9,6 +9,8 @@ public struct Options {
     public var flags: Flags = []
     public var jobs: Int = 1
 
+    public var optimizationLevel: Int = 0
+
     public init(arguments: ArraySlice<String>) {
 
         var skip = false
@@ -19,6 +21,26 @@ public struct Options {
                 continue
             }
             switch arg {
+            case "-Onone":
+                if optimizationLevel != 0 {
+                    print("WARNING: Multiple optimization levels specified")
+                }
+                optimizationLevel = 0
+            case "-O1":
+                if optimizationLevel != 0 {
+                    print("WARNING: Multiple optimization levels specified")
+                }
+                optimizationLevel = 1
+            case "-O2":
+                if optimizationLevel != 0 {
+                    print("WARNING: Multiple optimization levels specified")
+                }
+                optimizationLevel = 2
+            case "-O3":
+                if optimizationLevel != 0 {
+                    print("WARNING: Multiple optimization levels specified")
+                }
+                optimizationLevel = 3
             case "-no-cleanup":
                 flags.insert(.noCleanup)
             case "-emit-ast":
