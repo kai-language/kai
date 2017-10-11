@@ -1,5 +1,5 @@
 
-#import kai("libc")
+#import kai("posix")
 
 main :: fn() -> void {
 
@@ -8,7 +8,7 @@ main :: fn() -> void {
     floats = append(floats, 9.0)
 
     for el in floats {
-        libc.printf("%f\n".raw, el)
+        posix.printf("%f\n".raw, el)
     }
 
     ints := []i32{}
@@ -16,7 +16,7 @@ main :: fn() -> void {
     ints = append(ints, 9)
 
     for el in ints {
-        libc.printf("%d\n".raw, el)
+        posix.printf("%d\n".raw, el)
     }
 
     strings := []string{}
@@ -24,7 +24,7 @@ main :: fn() -> void {
     strings = append(strings, "World")
 
     for el in strings {
-        libc.printf("%s\n".raw, el.raw)
+        posix.printf("%s\n".raw, el.raw)
     }
 }
 
@@ -42,12 +42,12 @@ append :: fn(arr: []$T, val: T) -> []T {
 
 reserve :: fn(arr: []$T, cap: u64) -> []T {
     if arr.cap == 0 {
-        buf := cast(*T) libc.malloc(cap * sizeof(T))
-        cpy := cast(*T) libc.memcpy(buf, arr.raw, arr.len * sizeof(T))
+        buf := cast(*T) posix.malloc(cap * sizeof(T))
+        cpy := cast(*T) posix.memcpy(buf, arr.raw, arr.len * sizeof(T))
         arr.raw = cpy
     }
     else if arr.cap < cap {
-        buf := cast(*T) libc.realloc(arr.raw, cap * sizeof(T))
+        buf := cast(*T) posix.realloc(arr.raw, cap * sizeof(T))
         arr.raw = buf
     }
     else { // arr.cap >= cap
