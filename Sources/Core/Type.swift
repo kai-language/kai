@@ -597,7 +597,7 @@ enum ty {
     }
 
     struct Polymorphic: Type {
-        unowned var entity: Entity
+        var entity: Entity
         var specialization: Ref<Type?>
     }
 

@@ -75,11 +75,11 @@ struct IRGenerator {
             //   will want to emit a 'stub'
             let symbol = self.symbol(for: entity)
 
-            if entity.type is ty.Function {
+            if let type = entity.type as? ty.Function {
                 if let existing = module.function(named: symbol) {
                     return existing
                 }
-                return b.addFunction(symbol, type: canonicalize(entity.type!) as! FunctionType)
+                return b.addFunction(symbol, type: canonicalizeSignature(type))
             } else {
                 if let existing = module.global(named: symbol) {
                     return existing
@@ -277,7 +277,7 @@ extension IRGenerator {
 
             for entity in decl.entities where entity !== Entity.anonymous {
                 if let fn = entity.type as? ty.Function {
-                    let function = b.addFunction(symbol(for: entity), type: canonicalize(fn))
+                    let function = b.addFunction(symbol(for: entity), type: canonicalizeSignature(fn))
                     switch decl.callconv {
                     case nil:
                         break
@@ -373,7 +373,7 @@ extension IRGenerator {
                     entity.value = valueEntity.value
                     return
                 }
-                let irType = canonicalize(type)
+                let irType = canonicalizeSignature(type)
 
                 // If the entity on the rhs has a custom linkname create a stub for the linker to resolve
                 if let linkname = valueEntity.linkname {
@@ -387,15 +387,19 @@ extension IRGenerator {
                 return
             }
 
-            var value = emit(expr: value, entity: entity)
-            // functions are already global
-            if !value.isAFunction {
-                var globalValue = b.addGlobal(symbol(for: entity), initializer: value)
-                globalValue.isGlobalConstant = true
-                value = globalValue
+            if value is FuncLit, let type = entity.type as? ty.Function, !type.isPolymorphic {
+                entity.value = b.addFunction(symbol(for: entity), type: canonicalizeSignature(type))
             }
 
-            entity.value = value
+            var ir = emit(expr: value, entity: entity)
+            // functions are already global
+            if !ir.isAFunction {
+                var globalValue = b.addGlobal(symbol(for: entity), initializer: ir)
+                globalValue.isGlobalConstant = true
+                ir = globalValue
+            }
+
+            entity.value = ir
         }
     }
 
@@ -937,8 +941,16 @@ extension IRGenerator {
             let val = type.constant(lit.constant as! UInt64)
             return val
         case let type as FloatType:
-            let val = type.constant(lit.constant as! Double)
-            return val
+            switch lit.constant {
+            case let constant as Double:
+                return type.constant(constant)
+
+            case let constant as UInt64:
+                return type.constant(Double(constant))
+
+            default:
+                fatalError()
+            }
         default:
             preconditionFailure()
         }
@@ -1010,7 +1022,8 @@ extension IRGenerator {
     }
 
     mutating func emit(ident: Ident, returnAddress: Bool) -> IRValue {
-        if returnAddress || ident.entity.type! is ty.Function {
+        if returnAddress || isFunction(ident.type) && ident.entity.isConstant{
+            // refering to global functions should retrieve their address
             return value(for: ident.entity)
         }
         if ident.entity.isConstant {
@@ -1115,7 +1128,8 @@ extension IRGenerator {
         case .builtinCall(let builtin):
             return builtin.generate(builtin, call.args, &self)
         case .call:
-            let callee = emit(expr: call.fun, returnAddress: !(call.fun.type is ty.Pointer))
+            let isGlobal = entity(from: call.fun)?.isConstant ?? false
+            let callee = emit(expr: call.fun, returnAddress: isGlobal)
 
             let args: [IRValue]
             // this code is structured in a way that non-variadic/non-function
@@ -1158,7 +1172,7 @@ extension IRGenerator {
 
                 guard let fn = module.function(named: mangledName) else {
                     // There exists a specialization in another package. Emit a stub
-                    let ir = b.addFunction(specialization.mangledName, type: canonicalize(specialization.strippedType))
+                    let ir = b.addFunction(specialization.mangledName, type: canonicalizeSignature(specialization.strippedType))
                     return b.buildCall(ir, args: args)
                 }
 
@@ -1175,6 +1189,10 @@ extension IRGenerator {
 
             let previousContext = context
             context = Context(mangledNamePrefix: "", deferBlocks: [], returnBlock: nil, previous: nil)
+
+            // The value for the entity that is a polymorphic type will be `llvm.trap` (See `emit(funcLit:,entity:,specializationMangle:)`)
+            //  we want to clear that value before emitting the specialization
+            callee.value = nil
 
             let ir = emit(funcLit: specialization.generatedFunctionNode, entity: callee, specializationMangle: mangledName)
 
@@ -1197,8 +1215,10 @@ extension IRGenerator {
     mutating func emit(funcLit fn: FuncLit, entity: Entity?, specializationMangle: String? = nil) -> Function {
         switch fn.checked! {
         case .regular:
-            let fnType = canonicalize(fn.type) as! FunctionType
-            let function = b.addFunction(specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
+            let fnType = canonicalizeSignature(fn.type as! ty.Function)
+
+            // NOTE: The entity.value should be set already for recursion
+            let function = (entity?.value as? Function) ?? b.addFunction(specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
             let prevBlock = b.insertBlock
 
             let isVoid = fnType.returnType is VoidType
@@ -1672,7 +1692,10 @@ extension IRGenerator {
         return LLVM.VectorType(elementType: canonicalize(vector.elementType), count: vector.size)
     }
 
-    mutating func canonicalize(_ fn: ty.Function) -> FunctionType {
+    /// - Note: This exists because LLVM weirdly defines a function type but doesn't let you do anything with it.
+    /// Instead you actually use a pointer to a function everywhere, even though the API's to create those still
+    /// take just a FunctionType. /Sigh
+    mutating func canonicalizeSignature(_ fn: ty.Function) -> FunctionType {
         var paramTypes: [IRType] = []
 
         // FIXME: Only C vargs should use LLVM variadics, native variadics should use slices.
@@ -1682,8 +1705,12 @@ extension IRGenerator {
             paramTypes.append(type)
         }
         let retType = canonicalize(fn.returnType)
-        let type = FunctionType(argTypes: paramTypes, returnType: retType, isVarArg: fn.isCVariadic)
-        return type
+        return FunctionType(argTypes: paramTypes, returnType: retType, isVarArg: fn.isCVariadic)
+    }
+
+    mutating func canonicalize(_ fn: ty.Function) -> LLVM.PointerType {
+        let type = canonicalizeSignature(fn)
+        return LLVM.PointerType(pointee: type)
     }
 
     /// - Returns: A StructType iff tuple.types > 1

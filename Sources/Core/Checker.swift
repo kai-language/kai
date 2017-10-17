@@ -420,11 +420,22 @@ extension Checker {
                 defer {
                     context.function = nil
                 }
-                if value is FuncLit {
+                if let value = value as? FuncLit, !value.explicitType.isPolymorphic {
                     context.function = ident.entity
+
+                    // check parameter types so we can set the type of the entity for recursion
+                    let operand = check(funcType: value.explicitType)
+                    ident.entity.type = operand.type.lower()
                 }
                 let operand = check(expr: value, desiredType: expectedType)
                 dependencies.formUnion(operand.dependencies)
+
+                if isPolymorphic(operand.type) && !(value is FuncLit) {
+                    reportError("Cannot use polymorphic \(operand) as a value", at: value.start)
+                    file.attachNote("This will eventually be supported")
+                    ident.entity.type = ty.invalid
+                    continue
+                }
 
                 if ident.entity === Entity.anonymous {
                     continue
@@ -1446,7 +1457,6 @@ extension Checker {
 
         var type: Type
         type = ty.Function(entity: nil, node: nil, labels: fn.labels, params: params, returnType: returnType, flags: typeFlags)
-        type = ty.Pointer(pointeeType: type)
         type = ty.Metatype(instanceType: type)
         fn.type = type
         return Operand(mode: .type, expr: fn, type: type, constant: nil, dependencies: dependencies)
@@ -2503,17 +2513,21 @@ extension Checker {
             assert(!isPolymorphic(param.type!))
         }
 
+        // TODO: How do we handle invalid types
+        let type = check(funcType: generated.explicitType).type.lower() as! ty.Function
+
+        let specialization = FunctionSpecialization(file: originalFile, specializedTypes: specializationTypes, strippedType: type, generatedFunctionNode: generated, mangledName: nil, llvm: nil)
+        specializations.append(specialization)
+        fnLitNode.checked = .polymorphic(declaringScope: declaringScope, specializations: specializations)
+
         generated.params = params
 
         assert(functionScope.members.count > generated.explicitType.params.count, "There had to be at least 1 polymorphic type declared")
 
-        let type = check(funcLit: generated).type as! ty.Function
+        _ = check(funcLit: generated)
 
         context.scope = callingScope
         context.specializationCallNode = prevNode
-
-        let specialization = FunctionSpecialization(file: originalFile, specializedTypes: specializationTypes, strippedType: type, generatedFunctionNode: generated, mangledName: nil, llvm: nil)
-
 
         /// Remove specializations from the result type for the callee to check with
         var calleeType = calleeType
@@ -2524,10 +2538,6 @@ extension Checker {
 
         call.type = returnType
         call.checked = .specializedCall(specialization)
-
-        // update the specializations list on the original FnLit
-        specializations.append(specialization)
-        fnLitNode.checked = .polymorphic(declaringScope: declaringScope, specializations: specializations)
 
         return Operand(mode: .computed, expr: call, type: returnType, constant: nil, dependencies: [])
     }
@@ -2591,6 +2601,8 @@ extension Node {
             return pointer.explicitType.isPolymorphic
         case let vector as VectorType:
             return vector.explicitType.isPolymorphic
+        case let fnType as FuncType:
+            return fnType.params.reduce(false, { $0 || $1.isPolymorphic })
         case is PolyType, is PolyStructType, is PolyParameterList:
             return true
         default:
