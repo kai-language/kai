@@ -35,10 +35,6 @@ public final class SourceFile {
     var pathFirstImportedAs: String
     var imports: [Import] = []
 
-    var parsingJob: Job!
-    var checkingJob: Job!
-    var generationJob: Job!
-
     // Set in Checker
     var scope: Scope
 
