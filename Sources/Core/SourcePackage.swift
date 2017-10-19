@@ -97,8 +97,6 @@ public final class SourcePackage {
             // Adds to package
             let sourceFile = SourceFile.new(path: fullpath + "/" + $0, package: package)!
             sourceFile.scope = package.scope
-            importedFrom?.checkingJob.addDependency(sourceFile.checkingJob)
-            importedFrom?.generationJob.addDependency(sourceFile.generationJob)
         }
 
         knownSourcePackages[fullpath] = package
@@ -138,7 +136,7 @@ extension SourcePackage {
 
     public func begin() {
         for file in files {
-            threadPool.add(job: file.parsingJob)
+            file.parseEmittingErrors()
         }
     }
 
