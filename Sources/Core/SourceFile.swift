@@ -34,6 +34,7 @@ public final class SourceFile {
 
     var pathFirstImportedAs: String
     var imports: [Import] = []
+    var dependencies: [SourceFile] = []
 
     // Set in Checker
     var scope: Scope
@@ -78,17 +79,6 @@ public final class SourceFile {
         let sourceFile = SourceFile(handle: handle, fullpath: fullpath, pathImportedAs: path, importedFrom: importedFrom, package: package)
         package.files.append(sourceFile)
 
-        let parsingJob = Job.new(fullpath: fullpath, operation: "Parsing", work: sourceFile.parseEmittingErrors)
-        let checkingJob = Job.new(fullpath: fullpath, operation: "Checking", work: sourceFile.checkEmittingErrors)
-        let generationJob = Job.new(fullpath: fullpath, operation: "Emitting", work: sourceFile.generateIntermediateRepresentation)
-
-        generationJob.addDependency(checkingJob)
-        checkingJob.addDependency(parsingJob)
-
-        sourceFile.parsingJob = parsingJob
-        sourceFile.checkingJob = checkingJob
-        sourceFile.generationJob = generationJob
-
         knownSourceFiles[fullpath] = sourceFile
 
         return sourceFile
@@ -121,9 +111,7 @@ extension SourceFile {
                 i.scope = dependency.scope
 
                 for file in dependency.files {
-                    importedFrom.checkingJob.addDependency(file.checkingJob)
-                    importedFrom.generationJob.addDependency(file.generationJob)
-                    threadPool.add(job: file.parsingJob)
+                    fatalError("packages unsupported")
                 }
             } else {
                 guard let file = SourceFile.new(path: path, package: package, importedFrom: importedFrom) else {
@@ -131,9 +119,7 @@ extension SourceFile {
                 }
                 i.scope = file.scope
 
-                importedFrom.checkingJob.addDependency(file.checkingJob)
-                importedFrom.generationJob.addDependency(file.generationJob)
-                threadPool.add(job: file.parsingJob)
+                dependencies.append(file)
             }
         case let call as Call where (call.fun as? Ident)?.name == "kai":
             guard call.args.count >= 1 else {
@@ -177,26 +163,26 @@ extension SourceFile {
 
         i.resolvedName = pathToEntityName(packageDirectory)
         if !isDirectory(path: packageDirectory) {
-
-            let cloneJob = Job.new(fullpath: packageDirectory, operation: "Cloning", work: {
-
-                print("Cloning \(user)/\(repo)...")
-                Git().clone(repo: "https://github.com/" + user + "/" + repo + ".git", to: packageDirectory)
-
-                guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
-                    preconditionFailure()
-                }
-                self.package.dependencies.append(dependency)
-                dependency.begin()
-
-                i.scope = dependency.scope
-            })
-
-            importedFrom.checkingJob.addDependency(cloneJob)
-
-            threadPool.mutex.lock()
-            threadPool.cloneQueue.append(cloneJob)
-            threadPool.mutex.unlock()
+            fatalError("todo")
+//            let cloneJob = Job.new(fullpath: packageDirectory, operation: "Cloning", work: {
+//
+//                print("Cloning \(user)/\(repo)...")
+//                Git().clone(repo: "https://github.com/" + user + "/" + repo + ".git", to: packageDirectory)
+//
+//                guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
+//                    preconditionFailure()
+//                }
+//                self.package.dependencies.append(dependency)
+//                dependency.begin()
+//
+//                i.scope = dependency.scope
+//            })
+//
+//            importedFrom.checkingJob.addDependency(cloneJob)
+//
+//            threadPool.mutex.lock()
+//            threadPool.cloneQueue.append(cloneJob)
+//            threadPool.mutex.unlock()
         } else { // Directory exists already
 
             guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
@@ -221,11 +207,6 @@ extension SourceFile {
         hasBeenParsed = true
         emitErrors(for: self, at: stage)
 
-        if errors.count > 0 {
-            let index = parsingJob.dependents.index(of: checkingJob)!
-            parsingJob.dependents.remove(at: index)
-        }
-
         let endTime = gettime()
         let totalTime = endTime - startTime
         timingMutex.lock()
@@ -245,12 +226,6 @@ extension SourceFile {
         checker.checkFile()
         hasBeenChecked = true
         emitErrors(for: self, at: stage)
-
-        if errors.count > 0 {
-            // do not go through with the next job
-            let index = checkingJob.dependents.index(of: generationJob)!
-            checkingJob.dependents.remove(at: index)
-        }
 
         let endTime = gettime()
         let totalTime = endTime - startTime

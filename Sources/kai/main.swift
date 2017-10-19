@@ -14,18 +14,13 @@ Options.instance = opts // Note: You must set this, it is used internally
 
 setupTargetMachine()
 
-threadPool = ThreadPool(nThreads: Options.instance.jobs)
-
 let filepath = CommandLine.arguments.last!
 guard let package = SourcePackage.makeInitial(for: filepath) else {
     print("ERROR: No such file or directory '\(filepath)'")
     exit(1)
 }
 
-
 package.begin()
-
-threadPool.waitUntilDone()
 
 if wasErrors {
     exit(1)
