@@ -84,6 +84,13 @@ struct IRGenerator {
             }
         }
 
+        if entity.type is ty.Function {
+            if let existing = module.function(named: entity.name) {
+                return existing
+            }
+            return b.addFunction(entity.name, type: canonicalize(entity.type!) as! FunctionType)
+        }
+
         if let constant = entity.constant {
             switch constant {
             case let c as UInt64:
@@ -1202,7 +1209,7 @@ extension IRGenerator {
         switch fn.checked! {
         case .regular:
             let fnType = canonicalize(fn.type) as! FunctionType
-            let function = b.addFunction(specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
+            let function = addOrReuseFunc(specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
             let prevBlock = b.insertBlock
 
             let isVoid = fnType.returnType is VoidType
@@ -1758,5 +1765,13 @@ extension IRGenerator {
 
     mutating func canonicalize(_ float: ty.UntypedFloatingPoint) -> FloatType {
         return FloatType(kind: .double, in: module.context)
+    }
+
+    func addOrReuseFunc(_ name: String, type: FunctionType) -> Function {
+        if let existing = module.function(named: name) {
+            return existing
+        }
+
+        return b.addFunction(name, type: type)
     }
 }

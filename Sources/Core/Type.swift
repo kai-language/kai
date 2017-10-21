@@ -585,7 +585,7 @@ enum ty {
         static let instance = CVarArg()
     }
 
-    struct File: Type {
+    class File: Type {
         let memberScope: Scope
 
         init(memberScope: Scope) {
