@@ -1224,6 +1224,7 @@ extension IRGenerator {
 
             // NOTE: The entity.value should be set already for recursion
             let function = (entity?.value as? Function) ?? addOrReuseFunc(specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
+
             let prevBlock = b.insertBlock
 
             let isVoid = fnType.returnType is VoidType
