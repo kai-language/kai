@@ -7,9 +7,10 @@ class Checker {
     var context: Context
     var uncheckedStmts: [TopLevelStmt] = []
     var hasBeenCollected: Bool = false
+    var currentlyChecking: Bool = false
 
     enum Error: Swift.Error {
-        case queueEntityForLater
+        case queueEntityForLater(Entity)
     }
 
     init(file: SourceFile) {
@@ -108,10 +109,11 @@ extension Checker {
     }
 
     func checkFile() -> Bool {
-        guard uncheckedStmts.count > 0 else {
+        guard uncheckedStmts.count > 0 && !currentlyChecking else {
             return false
         }
 
+        currentlyChecking = true
         let count = uncheckedStmts.count
         var unsolved: [TopLevelStmt] = []
 
@@ -127,6 +129,8 @@ extension Checker {
         let newCount = uncheckedStmts.count
 
         let madeProgress = file.dependencies.reduce(false, {$0 || $1.checker.checkFile()})
+        currentlyChecking = false
+        
         if newCount != 0 {
             guard madeProgress else {
                 for stmt in uncheckedStmts {
@@ -1203,14 +1207,13 @@ extension Checker {
             ident.constant = entity.constant
         }
 
-        if entity.type == nil || !entity.isChecked {
+        if entity.type == nil && !entity.isChecked {
             // Queue the entity to be checked again later
-            throw Error.queueEntityForLater
+            throw Error.queueEntityForLater(entity)
         }
 
-        assert(entity.type != nil || !entity.isChecked, "Either we have a type or the entity is yet to be checked")
         var type = entity.type
-        if entity.type == nil {
+        if type == nil {
             try check(topLevelStmt: entity.declaration!)
             assert(entity.isChecked && entity.type != nil)
             type = entity.type
@@ -2063,6 +2066,10 @@ extension Checker {
                 selector.checked = .invalid
                 selector.type = ty.invalid
                 return Operand.invalid
+            }
+
+            if member.type == nil || !member.isChecked {
+                throw Error.queueEntityForLater(member)
             }
 
             dependencies.insert(member)
