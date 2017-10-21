@@ -29,12 +29,15 @@ public final class SourceFile {
 
     var stage: String = ""
     var hasBeenParsed: Bool = false
+    var hasCheckerBeenSetup: Bool = false
     var hasBeenChecked: Bool = false
     var hasBeenGenerated: Bool = false
 
     var pathFirstImportedAs: String
     var imports: [Import] = []
     var dependencies: [SourceFile] = []
+
+    var checker: Checker!
 
     // Set in Checker
     var scope: Scope
@@ -198,7 +201,7 @@ extension SourceFile {
 
 extension SourceFile {
     public func parseEmittingErrors() {
-        assert(!hasBeenParsed)
+        guard !hasBeenParsed else { return }
         let startTime = gettime()
 
         stage = "Parsing"
@@ -206,6 +209,10 @@ extension SourceFile {
         self.nodes = parser.parseFile()
         hasBeenParsed = true
         emitErrors(for: self, at: stage)
+
+        for dep in dependencies {
+            dep.parseEmittingErrors()
+        }
 
         let endTime = gettime()
         let totalTime = endTime - startTime
@@ -223,7 +230,15 @@ extension SourceFile {
 
         stage = "Checking"
         var checker = Checker(file: self)
-        checker.checkFile()
+        hasCheckerBeenSetup = true
+        self.checker = checker
+
+        for dep in dependencies {
+            dep.setupChecker()
+        }
+
+        checker.collectFile()
+        _ = checker.checkFile()
         hasBeenChecked = true
         emitErrors(for: self, at: stage)
 
@@ -232,6 +247,16 @@ extension SourceFile {
         timingMutex.lock()
         checkStageTiming += totalTime
         timingMutex.unlock()
+    }
+
+    public func setupChecker() {
+        guard !hasCheckerBeenSetup else { return }
+
+        self.checker = Checker(file: self)
+        hasCheckerBeenSetup = true
+        for dep in dependencies {
+            dep.setupChecker()
+        }
     }
 
     public func generateIntermediateRepresentation() {

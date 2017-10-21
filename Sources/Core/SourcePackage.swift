@@ -138,6 +138,14 @@ extension SourcePackage {
         for file in files {
             file.parseEmittingErrors()
         }
+
+        for file in files {
+            file.checkEmittingErrors()
+        }
+
+        for file in files {
+            file.generateIntermediateRepresentation()
+        }
     }
 
     public var emitPath: String {

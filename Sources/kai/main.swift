@@ -30,7 +30,6 @@ package.validateIR()
 
 setupBuildDirectories()
 if opts.flags.intersection([.emitIr, .emitBitcode, .emitAssembly]).isEmpty {
-
     package.emitObjects()
     package.linkObjects()
     if !opts.flags.contains(.noCleanup) {

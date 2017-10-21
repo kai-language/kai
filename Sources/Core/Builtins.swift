@@ -119,7 +119,7 @@ func lookupBuiltinFunction(_ fun: Expr) -> BuiltinFunction? {
 class BuiltinFunction {
     // TODO: Take IRGen too
     typealias Generate = (BuiltinFunction, [Expr], inout IRGenerator) -> IRValue
-    typealias CallCheck = (inout Checker, Call) -> Type
+    typealias CallCheck = (Checker, Call) -> Type
 
     var entity: Entity
     var type: Type
