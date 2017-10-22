@@ -5,7 +5,7 @@ class Checker {
     var file: SourceFile
 
     var context: Context
-    var uncheckedStmts: [TopLevelStmt] = []
+    var uncheckedStmts: [(TopLevelStmt, Entity?)] = []
     var hasBeenCollected: Bool = false
     var currentlyChecking: Bool = false
 
@@ -97,11 +97,13 @@ extension Checker {
     func collectFile() {
         guard !hasBeenCollected else { return }
 
+        uncheckedStmts.reserveCapacity(file.nodes.count)
+
         for node in file.nodes {
             collect(topLevelStmt: node)
+            uncheckedStmts.append((node, nil))
         }
         hasBeenCollected = true
-        uncheckedStmts = file.nodes
 
         for dep in file.dependencies {
             dep.checker.collectFile()
@@ -115,13 +117,15 @@ extension Checker {
 
         currentlyChecking = true
         let count = uncheckedStmts.count
-        var unsolved: [TopLevelStmt] = []
+        var unsolved: [(TopLevelStmt, Entity?)] = []
 
-        for node in uncheckedStmts {
+        for (node, _) in uncheckedStmts {
             do {
                 try check(topLevelStmt: node)
+            } catch Error.queueEntityForLater(let entity) {
+                unsolved.append((node, entity))
             } catch {
-                unsolved.append(node)
+                fatalError()
             }
         }
 
@@ -133,8 +137,12 @@ extension Checker {
         
         if newCount != 0 {
             guard madeProgress else {
-                for stmt in uncheckedStmts {
-                    reportError("Unresolved identifier: \(stmt)", at: stmt.start)
+                for (stmt, entity) in uncheckedStmts {
+                    if let entity = entity {
+                        reportError("Unresolved entity: \(entity)", at: entity.ident.start)
+                    } else {
+                        reportError("Unresolved identifier: \(stmt)", at: stmt.start)
+                    }
                 }
                 return false
             }
