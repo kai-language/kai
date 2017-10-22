@@ -2058,7 +2058,7 @@ extension Checker {
                 return Operand.invalid
             }
 
-            if member.type == nil || !member.isChecked {
+            if member.type == nil && !member.isChecked {
                 throw Error.queueEntityForLater(member)
             }
 

@@ -89,11 +89,11 @@ struct IRGenerator {
             }
         }
 
-        if entity.type is ty.Function {
+        if let fType = entity.type as? ty.Function {
             if let existing = module.function(named: entity.name) {
                 return existing
             }
-            return b.addFunction(entity.name, type: canonicalize(entity.type!) as! FunctionType)
+            return b.addFunction(entity.name, type: canonicalize(fType).pointee as! FunctionType)
         }
 
         if let constant = entity.constant {
