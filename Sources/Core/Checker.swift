@@ -137,12 +137,9 @@ extension Checker {
         
         if newCount != 0 {
             guard madeProgress else {
-                for (stmt, entity) in uncheckedStmts {
-                    if let entity = entity {
-                        reportError("Unresolved entity: \(entity)", at: entity.ident.start)
-                    } else {
-                        reportError("Unresolved identifier: \(stmt)", at: stmt.start)
-                    }
+                for (_, entity) in uncheckedStmts {
+                    // NOTE: entity being nil means we have a bug. Crash hard
+                    reportError("Unresolved entity: \(entity!)", at: entity!.ident.start)
                 }
                 return false
             }
