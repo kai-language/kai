@@ -9,5 +9,5 @@ aCallable :: fn() -> void {
 }
 
 main :: fn() -> void {
-
+    aFunc()
 }

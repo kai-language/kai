@@ -1207,7 +1207,8 @@ extension Checker {
             ident.constant = entity.constant
         }
 
-        if entity.type == nil && !entity.isChecked {
+        if entity.type == nil {
+            assert(!entity.isChecked)
             // Queue the entity to be checked again later
             throw Error.queueEntityForLater(entity)
         }
@@ -2058,7 +2059,8 @@ extension Checker {
                 return Operand.invalid
             }
 
-            if member.type == nil && !member.isChecked {
+            if member.type == nil {
+                assert(!member.isChecked)
                 throw Error.queueEntityForLater(member)
             }
 
