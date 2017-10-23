@@ -166,26 +166,16 @@ extension SourceFile {
 
         i.resolvedName = pathToEntityName(packageDirectory)
         if !isDirectory(path: packageDirectory) {
-            fatalError("todo")
-//            let cloneJob = Job.new(fullpath: packageDirectory, operation: "Cloning", work: {
-//
-//                print("Cloning \(user)/\(repo)...")
-//                Git().clone(repo: "https://github.com/" + user + "/" + repo + ".git", to: packageDirectory)
-//
-//                guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
-//                    preconditionFailure()
-//                }
-//                self.package.dependencies.append(dependency)
-//                dependency.begin()
-//
-//                i.scope = dependency.scope
-//            })
-//
-//            importedFrom.checkingJob.addDependency(cloneJob)
-//
-//            threadPool.mutex.lock()
-//            threadPool.cloneQueue.append(cloneJob)
-//            threadPool.mutex.unlock()
+            print("Cloning \(user)/\(repo)...")
+            Git().clone(repo: "https://github.com/" + user + "/" + repo + ".git", to: packageDirectory)
+
+            guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
+                preconditionFailure()
+            }
+            self.package.dependencies.append(dependency)
+            dependency.begin()
+
+            i.scope = dependency.scope
         } else { // Directory exists already
 
             guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
@@ -229,7 +219,7 @@ extension SourceFile {
         let startTime = gettime()
 
         stage = "Checking"
-        var checker = Checker(file: self)
+        let checker = Checker(file: self)
         hasCheckerBeenSetup = true
         self.checker = checker
 
