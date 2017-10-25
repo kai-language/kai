@@ -5,9 +5,8 @@ protocol Type: CustomStringConvertible {
     var width: Int? { get }
 }
 
-protocol NamableType: Type {
-    var entity: Entity? { get set }
-}
+protocol NamableType: Type {}
+protocol IRNamableType: Type {}
 
 extension Type {
     // The the type doesn't have a width, then we assume it is nil
@@ -30,7 +29,7 @@ func != (lhs: Type, rhs: Type) -> Bool {
 
 func == (lhs: Type, rhs: Type) -> Bool {
 
-    switch (lhs, rhs) {
+    switch (baseType(lhs), baseType(rhs)) {
     case (is ty.Void, is ty.Void),
          (is ty.Anyy, is ty.Anyy),
          (is ty.CVarArg, is ty.CVarArg),
@@ -69,6 +68,12 @@ func == (lhs: Type, rhs: Type) -> Bool {
         return lhs.specialization.val! == rhs
     case (_, let rhs as ty.Polymorphic):
         return rhs.specialization.val! == lhs
+    case (let lhs as ty.Named, let rhs as ty.Named):
+        return lhs.base == rhs.base
+    case (let lhs as ty.Named, _):
+        return lhs.base == rhs
+    case (_, let rhs as ty.Named):
+        return lhs == rhs.base
     default:
         return false
     }
@@ -143,23 +148,19 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
         return type.specialization.val!
 
     case var type as ty.Array:
-        let elType = lowerSpecializedPolymorphics(type.elementType)
-        type.elementType = elType
+        type.elementType = lowerSpecializedPolymorphics(type.elementType)
         return type
 
     case var type as ty.Vector:
-        let elType = lowerSpecializedPolymorphics(type.elementType)
-        type.elementType = elType
+        type.elementType = lowerSpecializedPolymorphics(type.elementType)
         return type
 
     case var type as ty.Slice:
-        let elType = lowerSpecializedPolymorphics(type.elementType)
-        type.elementType = elType
+        type.elementType = lowerSpecializedPolymorphics(type.elementType)
         return type
 
     case var type as ty.Pointer:
-        let pType = lowerSpecializedPolymorphics(type.pointeeType)
-        type.pointeeType = pType
+        type.pointeeType = lowerSpecializedPolymorphics(type.pointeeType)
         return type
 
     case is ty.Enum,
@@ -169,13 +170,17 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
         // TODO: do we permit anonymous polymorphic complex types???
         return type
 
+    case let type as ty.Function:
+        // FIXME: Function types should be polymorphicable too
+//        assert(type.params.reduce(true, { $0 && isPolymorphic($1) }))
+//        assert(type.returnType.types.reduce(true, { $0 && isPolymorphic($1) }))
+        return type
+
+    case let type as ty.Named:
+        return ty.Named(entity: type.entity, base: lowerSpecializedPolymorphics(type.base) as! NamableType) // NOTE: can we assert?
+
     case let type as ty.Metatype:
         return ty.Metatype(instanceType: lowerSpecializedPolymorphics(type.instanceType))
-
-    case let type as ty.Function:
-        //            assert(type.params.reduce(true, { $0 && isPolymorphic($1) }))
-        //            assert(type.returnType.types.reduce(true, { $0 && isPolymorphic($1) }))
-        return type
 
     case let type as ty.Tuple:
         return ty.Tuple(width: type.width, types: type.types.map(lowerSpecializedPolymorphics))
@@ -194,6 +199,10 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
     default:
         preconditionFailure("New Type?")
     }
+}
+
+func baseType(_ type: Type) -> Type {
+    return (type as? ty.Named)?.base ?? type
 }
 
 func constrainUntyped(_ type: Type, to targetType: Type) -> Bool {
@@ -247,18 +256,6 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
         return true
     }
 
-    if let lit = expr as? BasicLit {
-        switch (lit.constant, target) {
-        case (let const as UInt64, is ty.FloatingPoint):
-            lit.constant = Double(const)
-            lit.type = target
-            return true
-
-        default:
-            return false
-        }
-    }
-
     var allowed = false
     switch (type, target) {
     case (is ty.UntypedNil, is ty.Pointer),
@@ -271,8 +268,9 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
          (is ty.Array, is ty.Slice):
         allowed = true
 
-    case (is ty.Pointer, let target as ty.Pointer):
-        allowed = target.entity === Entity.rawptr
+    case (is ty.Pointer, is ty.Pointer):
+        // NOTE: Conversion to rawptr is handled earlier
+        allowed = false
 
     case (let exprType as ty.Enum, let targetType):
         if let associatedType = exprType.associatedType {
@@ -286,6 +284,23 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
 
     case (_, is ty.CVarArg):
         return true // return immediately, don't perform conversion
+
+    case (let type as ty.Named, let target as ty.Named):
+        if target.entity === Entity.rawptr && type.base is ty.Pointer {
+            allowed = true
+            break
+        }
+        return convert(type.base, to: target.base, at: expr)
+
+    case (let type as ty.Named, _):
+        return convert(type.base, to: target, at: expr)
+
+    case (_, let target as ty.Named):
+        if target.entity === Entity.rawptr && type is ty.Pointer {
+            allowed = true
+            break
+        }
+        return convert(type, to: target.base, at: expr)
 
     default:
         allowed = false
@@ -302,30 +317,30 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
 }
 
 func canCast(_ exprType: Type, to targetType: Type) -> Bool {
-    switch (exprType, targetType) {
+    switch (baseType(exprType), baseType(targetType)) {
     case (is ty.UntypedNil, is ty.Pointer),
-         
+
          (is ty.UntypedInteger, is ty.Integer),
          (is ty.UntypedInteger, is ty.FloatingPoint),
          (is ty.UntypedInteger, is ty.Pointer),
-         
+
          (is ty.UntypedFloatingPoint, is ty.Integer),
          (is ty.UntypedFloatingPoint, is ty.FloatingPoint),
-         
+
          (is ty.Integer, is ty.Integer),
          (is ty.Integer, is ty.FloatingPoint),
          (is ty.Integer, is ty.Pointer),
-         
+
          (is ty.FloatingPoint, is ty.FloatingPoint),
          (is ty.FloatingPoint, is ty.Integer),
-         
+
          (is ty.Pointer, is ty.Boolean),
          (is ty.Pointer, is ty.Integer),
          (is ty.Pointer, is ty.Pointer),
          (is ty.Pointer, is ty.Function),
 
          (is ty.Function, is ty.Pointer),
-         
+
          (is ty.Array, is ty.Slice):
         return true
 
@@ -353,28 +368,23 @@ enum ty {
     }
 
     struct Boolean: Type, NamableType {
-        weak var entity: Entity?
         var width: Int? { return 1 }
     }
 
     struct Integer: Type, NamableType {
-        weak var entity: Entity?
         var width: Int?
         var isSigned: Bool
     }
 
     struct FloatingPoint: Type, NamableType {
-        weak var entity: Entity?
         var width: Int?
     }
 
     struct KaiString: Type, NamableType {
-        weak var entity: Entity?
         var width: Int? { return 3 * platformPointerWidth } // pointer, length, capacity
     }
 
     struct Pointer: Type, NamableType {
-        weak var entity: Entity?
         var width: Int? { return platformPointerWidth }
         var pointeeType: Type
 
@@ -384,7 +394,6 @@ enum ty {
     }
 
     struct Array: Type, NamableType {
-        weak var entity: Entity?
         var width: Int? { return elementType.width! * length }
         var length: Int!
         var elementType: Type
@@ -396,7 +405,6 @@ enum ty {
     }
 
     struct Slice: Type, NamableType {
-        weak var entity: Entity?
         var width: Int? { return 3 * platformPointerWidth } // pointer, length, capacity
         var elementType: Type
 
@@ -406,7 +414,6 @@ enum ty {
     }
 
     struct Vector: Type, NamableType {
-        weak var entity: Entity?
         var width: Int? { return elementType.width! * size }
         var size: Int
         var elementType: Type
@@ -421,8 +428,7 @@ enum ty {
         var width: Int? { return platformPointerWidth }
     }
 
-    struct Struct: Type, NamableType {
-        weak var entity: Entity?
+    struct Struct: Type, NamableType, IRNamableType {
         var width: Int?
 
         var node: Node
@@ -491,7 +497,6 @@ enum ty {
     }
 
     struct Union: Type, NamableType {
-        weak var entity: Entity?
         var width: Int?
         var cases: OrderedDictionary<String, Case>
 
@@ -509,8 +514,7 @@ enum ty {
         }
     }
 
-    struct Variant: Type, NamableType {
-        weak var entity: Entity?
+    struct Variant: Type, NamableType, IRNamableType {
         var width: Int?
         var cases: OrderedDictionary<String, Case>
 
@@ -530,7 +534,6 @@ enum ty {
     }
 
     struct Enum: Type, NamableType {
-        weak var entity: Entity?
         var width: Int?
         var associatedType: Type?
         var cases: OrderedDictionary<String, Case>
@@ -553,7 +556,6 @@ enum ty {
     }
 
     struct Function: Type, NamableType {
-        weak var entity: Entity?
         var node: FuncLit?
         var labels: [Ident]?
         var params: [Type]
@@ -571,7 +573,7 @@ enum ty {
         }
 
         static func make(_ params: [Type], _ returnType: [Type], _ flags: Flags = .builtin) -> Function {
-            return Function(entity: nil, node: nil, labels: nil, params: params, returnType: ty.Tuple.init(width: nil, types: returnType), flags: flags)
+            return Function(node: nil, labels: nil, params: params, returnType: ty.Tuple.init(width: nil, types: returnType), flags: flags)
         }
     }
 
@@ -587,8 +589,21 @@ enum ty {
         var width: Int? { return 64 }
     }
 
-    struct Metatype: Type {
+    // sourcery:noinit
+    class Named: Type {
+        var entity: Entity
+        var base: NamableType!
+        var width: Int? {
+            return base.width
+        }
 
+        init(entity: Entity, base: NamableType!) {
+            self.entity = entity
+            self.base = base
+        }
+    }
+
+    struct Metatype: Type {
         var instanceType: Type
 
         init(instanceType: Type) {
@@ -648,35 +663,37 @@ func isVoid(_ type: Type) -> Bool {
 }
 
 func isBoolean(_ type: Type) -> Bool {
-    return type is ty.Boolean
+    return baseType(type) is ty.Boolean
 }
 
 func isInteger(_ type: Type) -> Bool {
+    let type = baseType(type)
     return type is ty.Integer || type is ty.UntypedInteger
 }
 
 func isFloatingPoint(_ type: Type) -> Bool {
+    let type = baseType(type)
     return type is ty.FloatingPoint || type is ty.UntypedFloatingPoint
 }
 
 func isKaiString(_ type: Type) -> Bool {
-    return type is ty.KaiString
+    return baseType(type) is ty.KaiString
 }
 
 func isPointer(_ type: Type) -> Bool {
-    return type is ty.Pointer
+    return baseType(type) is ty.Pointer
 }
 
 func isArray(_ type: Type) -> Bool {
-    return type is ty.Array
+    return baseType(type) is ty.Array
 }
 
 func isSlice(_ type: Type) -> Bool {
-    return type is ty.Slice
+    return baseType(type) is ty.Slice
 }
 
 func isVector(_ type: Type) -> Bool {
-    return type is ty.Vector
+    return baseType(type) is ty.Vector
 }
 
 func isAnyy(_ type: Type) -> Bool {
@@ -684,23 +701,23 @@ func isAnyy(_ type: Type) -> Bool {
 }
 
 func isStruct(_ type: Type) -> Bool {
-    return type is ty.Struct
+    return baseType(type) is ty.Struct
 }
 
 func isUnion(_ type: Type) -> Bool {
-    return type is ty.Union
+    return baseType(type) is ty.Union
 }
 
 func isVariant(_ type: Type) -> Bool {
-    return type is ty.Variant
+    return baseType(type) is ty.Variant
 }
 
 func isEnum(_ type: Type) -> Bool {
-    return type is ty.Enum
+    return baseType(type) is ty.Enum
 }
 
 func isFunction(_ type: Type) -> Bool {
-    return type is ty.Function
+    return baseType(type) is ty.Function
 }
 
 func isNil(_ type: Type) -> Bool {

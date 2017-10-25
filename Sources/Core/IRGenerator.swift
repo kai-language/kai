@@ -317,7 +317,7 @@ extension IRGenerator {
         for (entity, value) in zip(decl.entities, decl.values) where entity.name == "main" || entity !== Entity.anonymous {
             if let type = entity.type as? ty.Metatype {
 
-                switch type.instanceType {
+                switch baseType(type.instanceType) {
                 case let type as ty.Struct:
                     let irType = b.createStruct(name: symbol(for: entity))
                     var irTypes: [IRType] = []
@@ -958,19 +958,17 @@ extension IRGenerator {
 
     mutating func emit(lit: CompositeLit, returnAddress: Bool, entity: Entity?) -> IRValue {
         // TODO: Use the mangled entity name
-        switch lit.type {
-        case let type as ty.Struct:
-            let irType = canonicalize(type)
-            var ir = irType.undef()
+        let irType = canonicalize(lit.type)
+        var ir = irType.undef()
+        switch baseType(lit.type) {
+        case is ty.Struct:
             for el in lit.elements {
                 let val = emit(expr: el.value)
                 ir = b.buildInsertValue(aggregate: ir, element: val, index: el.structField!.index)
             }
             return ir
 
-        case let type as ty.Array:
-            let irType = canonicalize(type)
-            var ir = irType.undef()
+        case is ty.Array:
             for (index, el) in lit.elements.enumerated() {
                 let val = emit(expr: el.value)
                 ir = b.buildInsertValue(aggregate: ir, element: val, index: index)
@@ -978,9 +976,6 @@ extension IRGenerator {
             return ir
 
         case let slice as ty.Slice:
-            let irType = canonicalize(slice)
-            var ir = irType.undef()
-
             let elementType = canonicalize(slice.elementType)
             let rawBuffType = LLVM.ArrayType(elementType: elementType, count: lit.elements.count)
             var constant = rawBuffType.undef()
@@ -1007,9 +1002,7 @@ extension IRGenerator {
 
             return ir
 
-        case let type as ty.Vector:
-            let irType = canonicalize(type)
-            var ir = irType.undef()
+        case is ty.Vector:
             for (index, el) in lit.elements.enumerated() {
                 let val = emit(expr: el.value)
                 ir = b.buildInsertElement(vector: ir, element: val, index: index)
@@ -1498,7 +1491,7 @@ extension IRGenerator {
 
     mutating func performConversion(from: Type, to target: Type, with value: IRValue) -> IRValue {
         let type = canonicalize(target)
-        switch (from, target) {
+        switch (baseType(from), baseType(target)) {
         case (let from as ty.UntypedInteger, let target as ty.Integer):
             if from.width! == target.width! {
                 return value
@@ -1591,7 +1584,7 @@ extension IRGenerator {
 
     mutating func canonicalize(_ type: Type) -> IRType {
 
-        if let named = type as? NamableType, let name = named.entity?.mangledName, let existing = module.type(named: name) {
+        if let named = type as? ty.Named, let mangledName = named.entity.mangledName, let existing = module.type(named: mangledName) {
             return existing
         }
 
@@ -1628,6 +1621,15 @@ extension IRGenerator {
             return canonicalize(type)
         case let type as ty.UntypedFloatingPoint:
             return canonicalize(type)
+        case let type as ty.Named:
+            if let mangledName = type.entity.mangledName, let existing = module.type(named: mangledName) {
+                return existing
+            } else if type.base is IRNamableType {
+                emit(decl: type.entity.declaration!)
+                return module.type(named: type.entity.mangledName)!
+            } else {
+                return canonicalize(type.base)
+            }
         case is ty.Polymorphic:
             fatalError("Polymorphic types must be specialized before reaching the IRGenerator")
         case is ty.UntypedNil:
@@ -1725,20 +1727,20 @@ extension IRGenerator {
     }
 
     mutating func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
-        if let entity = struc.entity {
-            let sym = symbol(for: entity)
-            if let ptr = module.type(named: sym) {
-                return ptr as! LLVM.StructType
-            }
-            let irType = b.createStruct(name: sym)
-            var irTypes: [IRType] = []
-            for field in struc.fields.orderedValues {
-                let fieldType = canonicalize(field.type)
-                irTypes.append(fieldType)
-            }
-            irType.setBody(irTypes)
-            return irType
-        }
+//        if let entity = struc.entity {
+//            let sym = symbol(for: entity)
+//            if let ptr = module.type(named: sym) {
+//                return ptr as! LLVM.StructType
+//            }
+//            let irType = b.createStruct(name: sym)
+//            var irTypes: [IRType] = []
+//            for field in struc.fields.orderedValues {
+//                let fieldType = canonicalize(field.type)
+//                irTypes.append(fieldType)
+//            }
+//            irType.setBody(irTypes)
+//            return irType
+//        }
 
         return LLVM.StructType(elementTypes: struc.fields.orderedValues.map({ canonicalize($0.type) }), in: module.context)
     }
@@ -1776,17 +1778,17 @@ extension IRGenerator {
     }
 
     mutating func canonicalize(_ u: ty.Union) -> LLVM.StructType {
-        if let entity = u.entity {
-            let sym = symbol(for: entity)
-            if let ptr = module.type(named: sym) {
-                return ptr as! LLVM.StructType
-            }
-
-            let irType = b.createStruct(name: sym)
-            let containerType = LLVM.ArrayType(elementType: i8, count: u.width!.bytes())
-            irType.setBody([containerType])
-            return irType
-        }
+//        if let entity = u.entity {
+//            let sym = symbol(for: entity)
+//            if let ptr = module.type(named: sym) {
+//                return ptr as! LLVM.StructType
+//            }
+//
+//            let irType = b.createStruct(name: sym)
+//            let containerType = LLVM.ArrayType(elementType: i8, count: u.width!.bytes())
+//            irType.setBody([containerType])
+//            return irType
+//        }
 
         let containerType = LLVM.ArrayType(elementType: i8, count: u.width!.bytes())
         return LLVM.StructType(elementTypes: [containerType] , in: module.context)

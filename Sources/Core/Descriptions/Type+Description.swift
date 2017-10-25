@@ -7,45 +7,30 @@ extension ty.Void: CustomStringConvertible {
 
 extension ty.Boolean {
     var description: String {
-        if let name = entity?.name {
-            return name
-        }
         return "bool"
     }
 }
 
 extension ty.Integer {
     var description: String {
-        if let name = entity?.name {
-            return name
-        }
         return "\(isSigned ? "i" : "u")\(width!)"
     }
 }
 
 extension ty.FloatingPoint {
     var description: String {
-        if let name = entity?.name {
-            return name
-        }
         return "f\(width!)"
     }
 }
 
 extension ty.KaiString {
     var description: String {
-        if let name = entity?.name {
-            return name
-        }
         return "string"
     }
 }
 
 extension ty.Pointer {
     var description: String {
-        if let name = entity?.name {
-            return name
-        }
         return "*" + pointeeType.description
     }
 }
@@ -58,18 +43,12 @@ extension ty.Anyy {
 
 extension ty.Struct {
     var description: String {
-        if let name = entity?.name {
-            return name
-        }
         return "struct{" + fields.orderedValues.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
     }
 }
 
 extension ty.Union {
     var description: String {
-        if let name = entity?.name {
-            return name
-        }
 
         return "union{" + cases.orderedValues.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
     }
@@ -77,49 +56,25 @@ extension ty.Union {
 
 extension ty.Variant {
     var description: String {
-        if let name = entity?.name {
-            return name
-        }
-
         return "variant{" + cases.orderedValues.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
     }
 }
 
 extension ty.Enum {
     var description: String {
-        if let name = entity?.name {
-            return name
-        }
         return "enum{" + cases.orderedValues.map({ $0.ident.name + ($0.value.map({ " = " + String(describing: $0) }) ?? "") }).joined(separator: ", ") + "}"
     }
 }
 
 extension ty.Array {
     var description: String {
-        var str = ""
-        if let name = entity?.name {
-            str += name + " aka "
-        }
-
-        str += "["
-
-        if length != nil {
-            str += "\(length!)"
-        }
-
-        str += "]" + elementType.description
-        return str
+        return "[" + length!.description + "]" + elementType.description
     }
 }
 
 extension ty.Slice {
     var description: String {
-        var str = ""
-        if let name = entity?.name {
-            str += name + " aka "
-        }
-        str += "[]" + elementType.description
-        return str
+        return "[]" + elementType.description
     }
 }
 
@@ -131,12 +86,13 @@ extension ty.Vector {
 
 extension ty.Function {
     var description: String {
-        var str = ""
-        if let name = entity?.name {
-            str += name + " aka "
-        }
-        str += "(" + params.map({ $0.description }).joined(separator: ", ") + ") -> " + returnType.description
-        return str
+        return "(" + params.map({ $0.description }).joined(separator: ", ") + ") -> " + returnType.description
+    }
+}
+
+extension ty.Named {
+    var description: String {
+        return entity.name
     }
 }
 

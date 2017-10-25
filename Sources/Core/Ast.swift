@@ -182,23 +182,24 @@ init(start: Pos, element: Expr?, type: Type!) {
 // sourcery:end
 }
 
-// this is constrained, not converted
-class BasicLit: Node, Expr {
+class BasicLit: Node, Expr, Convertable {
     var start: Pos
     var token: Token
     var text: String
     var type: Type!
     var constant: Value!
+    var conversion: (from: Type, to: Type)?
 
     var end: Pos { return start + text.count }
 
 // sourcery:inline:auto:BasicLit.Init
-init(start: Pos, token: Token, text: String, type: Type!, constant: Value!) {
+init(start: Pos, token: Token, text: String, type: Type!, constant: Value!, conversion: (from: Type, to: Type)?) {
     self.start = start
     self.token = token
     self.text = text
     self.type = type
     self.constant = constant
+    self.conversion = conversion
 }
 // sourcery:end
 }
