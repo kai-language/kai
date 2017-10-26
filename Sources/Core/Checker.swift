@@ -403,6 +403,11 @@ extension Checker {
             let operand = check(funcType: value.explicitType)
             ident.entity.type = operand.type.lower()
         }
+        if value is StructType {
+            // declare a stub struct type, collect all member declarations
+            let stub = ty.Named(entity: ident.entity, base: nil)
+            ident.entity.type = ty.Metatype(instanceType: stub)
+        }
         let operand = check(expr: value, desiredType: expectedType)
         dependencies.formUnion(operand.dependencies)
 
@@ -432,6 +437,11 @@ extension Checker {
                 return dependencies
             }
 
+            if let existing = (ident.entity.type as? ty.Metatype)?.instanceType as? ty.Named {
+                // For Structs we have previously defined a 'stub' named version, here we want to 'fulfill' that stub
+                //  by setting the base type for that named typed
+                existing.base = baseType
+            }
             metatype.instanceType = ty.Named(entity: ident.entity, base: baseType)
             type = metatype
         }

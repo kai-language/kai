@@ -1,0 +1,23 @@
+
+#import kai("posix")
+
+Node :: struct {
+    value: i32
+    next: *Node
+}
+
+main :: fn() -> void {
+
+    a := Node { 1, nil }
+    b := Node { 2, &a }
+    c := Node { 3, &b }
+    d := Node { 4, &c }
+
+    curr := &d
+
+    for curr != nil {
+        posix.printf("IntNode{value: %ld, next: %p}\n".raw, curr.value, curr.next)
+        curr = curr.next
+    }
+}
+
