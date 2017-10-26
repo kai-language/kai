@@ -1,0 +1,13 @@
+
+#import kai("posix")
+
+ack :: fn(m, n: u32) -> u32 {
+    if m == 0 return n + 1
+    if n == 0 return ack(m - 1, 1)
+    return ack(m - 1, ack(m, n - 1))
+}
+
+main :: fn() -> void {
+    x := ack(3, 1)
+    posix.printf("%u\n".raw, x)
+}
