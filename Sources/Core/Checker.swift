@@ -1545,7 +1545,11 @@ extension Checker {
 
                 // FIXME: This will align fields to bytes, maybe not best default?
                 // FIXME: Also .width should not ever be nil right?
-                width = (width + (x.type.width ?? 0)).round(upToNearest: 8)
+                if let named = x.type as? ty.Named, named.base == nil {
+                    reportError("Invalid recursive type \(named)", at: name.start)
+                    continue
+                }
+                width = (width + x.type.width!).round(upToNearest: 8)
                 index += 1
             }
         }
