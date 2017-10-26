@@ -1,5 +1,8 @@
-
-import func Darwin.C.exit
+#if os(Linux)
+    import Glibc
+#else
+    import Darwin.C
+#endif
 
 public struct Options {
     public static let version = "0.0.0"

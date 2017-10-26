@@ -1,5 +1,8 @@
-
-import Darwin
+#if os(Linux)
+    import Glibc
+#else
+    import Darwin
+#endif
 
 // sourcery:noinit
 /// A basic wrapper around the "NORMAL" `pthread_mutex_t` (a safe, general purpose FIFO mutex). This type is a "class" type to take advantage of the "deinit" method and prevent accidental copying of the `pthread_mutex_t`.
