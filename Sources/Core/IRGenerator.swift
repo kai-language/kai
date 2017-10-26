@@ -285,7 +285,7 @@ extension IRGenerator {
 
             for entity in decl.entities where entity !== Entity.anonymous {
                 if let fn = entity.type as? ty.Function {
-                    let function = b.addFunction(symbol(for: entity), type: canonicalizeSignature(fn))
+                    let function = addOrReuseFunc(symbol(for: entity), type: canonicalizeSignature(fn))
                     switch decl.callconv {
                     case nil:
                         break
@@ -396,7 +396,7 @@ extension IRGenerator {
             }
 
             if value is FuncLit, let type = entity.type as? ty.Function, !type.isPolymorphic {
-                entity.value = b.addFunction(symbol(for: entity), type: canonicalizeSignature(type))
+                entity.value = addOrReuseFunc(symbol(for: entity), type: canonicalizeSignature(type))
             }
 
             var ir = emit(expr: value, entity: entity)

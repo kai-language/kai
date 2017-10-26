@@ -132,22 +132,22 @@ extension Checker {
         uncheckedStmts = unsolved
         let newCount = uncheckedStmts.count
 
-        let madeProgress = file.dependencies.reduce(false, {$0 || $1.checker.checkFile()})
+        let madeProgress = file.dependencies.reduce(newCount < count, {$0 || $1.checker.checkFile()})
         currentlyChecking = false
-        
-        if newCount != 0 {
-            guard madeProgress else {
-                for (_, entity) in uncheckedStmts {
-                    // NOTE: entity being nil means we have a bug. Crash hard
-                    reportError("Unresolved entity: \(entity!)", at: entity!.ident.start)
-                }
-                return false
-            }
 
+        guard madeProgress else {
+            for (_, entity) in uncheckedStmts {
+                // NOTE: entity being nil means we have a bug. Crash hard
+                reportError("Unresolved entity: \(entity!)", at: entity!.ident.start)
+            }
+            return false
+        }
+
+        if newCount != 0 {
             return checkFile()
         }
 
-        return newCount < count
+        return true
     }
 
     func collect(topLevelStmt stmt: TopLevelStmt) {
