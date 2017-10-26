@@ -447,12 +447,10 @@ extension Checker {
                         reportError("Cannot convert \(operand) to specified type '\(expectedType)'", at: value.start)
                         type = expectedType
                     }
-                } else if let expectedType = expectedType, type != expectedType {
+                } else if let expectedType = expectedType, !convert(type, to: expectedType, at: value) {
                     reportError("Cannot convert \(operand) to specified type '\(expectedType)'", at: value.start)
                     type = expectedType
                 }
-
-                ident.entity.type = type
 
                 if decl.isConstant {
                     ident.entity.flags.insert(.constant)
@@ -466,16 +464,21 @@ extension Checker {
                         continue
                     }
                 }
-                if let type = type as? ty.Metatype {
-                    ident.entity.flags.insert(.type)
-                    // TODO: check for variable vs value declaration
-                    guard var t = type.instanceType as? NamableType else {
-                        reportError("The type '\(type.instanceType)' is not aliasable", at: value.start)
+                if var metatype = type as? ty.Metatype {
+                    guard decl.isConstant else {
+                        reportError("Type declarations must be constant", at: ident.start)
                         continue
                     }
-                    t.entity = ident.entity
-                    ident.entity.type = ty.Metatype(instanceType: t)
+                    ident.entity.flags.insert(.type)
+                    guard let baseType = baseType(metatype.instanceType) as? NamableType else {
+                        reportError("The type '\(metatype.instanceType)' is not aliasable", at: value.start)
+                        continue
+                    }
+
+                    metatype.instanceType = ty.Named(entity: ident.entity, base: baseType)
+                    type = metatype
                 }
+                ident.entity.type = type
             }
         }
 
@@ -703,7 +706,7 @@ extension Checker {
         let expectedReturn = context.nearestExpectedReturnType!
 
         var isVoidReturn = false
-        if expectedReturn.types.count == 1 && expectedReturn.types[0] is ty.Void {
+        if expectedReturn.types.count == 1 && isVoid(expectedReturn.types[0]) {
             isVoidReturn = true
         }
 
@@ -712,7 +715,7 @@ extension Checker {
             let operand = check(expr: value, desiredType: expected)
             dependencies.formUnion(operand.dependencies)
 
-            if operand.type != expected {
+            if !convert(operand.type, to: expected, at: value) {
                 if isVoidReturn {
                     reportError("Void function should not return a value", at: value.start)
                     return dependencies
@@ -722,7 +725,7 @@ extension Checker {
             }
         }
 
-        if ret.results.count < expectedReturn.types.count, !(expectedReturn.types.first is ty.Void) {
+        if ret.results.count < expectedReturn.types.count, let first = expectedReturn.types.first, !isVoid(first) {
             reportError("Not enough arguments to return", at: ret.start)
         } else if ret.results.count > expectedReturn.types.count {
             reportError("Too many arguments to return", at: ret.start)
@@ -793,7 +796,7 @@ extension Checker {
         }
 
         let elementType: Type
-        switch operand.type {
+        switch baseType(operand.type) {
         case let array as ty.Array:
             elementType = array.elementType
             forIn.checked = .array(array.length)
@@ -862,7 +865,7 @@ extension Checker {
             dependencies.formUnion(operand.dependencies)
 
             type = operand.type
-            guard operand.type is ty.Integer || operand.type is ty.UntypedInteger || operand.type is ty.Enum else {
+            guard isInteger(operand.type) || isEnum(operand.type) else {
                 reportError("Can only switch on integer and enum types", at: match.start)
                 return dependencies
             }
@@ -1104,7 +1107,7 @@ extension Checker {
             type = entity.type
         }
 
-        if let desiredType = desiredType, entity.type! is ty.UntypedInteger || entity.type! is ty.UntypedFloatingPoint {
+        if let desiredType = desiredType, isUntypedNumber(entity.type!) {
             if constrainUntyped(type!, to: desiredType) {
                 ident.conversion = (from: entity.type!, to: desiredType)
                 ident.type = desiredType
@@ -1146,9 +1149,9 @@ extension Checker {
             default:
                 lit.constant = UInt64(lit.text, radix: 10)!
             }
-            if let desiredType = desiredType, desiredType is ty.Integer {
+            if let desiredType = desiredType, isInteger(desiredType) {
                 lit.type = desiredType
-            } else if let desiredType = desiredType, desiredType is ty.FloatingPoint || desiredType is ty.UntypedFloatingPoint {
+            } else if let desiredType = desiredType, isFloatingPoint(desiredType) {
                 lit.type = desiredType
                 lit.constant = Double(lit.constant as! UInt64)
             } else {
@@ -1156,7 +1159,7 @@ extension Checker {
             }
         case .float:
             lit.constant = Double(lit.text)!
-            if let desiredType = desiredType, desiredType is ty.FloatingPoint {
+            if let desiredType = desiredType, isFloatingPoint(desiredType) {
                 lit.type = desiredType
             } else {
                 lit.type = ty.untypedFloat
@@ -1188,7 +1191,7 @@ extension Checker {
             return Operand.invalid
         }
 
-        switch type! {
+        switch baseType(type!) {
         case let s as ty.Struct:
             if lit.elements.count > s.fields.count {
                 reportError("Too many values in struct initializer", at: lit.elements[s.fields.count].start)
@@ -1202,7 +1205,7 @@ extension Checker {
                         return Operand(mode: .invalid, expr: lit, type: type, constant: nil, dependencies: operand?.dependencies ?? [])
                     }
                     guard let field = s.fields[ident.name] else {
-                        reportError("Unknown field '\(ident)' for struct '\(s.entity!.name)'", at: ident.start)
+                        reportError("Unknown field '\(ident)' for struct '\(type!)'", at: ident.start)
                         continue
                     }
 
@@ -1338,7 +1341,7 @@ extension Checker {
             assert(fn.explicitType.labels != nil, "Currently function literals without argument names are disallowed")
 
             for (label, param) in zip(fn.explicitType.labels!, fn.explicitType.params) {
-                if fn.isSpecialization && param.type != nil && !(param.type is ty.Polymorphic) {
+                if fn.isSpecialization && param.type != nil && !isPolymorphic(param.type) {
                     // The polymorphic parameters type has been set by the callee
                     inputs.append(param.type)
                     continue
@@ -1356,7 +1359,7 @@ extension Checker {
                 if let paramType = param as? VariadicType {
                     fn.flags.insert(paramType.isCvargs ? .cVariadic : .variadic)
                     typeFlags.insert(paramType.isCvargs ? .cVariadic : .variadic)
-                    if paramType.isCvargs && type is ty.Anyy {
+                    if paramType.isCvargs && isAnyy(type) {
                         type = ty.cvargAny
                     }
                 }
@@ -1393,7 +1396,7 @@ extension Checker {
         context.expectedReturnType = prevReturnType
 
         // TODO: Only allow single void return
-        if (result.types[0] is ty.Void) {
+        if isVoid(result.types[0]) {
             if fn.isDiscardable {
                 reportError("#discardable on void returning function is superflous", at: fn.start)
             }
@@ -1405,10 +1408,10 @@ extension Checker {
 
         if needsSpecialization && !fn.isSpecialization {
             typeFlags.insert(.polymorphic)
-            fn.type = ty.Function(entity: nil, node: fn, labels: fn.labels, params: inputs, returnType: result, flags: .polymorphic)
+            fn.type = ty.Function(node: fn, labels: fn.labels, params: inputs, returnType: result, flags: .polymorphic)
             fn.checked = .polymorphic(declaringScope: context.scope.parent!, specializations: [])
         } else {
-            fn.type = ty.Function(entity: nil, node: fn, labels: fn.labels, params: inputs, returnType: result, flags: typeFlags)
+            fn.type = ty.Function(node: fn, labels: fn.labels, params: inputs, returnType: result, flags: typeFlags)
             fn.checked = .regular(context.scope)
         }
 
@@ -1433,7 +1436,7 @@ extension Checker {
             if let param = param as? VariadicType {
                 fn.flags.insert(param.isCvargs ? .cVariadic : .variadic)
                 typeFlags.insert(param.isCvargs ? .cVariadic : .variadic)
-                if param.isCvargs && type is ty.Anyy {
+                if param.isCvargs && isAnyy(type) {
                     type = ty.cvargAny
                 }
             }
@@ -1451,12 +1454,12 @@ extension Checker {
 
         let returnType = ty.Tuple.make(returnTypes)
 
-        if returnTypes.count == 1 && returnTypes[0] is ty.Void && fn.isDiscardable {
+        if returnTypes.count == 1 && isVoid(returnTypes[0]) && fn.isDiscardable {
             reportError("#discardable on void returning function is superflous", at: fn.start)
         }
 
         var type: Type
-        type = ty.Function(entity: nil, node: nil, labels: fn.labels, params: params, returnType: returnType, flags: typeFlags)
+        type = ty.Function(node: nil, labels: fn.labels, params: params, returnType: returnType, flags: typeFlags)
         type = ty.Metatype(instanceType: type)
         fn.type = type
         return Operand(mode: .type, expr: fn, type: type, constant: nil, dependencies: dependencies)
@@ -1598,7 +1601,7 @@ extension Checker {
             dependencies.formUnion(operand.dependencies)
 
             explicitType = lowerFromMetatype(operand.type, atNode: expr)
-            useExplicitTypeWidth = explicitType is ty.Integer
+            useExplicitTypeWidth = explicitType.map(baseType) is ty.Integer?
         }
 
         var number: Int = 0
@@ -1669,20 +1672,20 @@ extension Checker {
             fallthrough
 
         case .add:
-            guard type is ty.Integer || type is ty.FloatingPoint || type is ty.UntypedInteger || type is ty.UntypedFloatingPoint else {
+            guard isInteger(type) || isFloatingPoint(type) else {
                 reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
                 return Operand.invalid
             }
 
         case .not:
-            guard type is ty.Boolean else {
+            guard isBoolean(type) else {
                 reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
                 return Operand.invalid
             }
             constant = operand.constant.map(not)
 
         case .lss:
-            guard let pointer = type as? ty.Pointer else {
+            guard let pointer = baseType(type) as? ty.Pointer else {
                 reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
                 return Operand.invalid
             }
@@ -1716,13 +1719,13 @@ extension Checker {
         dependencies.formUnion(lhs.dependencies)
         dependencies.formUnion(rhs.dependencies)
 
-        var lhsType = lhs.type!
-        var rhsType = rhs.type!
+        var lhsType = baseType(lhs.type!)
+        var rhsType = baseType(rhs.type!)
 
         // in case we early exit
         binary.type = ty.invalid
 
-        if lhsType is ty.Invalid || rhsType is ty.Invalid {
+        if isInvalid(lhsType) || isInvalid(rhsType) {
             return Operand.invalid
         }
 
@@ -1732,13 +1735,13 @@ extension Checker {
         binary.isPointerArithmetic = false
 
         // Handle constraining untyped's etc..
-        if (lhsType is ty.UntypedNil || lhsType is ty.UntypedInteger || lhsType is ty.UntypedFloatingPoint) && rhsType != lhsType {
+        if isUntypedNumber(lhsType) && rhsType != lhsType {
 
             guard constrainUntyped(lhsType, to: rhsType) else {
                 reportError("Invalid operation '\(binary.op)' between untyped '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
                 return Operand.invalid
             }
-            if lhsType is ty.UntypedNil {
+            if isNil(lhsType) {
                 (binary.lhs as! Nil).type = rhsType
             } else if let lhs = binary.lhs as? BasicLit {
                 lhs.type = rhsType
@@ -1748,14 +1751,14 @@ extension Checker {
                 preconditionFailure("Only convertables should get here")
             }
             lhsType = rhsType
-        } else if (rhsType is ty.UntypedNil || rhsType is ty.UntypedInteger || rhsType is ty.UntypedFloatingPoint) && rhsType != lhsType {
+        } else if isUntyped(rhsType) && rhsType != lhsType {
 
             guard constrainUntyped(rhsType, to: lhsType) else {
                 reportError("Invalid operation '\(binary.op)' between '\(lhsType)' and untyped '\(rhsType)'", at: binary.opPos)
                 return Operand.invalid
             }
 
-            if rhsType is ty.UntypedNil {
+            if isNil(rhsType) {
                 (binary.rhs as! Nil).type = lhsType
             } else if let rhs = binary.rhs as? BasicLit {
                 rhs.type = lhsType
@@ -1776,28 +1779,28 @@ extension Checker {
         // TODO: REFACTOR
 
         // Handle extending or truncating
-        if lhsType == rhsType && lhsType is ty.UntypedInteger {
-            lhsType = ty.Integer(entity: nil, width: ty.untypedInteger.width, isSigned: false)
-            rhsType = ty.Integer(entity: nil, width: ty.untypedInteger.width, isSigned: false)
+        if lhsType == rhsType && isUntypedInteger(lhsType) {
+            lhsType = ty.Integer(width: ty.untypedInteger.width, isSigned: false)
+            rhsType = ty.Integer(width: ty.untypedInteger.width, isSigned: false)
             resultType = ty.untypedInteger
-        } else if lhsType == rhsType && lhsType is ty.UntypedFloatingPoint {
+        } else if lhsType == rhsType && isUntypedFloatingPoint(lhsType) {
             lhsType = ty.f64
             rhsType = ty.f64
             resultType = ty.untypedFloat
-        } else if lhsType == rhsType && !(lhsType is ty.Pointer) && !(rhsType is ty.Pointer){
+        } else if lhsType == rhsType && !isPointer(lhsType) && !isPointer(rhsType) {
             resultType = lhsType
-        } else if lhsType is ty.Integer, rhsType is ty.FloatingPoint {
+        } else if isInteger(lhsType), isFloatingPoint(rhsType) {
             resultType = rhsType
-        } else if rhsType is ty.Integer, lhsType is ty.FloatingPoint {
+        } else if isInteger(rhsType), isFloatingPoint(lhsType) {
             resultType = lhsType
-        } else if lhsType is ty.FloatingPoint && rhsType is ty.FloatingPoint {
+        } else if isFloatingPoint(lhsType) && isFloatingPoint(rhsType) {
             // select the largest
             if lhsType.width! < rhsType.width! {
                 resultType = rhsType
             } else {
                 resultType = lhsType
             }
-        } else if let lhsType = lhsType as? ty.Integer, let rhsType = rhsType as? ty.Integer {
+        } else if let lhsType = baseType(lhsType) as? ty.Integer, let rhsType = baseType(rhsType) as? ty.Integer {
             guard lhsType.isSigned == rhsType.isSigned else {
                 reportError("Implicit conversion between signed and unsigned integers in operator is disallowed", at: binary.opPos)
                 return Operand.invalid
@@ -1808,7 +1811,7 @@ extension Checker {
             } else {
                 resultType = lhsType
             }
-        } else if let lhsType = lhsType as? ty.Pointer, rhsType is ty.Integer {
+        } else if let lhsType = baseType(lhsType) as? ty.Pointer, isInteger(rhsType) {
             // Can only increment/decrement a pointer
             guard binary.op == .add || binary.op == .sub else {
                 reportError("Invalid operation '\(binary.op)' between types '\(lhsType) and \(rhsType)'", at: binary.opPos)
@@ -1817,7 +1820,7 @@ extension Checker {
 
             resultType = lhsType
             binary.isPointerArithmetic = true
-        } else if let lhsType = lhsType as? ty.Pointer, let rhsType = rhsType as? ty.Pointer {
+        } else if let lhsType = baseType(lhsType) as? ty.Pointer, let rhsType = baseType(rhsType) as? ty.Pointer {
             switch binary.op {
             // allowed for ptr <op> ptr
             case .leq, .lss, .geq, .gtr, .eql, .neq:
@@ -1833,13 +1836,13 @@ extension Checker {
             return Operand.invalid
         }
 
-        let underlyingLhs = (lhsType as? ty.Vector)?.elementType ?? lhsType
-        let isIntegerOp = underlyingLhs is ty.Integer || underlyingLhs is ty.Integer || underlyingLhs is ty.Pointer
+        let underlyingLhs = (baseType(lhsType) as? ty.Vector)?.elementType ?? lhsType
+        let isIntegerOp = isInteger(underlyingLhs) || isPointer(underlyingLhs)
 
         var type = resultType
         switch binary.op {
         case .lss, .leq, .gtr, .geq:
-            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint || lhsType is ty.Vector) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint || rhsType is ty.Vector) || binary.isPointerArithmetic else {
+            guard (isNumber(lhsType) || isVector(lhsType)) && (isNumber(rhsType) || isVector(rhsType)) || binary.isPointerArithmetic else {
                 reportError("Cannot compare '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
                 return Operand.invalid
             }
@@ -1849,11 +1852,11 @@ extension Checker {
                 type = ty.Vector(size: vec.size, elementType: type)
             }
         case .eql, .neq:
-            guard (lhsType is ty.Integer || lhsType is ty.FloatingPoint || lhsType is ty.Boolean || lhsType is ty.Vector) && (rhsType is ty.Integer || rhsType is ty.FloatingPoint || rhsType is ty.Boolean || rhsType is ty.Vector) || binary.isPointerArithmetic else {
+            guard (isNumber(lhsType) || isBoolean(lhsType) || isVector(lhsType)) && (isNumber(rhsType) || isBoolean(rhsType) || isVector(rhsType)) || binary.isPointerArithmetic else {
                 reportError("Cannot compare '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
                 return Operand.invalid
             }
-            op = (isIntegerOp || lhsType is ty.Boolean || rhsType is ty.Boolean) ? .icmp : .fcmp
+            op = (isIntegerOp || isBoolean(lhsType) || isBoolean(rhsType)) ? .icmp : .fcmp
             type = ty.bool
             if let vec = lhsType as? ty.Vector {
                 type = ty.Vector(size: vec.size, elementType: type)
@@ -1884,7 +1887,6 @@ extension Checker {
 
         binary.type = type
         binary.irOp = op
-        // TODO: Constants
         return Operand(mode: .computed, expr: binary, type: type, constant: apply(lhs.constant, rhs.constant, op: binary.op), dependencies: dependencies)
     }
 
@@ -1895,7 +1897,7 @@ extension Checker {
         let condOperand = check(expr: ternary.cond, desiredType: ty.bool)
         dependencies.formUnion(condOperand.dependencies)
 
-        guard condOperand.type == ty.bool || condOperand.type is ty.Pointer || condOperand.type is ty.Integer || condOperand.type is ty.FloatingPoint else {
+        guard isBoolean(condOperand.type) || isPointer(condOperand.type) || isNumber(condOperand.type) else {
             reportError("Expected a conditional value", at: ternary.cond.start)
             ternary.type = ty.invalid
             return Operand.invalid
@@ -1929,7 +1931,7 @@ extension Checker {
 
         let (underlyingType, levelsOfIndirection) = lowerPointer(operand.type)
         selector.levelsOfIndirection = levelsOfIndirection
-        switch underlyingType {
+        switch baseType(underlyingType) {
         case let file as ty.File:
             guard let member = file.memberScope.lookup(selector.sel.name) else {
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
@@ -2060,7 +2062,7 @@ extension Checker {
             return Operand(mode: .addressable, expr: selector, type: casé.type, constant: nil, dependencies: dependencies)
 
         case let meta as ty.Metatype:
-            switch meta.instanceType {
+            switch baseType(meta.instanceType) {
             case let e as ty.Enum:
                 guard let c = e.cases[selector.sel.name] else {
                     reportError("Case '\(selector.sel)' not found on enum \(operand)", at: selector.sel.start)
@@ -2106,8 +2108,8 @@ extension Checker {
             return Operand.invalid
         }
 
-        if !(index.type is ty.Integer || index.type is ty.UntypedInteger) {
-            reportError("Cannot subscript with non-integer type", at: sub.index.start)
+        if !isInteger(index.type) {
+            reportError("Cannot subscript with non-integer type '\(index.type!)'", at: sub.index.start)
         }
 
         let type: Type
@@ -2157,31 +2159,28 @@ extension Checker {
         dependencies.formUnion(receiver.dependencies)
         if let lo = lo {
             dependencies.formUnion(lo.dependencies)
-            if  !(lo.type is ty.Integer || lo.type is ty.UntypedInteger) {
+            if  !isInteger(lo.type) {
                 reportError("Cannot subscript with non-integer type", at: slice.lo!.start)
             }
         }
         if let hi = hi {
             dependencies.formUnion(hi.dependencies)
-            if !(hi.type is ty.Integer || hi.type is ty.UntypedInteger) {
+            if !isInteger(hi.type) {
                 reportError("Cannot subscript with non-integer type", at: slice.lo!.start)
             }
         }
 
-        switch receiver.type {
+        switch baseType(receiver.type) {
         case let x as ty.Array:
             slice.type = ty.Slice(elementType: x.elementType)
-
             // TODO: Check for invalid hi & lo's when constant
 
         case let x as ty.Slice:
             slice.type = x
-
             // TODO: Check for invalid hi & lo's when constant
 
         case is ty.KaiString:
             slice.type = ty.Slice(elementType: ty.u8)
-
             // TODO: Check for invalid hi & lo's when constant
 
         default:
@@ -2212,7 +2211,7 @@ extension Checker {
         call.checked = .call
 
         var calleeType = callee.type!
-        if let pointer = calleeType as? ty.Pointer, pointer.pointeeType is ty.Function {
+        if let pointer = calleeType as? ty.Pointer, isFunction(pointer.pointeeType) {
             calleeType = pointer.pointeeType
         }
 
@@ -2499,7 +2498,7 @@ extension Checker {
                 context.scope = functionScope
 
                 guard convert(argument.type, to: param.type!, at: arg) else {
-                    reportError("Cannot convert \(argument) to expected type '\(param.type!)'", at: arg.start)
+                    reportError("Cannot convert \(argument) to expected type '\(paramType)'", at: arg.start)
                     return Operand.invalid // We want to early exit if we encounter issues.
                 }
             }
@@ -2639,6 +2638,8 @@ func canSequence(_ type: Type) -> Bool {
 
 func canVector(_ type: Type) -> Bool {
     switch type {
+    case let named as ty.Named:
+        return canVector(named.base)
     case is ty.Integer, is ty.FloatingPoint, is ty.Polymorphic:
         return true
     default:

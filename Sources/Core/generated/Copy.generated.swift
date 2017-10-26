@@ -80,7 +80,8 @@ func copy(_ node: BasicLit) -> BasicLit {
         token: node.token,
         text: node.text,
         type: node.type,
-        constant: node.constant
+        constant: node.constant,
+        conversion: node.conversion
     )
 }
 
