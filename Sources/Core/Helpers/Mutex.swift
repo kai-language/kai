@@ -14,7 +14,7 @@ final class Mutex {
         guard pthread_mutexattr_init(&attr) == 0 else {
             preconditionFailure()
         }
-        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL)
+        pthread_mutexattr_settype(&attr, Int32(PTHREAD_MUTEX_NORMAL))
         guard pthread_mutex_init(&unsafeMutex, &attr) == 0 else {
             preconditionFailure()
         }
