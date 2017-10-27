@@ -565,6 +565,10 @@ enum ty {
         var returnType: Tuple
         var flags: Flags
 
+        var width: Int? {
+            return platformPointerWidth
+        }
+
         struct Flags: OptionSet {
             var rawValue: UInt8
 
