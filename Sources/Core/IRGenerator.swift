@@ -71,11 +71,12 @@ struct IRGenerator {
             return entity.value!
         }
         guard entityPackage === package else {
-            // The entity is not in the same package as us, this means it will be in a different `.o` file and we
-            //   will want to emit a 'stub'
+            // The entity is not in the same package as us, this means it will be in a
+            //   different `.o` file and we will want to emit a 'stub'
             let symbol = self.symbol(for: entity)
 
-            if let type = entity.type as? ty.Function {
+            // only constant functions are emitted as functions, otherwise they are actually globals
+            if let type = entity.type as? ty.Function, entity.isConstant {
                 if let existing = module.function(named: symbol) {
                     return existing
                 }
@@ -1070,7 +1071,8 @@ extension IRGenerator {
 
         switch binary.irOp! {
         case .icmp:
-            let isSigned = (binary.lhs.type as? ty.Integer)?.isSigned ?? true // if type isn't an int it's a ptr
+            // FIXME: We default to signed comparision here if it's not a pointer but should probably default to unsigned
+            let isSigned = (baseType(binary.lhs.type) as? ty.Integer)?.isSigned ?? true // if type isn't an int it's a ptr
             var pred: IntPredicate
             switch binary.op {
             case .lss: pred = isSigned ? .signedLessThan : .unsignedLessThan
@@ -1121,7 +1123,10 @@ extension IRGenerator {
         case .builtinCall(let builtin):
             return builtin.generate(builtin, call.args, &self)
         case .call:
-            let isGlobal = entity(from: call.fun)?.isConstant ?? false
+            var isGlobal = false
+            if let entity = entity(from: call.fun) {
+                isGlobal = entity.isConstant || entity.owningScope.isFile
+            }
             let callee = emit(expr: call.fun, returnAddress: isGlobal)
 
             let args: [IRValue]
@@ -1196,12 +1201,12 @@ extension IRGenerator {
     }
 
     mutating func emit(autocast: Autocast) -> IRValue {
-        let val = emit(expr: autocast.expr, returnAddress: autocast.expr.type is ty.Array)
+        let val = emit(expr: autocast.expr, returnAddress: isArray(autocast.expr.type) || isFunction(autocast.expr.type))
         return performConversion(from: autocast.expr.type, to: autocast.type, with: val)
     }
 
     mutating func emit(cast: Cast) -> IRValue {
-        let val = emit(expr: cast.expr, returnAddress: cast.expr.type is ty.Array)
+        let val = emit(expr: cast.expr, returnAddress: isArray(cast.expr.type) || isFunction(cast.expr.type))
         return performConversion(from: cast.expr.type, to: cast.type, with: val)
     }
 
@@ -1274,9 +1279,6 @@ extension IRGenerator {
         switch sel.checked! {
         case .invalid: fatalError()
         case .file(let entity):
-            if entity.type is ty.Function {
-                return value(for: entity)
-            }
             if entity.isConstant {
                 switch baseType(sel.type) {
                 case let type as ty.Integer:
@@ -1291,7 +1293,11 @@ extension IRGenerator {
                     break
                 }
             }
-            return b.buildLoad(value(for: entity))
+            let address = value(for: entity)
+            if returnAddress {
+                return address
+            }
+            return b.buildLoad(address)
         case .struct(let field):
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
