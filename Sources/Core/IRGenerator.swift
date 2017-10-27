@@ -1020,7 +1020,7 @@ extension IRGenerator {
             return value(for: ident.entity)
         }
         if ident.entity.isConstant {
-            switch ident.type {
+            switch baseType(ident.type) {
             case let type as ty.Integer:
                 return canonicalize(type).constant(ident.entity.constant as! UInt64)
             case let type as ty.UntypedInteger:
@@ -1128,12 +1128,12 @@ extension IRGenerator {
             // this code is structured in a way that non-variadic/non-function
             // calls don't get punished for C's insane ABI.
             // TODO: Check the call convention instead of the isCVariadic
-            if let function = call.fun.type as? ty.Function, function.isCVariadic {
+            if let function = baseType(call.fun.type) as? ty.Function, function.isCVariadic {
                 args = call.args.map {
                     var val = emit(expr: $0)
 
                     // C ABI requires integers less than 32bits to be promoted
-                    if let type = $0.type as? ty.Integer, let int = val.type as? LLVM.IntType, int.width < 32 {
+                    if let type = baseType($0.type) as? ty.Integer, let int = val.type as? LLVM.IntType, int.width < 32 {
                         val = b.buildCast(type.isSigned ? .sext : .zext , value: val, type: i32)
                     }
 
@@ -1278,7 +1278,7 @@ extension IRGenerator {
                 return value(for: entity)
             }
             if entity.isConstant {
-                switch sel.type {
+                switch baseType(sel.type) {
                 case let type as ty.Integer:
                     return canonicalize(type).constant(sel.constant as! UInt64)
                 case let type as ty.UntypedInteger:
@@ -1303,7 +1303,7 @@ extension IRGenerator {
             }
             return b.buildLoad(fieldAddress)
         case .enum(let c):
-            return canonicalize(sel.type as! ty.Enum).constant(c.number)
+            return canonicalize(baseType(sel.type) as! ty.Enum).constant(c.number)
         case .union(let c):
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
@@ -1363,7 +1363,7 @@ extension IRGenerator {
 
         // TODO: Array bounds checks
 
-        switch sub.rec.type {
+        switch baseType(sub.rec.type) {
         case is ty.Array:
             aggregate = emit(expr: sub.rec, returnAddress: true)
             indicies = [i64.zero(), index]
@@ -1398,7 +1398,7 @@ extension IRGenerator {
         var ptr: IRValue
         let len: IRValue
         let cap: IRValue
-        switch slice.rec.type {
+        switch baseType(slice.rec.type) {
         case let type as ty.Array:
             let rec = emit(expr: slice.rec, returnAddress: true)
             lo = lo ?? i64.zero()
