@@ -335,11 +335,13 @@ extension Checker {
         }
     }
 
-    /// - returns: The entities this declaration depends on (not the entities declared)
     mutating func check(decl: Declaration) -> Set<Entity> {
-        var dependencies: Set<Entity> = []
+        let dependencies: Set<Entity>
 
         // only has an effect if there is a declaring scope
+        // Set the scope to the one the declaration occured in, this way if,
+        //   we are forced to check something declared later in the file it's
+        //   declared in the correct scope.
         let prevScope = context.scope
         defer {
             context.scope = prevScope
@@ -348,9 +350,8 @@ extension Checker {
             context.scope = declaringScope
         }
 
-        var expectedType: Type?
+        // Create the entities for the declaration
         if decl.entities == nil {
-            // FIXME @important: Enter the scope of the declaration otherwise the entity may be in the wrong scope.
             var entities: [Entity] = []
             entities.reserveCapacity(decl.names.count)
             for ident in decl.names {
@@ -365,121 +366,164 @@ extension Checker {
             decl.entities = entities
         }
 
+        if decl.isConstant {
+            dependencies = check(constantDecl: decl)
+        } else {
+            dependencies = check(variableDecl: decl)
+        }
+        decl.checked = true
+        return dependencies
+    }
+
+    mutating func check(constantDecl decl: Declaration) -> Set<Entity> {
+        var dependencies: Set<Entity> = []
+
+        guard decl.names.count == 1 else {
+            reportError("Constant declarations must declare at most a single Entity", at: decl.names[1].start)
+            decl.entities.forEach({ $0.type = ty.invalid })
+            return dependencies
+        }
+
+        var expectedType: Type?
         if let explicitType = decl.explicitType {
             let operand = check(expr: explicitType)
             dependencies.formUnion(operand.dependencies)
-
             expectedType = lowerFromMetatype(operand.type, atNode: explicitType)
         }
 
-        if decl.values.count == 1 && decl.names.count > 1, let call = decl.values[0] as? Call {
-            // Declares more than 1 new entity with the RHS being a call returning multiple values.
+        let value = decl.values[0]
+        let ident = decl.names[0]
+
+        defer {
+            context.function = nil
+        }
+        if let value = value as? FuncLit, !value.explicitType.isPolymorphic {
+            // setup a stub function so that recursive functions check properly
+            context.function = ident.entity
+            let operand = check(funcType: value.explicitType)
+            ident.entity.type = operand.type.lower()
+        }
+        let operand = check(expr: value, desiredType: expectedType)
+        dependencies.formUnion(operand.dependencies)
+
+        ident.entity.constant = operand.constant
+        ident.constant = operand.constant
+        ident.entity.linkname = decl.linkname
+
+        ident.entity.flags.insert(.constant)
+        ident.entity.flags.insert(.checked)
+
+        var type = operand.type!
+        if let expectedType = expectedType, !convert(type, to: expectedType, at: value) {
+            reportError("Cannot convert \(operand) to specified type '\(expectedType)'", at: value.start)
+            return dependencies
+        }
+
+        if type is ty.Tuple {
+            assert((type as! ty.Tuple).types.count != 1)
+            reportError("Multiple value \(value) where single value was expected", at: value.start)
+            return dependencies
+        }
+
+        if var metatype = type as? ty.Metatype {
+            ident.entity.flags.insert(.type)
+            guard let baseType = baseType(metatype.instanceType) as? NamableType else {
+                reportError("The type '\(metatype.instanceType)' is not aliasable", at: value.start)
+                return dependencies
+            }
+
+            metatype.instanceType = ty.Named(entity: ident.entity, base: baseType)
+            type = metatype
+        }
+
+        ident.entity.type = type
+
+        return dependencies
+    }
+
+    mutating func check(variableDecl decl: Declaration) -> Set<Entity> {
+        var dependencies: Set<Entity> = []
+
+        var expectedType: Type?
+        if let explicitType = decl.explicitType {
+            let operand = check(expr: explicitType)
+            dependencies.formUnion(operand.dependencies)
+            expectedType = lowerFromMetatype(operand.type, atNode: explicitType)
+        }
+
+        // Handle linkname directive
+        if let linkname = decl.linkname {
+            decl.names[0].entity.linkname = linkname
+            if decl.names.count > 1 {
+                reportError("Linkname cannot be used on a declaration of multiple entities", at: decl.start)
+            }
+        }
+
+        // handle uninitialized variable declaration `x, y: i32`
+        if decl.values.isEmpty {
+            assert(expectedType != nil)
+            if let type = expectedType as? ty.Array, type.length == nil {
+                reportError("Implicit-length array must have an initial value", at: decl.explicitType!.start)
+                return dependencies
+            }
+            for ident in decl.names {
+                ident.entity.flags.insert(.checked)
+                ident.entity.type = expectedType
+            }
+            return dependencies
+        }
+
+        // handle multi-value call variable expressions
+        if decl.names.count != decl.values.count {
+            guard decl.values.count == 1, let call = decl.values[0] as? Call else {
+                reportError("Assigment count mismatch \(decl.names.count) = \(decl.values.count)", at: decl.start)
+                return dependencies
+            }
+            guard expectedType == nil else {
+                reportError("Explicit types are prohibited when calling a multiple-value function", at: decl.explicitType!.start)
+                return dependencies
+            }
             let operand = check(call: call)
             dependencies.formUnion(operand.dependencies)
-
-            let types = (operand.type as! ty.Tuple).types
-
-            for (ident, type) in zip(decl.names, types) {
-                if ident.entity === Entity.anonymous {
-                    continue
+            if let tuple = operand.type as? ty.Tuple {
+                guard decl.names.count == tuple.types.count else {
+                    reportError("Assignment count mismatch \(decl.names.count) = \(tuple.types.count)", at: decl.start)
+                    return dependencies
                 }
-                if decl.isConstant {
-                    ident.entity.flags.insert(.constant)
-                    // TODO: Assign constants from calls
-                }
-                if type is ty.Metatype {
-                    ident.entity.flags.insert(.type)
-                }
-                ident.entity.flags.insert(.checked)
-                ident.entity.type = type
-            }
-
-        } else if decl.values.isEmpty {
-            assert(!decl.isConstant)
-
-            let type = expectedType!
-            for ident in decl.names {
-                if let type = type as? ty.Array, type.length == nil {
-                    ident.type = ty.invalid
-                    ident.entity.type = ty.invalid
-                    reportError("An implicit-length array must have an initial value", at: ident.start)
-                    continue
-                }
-
-                assert(!decl.isConstant)
-                if type is ty.Metatype {
-                    ident.entity.flags.insert(.type)
-                }
-                ident.entity.flags.insert(.checked)
-                ident.entity.type = type
-            }
-
-        } else {
-
-            for (ident, value) in zip(decl.names, decl.values) {
-                defer {
-                    context.function = nil
-                }
-                if let value = value as? FuncLit, !value.explicitType.isPolymorphic {
-                    context.function = ident.entity
-
-                    // check parameter types so we can set the type of the entity for recursion
-                    let operand = check(funcType: value.explicitType)
-                    ident.entity.type = operand.type.lower()
-                }
-                let operand = check(expr: value, desiredType: expectedType)
-                dependencies.formUnion(operand.dependencies)
-
-                if isPolymorphic(operand.type) && !(value is FuncLit) {
-                    reportError("Cannot use polymorphic \(operand) as a value", at: value.start)
-                    file.attachNote("This will eventually be supported")
-                    ident.entity.type = ty.invalid
-                    continue
-                }
-
-                if ident.entity === Entity.anonymous {
-                    continue
-                }
-                var type = operand.type!
-                ident.entity.flags.insert(.checked)
-                if let expectedType = expectedType, type is ty.Function, let pointer = expectedType as? ty.Pointer {
-                    if type != pointer.pointeeType {
-                        reportError("Cannot convert \(operand) to specified type '\(expectedType)'", at: value.start)
-                        type = expectedType
-                    }
-                } else if let expectedType = expectedType, !convert(type, to: expectedType, at: value) {
-                    reportError("Cannot convert \(operand) to specified type '\(expectedType)'", at: value.start)
-                    type = expectedType
-                }
-
-                if decl.isConstant {
-                    ident.entity.flags.insert(.constant)
-                    ident.entity.constant = operand.constant
-                    ident.constant = operand.constant
-                }
-                if let linkname = decl.linkname {
-                    ident.entity.linkname = linkname
-                    guard decl.names.count == 1 else {
-                        reportError("Linkname cannot be used on a declaration of multiple entities", at: decl.start)
+                for (ident, type) in zip(decl.names, tuple.types) {
+                    if ident.entity === Entity.anonymous {
                         continue
                     }
+                    ident.entity.flags.insert(.checked)
+                    ident.entity.type = type
                 }
-                if var metatype = type as? ty.Metatype {
-                    guard decl.isConstant else {
-                        reportError("Type declarations must be constant", at: ident.start)
-                        continue
-                    }
-                    ident.entity.flags.insert(.type)
-                    guard let baseType = baseType(metatype.instanceType) as? NamableType else {
-                        reportError("The type '\(metatype.instanceType)' is not aliasable", at: value.start)
-                        continue
-                    }
-
-                    metatype.instanceType = ty.Named(entity: ident.entity, base: baseType)
-                    type = metatype
-                }
-                ident.entity.type = type
+                return dependencies
             }
+            decl.names[0].entity.flags.insert(.checked)
+            decl.names[0].entity.type = operand.type
+            return dependencies
+        }
+
+        // At this point we have a simple declaration of 1 or more entities with matching values
+        for (ident, value) in zip(decl.names, decl.values) {
+            let operand = check(expr: value, desiredType: expectedType)
+            dependencies.formUnion(operand.dependencies)
+
+            if let expectedType = expectedType, !convert(operand.type, to: expectedType, at: value) {
+                reportError("Cannot convert \(operand) to specified type '\(expectedType)'", at: value.start)
+            }
+
+            if ident.entity === Entity.anonymous {
+                continue
+            }
+
+            guard !isMetatype(operand.type) else {
+                reportError("\(operand) is not an expression", at: value.start)
+                continue
+            }
+
+            ident.entity.flags.insert(.checked)
+            ident.entity.type = operand.type
         }
 
         return dependencies
