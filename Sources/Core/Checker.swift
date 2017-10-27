@@ -1411,16 +1411,6 @@ extension Checker {
     }
 
     @discardableResult
-    func check(param: Parameter) throws -> Operand {
-        let operand = try check(expr: param.explicitType)
-        let type = lowerFromMetatype(operand.type, atNode: param.explicitType)
-        let entity = newEntity(ident: param.name, type: type, flags: .parameter)
-        declare(entity)
-        param.entity = entity
-        return Operand(mode: .computed, expr: nil, type: type, constant: nil, dependencies: operand.dependencies)
-    }
-
-    @discardableResult
     func check(polyType: PolyType) -> Type {
         if polyType.type != nil {
             // Do not redeclare any poly types which have been checked before.
@@ -2645,7 +2635,7 @@ extension Checker {
         }
 
         // TODO: How do we handle invalid types
-        let type = check(funcType: generated.explicitType).type.lower() as! ty.Function
+        let type = try check(funcType: generated.explicitType).type.lower() as! ty.Function
 
         let specialization = FunctionSpecialization(file: originalFile, specializedTypes: specializationTypes, strippedType: type, generatedFunctionNode: generated, mangledName: nil, llvm: nil)
         specializations.append(specialization)
@@ -2655,7 +2645,7 @@ extension Checker {
 
         assert(functionScope.members.count > generated.explicitType.params.count, "There had to be at least 1 polymorphic type declared")
 
-        _ = check(funcLit: generated)
+        _ = try check(funcLit: generated)
 
         context.scope = callingScope
         context.specializationCallNode = prevNode
