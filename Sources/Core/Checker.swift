@@ -2172,7 +2172,7 @@ extension Checker {
         }
 
         let type: Type
-        switch lowerSpecializedPolymorphics(receiver.type) {
+        switch baseType(lowerSpecializedPolymorphics(receiver.type)) {
         case let array as ty.Array:
             sub.type = array.elementType
             type = array.elementType
