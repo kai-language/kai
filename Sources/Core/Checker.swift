@@ -402,9 +402,8 @@ extension Checker {
             context.function = ident.entity
             let operand = check(funcType: value.explicitType)
             ident.entity.type = operand.type.lower()
-        }
-        if value is StructType {
-            // declare a stub struct type, collect all member declarations
+        } else if value is StructType || value is PolyStructType || value is UnionType || value is VariantType || value is EnumType {
+            // declare a stub type, collect all member declarations
             let stub = ty.Named(entity: ident.entity, base: nil)
             ident.entity.type = ty.Metatype(instanceType: stub)
         }
@@ -1543,12 +1542,11 @@ extension Checker {
                 let field = ty.Struct.Field(ident: name, type: operand.type, index: index, offset: width)
                 fields.append(field)
 
-                // FIXME: This will align fields to bytes, maybe not best default?
-                // FIXME: Also .width should not ever be nil right?
                 if let named = x.type as? ty.Named, named.base == nil {
                     reportError("Invalid recursive type \(named)", at: name.start)
                     continue
                 }
+                // FIXME: This will align fields to bytes, maybe not best default?
                 width = (width + x.type.width!).round(upToNearest: 8)
                 index += 1
             }
@@ -1580,9 +1578,12 @@ extension Checker {
                 let field = ty.Struct.Field(ident: name, type: operand.type, index: index, offset: width)
                 fields.append(field)
 
+                if let named = x.type as? ty.Named, named.base == nil {
+                    reportError("Invalid recursive type \(named)", at: name.start)
+                    continue
+                }
                 // FIXME: This will align fields to bytes, maybe not best default?
-                // FIXME: Also .width should not ever be nil right?
-                width = (width + (x.type.width ?? 0)).round(upToNearest: 8)
+                width = (width + x.type.width!).round(upToNearest: 8)
                 index += 1
             }
         }
