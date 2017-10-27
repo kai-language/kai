@@ -1,11 +1,12 @@
 import LLVM
 
 // sourcery:noinit
-struct Checker {
+class Checker {
     var file: SourceFile
 
     var context: Context
     var uncheckedStmts: [TopLevelStmt] = []
+    var hasBeenCollected: Bool = false
 
     enum Error: Swift.Error {
         case queueEntityForLater
@@ -73,12 +74,12 @@ struct Checker {
         }
     }
 
-    mutating func pushContext(owningNode: Node? = nil) {
+    func pushContext(owningNode: Node? = nil) {
         let newScope = Scope(parent: context.scope, owningNode: owningNode)
         context = Context(scope: newScope, previous: context)
     }
 
-    mutating func popContext() {
+    func popContext() {
         context = context.previous!
     }
 
@@ -92,15 +93,26 @@ struct Checker {
 }
 
 extension Checker {
-    mutating func collectFile() {
+    func collectFile() {
+        guard !hasBeenCollected else { return }
+
         for node in file.nodes {
             collect(topLevelStmt: node)
         }
-
+        hasBeenCollected = true
         uncheckedStmts = file.nodes
+
+        for dep in file.dependencies {
+            dep.checker.collectFile()
+        }
     }
 
-    mutating func checkFile() {
+    func checkFile() -> Bool {
+        guard uncheckedStmts.count > 0 else {
+            return false
+        }
+
+        let count = uncheckedStmts.count
         var unsolved: [TopLevelStmt] = []
 
         for node in uncheckedStmts {
@@ -112,9 +124,24 @@ extension Checker {
         }
 
         uncheckedStmts = unsolved
+        let newCount = uncheckedStmts.count
+
+        let madeProgress = file.dependencies.reduce(false, {$0 || $1.checker.checkFile()})
+        if newCount != 0 {
+            guard madeProgress else {
+                for stmt in uncheckedStmts {
+                    reportError("Unresolved identifier: \(stmt)", at: stmt.start)
+                }
+                return false
+            }
+
+            return checkFile()
+        }
+
+        return newCount < count
     }
 
-    mutating func collect(topLevelStmt stmt: TopLevelStmt) {
+    func collect(topLevelStmt stmt: TopLevelStmt) {
         switch stmt {
         case let i as Import:
             collect(import: i)
@@ -133,7 +160,7 @@ extension Checker {
         }
     }
 
-    mutating func collect(declBlock b: DeclBlock) {
+    func collect(declBlock b: DeclBlock) {
         for decl in b.decls {
             if b.isForeign {
                 collect(foreignDecl: decl)
@@ -143,7 +170,7 @@ extension Checker {
         }
     }
 
-    mutating func collect(import i: Import) {
+    func collect(import i: Import) {
         var entity: Entity?
         if let alias = i.alias {
             entity = newEntity(ident: alias, flags: .file)
@@ -173,7 +200,7 @@ extension Checker {
         }
     }
 
-    mutating func collect(library l: Library) {
+    func collect(library l: Library) {
         guard let lit = l.path as? BasicLit, lit.token == .string else {
             reportError("Library path must be a string literal value", at: l.path.start)
             return
@@ -203,7 +230,7 @@ extension Checker {
         }
     }
 
-    mutating func collect(decl: Declaration) {
+    func collect(decl: Declaration) {
         if decl.isTest && !Options.instance.isTestMode {
             return
         }
@@ -227,7 +254,7 @@ extension Checker {
         decl.declaringScope = context.scope
     }
 
-    mutating func collect(foreignDecl d: Declaration) {
+    func collect(foreignDecl d: Declaration) {
         // NOTE: Foreign declarations inforce singular names.
         let ident = d.names[0]
         if ident.name == "_" {
@@ -247,7 +274,7 @@ extension Checker {
 
 extension Checker {
 
-    mutating func check(topLevelStmt stmt: TopLevelStmt) throws {
+    func check(topLevelStmt stmt: TopLevelStmt) throws {
         switch stmt {
         case is Using,
              is Import,
@@ -277,7 +304,7 @@ extension Checker {
     }
 
     /// - returns: The entities references by the statement
-    mutating func check(stmt: Stmt) throws -> Set<Entity> {
+    func check(stmt: Stmt) throws -> Set<Entity> {
 
         switch stmt {
         case is Empty:
@@ -350,7 +377,7 @@ extension Checker {
         }
     }
 
-    mutating func check(decl: Declaration) throws -> Set<Entity> {
+    func check(decl: Declaration) throws -> Set<Entity> {
         let dependencies: Set<Entity>
 
         // only has an effect if there is a declaring scope
@@ -563,7 +590,7 @@ extension Checker {
     }
 
     /// - returns: The entities this declaration depends on (not the entities declared)
-    mutating func check(declBlock b: DeclBlock) throws -> Set<Entity> {
+    func check(declBlock b: DeclBlock) throws -> Set<Entity> {
         var dependencies: Set<Entity> = []
         for decl in b.decls {
             guard decl.names.count == 1 else {
@@ -592,7 +619,7 @@ extension Checker {
     }
 
     /// - returns: The entities this declaration depends on (not the entities declared)
-    mutating func check(foreignDecl d: Declaration) throws -> Set<Entity> {
+    func check(foreignDecl d: Declaration) throws -> Set<Entity> {
         let ident = d.names[0]
 
         if d.callconv == nil {
@@ -634,7 +661,7 @@ extension Checker {
     }
 
     /// - returns: The entities this declaration depends on
-    mutating func check(assign: Assign) throws -> Set<Entity> {
+    func check(assign: Assign) throws -> Set<Entity> {
         var dependencies: Set<Entity> = []
 
         if assign.rhs.count == 1 && assign.lhs.count > 1, let call = assign.rhs[0] as? Call {
@@ -681,7 +708,7 @@ extension Checker {
         return dependencies
     }
 
-    mutating func check(using: Using) throws {
+    func check(using: Using) throws {
         func declare(_ entity: Entity) {
             let previous = context.scope.insert(entity, scopeOwnsEntity: false)
             if let previous = previous {
@@ -717,7 +744,7 @@ extension Checker {
         }
     }
 
-    mutating func check(defer d: Defer) throws -> Set<Entity> {
+    func check(defer d: Defer) throws -> Set<Entity> {
         pushContext(owningNode: d); defer {
             popContext()
         }
@@ -730,7 +757,7 @@ extension Checker {
 
 extension Checker {
 
-    mutating func check(branch: Branch) {
+    func check(branch: Branch) {
         switch branch.token {
         case .break:
             let target: Entity
@@ -779,7 +806,7 @@ extension Checker {
         }
     }
 
-    mutating func check(return ret: Return) throws -> Set<Entity> {
+    func check(return ret: Return) throws -> Set<Entity> {
         let expectedReturn = context.nearestExpectedReturnType!
 
         var isVoidReturn = false
@@ -810,7 +837,7 @@ extension Checker {
         return dependencies
     }
 
-    mutating func check(for fór: For) throws -> Set<Entity> {
+    func check(for fór: For) throws -> Set<Entity> {
         var dependencies: Set<Entity> = []
         pushContext()
         defer {
@@ -846,7 +873,7 @@ extension Checker {
         return dependencies
     }
 
-    mutating func check(forIn: ForIn) throws -> Set<Entity> {
+    func check(forIn: ForIn) throws -> Set<Entity> {
         var dependencies: Set<Entity> = []
         pushContext()
         defer {
@@ -903,7 +930,7 @@ extension Checker {
         return dependencies
     }
 
-    mutating func check(if iff: If) throws -> Set<Entity> {
+    func check(if iff: If) throws -> Set<Entity> {
         var dependencies: Set<Entity> = []
 
         pushContext()
@@ -925,7 +952,7 @@ extension Checker {
         return dependencies
     }
 
-    mutating func check(switch sw: Switch) throws -> Set<Entity> {
+    func check(switch sw: Switch) throws -> Set<Entity> {
         var dependencies: Set<Entity> = []
         pushContext()
         defer {
@@ -996,7 +1023,7 @@ extension Checker {
 
 extension Checker {
 
-    mutating func check(expr: Expr, desiredType: Type? = nil) throws -> Operand {
+    func check(expr: Expr, desiredType: Type? = nil) throws -> Operand {
 
         switch expr {
         case let expr as Nil:
@@ -1158,7 +1185,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(ident: Ident, desiredType: Type? = nil) throws -> Operand {
+    func check(ident: Ident, desiredType: Type? = nil) throws -> Operand {
         guard let entity = context.scope.lookup(ident.name) else {
             reportError("Use of undefined identifier '\(ident)'", at: ident.start)
             ident.entity = Entity.invalid
@@ -1215,7 +1242,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(basicLit lit: BasicLit, desiredType: Type?) -> Operand {
+    func check(basicLit lit: BasicLit, desiredType: Type?) -> Operand {
         switch lit.token {
         case .int:
             switch lit.text.prefix(2) {
@@ -1255,7 +1282,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(compositeLit lit: CompositeLit, desiredType: Type?) throws -> Operand {
+    func check(compositeLit lit: CompositeLit, desiredType: Type?) throws -> Operand {
         var dependencies: Set<Entity> = []
         let operand: Operand?
         let type: Type?
@@ -1381,7 +1408,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(param: Parameter) throws -> Operand {
+    func check(param: Parameter) throws -> Operand {
         let operand = try check(expr: param.explicitType)
         let type = lowerFromMetatype(operand.type, atNode: param.explicitType)
         let entity = newEntity(ident: param.name, type: type, flags: .parameter)
@@ -1391,7 +1418,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(polyType: PolyType) -> Type {
+    func check(polyType: PolyType) -> Type {
         if polyType.type != nil {
             // Do not redeclare any poly types which have been checked before.
             return polyType.type
@@ -1417,7 +1444,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(funcLit fn: FuncLit) throws -> Operand {
+    func check(funcLit fn: FuncLit) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         var needsSpecialization = false
@@ -1514,7 +1541,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(funcType fn: FuncType) throws -> Operand {
+    func check(funcType fn: FuncType) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         var typeFlags: ty.Function.Flags = .none
@@ -1558,7 +1585,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(field: StructField) throws -> Operand {
+    func check(field: StructField) throws -> Operand {
         let operand = try check(expr: field.explicitType)
 
         let type = lowerFromMetatype(operand.type, atNode: field.explicitType)
@@ -1567,7 +1594,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(struct s: StructType) throws -> Operand {
+    func check(struct s: StructType) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         var width = 0
@@ -1598,7 +1625,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(polyStruct: PolyStructType) throws -> Operand {
+    func check(polyStruct: PolyStructType) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         var width = 0
@@ -1633,7 +1660,7 @@ extension Checker {
         return Operand(mode: .type, expr: polyStruct, type: type, constant: nil, dependencies: dependencies)
     }
 
-    mutating func check(union u: UnionType) throws -> Operand {
+    func check(union u: UnionType) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         var largestWidth = 0
@@ -1659,7 +1686,7 @@ extension Checker {
         return Operand(mode: .type, expr: u, type: type, constant: nil, dependencies: dependencies)
     }
 
-    mutating func check(variant v: VariantType) throws -> Operand {
+    func check(variant v: VariantType) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         var index = 0
@@ -1689,7 +1716,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(enumType e: EnumType) throws -> Operand {
+    func check(enumType e: EnumType) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         var explicitType: Type?
@@ -1755,7 +1782,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(unary: Unary, desiredType: Type?) throws -> Operand {
+    func check(unary: Unary, desiredType: Type?) throws -> Operand {
         let operand = try check(expr: unary.element, desiredType: desiredType)
         var type = operand.type!
         var mode = Operand.Mode.computed
@@ -1808,7 +1835,7 @@ extension Checker {
 
     // FIXME: Refactor this, for the love of all that is good.
     @discardableResult
-    mutating func check(binary: Binary, desiredType: Type?) throws -> Operand {
+    func check(binary: Binary, desiredType: Type?) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         let lhs = try check(expr: binary.lhs)
@@ -1989,7 +2016,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(ternary: Ternary, desiredType: Type?) throws -> Operand {
+    func check(ternary: Ternary, desiredType: Type?) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         let condOperand = try check(expr: ternary.cond, desiredType: ty.bool)
@@ -2021,7 +2048,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(selector: Selector, desiredType: Type? = nil) throws -> Operand {
+    func check(selector: Selector, desiredType: Type? = nil) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         let operand = try check(expr: selector.rec)
@@ -2192,7 +2219,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(subscript sub: Subscript) throws -> Operand {
+    func check(subscript sub: Subscript) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         let receiver = try check(expr: sub.rec)
@@ -2247,7 +2274,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(slice: Slice) throws -> Operand {
+    func check(slice: Slice) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         let receiver = try check(expr: slice.rec)
@@ -2293,7 +2320,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(call: Call) throws -> Operand {
+    func check(call: Call) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         let callee = try check(expr: call.fun)
@@ -2357,7 +2384,7 @@ extension Checker {
             if let customCheck = b.onCallCheck {
 
                 // FIXME: How to do Dependencies for customChecks for builtin's??
-                var returnType = customCheck(&self, call)
+                var returnType = customCheck(self, call)
                 if (returnType as! ty.Tuple).types.count == 1 {
                     returnType = (returnType as! ty.Tuple).types[0]
                 }
@@ -2403,7 +2430,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(autocast: Autocast, desiredType: Type?) throws -> Operand {
+    func check(autocast: Autocast, desiredType: Type?) throws -> Operand {
         guard let desiredType = desiredType else {
             reportError("Unabled to infer type for autocast", at: autocast.keyword)
             autocast.type = ty.invalid
@@ -2423,7 +2450,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(cast: Cast) throws -> Operand {
+    func check(cast: Cast) throws -> Operand {
         var dependencies: Set<Entity> = []
 
         var operand = try check(expr: cast.explicitType)
@@ -2468,7 +2495,7 @@ extension Checker {
         return Operand(mode: .computed, expr: cast, type: targetType, constant: nil, dependencies: dependencies)
     }
 
-    mutating func check(locationDirective l: LocationDirective, desiredType: Type? = nil) -> Operand {
+    func check(locationDirective l: LocationDirective, desiredType: Type? = nil) -> Operand {
         switch l.kind {
         case .file:
             l.type = ty.string
@@ -2494,7 +2521,7 @@ extension Checker {
         return Operand(mode: .computed, expr: l, type: l.type, constant: l.constant, dependencies: [])
     }
 
-    mutating func check(polymorphicCall call: Call, calleeType: ty.Function) throws -> Operand {
+    func check(polymorphicCall call: Call, calleeType: ty.Function) throws -> Operand {
         let fnLitNode = calleeType.node!
 
         // In the parameter scope we want to set T.specialization.val to the argument type.
@@ -2639,7 +2666,7 @@ extension Checker {
         return Operand(mode: .computed, expr: call, type: returnType, constant: nil, dependencies: [])
     }
 
-    mutating func check(polymorphicCall call: Call, calleeType: ty.Struct) -> Operand {
+    func check(polymorphicCall call: Call, calleeType: ty.Struct) -> Operand {
         fatalError("TODO")
     }
 }
@@ -2821,6 +2848,8 @@ func pathToEntityName(_ path: String) -> String? {
         if !identChars.contains(str.unicodeScalars.first!) {
             return false
         }
+
+        guard str.count > 1 else { return true }
 
         return str.unicodeScalars.dropFirst()
             .contains(where: { identChars.contains($0) || digits.contains($0) })
