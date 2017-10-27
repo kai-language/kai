@@ -240,6 +240,9 @@ func constrainUntypedToDefault(_ type: Type) -> Type {
 
 extension Array where Element == Type {
     static func == (lhs: [Type], rhs: [Type]) -> Bool {
+        if lhs.count != rhs.count {
+            return false
+        }
         for (l, r) in zip(lhs, rhs) {
             if l != r {
                 return false
