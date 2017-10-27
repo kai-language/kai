@@ -1,27 +1,20 @@
 
-#library "libc"
 #import github("vdka/gl")
 #import github("vdka/glfw")
-#import kai("stdlib")
-
-#foreign libc {
-    printf :: (fmt: *u8, args: #cvargs ..any) -> i32
-
-    exit :: (exitcode: i32) -> void
-}
-
+#import kai("posix")
+#import kai("math")
 
 panic :: fn(msg: string) -> void {
-    printf(msg.raw)
-    exit(1)
+    posix.printf(msg.raw)
+    posix.exit(1)
 }
 
-//glfwErrorCallback :: fn(error: i32, desc: *u8) -> void {
-//    printf("Error code %d:\n\t%s\n", error, desc)
-//}
+glfwErrorCallback :: fn(error: i32, desc: *u8) -> void {
+    posix.printf("Error code %d:\n\t%s\n".raw, error, desc)
+}
 
 initGlfw :: fn() -> *glfw.Window, bool {
-    //glfw.SetErrorCallback(&glfwErrorCallback)
+    glfw.SetErrorCallback(glfwErrorCallback)
 
     if glfw.Init() == 0 {
         return nil, false
@@ -35,7 +28,7 @@ initGlfw :: fn() -> *glfw.Window, bool {
 
     window := glfw.CreateWindow(1280, 720, "Kai GLFW example".raw, nil, nil)
     if window == nil {
-        panic("Asdfklasjdf")
+        panic("Failed to create window!")
         return nil, false
     }
 
@@ -141,6 +134,11 @@ main :: fn () -> void {
 
     gl.init(cast((*u8) -> rawptr) glfw.GetProcAddress)
 
+    err := gl.GetError()
+    if err != gl.NO_ERROR {
+        panic("OpenGL encountered an error during init")
+    }
+
     program := loadShaders()
 
     vao, vbo, ebo := createBuffers()
@@ -151,17 +149,17 @@ main :: fn () -> void {
 
     res := [2]f32{1280, 720}
 
-    p := stdlib.perspective(0.785, 1.77, 0.1, 100.0)
+    p := math.perspective(0.785, 1.77, 0.1, 100.0)
 
-    pos := stdlib.Vec3 { 4, 3, 3 }
-    lookPos := stdlib.Vec3 { 0, 0, 0 }
-    up := stdlib.Vec3 { 0, 1, 0 }
+    pos := math.Vec3 { 4, 3, 3 }
+    lookPos := math.Vec3 { 0, 0, 0 }
+    up := math.Vec3 { 0, 1, 0 }
 
-    v := stdlib.look_at(pos, lookPos, up)
+    v := math.look_at(pos, lookPos, up)
 
-    m := stdlib.identity_mat() 
+    m := math.identity_mat()
 
-    gl.Enable(gl.DEPTH_TEST);
+    gl.Enable(gl.DEPTH_TEST)
     gl.ClearColor(0.2, 0.3, 0.4, 1.0);
     for glfw.WindowShouldClose(window) == glfw.FALSE {
 
@@ -174,8 +172,8 @@ main :: fn () -> void {
         if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.TRUE
             break
 
-        MV  := stdlib.mul(v, m)
-        MVP := stdlib.mul(p, MV)
+        MV  := math.mul(v, m)
+        MVP := math.mul(p, MV)
 
         // Drawing
         gl.Clear(cast(u32) gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -190,6 +188,6 @@ main :: fn () -> void {
 
         glfw.SwapBuffers(window)
     }
-    printf("Exiting!\n".raw)
+    posix.printf("Exiting!\n".raw)
 }
 
