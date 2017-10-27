@@ -886,7 +886,7 @@ extension IRGenerator {
         var val: IRValue
         switch expr {
         case is Nil:
-            val = canonicalize(expr.type as! ty.Pointer).null()
+            val = canonicalize(expr.type).null()
         case let lit as BasicLit:
             val = emit(lit: lit, returnAddress: returnAddress, entity: entity)
         case let lit as CompositeLit:
