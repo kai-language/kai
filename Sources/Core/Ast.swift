@@ -107,11 +107,12 @@ init(start: Pos, end: Pos) {
 // sourcery:end
 }
 
-class LocationDirective: Node, Expr {
+class LocationDirective: Node, Expr, Convertable {
     var directive: Pos
     var kind: LoneDirective
     var type: Type!
     var constant: Value!
+    var conversion: (from: Type, to: Type)?
 
     var start: Pos { return directive }
     var end: Pos { return directive + kind.rawValue.count }
