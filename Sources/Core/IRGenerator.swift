@@ -1125,7 +1125,7 @@ extension IRGenerator {
         case .call:
             var isGlobal = false
             if let entity = entity(from: call.fun) {
-                isGlobal = entity.isConstant || entity.owningScope.isFile
+                isGlobal = entity.isConstant
             }
             let callee = emit(expr: call.fun, returnAddress: isGlobal)
 
@@ -1681,6 +1681,9 @@ extension IRGenerator {
     }
 
     mutating func canonicalize(_ pointer: ty.Pointer) -> LLVM.PointerType {
+        if let fn = pointer.pointeeType as? ty.Function {
+            return LLVM.PointerType(pointee: canonicalizeSignature(fn))
+        }
         return LLVM.PointerType(pointee: canonicalize(pointer.pointeeType))
     }
 

@@ -471,13 +471,20 @@ extension Checker {
         // handle uninitialized variable declaration `x, y: i32`
         if decl.values.isEmpty {
             assert(expectedType != nil)
+            for ident in decl.names {
+                ident.entity.flags.insert(.checked)
+                ident.entity.type = expectedType
+            }
+
+            // Because we must have types set for later, we use the expected type even if it is illegal
             if let type = expectedType as? ty.Array, type.length == nil {
                 reportError("Implicit-length array must have an initial value", at: decl.explicitType!.start)
                 return dependencies
             }
-            for ident in decl.names {
-                ident.entity.flags.insert(.checked)
-                ident.entity.type = expectedType
+            if let type = expectedType as? ty.Function {
+                reportError("Variables of a function type must be initialized", at: decl.start)
+                file.attachNote("If you want an uninitialized function pointer use *\(type) instead")
+                return dependencies
             }
             return dependencies
         }

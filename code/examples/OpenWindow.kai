@@ -1,0 +1,79 @@
+
+#library "OpenGL.framework"
+
+#import github("vdka/glfw")
+#import kai("posix")
+
+DEPTH_TEST :: 0x0B71
+DEPTH_BUFFER_BIT :: 0x00000100
+COLOR_BUFFER_BIT :: 0x00004000
+
+Enable:     *(cap: u32) -> void
+Clear:      *(mask: u32) -> void
+ClearColor: *(red: f32, green: f32, blue: f32, alpha: f32) -> void
+
+main :: fn() -> void {
+
+    window, success := initGlfw()
+    if !success
+        panic("Error with window creation!\n")
+    defer glfw.Terminate()
+
+    Enable     = autocast glfw.GetProcAddress("glEnable".raw)
+    Clear      = bitcast(*(u32) -> void) glfw.GetProcAddress("glClear".raw)
+    ClearColor = bitcast(*(f32, f32, f32, f32) -> void) glfw.GetProcAddress("glClearColor".raw)
+
+    posix.printf("Enable = %p\n".raw, Enable)
+
+    if Enable == nil || Clear == nil || ClearColor == nil {
+        panic("Failed to load function\n")
+    }
+
+    Enable(DEPTH_TEST)
+    posix.printf("No failure!\n".raw)
+    ClearColor(0.2, 0.3, 0.4, 1.0)
+    for glfw.WindowShouldClose(window) == glfw.FALSE {
+        glfw.PollEvents()
+
+        if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.TRUE
+            break
+
+        Clear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT)
+        glfw.SwapBuffers(window)
+    }
+    posix.printf("Exiting\n".raw)
+}
+
+panic :: fn(msg: string) -> void {
+    posix.printf(msg.raw)
+    posix.exit(1)
+}
+
+glfwErrorCallback :: fn(error: i32, desc: *u8) -> void {
+    posix.printf("Error code %d:\n\t%s\n".raw, error, desc)
+}
+
+initGlfw :: fn() -> *glfw.Window, bool {
+    glfw.SetErrorCallback(glfwErrorCallback)
+
+    if glfw.Init() == 0 {
+        return nil, false
+    }
+
+    glfw.WindowHint(glfw.SAMPLES, 4)
+    glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, 3)
+    glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, 3)
+    glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
+    glfw.WindowHint(glfw.OPENGL_FORWARD_COMPAT, 1)
+
+    window := glfw.CreateWindow(1280, 720, "Kai GLFW example".raw, nil, nil)
+    if window == nil {
+        panic("Failed to create window!")
+        return nil, false
+    }
+
+    glfw.MakeContextCurrent(window)
+
+    return window, true
+}
+
