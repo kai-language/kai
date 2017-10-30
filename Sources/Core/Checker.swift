@@ -106,7 +106,7 @@ extension Checker {
         hasBeenCollected = true
 
         for dep in file.dependencies {
-            dep.checker.collectFile()
+            dep.collectFile()
         }
     }
 
@@ -132,7 +132,7 @@ extension Checker {
         uncheckedStmts = unsolved
         let newCount = uncheckedStmts.count
 
-        let madeProgress = file.dependencies.reduce(newCount < count, {$0 || $1.checker.checkFile()})
+        let madeProgress = file.dependencies.reduce(newCount < count, {$0 || $1.checkFile()})
         currentlyChecking = false
 
         guard madeProgress else {
@@ -418,15 +418,15 @@ extension Checker {
         }
 
         if decl.isConstant {
-            dependencies = check(constantDecl: decl)
+            dependencies = try check(constantDecl: decl)
         } else {
-            dependencies = check(variableDecl: decl)
+            dependencies = try check(variableDecl: decl)
         }
         decl.checked = true
         return dependencies
     }
 
-    mutating func check(constantDecl decl: Declaration) -> Set<Entity> {
+    func check(constantDecl decl: Declaration) throws -> Set<Entity> {
         var dependencies: Set<Entity> = []
 
         guard decl.names.count == 1 else {
@@ -451,14 +451,14 @@ extension Checker {
         if let value = value as? FuncLit, !value.explicitType.isPolymorphic {
             // setup a stub function so that recursive functions check properly
             context.function = ident.entity
-            let operand = check(funcType: value.explicitType)
+            let operand = try check(funcType: value.explicitType)
             ident.entity.type = operand.type.lower()
         } else if value is StructType || value is PolyStructType || value is UnionType || value is VariantType || value is EnumType {
             // declare a stub type, collect all member declarations
             let stub = ty.Named(entity: ident.entity, base: nil)
             ident.entity.type = ty.Metatype(instanceType: stub)
         }
-        let operand = check(expr: value, desiredType: expectedType)
+        let operand = try check(expr: value, desiredType: expectedType)
         dependencies.formUnion(operand.dependencies)
 
         ident.entity.constant = operand.constant
@@ -500,15 +500,13 @@ extension Checker {
 
         return dependencies
     }
-                let operand = try check(expr: value, desiredType: expectedType)
-                dependencies.formUnion(operand.dependencies)
 
-    mutating func check(variableDecl decl: Declaration) -> Set<Entity> {
+    func check(variableDecl decl: Declaration) throws -> Set<Entity> {
         var dependencies: Set<Entity> = []
 
         var expectedType: Type?
         if let explicitType = decl.explicitType {
-            let operand = check(expr: explicitType)
+            let operand = try check(expr: explicitType)
             dependencies.formUnion(operand.dependencies)
             expectedType = lowerFromMetatype(operand.type, atNode: explicitType)
         }
@@ -552,7 +550,7 @@ extension Checker {
                 reportError("Explicit types are prohibited when calling a multiple-value function", at: decl.explicitType!.start)
                 return dependencies
             }
-            let operand = check(call: call)
+            let operand = try check(call: call)
             dependencies.formUnion(operand.dependencies)
             if let tuple = operand.type as? ty.Tuple {
                 guard decl.names.count == tuple.types.count else {
@@ -575,7 +573,7 @@ extension Checker {
 
         // At this point we have a simple declaration of 1 or more entities with matching values
         for (ident, value) in zip(decl.names, decl.values) {
-            let operand = check(expr: value, desiredType: expectedType)
+            let operand = try check(expr: value, desiredType: expectedType)
             dependencies.formUnion(operand.dependencies)
 
             if let expectedType = expectedType, !convert(operand.type, to: expectedType, at: value) {

@@ -132,20 +132,54 @@ public final class SourcePackage {
     }
 }
 
-extension SourcePackage {
+extension SourcePackage: Dependency {
+    public func collectFile() {
+        for file in files {
+            file.collectFile()
+        }
+    }
 
-    public func begin() {
+    public func setupChecker() {
+        for file in files {
+            file.setupChecker()
+        }
+    }
+
+    public func checkFile() -> Bool {
+        return files.reduce(false, {$0 || $1.checkFile()})
+    }
+
+    public func parseEmittingErrors() {
         for file in files {
             file.parseEmittingErrors()
         }
+    }
+}
 
+extension SourcePackage {
+    public func parse() {
+        for file in files {
+            file.parseEmittingErrors()
+        }
+    }
+
+    public func check() {
         for file in files {
             file.checkEmittingErrors()
         }
+    }
 
+    public func codegen() {
         for file in files {
             file.generateIntermediateRepresentation()
         }
+    }
+
+    @available(*, deprecated, message: "Will be replaced by the new build system")
+    public func begin() {
+        parse()
+        check()
+        codegen()
     }
 
     public var emitPath: String {

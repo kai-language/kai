@@ -1,11 +1,17 @@
 
 import Foundation
 
+public protocol Dependency {
+    func collectFile()
+    func setupChecker()
+    func checkFile() -> Bool
+    func parseEmittingErrors()
+}
+
 var knownSourceFiles: [String: SourceFile] = [:]
 
 // sourcery:noinit
 public final class SourceFile {
-
     unowned var package: SourcePackage
 
     weak var firstImportedFrom: SourceFile?
@@ -35,7 +41,7 @@ public final class SourceFile {
 
     var pathFirstImportedAs: String
     var imports: [Import] = []
-    var dependencies: [SourceFile] = []
+    var dependencies: [Dependency] = []
 
     var checker: Checker!
 
@@ -85,6 +91,16 @@ public final class SourceFile {
         knownSourceFiles[fullpath] = sourceFile
 
         return sourceFile
+    }
+}
+
+extension SourceFile: Dependency {
+    public func collectFile() {
+        checker.collectFile()
+    }
+
+    public func checkFile() -> Bool {
+        return checker.checkFile()
     }
 }
 
