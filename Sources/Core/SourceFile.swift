@@ -125,20 +125,18 @@ extension SourceFile {
                     preconditionFailure()
                 }
                 self.package.dependencies.append(dependency)
-                dependency.begin()
+                dependencies.append(dependency)
+                dependency.parseEmittingErrors()
 
                 i.scope = dependency.scope
 
-                for file in dependency.files {
-                    fatalError("packages unsupported")
-                }
             } else {
                 guard let file = SourceFile.new(path: path, package: package, importedFrom: importedFrom) else {
                     preconditionFailure()
                 }
-                i.scope = file.scope
-
                 dependencies.append(file)
+
+                i.scope = file.scope
             }
         case let call as Call where (call.fun as? Ident)?.name == "kai":
             guard call.args.count >= 1 else {
@@ -189,7 +187,8 @@ extension SourceFile {
                 preconditionFailure()
             }
             self.package.dependencies.append(dependency)
-            dependency.begin()
+            dependencies.append(dependency)
+            dependency.parseEmittingErrors()
 
             i.scope = dependency.scope
         } else { // Directory exists already
@@ -198,7 +197,8 @@ extension SourceFile {
                 preconditionFailure()
             }
             self.package.dependencies.append(dependency)
-            dependency.begin()
+            dependencies.append(dependency)
+            dependency.parseEmittingErrors()
 
             i.scope = dependency.scope
         }
@@ -266,8 +266,8 @@ extension SourceFile {
     }
 
     public func generateIntermediateRepresentation() {
-        assert(hasBeenChecked)
-        assert(!hasBeenGenerated)
+//        assert(hasBeenChecked)
+//        assert(!hasBeenGenerated)
         let startTime = gettime()
 
         stage = "IRGeneration"

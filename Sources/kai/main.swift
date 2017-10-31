@@ -20,11 +20,15 @@ guard let package = SourcePackage.makeInitial(for: filepath) else {
     exit(1)
 }
 
-package.begin()
-
+package.parse()
 if wasErrors {
     exit(1)
 }
+package.check()
+if wasErrors {
+    exit(1)
+}
+package.codegen()
 
 package.validateIR()
 

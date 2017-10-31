@@ -119,10 +119,13 @@ extension Checker {
         let count = uncheckedStmts.count
         var unsolved: [(TopLevelStmt, Entity?)] = []
 
+        // reset the scope
+        context.scope = file.scope
         for (node, _) in uncheckedStmts {
             do {
                 try check(topLevelStmt: node)
             } catch Error.queueEntityForLater(let entity) {
+                context.scope = file.scope
                 unsolved.append((node, entity))
             } catch {
                 fatalError()
@@ -415,6 +418,10 @@ extension Checker {
                 entities.append(ident.entity)
             }
             decl.entities = entities
+        } else {
+            for entity in decl.entities {
+                declare(entity)
+            }
         }
 
         if decl.isConstant {

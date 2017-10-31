@@ -173,13 +173,16 @@ extension SourcePackage {
         for file in files {
             file.generateIntermediateRepresentation()
         }
+
+        for dep in dependencies {
+            dep.codegen()
+        }
     }
 
     @available(*, deprecated, message: "Will be replaced by the new build system")
     public func begin() {
         parse()
         check()
-        codegen()
     }
 
     public var emitPath: String {
