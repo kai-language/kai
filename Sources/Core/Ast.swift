@@ -1129,7 +1129,7 @@ class ForIn: Node, Stmt {
     var checked: Checked!
     enum Checked {
         case array(Int)
-        case structure
+        case slice
         case enumeration
     }
 

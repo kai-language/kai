@@ -862,10 +862,10 @@ extension Checker {
             forIn.checked = .array(array.length)
         case let slice as ty.Slice:
             elementType = slice.elementType
-            forIn.checked = .structure
+            forIn.checked = .slice
         case is ty.KaiString:
             elementType = ty.u8
-            forIn.checked = .structure
+            forIn.checked = .slice
         default:
             preconditionFailure()
         }

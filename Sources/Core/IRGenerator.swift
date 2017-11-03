@@ -767,7 +767,7 @@ extension IRGenerator {
         case .array(let length):
             agg = emit(expr: f.aggregate, returnAddress: true)
             len = i64.constant(length)
-        case .structure:
+        case .slice:
             let aggBox = emit(expr: f.aggregate, returnAddress: true)
             let aggPtr = b.buildStructGEP(aggBox, index: 0)
             agg = b.buildLoad(aggPtr)
