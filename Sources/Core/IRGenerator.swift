@@ -16,7 +16,7 @@ struct IRGenerator {
     init(file: SourceFile) {
         self.package = file.package
         self.file = file
-        self.context = Context(mangledNamePrefix: "", deferBlocks: [], returnBlock: nil, previous: nil)
+        self.context = file.irContext
         self.module = package.module
         self.b = package.builder
         self.passManager = FunctionPassManager(module: module)
@@ -92,6 +92,7 @@ struct IRGenerator {
         if let constant = entity.constant {
             switch constant {
             case let c as UInt64:
+                // FIXME: What is this....
                 let type = LLVM.IntType(width: entity.type!.width!, in: module.context)
                 let ptr = b.buildAlloca(type: type)
                 _ = b.buildStore(type.constant(c), to: ptr)
@@ -102,9 +103,12 @@ struct IRGenerator {
             }
         }
 
-        // FIXME: We need to ensure we are in the declarations context for correct mangling.
         if entity.value == nil {
+            let prevContext = context
+            assert(entity.owningScope.isFile, "Assumption is that entities without existing values are only possible at file scope")
+            context = entity.file!.irContext
             emit(decl: entity.declaration!)
+            context = prevContext
         }
         return entity.value!
     }

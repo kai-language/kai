@@ -42,6 +42,11 @@ public final class SourceFile {
     // Set in Checker
     var scope: Scope
 
+    // Set in IRGen lazily
+    lazy var irContext: IRGenerator.Context = {
+        return IRGenerator.Context(mangledNamePrefix: "", deferBlocks: [], returnBlock: nil, previous: nil)
+    }()
+
     init(handle: FileHandle, fullpath: String, pathImportedAs: String, importedFrom: SourceFile?, package: SourcePackage) {
         self.package = package
         self.handle = handle
