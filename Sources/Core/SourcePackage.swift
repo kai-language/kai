@@ -47,6 +47,7 @@ public final class SourcePackage {
 
         return Module(name: moduleName, context: context)
     }()
+    
     lazy var builder: IRBuilder = {
         return IRBuilder(module: module)
     }()

@@ -15,6 +15,7 @@ var timingMutex = Mutex()
 fileprivate var currentTiming: (name: String, start: Double)?
 /// Wall time from first in stage to last in stage
 public var parseStageTiming: Double = 0.0
+public var collectStageTiming: Double = 0.0
 public var checkStageTiming: Double = 0.0
 public var irgenStageTiming: Double = 0.0
 

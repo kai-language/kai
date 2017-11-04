@@ -29,6 +29,7 @@ public final class SourceFile {
 
     var stage: String = ""
     var hasBeenParsed: Bool = false
+    var hasBeenCollected: Bool = false
     var hasBeenChecked: Bool = false
     var hasBeenGenerated: Bool = false
 
@@ -36,8 +37,13 @@ public final class SourceFile {
     var imports: [Import] = []
 
     var parsingJob: Job!
+    var collectingJob: Job!
     var checkingJob: Job!
     var generationJob: Job!
+
+    lazy var checker: Checker = {
+        return Checker(file: self)
+    }()
 
     // Set in Checker
     var scope: Scope
@@ -91,13 +97,16 @@ public final class SourceFile {
         package.files.append(sourceFile)
 
         let parsingJob = Job.new(fullpath: fullpath, operation: "Parsing", work: sourceFile.parseEmittingErrors)
+        let collectingJob = Job.new(fullpath: fullpath, operation: "Collecting", work: sourceFile.collectEmittingErrors)
         let checkingJob = Job.new(fullpath: fullpath, operation: "Checking", work: sourceFile.checkEmittingErrors)
         let generationJob = Job.new(fullpath: fullpath, operation: "Emitting", work: sourceFile.generateIntermediateRepresentation)
 
+        collectingJob.addDependency(parsingJob)
+        checkingJob.addDependency(collectingJob)
         generationJob.addDependency(checkingJob)
-        checkingJob.addDependency(parsingJob)
 
         sourceFile.parsingJob = parsingJob
+        sourceFile.collectingJob = collectingJob
         sourceFile.checkingJob = checkingJob
         sourceFile.generationJob = generationJob
 
@@ -245,8 +254,25 @@ extension SourceFile {
         timingMutex.unlock()
     }
 
-    public func checkEmittingErrors() {
+    public func collectEmittingErrors() {
         assert(hasBeenParsed)
+        guard !hasBeenCollected else {
+            return
+        }
+        let startTime = gettime()
+
+        stage = "Collecting"
+        checker.collectFile()
+        hasBeenCollected = true
+        let endTime = gettime()
+        let totalTime = endTime - startTime
+        timingMutex.lock()
+        collectStageTiming += totalTime
+        timingMutex.unlock()
+    }
+
+    public func checkEmittingErrors() {
+        assert(hasBeenCollected)
         guard !hasBeenChecked else {
             return
         }
