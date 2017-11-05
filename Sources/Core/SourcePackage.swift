@@ -146,7 +146,12 @@ extension SourcePackage: Dependency {
     }
 
     public func checkFile() -> Bool {
-        return files.reduce(false, {$0 || $1.checkFile()})
+        var madeProgress = false
+        for file in files {
+            madeProgress = madeProgress || file.checkFile()
+        }
+
+        return madeProgress
     }
 
     public func parseEmittingErrors() {

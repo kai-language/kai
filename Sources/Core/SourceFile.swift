@@ -266,8 +266,6 @@ extension SourceFile {
     }
 
     public func generateIntermediateRepresentation() {
-//        assert(hasBeenChecked)
-//        assert(!hasBeenGenerated)
         let startTime = gettime()
 
         stage = "IRGeneration"
