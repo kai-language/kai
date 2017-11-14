@@ -8,6 +8,7 @@ Read the docs at [docs.kai-lang.org](http://docs.kai-lang.org)
 Have you built something cool? Feel free to share it here!
 
 * [KaiNES](https://github.com/BrettRToomey/KaiNES): A pure-Kai NES emulator.
+* [KaiVM](https://github.com/BrettRToomey/KaiVM): A register-based VM and disassembler.
 
 ## Download and Install
 In the future, Kai will offer official binary distribution through brew and other package managers. See [building Kai](#building-kai).
