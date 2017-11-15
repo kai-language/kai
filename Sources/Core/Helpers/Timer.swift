@@ -1,5 +1,8 @@
-
-import Darwin
+#if os(Linux)
+    import Glibc
+#else
+    import Darwin.C
+#endif
 
 public func gettime() -> Double {
 

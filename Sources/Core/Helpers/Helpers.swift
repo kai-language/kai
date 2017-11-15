@@ -1,5 +1,9 @@
+#if os(Linux)
+    import Glibc
+#else
+    import Darwin.C
+#endif
 
-import Darwin
 import Foundation
 import LLVM
 
@@ -29,24 +33,10 @@ public func setupBuildDirectories() {
 public func ensureBuildDirectoriesExist() throws {
     let fm = FileManager.default
 
-    var isDir: ObjCBool = false
-    if fm.fileExists(atPath: buildDirectory, isDirectory: &isDir) {
-        if !isDir.boolValue {
-            throw "cannot write to output directory \(buildDirectory)"
-        }
-    } else {
-        try fm.createDirectory(atPath: buildDirectory, withIntermediateDirectories: false, attributes: nil)
-    }
+    try fm.createDirectory(atPath: buildDirectory, withIntermediateDirectories: true, attributes: nil)
 
     for package in compiler.packages.values.filter({ !$0.isInitialPackage }) {
-        var isDir: ObjCBool = false
-        if fm.fileExists(atPath: dirname(path: package.emitPath), isDirectory: &isDir) {
-            if !isDir.boolValue {
-                throw "cannot write to output directory \(basename(path: package.emitPath))"
-            }
-        } else {
-            try fm.createDirectory(atPath: dirname(path: package.emitPath), withIntermediateDirectories: true, attributes: nil)
-        }
+        try fm.createDirectory(atPath: dirname(path: package.emitPath), withIntermediateDirectories: true, attributes: nil)
     }
 }
 
