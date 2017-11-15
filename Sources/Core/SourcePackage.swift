@@ -50,6 +50,24 @@ public final class SourcePackage {
     lazy var builder: IRBuilder = {
         return IRBuilder(module: module)
     }()
+    lazy var passManager: FunctionPassManager = {
+        let pm = FunctionPassManager(module: module)
+
+        let optLevel = Options.instance.optimizationLevel
+        guard optLevel > 0 else { return pm }
+
+        pm.add(.basicAliasAnalysis, .instructionCombining, .aggressiveDCE, .reassociate, .promoteMemoryToRegister)
+
+        guard optLevel > 1 else { return pm }
+
+        pm.add(.gvn, .cfgSimplification)
+
+        guard optLevel > 2 else { return pm }
+
+        pm.add(.tailCallElimination, .loopUnroll)
+
+        return pm
+    }()
 
     public init(files: [SourceFile], fullpath: String, pathImportedAs: String, importedFrom: SourceFile?) {
         self.files = files

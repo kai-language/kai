@@ -19,8 +19,7 @@ struct IRGenerator {
         self.context = file.irContext
         self.module = package.module
         self.b = package.builder
-        self.passManager = FunctionPassManager(module: module)
-        self.setupFunctionPasses(for: passManager)
+        self.passManager = package.passManager
     }
 
     // sourcery:noinit
@@ -1571,21 +1570,6 @@ extension IRGenerator {
         default:
             return b.buildBitCast(value, type: type)
         }
-    }
-
-    func setupFunctionPasses(for pm: FunctionPassManager) {
-        let optLevel = Options.instance.optimizationLevel
-        guard optLevel > 0 else { return }
-
-        pm.add(.basicAliasAnalysis, .instructionCombining, .aggressiveDCE, .reassociate, .promoteMemoryToRegister)
-
-        guard optLevel > 1 else { return }
-
-        pm.add(.gvn, .cfgSimplification)
-
-        guard optLevel > 2 else { return }
-
-        pm.add(.tailCallElimination, .loopUnroll)
     }
 }
 
