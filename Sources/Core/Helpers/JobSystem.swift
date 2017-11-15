@@ -111,14 +111,12 @@ extension Job {
         return job
     }
 
-    static func generate(file: SourceFile) -> Job {
-        if let existing = compiler.jobs[Kind.generating.rawValue + file.fullpath] {
+    static func generate(package: SourcePackage) -> Job {
+        if let existing = compiler.jobs[Kind.generating.rawValue + package.fullpath] {
             return existing
         }
 
-        let job = Job(fullpath: file.fullpath, kind: .generating, work: file.generateIntermediateRepresentation)
-
-        job.cost = file.cost!
+        let job = Job(fullpath: package.fullpath, kind: .generating, work: { package.files.forEach({ $0.generateIntermediateRepresentation() }) })
 
         compiler.jobs[job.kind.rawValue + job.fullpath] = job
         return job

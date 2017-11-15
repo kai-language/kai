@@ -30,13 +30,12 @@ public class Compiler {
     /// Cloning, Parsing, Collecting, costs are set in that order.
     var cloneParseCollectQueue = PriorityQueue<Job>(sort: { $0.cost < $1.cost })
     var checkingQueue = PriorityQueue<Job>(sort: { $0.cost < $1.cost })
-    var generationQueue = PriorityQueue<Job>(sort: { $0.cost < $1.cost })
+    var generationQueue = Queue<Job>()
 
     public func run() {
         self.declare(package: initialPackage)
 
         while let job = cloneParseCollectQueue.dequeue() {
-//            print("\(job.kind) \(basename(path: job.fullpath)) with cost \(job.cost)")
             let startTime = gettime()
             job.work()
             let endTime = gettime()
@@ -44,19 +43,20 @@ public class Compiler {
         }
 
         // All cloning, parsing, and collecting has been completed.
-
         self.evaluateCheckingCosts()
 
         for file in files.values {
             let checkingJob = Job.check(file: file)
             checkingQueue.enqueue(checkingJob)
+        }
 
-            let generationJob = Job.generate(file: file)
+        // For IRGen each package may be generated in it's own thread
+        for package in packages.values {
+            let generationJob = Job.generate(package: package)
             generationQueue.enqueue(generationJob)
         }
 
         while let job = checkingQueue.dequeue() {
-//            print("\(job.kind) \(basename(path: job.fullpath)) with cost \(job.cost)")
             let startTime = gettime()
             job.work()
             let endTime = gettime()
@@ -64,7 +64,6 @@ public class Compiler {
         }
 
         while let job = generationQueue.dequeue() {
-//            print("\(job.kind) \(basename(path: job.fullpath)) with cost \(job.cost)")
             let startTime = gettime()
             job.work()
             let endTime = gettime()
@@ -85,9 +84,9 @@ public class Compiler {
             var cost: UInt
             switch i {
             case let file as SourceFile:
-                cost = file.importees.reduce(1, { $0 + assignCost(forImport: $1) })
+                cost = file.importees.reduce(0, { max($0, assignCost(forImport: $1)) }) + 1
             case let package as SourcePackage:
-                cost = package.importees.reduce(1, { $0 + assignCost(forImport: $1) })
+                cost = package.importees.reduce(0, { max($0, assignCost(forImport: $1)) }) + 1
             default:
                 fatalError()
             }
@@ -95,7 +94,7 @@ public class Compiler {
             return cost
         }
 
-        initialFile.cost = initialFile.importees.reduce(1, { $0 + assignCost(forImport: $1) })
+        initialFile.cost = initialFile.importees.reduce(0, { max($0, assignCost(forImport: $1)) }) + 1
     }
 
     /// Creates all needed jobs to start processing the file.
@@ -103,7 +102,6 @@ public class Compiler {
         guard !files.keys.contains(file.fullpath) else {
             return
         }
-//        print("Found file \(file.pathFirstImportedAs)")
 
         files[file.fullpath] = file
 
