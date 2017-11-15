@@ -526,7 +526,7 @@ extension IRGenerator {
 
     mutating func emit(statement stmt: Stmt) {
         switch stmt {
-        case is Empty: return
+        case is Empty, is Using: return
         case let ret as Return:
             emit(return: ret)
         case let d as Defer:
@@ -1382,7 +1382,7 @@ extension IRGenerator {
             aggregate = emit(expr: sub.rec, returnAddress: true)
             indicies = [i64.zero(), index]
 
-        case is ty.Slice:
+        case is ty.Slice, is ty.KaiString:
             let structPtr = emit(expr: sub.rec, returnAddress: true)
             let arrayPtr = b.buildStructGEP(structPtr, index: 0)
             aggregate = b.buildLoad(arrayPtr)
