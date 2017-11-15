@@ -10,66 +10,67 @@ guard CommandLine.arguments.count > 1 else {
 startTime = gettime()
 
 let opts = Options(arguments: CommandLine.arguments[1...])
-Options.instance = opts // Note: You must set this, it is used internally
 
 setupTargetMachine()
 
-threadPool = ThreadPool(nThreads: Options.instance.jobs)
-
 let filepath = CommandLine.arguments.last!
-guard let package = SourcePackage.makeInitial(for: filepath) else {
-    print("ERROR: No such file or directory '\(filepath)'")
+
+compiler = Compiler(invokePath: filepath, options: opts)
+guard compiler != nil else {
+    print("ERROR: \(filepath) was invalid!")
     exit(1)
 }
 
+compiler.run()
 
-package.begin()
-
-threadPool.waitUntilDone()
-
-if wasErrors {
+if wasError {
     exit(1)
 }
 
-package.validateIR()
+compiler.initialPackage.validateIR()
 
 setupBuildDirectories()
+
 if opts.flags.intersection([.emitIr, .emitBitcode, .emitAssembly]).isEmpty {
 
-    package.emitObjects()
-    package.linkObjects()
+    compiler.initialPackage.emitObjects()
+    compiler.initialPackage.linkObjects()
     if !opts.flags.contains(.noCleanup) {
-        package.cleanupBuildProducts()
+        compiler.initialPackage.cleanupBuildProducts()
     }
 } else {
     if opts.flags.contains(.emitIr) {
-        package.emitIntermediateRepresentation()
+        compiler.initialPackage.emitIntermediateRepresentation()
     }
 
     if opts.flags.contains(.emitBitcode) {
-        package.emitBitcode()
+        compiler.initialPackage.emitBitcode()
     }
 
     if opts.flags.contains(.emitAssembly) {
-        package.emitAssembly()
+        compiler.initialPackage.emitAssembly()
     }
 }
 
 if opts.flags.contains(.dumpIr) {
-    package.dumpIntermediateRepresentation()
-}
-
-if opts.flags.contains(.emitTimes) {
-    let endTime = gettime()
-    let total = endTime - startTime
-    print("Total time was \(total.humanReadableTime)")
-    print("Parsing took \(parseStageTiming.humanReadableTime)")
-    print("Checking took \(checkStageTiming.humanReadableTime)")
-    print("IRGeneration took \(irgenStageTiming.humanReadableTime)")
+    compiler.initialPackage.dumpIntermediateRepresentation()
 }
 
 if opts.flags.contains(.emitDebugTimes) {
     for (name, duration) in debugTimings.sorted(by: { $0.name < $1.name }) {
         print("\(name) took \(duration.humanReadableTime)")
     }
+}
+
+if opts.flags.contains(.emitTimes) {
+    print("Parsing took \(parseStageTiming.humanReadableTime)")
+    print("Collecting took \(collectStageTiming.humanReadableTime)")
+    print("Checking took \(checkStageTiming.humanReadableTime)")
+    print("IRGeneration took \(irgenStageTiming.humanReadableTime)")
+    print("Emitting Object Files took \(emitStageTiming.humanReadableTime)")
+    print("Linking Object Files took \(linkStageTiming.humanReadableTime)")
+
+    let endTime = gettime()
+    let total = endTime - startTime
+    print("Total time was \(total.humanReadableTime)")
 }

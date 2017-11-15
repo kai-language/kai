@@ -1161,12 +1161,13 @@ class Import: Node, TopLevelStmt {
     var exportSymbolsOutOfScope: Bool
     var resolvedName: String?
     var scope: Scope!
+    var importee: Importable!
 
     var start: Pos { return directive }
     var end: Pos { return alias?.end ?? path.end }
 
 // sourcery:inline:auto:Import.Init
-init(directive: Pos, alias: Ident?, path: Expr, importSymbolsIntoScope: Bool, exportSymbolsOutOfScope: Bool, resolvedName: String?, scope: Scope!) {
+    init(directive: Pos, alias: Ident?, path: Expr, importSymbolsIntoScope: Bool, exportSymbolsOutOfScope: Bool, resolvedName: String?, scope: Scope!, importee: Importable!) {
     self.directive = directive
     self.alias = alias
     self.path = path
@@ -1174,6 +1175,7 @@ init(directive: Pos, alias: Ident?, path: Expr, importSymbolsIntoScope: Bool, ex
     self.exportSymbolsOutOfScope = exportSymbolsOutOfScope
     self.resolvedName = resolvedName
     self.scope = scope
+    self.importee = importee
 }
 // sourcery:end
 }

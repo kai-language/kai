@@ -6,7 +6,6 @@ var currentDirectory = FileManager.default.currentDirectoryPath
 let fileExtension = ".kai"
 var buildDirectory = currentDirectory + "/" + fileExtension + "/"
 
-var knownSourcePackages: [String: SourcePackage] = [:]
 var dependencyPath = currentDirectory + "/deps"
 
 // sourcery:noinit
@@ -24,10 +23,15 @@ public final class SourcePackage {
     var filenoMutex = Mutex()
     var fileno: UInt32 = 1
 
+    var hasBeenChecked: Bool {
+        return files.reduce(true, { $0 && $1.hasBeenChecked }) && dependencies.reduce(true, { $0 && $1.hasBeenChecked })
+    }
     var hasBeenGenerated: Bool = false
 
     public var pathFirstImportedAs: String
     public var files: [SourceFile]
+
+    var cost: UInt? = nil
 
     public var dependencies: [SourcePackage] = []
 
@@ -47,13 +51,14 @@ public final class SourcePackage {
 
         return Module(name: moduleName, context: context)
     }()
+    
     lazy var builder: IRBuilder = {
         return IRBuilder(module: module)
     }()
     lazy var passManager: FunctionPassManager = {
         let pm = FunctionPassManager(module: module)
 
-        let optLevel = Options.instance.optimizationLevel
+        let optLevel = compiler.options.optimizationLevel
         guard optLevel > 0 else { return pm }
 
         pm.add(.basicAliasAnalysis, .instructionCombining, .aggressiveDCE, .reassociate, .promoteMemoryToRegister)
@@ -106,7 +111,7 @@ public final class SourcePackage {
             return nil
         }
 
-        if let existing = knownSourcePackages[fullpath] {
+        if let existing = compiler.packages[fullpath] {
             return existing
         }
 
@@ -115,34 +120,26 @@ public final class SourcePackage {
             // Adds to package
             let sourceFile = SourceFile.new(path: fullpath + "/" + $0, package: package)!
             sourceFile.scope = package.scope
-            importedFrom?.checkingJob.addDependency(sourceFile.checkingJob)
-            importedFrom?.generationJob.addDependency(sourceFile.generationJob)
         }
 
-        knownSourcePackages[fullpath] = package
+        compiler.declare(package: package)
 
         return package
     }
 
-    public static func makeInitial(for filepath: String) -> SourcePackage? {
-        guard let fullpath = realpath(relpath: filepath) else {
-            return nil
+    public static func newStubPackage(fullpath: String, importPath: String, importedFrom: SourceFile? = nil) -> SourcePackage {
+        if let existing = compiler.packages[fullpath] {
+            return existing
         }
-        guard !isDirectory(path: filepath) else {
-            return nil
-        }
-        let package = SourcePackage(files: [], fullpath: fullpath, pathImportedAs: filepath, importedFrom: nil)
-        // Adds itself to the package
-        _ = SourceFile.new(path: fullpath, package: package)!
 
-        knownSourcePackages[fullpath] = package
+        let package = SourcePackage(files: [], fullpath: fullpath, pathImportedAs: fullpath, importedFrom: importedFrom)
         return package
     }
 
     public static func gatherLinkerFlags() -> Set<String> {
         var libs: Set<String> = []
 
-        for (_, package) in knownSourcePackages {
+        for (_, package) in compiler.packages {
             for lib in package.linkedLibraries {
                 libs.insert(lib)
             }
@@ -153,12 +150,6 @@ public final class SourcePackage {
 }
 
 extension SourcePackage {
-
-    public func begin() {
-        for file in files {
-            threadPool.add(job: file.parsingJob)
-        }
-    }
 
     public var emitPath: String {
         return buildDirectory + moduleName
@@ -183,6 +174,8 @@ extension SourcePackage {
     }
 
     public func emitObjects() {
+        let startTime = gettime()
+
         for dep in dependencies {
             dep.emitObjects()
         }
@@ -198,6 +191,10 @@ extension SourcePackage {
             print("  While emitting object file to \(emitPath)")
             exit(1)
         }
+
+        let endTime = gettime()
+        let totalTime = endTime - startTime
+        emitStageTiming += totalTime
     }
 
     public func emitIntermediateRepresentation() {
@@ -259,12 +256,13 @@ extension SourcePackage {
     }
 
     public func linkObjects() {
+        let startTime = gettime()
         let clangPath = getClangPath()
 
-        let objFilePaths = knownSourcePackages.values.map({ $0.objpath })
+        let objFilePaths = compiler.packages.values.map({ $0.objpath })
         var args = ["-o", moduleName] + objFilePaths
 
-        let allLinkedLibraries = knownSourcePackages.values.reduce(Set(), { $0.union($1.linkedLibraries) })
+        let allLinkedLibraries = compiler.packages.values.reduce(Set(), { $0.union($1.linkedLibraries) })
         for library in allLinkedLibraries {
             if library.hasSuffix(".framework") {
 
@@ -283,6 +281,10 @@ extension SourcePackage {
         }
 
         shell(path: clangPath, args: args)
+
+        let endTime = gettime()
+        let totalTime = endTime - startTime
+        linkStageTiming += totalTime
     }
 
     public func cleanupBuildProducts() {
@@ -293,29 +295,5 @@ extension SourcePackage {
             print("  While cleaning up build directory")
             exit(1)
         }
-    }
-}
-
-extension String {
-    func commonPathPrefix(with rhs: String) -> String.Index {
-        let lhs = self
-        let count = lhs.count > rhs.count ? lhs.count : rhs.count
-
-        var lastPath = 0
-        for i in 0..<Int(count) {
-            let a = lhs[lhs.index(lhs.startIndex, offsetBy: i)]
-            let b = rhs[rhs.index(rhs.startIndex, offsetBy: i)]
-
-            guard a == b else {
-                if lastPath > 0 { lastPath += 1 } // don't include the final `/`
-                return lhs.index(lhs.startIndex, offsetBy: lastPath)
-            }
-
-            if a == "/" {
-                lastPath = i
-            }
-        }
-
-        return lhs.index(lhs.startIndex, offsetBy: count)
     }
 }

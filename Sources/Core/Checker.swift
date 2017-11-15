@@ -90,10 +90,13 @@ extension Checker {
 
     mutating func checkFile() {
         for node in file.nodes {
-            collect(topLevelStmt: node)
-        }
-        for node in file.nodes {
             check(topLevelStmt: node)
+        }
+    }
+
+    mutating func collectFile() {
+        for node in file.nodes {
+            collect(topLevelStmt: node)
         }
     }
 
@@ -189,7 +192,7 @@ extension Checker {
     }
 
     mutating func collect(decl: Declaration) {
-        if decl.isTest && !Options.instance.isTestMode {
+        if decl.isTest && !compiler.options.isTestMode {
             return
         }
 
@@ -246,7 +249,7 @@ extension Checker {
                 return
             }
 
-            if d.isTest && !Options.instance.isTestMode {
+            if d.isTest && !compiler.options.isTestMode {
                 return
             }
 

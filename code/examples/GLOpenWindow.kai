@@ -1,14 +1,15 @@
 
 #import github("vdka/glfw")
+#import github("vdka/gl") _
 #import kai("posix")
 
 DEPTH_TEST :: 0x0B71
 DEPTH_BUFFER_BIT :: 0x00000100
 COLOR_BUFFER_BIT :: 0x00004000
 
-Enable:     *(cap: u32) -> void
-Clear:      *(mask: u32) -> void
-ClearColor: *(red: f32, green: f32, blue: f32, alpha: f32) -> void
+//Enable:     *(cap: u32) -> void
+//Clear:      *(mask: u32) -> void
+//ClearColor: *(red: f32, green: f32, blue: f32, alpha: f32) -> void
 
 main :: fn() -> void {
 
@@ -17,9 +18,11 @@ main :: fn() -> void {
         panic("Error with window creation!\n")
     defer glfw.Terminate()
 
-    Enable     = autocast glfw.GetProcAddress("glEnable".raw)
-    Clear      = autocast glfw.GetProcAddress("glClear".raw)
-    ClearColor = autocast glfw.GetProcAddress("glClearColor".raw)
+    //Enable     = autocast glfw.GetProcAddress("glEnable".raw)
+    //Clear      = autocast glfw.GetProcAddress("glClear".raw)
+    //ClearColor = autocast glfw.GetProcAddress("glClearColor".raw)
+
+    init(autocast glfw.GetProcAddress);
 
     posix.printf("Enable = %p\n".raw, Enable)
 

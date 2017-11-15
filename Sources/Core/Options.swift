@@ -4,8 +4,6 @@ import func Darwin.C.exit
 public struct Options {
     public static let version = "0.0.0"
 
-    public static var instance = Options(arguments: [])
-
     public var flags: Flags = []
     public var jobs: Int = 1
 

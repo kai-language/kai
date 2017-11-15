@@ -11,12 +11,14 @@ public func gettime() -> Double {
 
 public var startTime: Double = 0.0
 
-var timingMutex = Mutex()
 fileprivate var currentTiming: (name: String, start: Double)?
 /// Wall time from first in stage to last in stage
 public var parseStageTiming: Double = 0.0
+public var collectStageTiming: Double = 0.0
 public var checkStageTiming: Double = 0.0
 public var irgenStageTiming: Double = 0.0
+public var emitStageTiming: Double = 0.0
+public var linkStageTiming: Double = 0.0
 
 /// Thread time per file
 public var debugTimings: [(name: String, duration: Double)] = []

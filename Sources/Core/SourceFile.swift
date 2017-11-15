@@ -1,8 +1,6 @@
 
 import Foundation
 
-var knownSourceFiles: [String: SourceFile] = [:]
-
 // sourcery:noinit
 public final class SourceFile {
 
@@ -29,15 +27,18 @@ public final class SourceFile {
 
     var stage: String = ""
     var hasBeenParsed: Bool = false
+    var hasBeenCollected: Bool = false
     var hasBeenChecked: Bool = false
     var hasBeenGenerated: Bool = false
 
     var pathFirstImportedAs: String
     var imports: [Import] = []
 
-    var parsingJob: Job!
-    var checkingJob: Job!
-    var generationJob: Job!
+    var cost: UInt? = nil
+
+    lazy var checker: Checker = {
+        return Checker(file: self)
+    }()
 
     // Set in Checker
     var scope: Scope
@@ -58,16 +59,14 @@ public final class SourceFile {
         self.firstImportedFrom = importedFrom
         self.size = UInt32(handle.seekToEndOfFile())
 
-        package.filenoMutex.lock()
         self.fileno = package.fileno
         self.scope = Scope(parent: Scope.global, isFile: true)
         package.fileno += 1
-        package.filenoMutex.unlock()
         handle.seek(toFileOffset: 0)
     }
 
     /// - Returns: nil iff the file could not be located or opened for reading
-    public static func new(path: String, package: SourcePackage, importedFrom: SourceFile? = nil) -> SourceFile? {
+    public static func new(path: String, package: SourcePackage, importedFrom: SourceFile? = nil, firstFile: Bool = false) -> SourceFile? {
 
         var pathRelativeToInitialFile = path
 
@@ -79,7 +78,7 @@ public final class SourceFile {
             return nil
         }
 
-        if let existing = knownSourceFiles[fullpath] {
+        if !firstFile, let existing = compiler.files[fullpath] {
             return existing
         }
 
@@ -90,20 +89,18 @@ public final class SourceFile {
         let sourceFile = SourceFile(handle: handle, fullpath: fullpath, pathImportedAs: path, importedFrom: importedFrom, package: package)
         package.files.append(sourceFile)
 
-        let parsingJob = Job.new(fullpath: fullpath, operation: "Parsing", work: sourceFile.parseEmittingErrors)
-        let checkingJob = Job.new(fullpath: fullpath, operation: "Checking", work: sourceFile.checkEmittingErrors)
-        let generationJob = Job.new(fullpath: fullpath, operation: "Emitting", work: sourceFile.generateIntermediateRepresentation)
-
-        generationJob.addDependency(checkingJob)
-        checkingJob.addDependency(parsingJob)
-
-        sourceFile.parsingJob = parsingJob
-        sourceFile.checkingJob = checkingJob
-        sourceFile.generationJob = generationJob
-
-        knownSourceFiles[fullpath] = sourceFile
-
         return sourceFile
+    }
+
+    public static func new(fullpath: String, importPath: String, package: SourcePackage) -> SourceFile {
+        guard let handle = FileHandle(forReadingAtPath: fullpath) else {
+            fatalError("Failed to open file at path \(fullpath)")
+        }
+
+        let file = SourceFile(handle: handle, fullpath: fullpath, pathImportedAs: importPath, importedFrom: nil, package: package)
+        package.files.append(file)
+
+        return file
     }
 }
 
@@ -127,25 +124,22 @@ extension SourceFile {
                 guard let dependency = SourcePackage.new(relpath: path, importedFrom: self) else {
                     preconditionFailure()
                 }
+                i.importee = dependency
                 self.package.dependencies.append(dependency)
-                dependency.begin()
 
                 i.scope = dependency.scope
 
                 for file in dependency.files {
-                    importedFrom.checkingJob.addDependency(file.checkingJob)
-                    importedFrom.generationJob.addDependency(file.generationJob)
-                    threadPool.add(job: file.parsingJob)
+                    compiler.declare(file: file)
                 }
             } else {
                 guard let file = SourceFile.new(path: path, package: package, importedFrom: importedFrom) else {
                     preconditionFailure()
                 }
+                i.importee = file
                 i.scope = file.scope
 
-                importedFrom.checkingJob.addDependency(file.checkingJob)
-                importedFrom.generationJob.addDependency(file.generationJob)
-                threadPool.add(job: file.parsingJob)
+                compiler.declare(file: file)
             }
         case let call as Call where (call.fun as? Ident)?.name == "kai":
             guard call.args.count >= 1 else {
@@ -184,46 +178,47 @@ extension SourceFile {
         }
     }
 
+    /// - Returns: A Package which will later be fulfilled
     func addRemoteGithubPackage(user: String, repo: String, import i: Import, importedFrom: SourceFile) {
         let packageDirectory = dependencyPath + "/" + user + "/" + repo
 
+        let dependency = SourcePackage.newStubPackage(fullpath: packageDirectory, importPath: "git(\"github.com/\(user)/\(repo)", importedFrom: self)
+        i.importee = dependency
+        i.scope = dependency.scope
         i.resolvedName = pathToEntityName(packageDirectory)
         if !isDirectory(path: packageDirectory) {
 
-            let cloneJob = Job.new(fullpath: packageDirectory, operation: "Cloning", work: {
-
+            let cloneJob = Job.clone(fullpath: packageDirectory, work: {
                 print("Cloning \(user)/\(repo)...")
                 Git().clone(repo: "https://github.com/" + user + "/" + repo + ".git", to: packageDirectory)
 
-                guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
-                    preconditionFailure()
+                sourceFilesInDir(packageDirectory).forEach {
+                    // Adds to package
+                    let sourceFile = SourceFile.new(path: packageDirectory + "/" + $0, package: dependency)!
+                    sourceFile.scope = dependency.scope
                 }
                 self.package.dependencies.append(dependency)
-                dependency.begin()
 
-                i.scope = dependency.scope
+                compiler.declare(package: dependency)
             })
 
-            importedFrom.checkingJob.addDependency(cloneJob)
-
-            threadPool.mutex.lock()
-            threadPool.cloneQueue.append(cloneJob)
-            threadPool.mutex.unlock()
+            compiler.declare(job: cloneJob)
         } else { // Directory exists already
 
-            guard let dependency = SourcePackage.new(fullpath: packageDirectory, importedFrom: self) else {
-                preconditionFailure()
+            sourceFilesInDir(packageDirectory).forEach {
+                // Adds to package
+                let sourceFile = SourceFile.new(path: packageDirectory + "/" + $0, package: dependency)!
+                sourceFile.scope = dependency.scope
             }
             self.package.dependencies.append(dependency)
-            dependency.begin()
 
-            i.scope = dependency.scope
+            compiler.declare(package: dependency)
         }
     }
 }
 
 extension SourceFile {
-    public func parseEmittingErrors() {
+    public func parse() {
         assert(!hasBeenParsed)
         let startTime = gettime()
 
@@ -231,44 +226,40 @@ extension SourceFile {
         var parser = Parser(file: self)
         self.nodes = parser.parseFile()
         hasBeenParsed = true
-        emitErrors(for: self, at: stage)
-
-        if errors.count > 0 {
-            let index = parsingJob.dependents.index(of: checkingJob)!
-            parsingJob.dependents.remove(at: index)
-        }
 
         let endTime = gettime()
         let totalTime = endTime - startTime
-        timingMutex.lock()
         parseStageTiming += totalTime
-        timingMutex.unlock()
     }
 
-    public func checkEmittingErrors() {
+    public func collect() {
         assert(hasBeenParsed)
-        guard !hasBeenChecked else {
+        guard !hasBeenCollected else {
             return
         }
+        let startTime = gettime()
+
+        stage = "Collecting"
+        checker.collectFile()
+        hasBeenCollected = true
+        let endTime = gettime()
+        let totalTime = endTime - startTime
+        collectStageTiming += totalTime
+    }
+
+    public func check() {
+        assert(hasBeenCollected)
+        assert(!hasBeenChecked)
         let startTime = gettime()
 
         stage = "Checking"
         var checker = Checker(file: self)
         checker.checkFile()
         hasBeenChecked = true
-        emitErrors(for: self, at: stage)
-
-        if errors.count > 0 {
-            // do not go through with the next job
-            let index = checkingJob.dependents.index(of: generationJob)!
-            checkingJob.dependents.remove(at: index)
-        }
 
         let endTime = gettime()
         let totalTime = endTime - startTime
-        timingMutex.lock()
         checkStageTiming += totalTime
-        timingMutex.unlock()
     }
 
     public func generateIntermediateRepresentation() {
@@ -283,9 +274,7 @@ extension SourceFile {
 
         let endTime = gettime()
         let totalTime = endTime - startTime
-        timingMutex.lock()
         irgenStageTiming += totalTime
-        timingMutex.unlock()
     }
 }
 
@@ -327,6 +316,7 @@ extension SourceFile {
     }
 
     func addError(_ msg: String, _ pos: Pos) {
+        wasError = true
         let error = SourceError(pos: pos, msg: msg)
         errors.append(error)
     }
@@ -340,5 +330,15 @@ extension SourceFile {
         }
         existingNotes.append(message)
         notes[errors.endIndex - 1] = existingNotes
+    }
+}
+
+extension SourceFile: Hashable {
+    public var hashValue: Int {
+        return unsafeBitCast(self, to: Int.self)
+    }
+
+    public static func ==(lhs: SourceFile, rhs: SourceFile) -> Bool {
+        return lhs === rhs
     }
 }

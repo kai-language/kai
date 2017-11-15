@@ -187,7 +187,7 @@ extension IRGenerator {
             emit(topLevelStmt: node)
         }
 
-        if package.isInitialPackage && Options.instance.isTestMode {
+        if package.isInitialPackage && compiler.options.isTestMode {
             let callback = synthesizeSignalCallback()
             synthesizeTestMain(signalCallback: callback)
         }
@@ -266,12 +266,12 @@ extension IRGenerator {
     }
 
     mutating func emit(constantDecl decl: Declaration) {
-        if decl.isTest && !Options.instance.isTestMode {
+        if decl.isTest && !compiler.options.isTestMode {
             return
         }
 
         // ignore main while in test mode
-        if file.isInitialFile && decl.names.first?.name == "main" && Options.instance.isTestMode {
+        if file.isInitialFile && decl.names.first?.name == "main" && compiler.options.isTestMode {
             return
         }
 
