@@ -6,10 +6,11 @@ osx_image: xcode9
 before_install:
   - brew update
 install:
-  - brew install llvm@3.9
-  - export PATH="/usr/local/opt/llvm@3.9/bin:$PATH"
+  - brew install libgit2
+  - brew install llvm@4
+  - export PATH="/usr/local/opt/llvm@4/bin:$PATH"
   - echo $PATH
-  - ls /usr/local/opt/llvm@3.9/bin
+  - ls /usr/local/opt/llvm@4/bin
 script:
   - set -o pipefail
   - swift package fetch
