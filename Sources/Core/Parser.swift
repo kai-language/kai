@@ -32,6 +32,7 @@ struct Parser {
             nodes.append(node)
             consumeComments()
         }
+
         return nodes
     }
 }
@@ -1042,7 +1043,7 @@ extension Parser {
             }
             expectTerm()
 
-            let i = Import(directive: directive, alias: alias, path: path, importSymbolsIntoScope: importSymbolsIntoScope, exportSymbolsOutOfScope: true, resolvedName: nil, scope: nil)
+            let i = Import(directive: directive, alias: alias, path: path, importSymbolsIntoScope: importSymbolsIntoScope, exportSymbolsOutOfScope: true, resolvedName: nil, scope: nil, importee: nil)
             file.add(import: i, importedFrom: file)
             return i
         case .use?:
@@ -1059,7 +1060,7 @@ extension Parser {
             }
             expectTerm()
 
-            let i = Import(directive: directive, alias: alias, path: path, importSymbolsIntoScope: importSymbolsIntoScope, exportSymbolsOutOfScope: false, resolvedName: nil, scope: nil)
+            let i = Import(directive: directive, alias: alias, path: path, importSymbolsIntoScope: importSymbolsIntoScope, exportSymbolsOutOfScope: false, resolvedName: nil, scope: nil, importee: nil)
             file.add(import: i, importedFrom: file)
             return i
         case .library?:

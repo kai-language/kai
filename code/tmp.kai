@@ -1,0 +1,12 @@
+
+#import kai("posix")
+
+main :: fn() -> void {
+    defer posix.printf("Defer in main\n".raw)
+    Other()
+}
+
+Other :: fn() -> void {
+    defer posix.printf("Defer in Other\n".raw)
+}
+

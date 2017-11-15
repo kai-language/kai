@@ -38,7 +38,7 @@ public func ensureBuildDirectoriesExist() throws {
         try fm.createDirectory(atPath: buildDirectory, withIntermediateDirectories: false, attributes: nil)
     }
 
-    for package in knownSourcePackages.values.filter({ !$0.isInitialPackage }) {
+    for package in compiler.packages.values.filter({ !$0.isInitialPackage }) {
         var isDir: ObjCBool = false
         if fm.fileExists(atPath: dirname(path: package.emitPath), isDirectory: &isDir) {
             if !isDir.boolValue {
@@ -175,6 +175,30 @@ public func isDirectory(path: String) -> Bool {
         return false
     }
     return buf.st_mode & S_IFDIR != 0
+}
+
+extension String {
+    func commonPathPrefix(with rhs: String) -> String.Index {
+        let lhs = self
+        let count = lhs.count > rhs.count ? lhs.count : rhs.count
+
+        var lastPath = 0
+        for i in 0..<Int(count) {
+            let a = lhs[lhs.index(lhs.startIndex, offsetBy: i)]
+            let b = rhs[rhs.index(rhs.startIndex, offsetBy: i)]
+
+            guard a == b else {
+                if lastPath > 0 { lastPath += 1 } // don't include the final `/`
+                return lhs.index(lhs.startIndex, offsetBy: lastPath)
+            }
+
+            if a == "/" {
+                lastPath = i
+            }
+        }
+
+        return lhs.index(lhs.startIndex, offsetBy: count)
+    }
 }
 
 func removeFile(at path: String) throws {

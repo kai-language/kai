@@ -435,7 +435,8 @@ func copy(_ node: Import) -> Import {
         importSymbolsIntoScope: node.importSymbolsIntoScope,
         exportSymbolsOutOfScope: node.exportSymbolsOutOfScope,
         resolvedName: node.resolvedName,
-        scope: copy(node.scope)
+        scope: copy(node.scope),
+        importee: node.importee
     )
 }
 

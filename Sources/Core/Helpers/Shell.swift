@@ -21,6 +21,13 @@ func shell(path launchPath: String, args arguments: [String]) -> String {
     return result
 }
 
+
+var clangPath: String?
 func getClangPath() -> String {
-    return shell(path: "/usr/bin/which", args: ["clang"])
+    if let clangPath = clangPath {
+        return clangPath
+    }
+    let path = shell(path: "/usr/bin/which", args: ["clang"])
+    clangPath = path
+    return path
 }
