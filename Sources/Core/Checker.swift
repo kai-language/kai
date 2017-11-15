@@ -2073,7 +2073,7 @@ extension Checker {
             var indices: [Int] = []
             let name = selector.sel.name
 
-            for char in name.characters {
+            for char in name {
                 switch char {
                 case "x", "r":
                     indices.append(0)
