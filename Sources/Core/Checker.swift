@@ -192,7 +192,7 @@ extension Checker {
     }
 
     mutating func collect(decl: Declaration) {
-        if decl.isTest && !Options.instance.isTestMode {
+        if decl.isTest && !compiler.options.isTestMode {
             return
         }
 
@@ -249,7 +249,7 @@ extension Checker {
                 return
             }
 
-            if d.isTest && !Options.instance.isTestMode {
+            if d.isTest && !compiler.options.isTestMode {
                 return
             }
 

@@ -30,13 +30,13 @@ final class Job: Hashable, CustomStringConvertible {
     }
 
     func start() {
-        if Options.instance.flags.contains(.emitDebugTimes) {
+        if compiler.options.flags.contains(.emitDebugTimes) {
             startTime = gettime()
         }
     }
 
     func finish() {
-        if Options.instance.flags.contains(.emitDebugTimes) {
+        if compiler.options.flags.contains(.emitDebugTimes) {
             let endTime = gettime()
             debugTimings.append((name: kind.rawValue + " " + fullpath, duration: endTime - startTime))
         }

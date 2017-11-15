@@ -10,8 +10,6 @@ guard CommandLine.arguments.count > 1 else {
 startTime = gettime()
 
 let opts = Options(arguments: CommandLine.arguments[1...])
-// FIXME: Deprecate
-Options.instance = opts // Note: You must set this, it is used internally
 
 setupTargetMachine()
 
