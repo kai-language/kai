@@ -63,9 +63,6 @@ if opts.flags.contains(.emitTimes) {
     let endTime = gettime()
     let total = endTime - startTime
     print("Total time was \(total.humanReadableTime)")
-}
-
-if opts.flags.contains(.emitTimes) {
     print("Parsing took \(parseStageTiming.humanReadableTime)")
     print("Checking took \(checkStageTiming.humanReadableTime)")
     print("IRGeneration took \(irgenStageTiming.humanReadableTime)")
