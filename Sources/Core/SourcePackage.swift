@@ -58,7 +58,7 @@ public final class SourcePackage {
     lazy var passManager: FunctionPassManager = {
         let pm = FunctionPassManager(module: module)
 
-        let optLevel = Options.instance.optimizationLevel
+        let optLevel = compiler.options.optimizationLevel
         guard optLevel > 0 else { return pm }
 
         pm.add(.basicAliasAnalysis, .instructionCombining, .aggressiveDCE, .reassociate, .promoteMemoryToRegister)

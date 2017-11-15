@@ -77,7 +77,7 @@ extension Job {
             return existing
         }
 
-        let job = Job(fullpath: file.fullpath, kind: .parsing, work: file.parseEmittingErrors)
+        let job = Job(fullpath: file.fullpath, kind: .parsing, work: file.parse)
         // parsing jobs have a cost of 1 and are unblockable
         job.cost = 1
 
@@ -103,7 +103,7 @@ extension Job {
             return existing
         }
 
-        let job = Job(fullpath: file.fullpath, kind: .checking, work: file.checkEmittingErrors)
+        let job = Job(fullpath: file.fullpath, kind: .checking, work: file.check)
 
         job.cost = file.cost!
 

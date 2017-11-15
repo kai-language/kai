@@ -22,7 +22,7 @@ func rememberError(_ message: String, at position: Position) {
 }
  */
 
-public var wasErrors: Bool = false
+public var wasError: Bool = false
 
 struct SourceError {
     var pos: Pos
@@ -33,7 +33,6 @@ func emitErrors(for file: SourceFile, at stage: String) {
     guard !file.errors.isEmpty else {
         return
     }
-    wasErrors = true
 
     let filteredErrors = file.errors.enumerated().filter { !$0.element.msg.contains("< invalid >") }
     if filteredErrors.isEmpty {

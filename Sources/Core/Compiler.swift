@@ -6,10 +6,10 @@ public class Compiler {
     @available(*, deprecated)
     public static var instance: Compiler!
 
-    public init(invokePath: String, options: Options) {
-
+    /// - Note: Returns nil iff the invokePath is invalid
+    public init?(invokePath: String, options: Options) {
         guard let fullpath = realpath(relpath: invokePath) else {
-            fatalError() // FIXME: Send error upwards
+            return nil
         }
 
         self.initialPackage = SourcePackage(files: [], fullpath: fullpath, pathImportedAs: invokePath, importedFrom: nil)
@@ -42,6 +42,13 @@ public class Compiler {
             debugTimings.append((job.description, endTime - startTime))
         }
 
+        guard !wasError else {
+            for file in files.values {
+                emitErrors(for: file, at: "Parsing")
+            }
+            return
+        }
+
         // All cloning, parsing, and collecting has been completed.
         self.evaluateCheckingCosts()
 
@@ -61,6 +68,13 @@ public class Compiler {
             job.work()
             let endTime = gettime()
             debugTimings.append((job.description, endTime - startTime))
+        }
+
+        guard !wasError else {
+            for file in files.values {
+                emitErrors(for: file, at: "Parsing")
+            }
+            return
         }
 
         while let job = generationQueue.dequeue() {

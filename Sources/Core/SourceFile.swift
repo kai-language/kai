@@ -218,7 +218,7 @@ extension SourceFile {
 }
 
 extension SourceFile {
-    public func parseEmittingErrors() {
+    public func parse() {
         assert(!hasBeenParsed)
         let startTime = gettime()
 
@@ -226,7 +226,6 @@ extension SourceFile {
         var parser = Parser(file: self)
         self.nodes = parser.parseFile()
         hasBeenParsed = true
-        emitErrors(for: self, at: stage)
 
         let endTime = gettime()
         let totalTime = endTime - startTime
@@ -248,18 +247,15 @@ extension SourceFile {
         collectStageTiming += totalTime
     }
 
-    public func checkEmittingErrors() {
+    public func check() {
         assert(hasBeenCollected)
-        guard !hasBeenChecked else {
-            return
-        }
+        assert(!hasBeenChecked)
         let startTime = gettime()
 
         stage = "Checking"
         var checker = Checker(file: self)
         checker.checkFile()
         hasBeenChecked = true
-        emitErrors(for: self, at: stage)
 
         let endTime = gettime()
         let totalTime = endTime - startTime
@@ -320,6 +316,7 @@ extension SourceFile {
     }
 
     func addError(_ msg: String, _ pos: Pos) {
+        wasError = true
         let error = SourceError(pos: pos, msg: msg)
         errors.append(error)
     }

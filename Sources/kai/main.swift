@@ -16,10 +16,14 @@ setupTargetMachine()
 let filepath = CommandLine.arguments.last!
 
 compiler = Compiler(invokePath: filepath, options: opts)
+guard compiler != nil else {
+    print("ERROR: \(filepath) was invalid!")
+    exit(1)
+}
 
 compiler.run()
 
-if wasErrors {
+if wasError {
     exit(1)
 }
 
