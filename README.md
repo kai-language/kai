@@ -11,7 +11,21 @@ Have you built something cool? Feel free to share it here!
 * [KaiVM](https://github.com/BrettRToomey/KaiVM): A register-based VM and disassembler.
 
 ## Download and Install
-In the future, Kai will offer official binary distribution through brew and other package managers. See [building Kai](#building-kai).
+### MacOS
+You can download Kai through our homebrew tap.
+```
+brew tap kai-language/homebrew-tap
+brew update
+```
+
+Then install with
+
+```
+brew install kai
+```
+
+### Linux
+In the future, Kai will offer official binary distribution through apt and other package managers. See [building Kai](#building-kai).
 
 ##  Building Kai
 Before you can begin building Kai, you must install the following dependencies: 
