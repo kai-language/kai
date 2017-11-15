@@ -637,6 +637,7 @@ enum ty {
     }
 
     struct Invalid: Type {
+        var width: Int? { return 64 } // NOTE: width is set to prevent crashes
         static let instance = Invalid()
     }
 
@@ -644,7 +645,7 @@ enum ty {
         static let instance = CVarArg()
     }
 
-    struct File: Type {
+    class File: Type {
         let memberScope: Scope
 
         init(memberScope: Scope) {

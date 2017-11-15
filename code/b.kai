@@ -1,0 +1,9 @@
+#import "a.kai"
+
+bCallable :: fn() -> void {
+    a.aFunc()
+}
+
+bFunc :: fn() -> void {
+    a.aCallable()
+}

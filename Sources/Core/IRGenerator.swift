@@ -89,6 +89,13 @@ struct IRGenerator {
             }
         }
 
+        if let fType = entity.type as? ty.Function {
+            if let existing = module.function(named: entity.name) {
+                return existing
+            }
+            return b.addFunction(entity.name, type: canonicalize(fType).pointee as! FunctionType)
+        }
+
         if let constant = entity.constant {
             switch constant {
             case let c as UInt64:
@@ -282,7 +289,7 @@ extension IRGenerator {
 
             for entity in decl.entities where entity !== Entity.anonymous {
                 if let fn = entity.type as? ty.Function {
-                    let function = b.addFunction(symbol(for: entity), type: canonicalizeSignature(fn))
+                    let function = addOrReuseFunc(symbol(for: entity), type: canonicalizeSignature(fn))
                     switch decl.callconv {
                     case nil:
                         break
@@ -393,7 +400,7 @@ extension IRGenerator {
             }
 
             if value is FuncLit, let type = entity.type as? ty.Function, !type.isPolymorphic {
-                entity.value = b.addFunction(symbol(for: entity), type: canonicalizeSignature(type))
+                entity.value = addOrReuseFunc(symbol(for: entity), type: canonicalizeSignature(type))
             }
 
             var ir = emit(expr: value, entity: entity)
@@ -523,7 +530,7 @@ extension IRGenerator {
 
     mutating func emit(statement stmt: Stmt) {
         switch stmt {
-        case is Empty: return
+        case is Empty, is Using: return
         case let ret as Return:
             emit(return: ret)
         case let d as Defer:
@@ -1220,7 +1227,8 @@ extension IRGenerator {
             let fnType = canonicalizeSignature(fn.type as! ty.Function)
 
             // NOTE: The entity.value should be set already for recursion
-            let function = (entity?.value as? Function) ?? b.addFunction(specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
+            let function = (entity?.value as? Function) ?? addOrReuseFunc(specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
+
             let prevBlock = b.insertBlock
 
             let isVoid = fnType.returnType is VoidType
@@ -1378,7 +1386,7 @@ extension IRGenerator {
             aggregate = emit(expr: sub.rec, returnAddress: true)
             indicies = [i64.zero(), index]
 
-        case is ty.Slice:
+        case is ty.Slice, is ty.KaiString:
             let structPtr = emit(expr: sub.rec, returnAddress: true)
             let arrayPtr = b.buildStructGEP(structPtr, index: 0)
             aggregate = b.buildLoad(arrayPtr)
@@ -1813,5 +1821,13 @@ extension IRGenerator {
 
     mutating func canonicalize(_ float: ty.UntypedFloatingPoint) -> FloatType {
         return FloatType(kind: .double, in: module.context)
+    }
+
+    func addOrReuseFunc(_ name: String, type: FunctionType) -> Function {
+        if let existing = module.function(named: name) {
+            return existing
+        }
+
+        return b.addFunction(name, type: type)
     }
 }

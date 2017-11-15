@@ -24,7 +24,7 @@ final class Scope {
 
     /// - Note: Returns previous
     func insert(_ entity: Entity, scopeOwnsEntity: Bool = true) -> Entity? {
-        if let existing = members[entity.name] {
+        if let existing = members[entity.name], existing.ident.start != entity.ident.start  {
             return existing
         }
 

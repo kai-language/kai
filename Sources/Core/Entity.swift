@@ -1,6 +1,6 @@
 import LLVM
 
-class Entity: CustomStringConvertible {
+final class Entity: CustomStringConvertible {
     var ident: Ident
     var type: Type?
     var flags: Flag = .none

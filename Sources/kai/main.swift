@@ -14,28 +14,26 @@ Options.instance = opts // Note: You must set this, it is used internally
 
 setupTargetMachine()
 
-threadPool = ThreadPool(nThreads: Options.instance.jobs)
-
 let filepath = CommandLine.arguments.last!
 guard let package = SourcePackage.makeInitial(for: filepath) else {
     print("ERROR: No such file or directory '\(filepath)'")
     exit(1)
 }
 
-
-package.begin()
-
-threadPool.waitUntilDone()
-
+package.parse()
 if wasErrors {
     exit(1)
 }
+package.check()
+if wasErrors {
+    exit(1)
+}
+package.codegen()
 
 package.validateIR()
 
 setupBuildDirectories()
 if opts.flags.intersection([.emitIr, .emitBitcode, .emitAssembly]).isEmpty {
-
     package.emitObjects()
     package.linkObjects()
     if !opts.flags.contains(.noCleanup) {

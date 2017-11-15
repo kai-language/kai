@@ -97,8 +97,6 @@ public final class SourcePackage {
             // Adds to package
             let sourceFile = SourceFile.new(path: fullpath + "/" + $0, package: package)!
             sourceFile.scope = package.scope
-            importedFrom?.checkingJob.addDependency(sourceFile.checkingJob)
-            importedFrom?.generationJob.addDependency(sourceFile.generationJob)
         }
 
         knownSourcePackages[fullpath] = package
@@ -134,12 +132,62 @@ public final class SourcePackage {
     }
 }
 
-extension SourcePackage {
-
-    public func begin() {
+extension SourcePackage: Dependency {
+    public func collectFile() {
         for file in files {
-            threadPool.add(job: file.parsingJob)
+            file.collectFile()
         }
+    }
+
+    public func setupChecker() {
+        for file in files {
+            file.setupChecker()
+        }
+    }
+
+    public func checkFile() -> Bool {
+        var madeProgress = false
+        for file in files {
+            madeProgress = madeProgress || file.checkFile()
+        }
+
+        return madeProgress
+    }
+
+    public func parseEmittingErrors() {
+        for file in files {
+            file.parseEmittingErrors()
+        }
+    }
+}
+
+extension SourcePackage {
+    public func parse() {
+        for file in files {
+            file.parseEmittingErrors()
+        }
+    }
+
+    public func check() {
+        for file in files {
+            file.checkEmittingErrors()
+        }
+    }
+
+    public func codegen() {
+        for file in files {
+            file.generateIntermediateRepresentation()
+        }
+
+        for dep in dependencies {
+            dep.codegen()
+        }
+    }
+
+    @available(*, deprecated, message: "Will be replaced by the new build system")
+    public func begin() {
+        parse()
+        check()
     }
 
     public var emitPath: String {

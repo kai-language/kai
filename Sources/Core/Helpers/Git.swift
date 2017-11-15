@@ -1,4 +1,8 @@
-import CLibGit2
+#if os(Linux)
+    import CLibGit2Linux
+#else
+    import CLibGit2
+#endif
 
 // sourcery:noinit
 class Progress {
