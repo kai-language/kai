@@ -1376,7 +1376,7 @@ extension IRGenerator {
             aggregate = emit(expr: sub.rec, returnAddress: true)
             indicies = [i64.zero(), index]
 
-        case is ty.Slice, is ty.KaiString:
+        case is ty.Slice:
             let structPtr = emit(expr: sub.rec, returnAddress: true)
             let arrayPtr = b.buildStructGEP(structPtr, index: 0)
             aggregate = b.buildLoad(arrayPtr)
@@ -1416,7 +1416,7 @@ extension IRGenerator {
             len = b.buildSub(hi!, lo!)
             cap = b.buildSub(i64.constant(type.length), lo!)
 
-        case is ty.Slice, is ty.KaiString:
+        case is ty.Slice:
             let rec = emit(expr: slice.rec, returnAddress: true)
             let prevLen = b.buildLoad(b.buildStructGEP(rec, index: 1))
             let prevCap = b.buildLoad(b.buildStructGEP(rec, index: 2))
@@ -1590,8 +1590,6 @@ extension IRGenerator {
             return canonicalize(type)
         case let type as ty.FloatingPoint:
             return canonicalize(type)
-        case let type as ty.KaiString:
-            return canonicalize(type)
         case let type as ty.Pointer:
             return canonicalize(type)
         case let type as ty.Array:
@@ -1653,18 +1651,6 @@ extension IRGenerator {
         case 128: return FloatType(kind: .fp128, in: module.context)
         default: fatalError()
         }
-    }
-
-    mutating func canonicalize(_ string: ty.KaiString) -> LLVM.StructType {
-        if let existing = module.type(named: ".string") {
-            return existing as! LLVM.StructType
-        }
-        let cStringType = LLVM.PointerType(pointee: IntType(width: 8, in: module.context))
-        // Memory size is in bytes but LLVM types are in bits
-        let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8, in: module.context)
-        let irType = b.createStruct(name: ".string")
-        irType.setBody([cStringType, systemWidthType, systemWidthType])
-        return irType
     }
 
     mutating func canonicalize(_ pointer: ty.Pointer) -> LLVM.PointerType {

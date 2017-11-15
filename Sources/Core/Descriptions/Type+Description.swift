@@ -23,12 +23,6 @@ extension ty.FloatingPoint {
     }
 }
 
-extension ty.KaiString {
-    var description: String {
-        return "string"
-    }
-}
-
 extension ty.Pointer {
     var description: String {
         return "*" + pointeeType.description

@@ -34,7 +34,6 @@ func == (lhs: Type, rhs: Type) -> Bool {
          (is ty.Anyy, is ty.Anyy),
          (is ty.CVarArg, is ty.CVarArg),
          (is ty.Boolean, is ty.Boolean),
-         (is ty.KaiString, is ty.KaiString),
          (is ty.UntypedInteger, is ty.UntypedInteger),
          (is ty.UntypedFloatingPoint, is ty.UntypedFloatingPoint):
         return true
@@ -140,7 +139,6 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
          is ty.CVarArg,
          is ty.FloatingPoint,
          is ty.Integer,
-         is ty.KaiString,
          is ty.Void:
         return type
 
@@ -381,10 +379,6 @@ enum ty {
 
     struct FloatingPoint: Type, NamableType {
         var width: Int?
-    }
-
-    struct KaiString: Type, NamableType {
-        var width: Int? { return 3 * platformPointerWidth } // pointer, length, capacity
     }
 
     struct Pointer: Type, NamableType {
@@ -681,10 +675,6 @@ func isInteger(_ type: Type) -> Bool {
 func isFloatingPoint(_ type: Type) -> Bool {
     let type = baseType(type)
     return type is ty.FloatingPoint || type is ty.UntypedFloatingPoint
-}
-
-func isKaiString(_ type: Type) -> Bool {
-    return baseType(type) is ty.KaiString
 }
 
 func isPointer(_ type: Type) -> Bool {

@@ -866,9 +866,6 @@ extension Checker {
         case let slice as ty.Slice:
             elementType = slice.elementType
             forIn.checked = .slice
-        case is ty.KaiString:
-            elementType = ty.u8
-            forIn.checked = .slice
         default:
             preconditionFailure()
         }
@@ -2106,24 +2103,6 @@ extension Checker {
 
             return Operand(mode: .assignable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
 
-        case is ty.KaiString:
-            switch selector.sel.name {
-            case "raw":
-                selector.checked = .array(.raw)
-                selector.type = ty.Pointer(pointeeType: ty.u8)
-            case "len":
-                selector.checked = .array(.length)
-                selector.type = ty.u64
-            case "cap":
-                selector.checked = .array(.capacity)
-                selector.type = ty.u64
-            default:
-                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
-                selector.checked = .invalid
-                selector.type = ty.invalid
-            }
-            return Operand(mode: .addressable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
-
         case let union as ty.Union:
             guard let casé = union.cases[selector.sel.name] else {
                 reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
@@ -2208,10 +2187,6 @@ extension Checker {
             sub.type = pointer.pointeeType
             type = pointer.pointeeType
 
-        case is ty.KaiString:
-            sub.type = ty.u8
-            type = ty.u8
-
         default:
             if !(receiver.type is ty.Invalid) {
                 reportError("Unable to subscript \(receiver)", at: sub.start)
@@ -2251,10 +2226,6 @@ extension Checker {
 
         case let x as ty.Slice:
             slice.type = x
-            // TODO: Check for invalid hi & lo's when constant
-
-        case is ty.KaiString:
-            slice.type = ty.Slice(elementType: ty.u8)
             // TODO: Check for invalid hi & lo's when constant
 
         default:
@@ -2703,7 +2674,7 @@ extension Array where Element == FunctionSpecialization {
 
 func canSequence(_ type: Type) -> Bool {
     switch type {
-    case is ty.Array, is ty.Slice, is ty.KaiString:
+    case is ty.Array, is ty.Slice:
         return true
     default:
         return false

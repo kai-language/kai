@@ -26,7 +26,7 @@ struct BuiltinType {
 
     static let bool = BuiltinType(entity:   .bool,   type: ty.Boolean())
     static let rawptr = BuiltinType(entity: .rawptr, type: ty.Pointer(pointeeType: ty.u8))
-    static let string = BuiltinType(entity: .string, type: ty.KaiString())
+    static let string = BuiltinType(entity: .string, type: ty.Slice(elementType: ty.u8))
 
     static let f32 = BuiltinType(entity: .f32, type: ty.FloatingPoint(width: 32))
     static let f64 = BuiltinType(entity: .f64, type: ty.FloatingPoint(width: 64))
