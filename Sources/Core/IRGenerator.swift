@@ -106,6 +106,8 @@ struct IRGenerator {
         if entity.value == nil {
             let prevContext = context
             assert(entity.owningScope.isFile, "Assumption is that entities without existing values are only possible at file scope")
+
+            // Use the context for the file itself
             context = entity.file!.irContext
             emit(decl: entity.declaration!)
             context = prevContext
@@ -179,17 +181,14 @@ struct IRGenerator {
 extension IRGenerator {
 
     mutating func emitFile() {
-        if !package.isInitialPackage {
-            pushContext(scopeName: package.moduleName)
-        }
+        // NOTE: Mangle prefix is setup lazily in SourceFile
+        //  This is done so that the prefix is established for order independence
 
         for node in file.nodes {
             emit(topLevelStmt: node)
         }
 
-        if !package.isInitialPackage {
-            popContext()
-        } else if Options.instance.isTestMode {
+        if package.isInitialPackage && Options.instance.isTestMode {
             let callback = synthesizeSignalCallback()
             synthesizeTestMain(signalCallback: callback)
         }

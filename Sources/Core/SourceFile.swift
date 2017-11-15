@@ -44,7 +44,10 @@ public final class SourceFile {
 
     // Set in IRGen lazily
     lazy var irContext: IRGenerator.Context = {
-        return IRGenerator.Context(mangledNamePrefix: "", deferBlocks: [], returnBlock: nil, previous: nil)
+        let packagePrefix = package.isInitialPackage ? "" : package.moduleName
+        let filePrefix = isInitialFile ? "" : dropExtension(path: pathFirstImportedAs)
+        
+        return IRGenerator.Context(mangledNamePrefix: packagePrefix + filePrefix, deferBlocks: [], returnBlock: nil, previous: nil)
     }()
 
     init(handle: FileHandle, fullpath: String, pathImportedAs: String, importedFrom: SourceFile?, package: SourcePackage) {
