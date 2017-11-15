@@ -150,7 +150,19 @@ extension SourceFile {
                 addError("Expected string literal representing github user/repo", call.args[0].start)
                 return
             }
+            #if DEVELOPER
+            if let basedir = ProcessInfo.processInfo.environment["KAISTDLIB"] {
+                let dependency = SourcePackage.new(fullpath: basedir + repo, importedFrom: importedFrom)!
+                i.importee = dependency
+                i.scope = dependency.scope
+                i.resolvedName = repo
+                compiler.declare(package: dependency)
+            } else {
+                addRemoteGithubPackage(user: "kai-language", repo: repo, import: i, importedFrom: importedFrom)
+            }
+            #else
             addRemoteGithubPackage(user: "kai-language", repo: repo, import: i, importedFrom: importedFrom)
+            #endif
 
         case let call as Call where (call.fun as? Ident)?.name == "github":
             guard call.args.count >= 1 else {

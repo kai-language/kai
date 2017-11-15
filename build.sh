@@ -33,7 +33,7 @@ distribute)
 ;;
 *)
     MACOSX_DEPLOYMENT_TARGET=10.12
-    swift build -Xswiftc -DDEBUG -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx10.12"
+    swift build -Xswiftc -DDEBUG -Xswiftc -DDEVELOPER -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx10.12"
     cp .build/debug/kai /usr/local/bin/
 esac
 
