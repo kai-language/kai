@@ -2011,6 +2011,11 @@ extension Checker {
 
             dependencies.insert(member)
 
+            if member.type == nil {
+                check(topLevelStmt: member.declaration!)
+                assert(member.isChecked && member.type != nil)
+            }
+
             selector.checked = .file(member)
             if member.isConstant {
                 selector.constant = member.constant
