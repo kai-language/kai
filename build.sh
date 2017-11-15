@@ -23,7 +23,7 @@ distribute)
     mv .tmp ./Sources/Core/Options.swift;
 
     swift build -c release -Xswiftc -static-stdlib -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx10.12";
-
+    install_name_tool -change /usr/local/opt/llvm/lib/libc++.1.dylib /usr/lib/libc++.1.dylib .build/release/kai
     PACKAGE_NAME="kai-$TAG"
     mkdir -p ./$PACKAGE_NAME
     cp .build/release/kai ./$PACKAGE_NAME/kai
