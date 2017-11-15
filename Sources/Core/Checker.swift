@@ -2793,8 +2793,7 @@ func pathToEntityName(_ path: String) -> String? {
             return false
         }
 
-        return str.unicodeScalars.dropFirst()
-            .contains(where: { identChars.contains($0) || digits.contains($0) })
+        return str.unicodeScalars.reduce(true, { $0 && (identChars.contains($1) || digits.contains($1)) })
     }
 
     let filename = String(path
