@@ -157,6 +157,7 @@ extension SourceFile {
                 i.scope = dependency.scope
                 i.resolvedName = repo
                 compiler.declare(package: dependency)
+                self.package.dependencies.append(dependency)
             } else {
                 addRemoteGithubPackage(user: "kai-language", repo: repo, import: i, importedFrom: importedFrom)
             }
