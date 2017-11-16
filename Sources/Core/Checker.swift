@@ -1918,11 +1918,11 @@ extension Checker {
                 type = ty.Vector(size: vec.size, elementType: type)
             }
         case .eql, .neq:
-            guard (isNumber(lhsType) || isBoolean(lhsType) || isVector(lhsType)) && (isNumber(rhsType) || isBoolean(rhsType) || isVector(rhsType)) || binary.isPointerArithmetic else {
+            guard (isNumber(lhsType) || isBoolean(lhsType) || isVector(lhsType) || isEnum(lhsType)) && (isNumber(rhsType) || isBoolean(rhsType) || isVector(rhsType) || isEnum(rhsType)) || binary.isPointerArithmetic else {
                 reportError("Cannot compare '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
                 return Operand.invalid
             }
-            op = (isIntegerOp || isBoolean(lhsType) || isBoolean(rhsType)) ? .icmp : .fcmp
+            op = (isIntegerOp || isBoolean(lhsType) || isBoolean(rhsType) || isEnum(lhsType)) ? .icmp : .fcmp
             type = ty.bool
             if let vec = lhsType as? ty.Vector {
                 type = ty.Vector(size: vec.size, elementType: type)
