@@ -2390,10 +2390,14 @@ extension Checker {
 
         let exprType = operand.type!
 
+        /*
+        // NOTE: This is disabled because we would often cast in polymorphic functions and get the same type cast error.
+        //  because we throw away their polymorphic type status we can't just use that to check, we should revisit this sometime.
         if exprType == targetType {
             reportError("Unnecissary cast \(operand) to same type", at: cast.start)
             return Operand(mode: .computed, expr: cast, type: targetType, constant: nil, dependencies: dependencies)
         }
+        */
 
         switch cast.kind {
         case .cast:
