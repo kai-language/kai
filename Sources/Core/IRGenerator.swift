@@ -5,21 +5,35 @@ import LLVM
 struct IRGenerator {
 
     var package: SourcePackage
-    var file: SourceFile
+    var topLevelNodes: [TopLevelStmt]
+
+    /// - Note: Used for the generative features only (builtins & specializations)
+    var specializations: [FunctionSpecialization] = []
+
+    let isInvokationFile: Bool
+    let isModuleDependency: Bool
+
     var context: Context
 
-    var passManager: FunctionPassManager
+    var passManager: FunctionPassManager { return package.passManager }
+    var module: Module { return package.module }
+    var b: IRBuilder { return package.builder }
 
-    var module: Module
-    var b: IRBuilder
+    init(topLevelNodes: [TopLevelStmt], package: SourcePackage, context: Context, isInvokationFile: Bool, isModuleDependency: Bool) {
+        self.topLevelNodes = topLevelNodes
+        self.package = package
+        self.context = context
+        self.isModuleDependency = isModuleDependency
+        self.isInvokationFile = isInvokationFile
+    }
 
-    init(file: SourceFile) {
-        self.package = file.package
-        self.file = file
-        self.context = file.irContext
-        self.module = package.module
-        self.b = package.builder
-        self.passManager = package.passManager
+    init(specializations: [FunctionSpecialization], package: SourcePackage) {
+        self.topLevelNodes = []
+        self.specializations = specializations
+        self.package = package
+        self.context = Context(mangledNamePrefix: "", deferBlocks: [], returnBlock: nil, previous: nil)
+        self.isModuleDependency = true
+        self.isInvokationFile = false
     }
 
     // sourcery:noinit
@@ -179,15 +193,15 @@ struct IRGenerator {
 
 extension IRGenerator {
 
-    mutating func emitFile() {
+    mutating func emit() {
         // NOTE: Mangle prefix is setup lazily in SourceFile
         //  This is done so that the prefix is established for order independence
 
-        for node in file.nodes {
+        for node in topLevelNodes {
             emit(topLevelStmt: node)
         }
 
-        if package.isInitialPackage && compiler.options.isTestMode {
+        if !isModuleDependency && compiler.options.isTestMode {
             let callback = synthesizeSignalCallback()
             synthesizeTestMain(signalCallback: callback)
         }
@@ -205,7 +219,7 @@ extension IRGenerator {
         // capture 'SIGSEGV'
         _ = b.buildCall(signal, args: [i32.constant(11), signalCallback])
 
-        for node in file.nodes {
+        for node in topLevelNodes {
             guard let decl = node as? Declaration, decl.isTest else {
                 continue
             }
@@ -271,7 +285,7 @@ extension IRGenerator {
         }
 
         // ignore main while in test mode
-        if file.isInitialFile && decl.names.first?.name == "main" && compiler.options.isTestMode {
+        if isInvokationFile && decl.names.first?.name == "main" && compiler.options.isTestMode {
             return
         }
 
@@ -642,11 +656,10 @@ extension IRGenerator {
     }
 
     mutating func emit(if iff: If) {
-        let ln = file.position(for: iff.start).line
 
-        let thenBlock = b.currentFunction!.appendBasicBlock(named: "if.then.ln\(ln)", in: module.context)
-        let elseBlock = iff.els.map({ _ in b.currentFunction!.appendBasicBlock(named: "if.else.ln.\(ln)", in: module.context) })
-        let postBlock = b.currentFunction!.appendBasicBlock(named: "if.post.ln.\(ln)", in: module.context)
+        let thenBlock = b.currentFunction!.appendBasicBlock(named: "if.then", in: module.context)
+        let elseBlock = iff.els.map({ _ in b.currentFunction!.appendBasicBlock(named: "if.else", in: module.context) })
+        let postBlock = b.currentFunction!.appendBasicBlock(named: "if.post", in: module.context)
 
         let cond = emit(expr: iff.cond)
         b.buildCondBr(condition: cond, then: thenBlock, else: elseBlock ?? postBlock)
@@ -826,12 +839,11 @@ extension IRGenerator {
         if sw.match == nil {
             fatalError("Boolean Switch not yet implemented for emission")
         }
-        let ln = file.position(for: sw.start).line
 
         let curFunction = b.currentFunction!
         let curBlock = b.insertBlock!
 
-        let postBlock = curFunction.appendBasicBlock(named: "switch.post.ln.\(ln)", in: module.context)
+        let postBlock = curFunction.appendBasicBlock(named: "switch.post", in: module.context)
         defer {
             postBlock.moveAfter(curFunction.lastBlock!)
         }
@@ -839,12 +851,11 @@ extension IRGenerator {
 
         var thenBlocks: [BasicBlock] = []
         for c in sw.cases {
-            let ln = file.position(for: c.start).line
             if c.match != nil {
-                let thenBlock = curFunction.appendBasicBlock(named: "switch.then.ln.\(ln)", in: module.context)
+                let thenBlock = curFunction.appendBasicBlock(named: "switch.then", in: module.context)
                 thenBlocks.append(thenBlock)
             } else {
-                let thenBlock = curFunction.appendBasicBlock(named: "switch.default.ln.\(ln)", in: module.context)
+                let thenBlock = curFunction.appendBasicBlock(named: "switch.default", in: module.context)
                 thenBlocks.append(thenBlock)
             }
         }

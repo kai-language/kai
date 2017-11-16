@@ -259,8 +259,14 @@ extension SourceFile {
     public func generateIntermediateRepresentation() {
         let startTime = gettime()
 
-        var irGenerator = IRGenerator(file: self)
-        irGenerator.emitFile()
+        var irGenerator = IRGenerator(
+            topLevelNodes: nodes,
+            package: package,
+            context: irContext,
+            isInvokationFile: isInitialFile,
+            isModuleDependency: !package.isInitialPackage
+        )
+        irGenerator.emit()
 
         let endTime = gettime()
         let totalTime = endTime - startTime
