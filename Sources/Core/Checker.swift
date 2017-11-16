@@ -2562,7 +2562,8 @@ extension Checker {
         }
 
         // TODO: How do we handle invalid types
-        let type = check(funcType: generated.explicitType).type.lower() as! ty.Function
+        var type = check(funcType: generated.explicitType).type.lower() as! ty.Function
+        type = lowerSpecializedPolymorphics(type) as! ty.Function
 
         let specialization = FunctionSpecialization(file: originalFile, specializedTypes: specializationTypes, strippedType: type, generatedFunctionNode: generated, mangledName: nil, llvm: nil)
         specializations.append(specialization)

@@ -168,10 +168,9 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
         // TODO: do we permit anonymous polymorphic complex types???
         return type
 
-    case let type as ty.Function:
-        // FIXME: Function types should be polymorphicable too
-//        assert(type.params.reduce(true, { $0 && isPolymorphic($1) }))
-//        assert(type.returnType.types.reduce(true, { $0 && isPolymorphic($1) }))
+    case var type as ty.Function:
+        type.params = type.params.map(lowerSpecializedPolymorphics)
+        // No polymorphic return types.
         return type
 
     case let type as ty.Named:
