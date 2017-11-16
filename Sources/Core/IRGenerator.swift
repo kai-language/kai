@@ -1337,7 +1337,10 @@ extension IRGenerator {
         case .staticLength(let length):
             return i64.constant(length)
         case .scalar(let index):
-            let vector = emit(expr: sel.rec, returnAddress: returnAddress)
+            var vector = emit(expr: sel.rec, returnAddress: returnAddress)
+            for _ in 0 ..< sel.levelsOfIndirection {
+                vector = b.buildLoad(vector)
+            }
 
             if returnAddress {
                 return b.buildGEP(vector, indices: [i64.constant(0), i64.constant(index)])
@@ -1345,8 +1348,12 @@ extension IRGenerator {
 
             return b.buildExtractElement(vector: vector, index: index)
         case .swizzle(let indices):
-            let vector = emit(expr: sel.rec)
-            let recType = canonicalize(sel.rec.type)
+            var vector = emit(expr: sel.rec)
+            for _ in 0 ..< sel.levelsOfIndirection {
+                vector = b.buildLoad(vector)
+            }
+
+            let recType = canonicalize(findConcreteType(sel.rec.type))
             let maskType = canonicalize(sel.type)
             var shuffleMask = maskType.undef()
             for (i, index) in indices.enumerated() {

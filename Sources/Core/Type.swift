@@ -103,6 +103,15 @@ func findPolymorphic(_ type: Type) -> ty.Polymorphic? {
     }
 }
 
+/// Unwraps a pointer (or nested pointers) until it finds a concrete type.
+func findConcreteType(_ type: Type) -> Type {
+    guard let ptr = type as? ty.Pointer else {
+        return type
+    }
+
+    return findConcreteType(ptr.pointeeType)
+}
+
 /// Recursively searches polyType for a ty.Polymorphic to pair
 ///  with a matching argType. If found the ty.Polymorphic has
 ///  its specialization.val set for future use.
