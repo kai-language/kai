@@ -25,12 +25,6 @@ public final class SourceFile {
     var handle: FileHandle
     var fullpath: String
 
-    var stage: String = ""
-    var hasBeenParsed: Bool = false
-    var hasBeenCollected: Bool = false
-    var hasBeenChecked: Bool = false
-    var hasBeenGenerated: Bool = false
-
     var pathFirstImportedAs: String
     var imports: [Import] = []
 
@@ -232,13 +226,10 @@ extension SourceFile {
 
 extension SourceFile {
     public func parse() {
-        assert(!hasBeenParsed)
         let startTime = gettime()
 
-        stage = "Parsing"
         var parser = Parser(file: self)
         self.nodes = parser.parseFile()
-        hasBeenParsed = true
 
         let endTime = gettime()
         let totalTime = endTime - startTime
@@ -246,29 +237,19 @@ extension SourceFile {
     }
 
     public func collect() {
-        assert(hasBeenParsed)
-        guard !hasBeenCollected else {
-            return
-        }
         let startTime = gettime()
 
-        stage = "Collecting"
         checker.collectFile()
-        hasBeenCollected = true
         let endTime = gettime()
         let totalTime = endTime - startTime
         collectStageTiming += totalTime
     }
 
     public func check() {
-        assert(hasBeenCollected)
-        assert(!hasBeenChecked)
         let startTime = gettime()
 
-        stage = "Checking"
         var checker = Checker(file: self)
         checker.checkFile()
-        hasBeenChecked = true
 
         let endTime = gettime()
         let totalTime = endTime - startTime
@@ -276,14 +257,10 @@ extension SourceFile {
     }
 
     public func generateIntermediateRepresentation() {
-        assert(hasBeenChecked)
-        assert(!hasBeenGenerated)
         let startTime = gettime()
 
-        stage = "IRGeneration"
         var irGenerator = IRGenerator(file: self)
         irGenerator.emitFile()
-        hasBeenGenerated = true
 
         let endTime = gettime()
         let totalTime = endTime - startTime

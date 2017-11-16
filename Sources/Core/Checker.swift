@@ -2633,7 +2633,7 @@ extension Checker {
             file.attachNote("Called from: " + file.position(for: currentSpecializationCall.start).description)
         }
         #if DEBUG
-            file.attachNote("In \(file.stage), \(function), line \(line)")
+            file.attachNote("During Checking, \(function), line \(line)")
             file.attachNote("At an offset of \(file.offset(pos: pos)) in the file")
         #endif
     }

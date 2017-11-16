@@ -3,9 +3,6 @@ public var compiler: Compiler!
 
 public class Compiler {
 
-    @available(*, deprecated)
-    public static var instance: Compiler!
-
     /// - Note: Returns nil iff the invokePath is invalid
     public init?(invokePath: String, options: Options) {
         guard let fullpath = realpath(relpath: invokePath) else {

@@ -23,11 +23,6 @@ public final class SourcePackage {
     var filenoMutex = Mutex()
     var fileno: UInt32 = 1
 
-    var hasBeenChecked: Bool {
-        return files.reduce(true, { $0 && $1.hasBeenChecked }) && dependencies.reduce(true, { $0 && $1.hasBeenChecked })
-    }
-    var hasBeenGenerated: Bool = false
-
     public var pathFirstImportedAs: String
     public var files: [SourceFile]
 

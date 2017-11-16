@@ -1453,7 +1453,7 @@ extension Parser {
     func reportError(_ message: String, at pos: Pos, function: StaticString = #function, line: UInt = #line) {
         file.addError(message, pos)
         #if DEBUG
-            file.attachNote("In \(file.stage), \(function), line \(line)")
+            file.attachNote("During Parsing, \(function), line \(line)")
             file.attachNote("At an offset of \(file.offset(pos: pos)) in the file")
         #endif
     }
