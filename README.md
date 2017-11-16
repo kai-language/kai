@@ -1,4 +1,4 @@
-  # Kai Programming Language
+# Kai Programming Language
 An expressive low level programming language.
 
 ## Documentation
@@ -12,16 +12,9 @@ Have you built something cool? Feel free to share it here!
 
 ## Download and Install
 ### MacOS
-You can download Kai through our homebrew tap.
+You can download and install Kai through our homebrew tap.
 ```
-brew tap kai-language/homebrew-tap
-brew update
-```
-
-Then install with
-
-```
-brew install kai
+brew install kai-language/tap/kai
 ```
 
 ### Linux
