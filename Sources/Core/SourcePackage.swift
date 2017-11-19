@@ -260,7 +260,13 @@ extension SourcePackage {
         let clangPath = getClangPath()
 
         let objFilePaths = compiler.packages.values.map({ $0.objpath })
-        var args = ["-o", moduleName] + objFilePaths
+        var args = ["-o", compiler.options.outputName ?? moduleName] + objFilePaths
+
+        if compiler.options.flags.contains(.shared) {
+            args.append("-shared")
+        } else if compiler.options.flags.contains(.dynamicLib) {
+            args.append("-dynamiclib")
+        }
 
         let allLinkedLibraries = compiler.packages.values.reduce(Set(), { $0.union($1.linkedLibraries) })
         for library in allLinkedLibraries {

@@ -9,7 +9,7 @@ public struct Options {
 
     public var flags: Flags = []
     public var jobs: Int = 1
-
+    public var outputName: String?
     public var optimizationLevel: Int = 0
 
     public init(arguments: ArraySlice<String>) {
@@ -60,6 +60,17 @@ public struct Options {
                 flags.insert(.emitAssembly)
             case "-test":
                 flags.insert(.testMode)
+            case "-shared":
+                flags.insert(.shared)
+            case "-dynamiclib":
+                flags.insert(.dynamicLib)
+            case "-o":
+                guard let v = val else {
+                    print("ERROR: -o expects an output name")
+                    exit(1)
+                }
+                outputName = v
+                skip = true
             case "-jobs":
                 guard let v = val, let j = Int(v) else {
                     print("ERROR: -jobs expects an integer following it")
@@ -90,20 +101,28 @@ public struct Options {
         print("\(purple)OPTIONS\(reset):")
         print("  -dump-ir               Dump LLVM IR")
         print()
+        print("  -dynamiclib            Emit dylib")
+        print()
         print("  -emit-asm              Emit assembly file(s)")
         print("  -emit-ast              Parse, check and emit AST file(s)")
         print("  -emit-bitcode          Emit LLVM bitcode file(s)")
         print("  -emit-ir               Emit LLVM IR file(s)")
         print("  -emit-times            Emit times for each stage of compilation")
         print()
+        print("  -jobs <value>          Controls the amount of workers (default is # of cores)")
+        print()
+        print("  -no-cleanup            Keeps the build folder after compilation")
+        print()
         print("  -Onone                 Compile with no optimizations")
         print("  -O1                    Compile with basic optimizations")
         print("  -O2                    Compile with most optimizations")
         print("  -O3                    Compile with tail call elimination and loop unrolling")
         print()
-        print("  -jobs <value>          Controls the amount of workers (default is # of cores)")
+        print("  -o <file>              Write output to <file>")
         print()
-        print("  -no-cleanup            Keeps the build folder after compilation")
+        print("  -shared                Emit shared object")
+        print()
+        print("  -test                  Compile and run all unit tests")
         print()
         print("  -version               Show version information and exit")
         exit(0)
@@ -133,5 +152,8 @@ public struct Options {
         public static let emitAst        = Flags(rawValue: 0b0100 << 8)
 
         public static let testMode = Flags(rawValue: 0b1000 << 8)
+
+        public static let shared     = Flags(rawValue: 0b0001 << 12)
+        public static let dynamicLib = Flags(rawValue: 0b0010 << 12)
     }
 }
