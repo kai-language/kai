@@ -209,7 +209,7 @@ extension Int {
     }
 
     func bitsNeeded() -> Int {
-        guard self > 0 else { return 0 }
+        guard self > 0 else { return 1 }
 
         return Int(floor(log2(Double(self - 1))) + 1)
     }
