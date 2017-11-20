@@ -536,7 +536,7 @@ extension IRGenerator {
                     b.buildStore(tmp, to: stackValue)
 
                     let srcPtr = (ir as! Constant<Struct>).getElement(indices: [0])
-                    b.buildMemcpy(dstPtr, srcPtr, count: count)
+                    b.buildMemcpy(dstPtr, srcPtr, count: i64.constant((lit.constant as! String).utf8.count + 1))
                 }
             }
         }
