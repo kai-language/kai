@@ -1349,11 +1349,11 @@ class FunctionSpecialization {
     let specializedTypes: [Type]
     let strippedType: ty.Function
     let generatedFunctionNode: FuncLit
-    var mangledName: String!
+    var mangledName: String
     var llvm: Function?
 
 // sourcery:inline:auto:FunctionSpecialization.Init
-init(file: SourceFile, specializedTypes: [Type], strippedType: ty.Function, generatedFunctionNode: FuncLit, mangledName: String!, llvm: Function?) {
+init(file: SourceFile, specializedTypes: [Type], strippedType: ty.Function, generatedFunctionNode: FuncLit, mangledName: String, llvm: Function?) {
     self.file = file
     self.specializedTypes = specializedTypes
     self.strippedType = strippedType

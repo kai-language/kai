@@ -122,6 +122,9 @@ func findConcreteType(_ type: Type) -> Type {
 ///
 /// - Returns: Was specialization possible?
 func specialize(polyType: Type, with argType: Type) -> Bool {
+    let polyType = baseType(polyType)
+    let argType = baseType(argType)
+
     switch (polyType, argType) {
     case (let polyType as ty.Array, let argType as ty.Array):
         return specialize(polyType: polyType.elementType, with: argType.elementType)
@@ -302,6 +305,14 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
         return convert(type.base, to: target.base, at: expr)
 
     case (let type as ty.Named, _):
+        if let lit = expr as? BasicLit, let string = lit.constant as? String, string.unicodeScalars.count == 1 {
+            // TODO: @unicode check the length of the unicode scalar to determine if it would fit in a type, allow conversion up to 32 bit integers
+            if target == ty.u8 {
+                allowed = true
+                break
+            }
+        }
+
         return convert(type.base, to: target, at: expr)
 
     case (_, let target as ty.Named):
@@ -409,7 +420,7 @@ enum ty {
         }
     }
 
-    struct Slice: Type, NamableType {
+    struct Slice: Type, NamableType, IRNamableType {
         var width: Int? { return 3 * platformPointerWidth } // pointer, length, capacity
         var elementType: Type
 

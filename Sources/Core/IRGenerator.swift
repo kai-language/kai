@@ -83,17 +83,14 @@ struct IRGenerator {
         guard let entityPackage = entity.package else {
             return entity.value!
         }
-        guard entityPackage === package else {
+        guard entityPackage === package && specializations.isEmpty else {
             // The entity is not in the same package as us, this means it will be in a
             //   different `.o` file and we will want to emit a 'stub'
             let symbol = self.symbol(for: entity)
 
             // only constant functions are emitted as functions, otherwise they are actually globals
             if let type = entity.type as? ty.Function, entity.isConstant {
-                if let existing = module.function(named: symbol) {
-                    return existing
-                }
-                return b.addFunction(symbol, type: canonicalizeSignature(type))
+                return addOrReuseFunction(named: symbol, type: canonicalizeSignature(type))
             } else {
                 if let existing = module.global(named: symbol) {
                     return existing
@@ -150,6 +147,13 @@ struct IRGenerator {
         return alloc
     }
 
+    func addOrReuseFunction(named: String, type: FunctionType) -> Function {
+        if let existing = module.function(named: named) {
+            return existing
+        }
+        return b.addFunction(named, type: type)
+    }
+
     lazy var i1: IntType = {
         return IntType(width: 1, in: module.context)
     }()
@@ -179,15 +183,13 @@ struct IRGenerator {
     }()
 
     lazy var raise: Function = {
-        if let raise = module.function(named: "raise") {
-            return raise
-        }
-
-        return b.addFunction("raise", type: FunctionType(argTypes:[i32], returnType: void))
+        let type = FunctionType(argTypes:[i32], returnType: void)
+        return addOrReuseFunction(named: "raise", type: type)
     }()
 
     lazy var trap: Function = {
-        return b.addFunction("llvm.trap", type: FunctionType(argTypes: [], returnType: void))
+        let type = FunctionType(argTypes: [], returnType: void)
+        return addOrReuseFunction(named: "llvm.trap", type: type)
     }()
 }
 
@@ -196,6 +198,27 @@ extension IRGenerator {
     mutating func emit() {
         // NOTE: Mangle prefix is setup lazily in SourceFile
         //  This is done so that the prefix is established for order independence
+
+        guard specializations.isEmpty else {
+            // Only the generated package may have specializations set.
+            for specialization in specializations {
+                specialization.llvm = emit(funcLit: specialization.generatedFunctionNode, entity: nil, specializationMangle: specialization.mangledName)
+            }
+/*
+            let mangledName = entity.map(symbol) ?? ".fn"
+            for specialization in specializations {
+                if specialization.mangledName == nil {
+                    let suffix = specialization.specializedTypes
+                        .reduce("", { $0 + "$" + $1.description })
+                    specialization.mangledName = mangledName + suffix
+                }
+
+                specialization.llvm = emit(funcLit: specialization.generatedFunctionNode, entity: entity, specializationMangle: specialization.mangledName)
+            }
+            return trap // dummy value. It doesn't matter.
+*/
+            return
+        }
 
         for node in topLevelNodes {
             emit(topLevelStmt: node)
@@ -491,7 +514,7 @@ extension IRGenerator {
             let type = canonicalize(entity.type!)
 
             let ir = emit(expr: value, entity: entity)
-            if entity.owningScope.isFile {
+            if entity.owningScope.isFile || entity.owningScope.isPackage {
                 // FIXME: What should we do for things like global variable strings? They need to be mutable?
                 var global = b.addGlobal(symbol(for: entity), type: type)
                 global.initializer = ir
@@ -1177,8 +1200,13 @@ extension IRGenerator {
             }
             return val
         case .specializedCall(let specialization):
-
             let args = call.args.map({ emit(expr: $0) })
+
+            // NOTE: We always emit a stub as all polymorphic specializations are emitted into a specialization package.
+            let ir = addOrReuseFunction(named: specialization.mangledName, type: canonicalizeSignature(specialization.strippedType))
+            return b.buildCall(ir, args: args)
+
+            /*
             if let mangledName = specialization.mangledName {
 
                 guard let fn = module.function(named: mangledName) else {
@@ -1210,6 +1238,7 @@ extension IRGenerator {
             context = previousContext
 
             return b.buildCall(ir, args: args)
+            */
         }
     }
 
@@ -1229,7 +1258,8 @@ extension IRGenerator {
             let fnType = canonicalizeSignature(fn.type as! ty.Function)
 
             // NOTE: The entity.value should be set already for recursion
-            let function = (entity?.value as? Function) ?? b.addFunction(specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
+//            let function = (entity?.value as? Function) ?? b.addFunction(specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
+            let function = (entity?.value as? Function) ?? addOrReuseFunction(named: specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
             let prevBlock = b.insertBlock
 
             let isVoid = fnType.returnType is VoidType
@@ -1272,8 +1302,8 @@ extension IRGenerator {
 
             return function
 
-        case .polymorphic(_, let specializations):
-
+        case .polymorphic(_, _):
+            /*
             let mangledName = entity.map(symbol) ?? ".fn"
             for specialization in specializations {
                 if specialization.mangledName == nil {
@@ -1284,6 +1314,7 @@ extension IRGenerator {
 
                 specialization.llvm = emit(funcLit: specialization.generatedFunctionNode, entity: entity, specializationMangle: specialization.mangledName)
             }
+            */
             return trap // dummy value. It doesn't matter.
         }
     }
@@ -1499,22 +1530,6 @@ extension IRGenerator {
         return ir
     }
 
-    func entity(from expr: Expr) -> Entity? {
-        switch expr {
-        case let expr as Ident:
-            return expr.entity
-
-        case let expr as Selector:
-            guard case .file(let entity)? = expr.checked else {
-                return nil
-            }
-            return entity
-
-        default:
-            return nil
-        }
-    }
-
     mutating func performConversion(from: Type, to target: Type, with value: IRValue) -> IRValue {
         let type = canonicalize(target)
         switch (baseType(from), baseType(target)) {
@@ -1633,6 +1648,16 @@ extension IRGenerator {
         case let type as ty.Named:
             if let mangledName = type.entity.mangledName, let existing = module.type(named: mangledName) {
                 return existing
+            } else if type.base is IRNamableType && type.entity.isBuiltin {
+                // NOTE: `string` is a builtin IRNamableType
+
+                // Prepend a `.` so that builtin named types cannot collide
+                type.entity.mangledName = "." + type.entity.name
+
+                let irType = b.createStruct(name: type.entity.mangledName)
+                let type = canonicalize(type.base) as! LLVM.StructType
+                irType.setBody(type.elementTypes)
+                return irType
             } else if type.base is IRNamableType {
                 emit(decl: type.entity.declaration!)
                 return module.type(named: type.entity.mangledName)!
@@ -1687,7 +1712,7 @@ extension IRGenerator {
         // Memory size is in bytes but LLVM types are in bits
         let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8, in: module.context)
         // { Element type, Length, Capacity }
-        return LLVM.StructType(elementTypes: [element, systemWidthType, systemWidthType])
+        return LLVM.StructType(elementTypes: [element, systemWidthType, systemWidthType], in: module.context)
     }
 
     mutating func canonicalize(_ vector: ty.Vector) -> LLVM.VectorType {
@@ -1717,7 +1742,11 @@ extension IRGenerator {
 
     /// - Returns: A StructType iff tuple.types > 1
     mutating func canonicalize(_ tuple: ty.Tuple) -> IRType {
-        let types = tuple.types.map({ canonicalize($0) })
+        var types: [IRType] = []
+        for type in tuple.types {
+            let ir = canonicalize(type)
+            types.append(ir)
+        }
         switch types.count {
         case 1:
             return types[0]

@@ -1226,6 +1226,27 @@ extension Checker {
             }
         case .string:
             lit.type = ty.string
+            if let desiredType = desiredType, isInteger(desiredType) {
+                let constant = lit.constant as! String
+                switch (desiredType.width!, constant.utf8.count) {
+                case (_, 0):
+                    reportError("Cannot convert empty string to utf character", at: lit.start)
+                case (8, 1):
+                    lit.type = desiredType
+                case (8, _):
+                    reportError("Cannot convert string with \(constant.utf8.count) utf8 characters", at: lit.start)
+                case (16, 1), (16, 2):
+                    lit.type = desiredType
+                case (16, _):
+                    reportError("Cannot convert string with \(constant.utf16.count) utf16 characters", at: lit.start)
+                case (32, 1), (32, 2), (32, 3), (32, 4):
+                    lit.type = desiredType
+                case (32, _):
+                    reportError("Cannot convert string with \(constant.unicodeScalars.count) utf32 characters", at: lit.start)
+                default:
+                    reportError("Cannot convert string to unknown character encoding", at: lit.start)
+                }
+            }
         default:
             lit.type = ty.invalid
         }
@@ -2473,7 +2494,7 @@ extension Checker {
                 return Operand.invalid
             }
 
-            specializationTypes.append(type)
+            specializationTypes.append(baseType(type))
         }
 
         // Determine if the types used match any existing specializations
@@ -2565,7 +2586,17 @@ extension Checker {
         var type = check(funcType: generated.explicitType).type.lower() as! ty.Function
         type = lowerSpecializedPolymorphics(type) as! ty.Function
 
-        let specialization = FunctionSpecialization(file: originalFile, specializedTypes: specializationTypes, strippedType: type, generatedFunctionNode: generated, mangledName: nil, llvm: nil)
+        // Find the entity we are calling with
+        let callee = entity(from: call.fun)!
+        let prefix = callee.file!.irContext.mangledNamePrefix + "." + callee.name
+        let suffix = specializationTypes
+            .reduce("", { $0 + "$" + $1.description })
+        let mangledName = prefix + suffix
+
+        let specialization = FunctionSpecialization(file: originalFile, specializedTypes: specializationTypes, strippedType: type, generatedFunctionNode: generated, mangledName: mangledName, llvm: nil)
+
+        // TODO: @threadsafety
+        compiler.specializations.append(specialization)
         specializations.append(specialization)
         fnLitNode.checked = .polymorphic(declaringScope: declaringScope, specializations: specializations)
 

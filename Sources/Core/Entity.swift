@@ -78,6 +78,23 @@ init(ident: Ident, type: Type? = nil, flags: Flag, constant: Value? = nil, file:
 // sourcery:end
 }
 
+/// Traverses the expr returning the entity if it is an Identifier or a selector on a file entity
+func entity(from expr: Expr) -> Entity? {
+    switch expr {
+    case let expr as Ident:
+        return expr.entity
+
+    case let expr as Selector:
+        guard case .file(let entity)? = expr.checked else {
+            return nil
+        }
+        return entity
+
+    default:
+        return nil
+    }
+}
+
 extension Entity {
 
     static func makeBuiltin(_ name: String, type: Type? = nil, flags: Flag = .none) -> Entity {
