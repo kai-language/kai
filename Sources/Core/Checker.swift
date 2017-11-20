@@ -2678,7 +2678,7 @@ extension Array where Element == FunctionSpecialization {
 }
 
 func canSequence(_ type: Type) -> Bool {
-    switch type {
+    switch baseType(type) {
     case is ty.Array, is ty.Slice:
         return true
     default:
@@ -2687,9 +2687,7 @@ func canSequence(_ type: Type) -> Bool {
 }
 
 func canVector(_ type: Type) -> Bool {
-    switch type {
-    case let named as ty.Named:
-        return canVector(named.base)
+    switch baseType(type) {
     case is ty.Integer, is ty.FloatingPoint, is ty.Polymorphic:
         return true
     default:
