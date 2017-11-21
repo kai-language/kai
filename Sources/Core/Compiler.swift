@@ -151,8 +151,14 @@ public class Compiler {
         let startTime = gettime()
         let clangPath = getClangPath()
 
-        let objFilePaths = packages.values.sorted(by: { $0.isInitialPackage || $1.isInitialPackage }).map({ $0.objpath })
+        let objFilePaths = packages.values.map({ $0.objpath })
         var args = ["-o", options.outputFile ?? initialPackage.moduleName] + objFilePaths + [generatedPackage.objpath]
+
+        if compiler.options.flags.contains(.shared) {
+            args.append("-shared")
+        } else if compiler.options.flags.contains(.dynamicLib) {
+            args.append("-dynamiclib")
+        }
 
         let allLinkedLibraries = packages.values.reduce(Set(), { $0.union($1.linkedLibraries) })
         for library in allLinkedLibraries {

@@ -256,44 +256,6 @@ extension SourcePackage {
         }
     }
 
-    public func linkObjects() {
-        let startTime = gettime()
-        let clangPath = getClangPath()
-
-        let objFilePaths = compiler.packages.values.map({ $0.objpath })
-        var args = ["-o", compiler.options.outputFile ?? moduleName] + objFilePaths
-
-        if compiler.options.flags.contains(.shared) {
-            args.append("-shared")
-        } else if compiler.options.flags.contains(.dynamicLib) {
-            args.append("-dynamiclib")
-        }
-
-        let allLinkedLibraries = compiler.packages.values.reduce(Set(), { $0.union($1.linkedLibraries) })
-        for library in allLinkedLibraries {
-            if library.hasSuffix(".framework") {
-
-                let frameworkName = library.components(separatedBy: ".").first!
-
-                args.append("-framework")
-                args.append(frameworkName)
-
-                guard library == basename(path: library) else {
-                    print("ERROR: Only system frameworks are supported")
-                    exit(1)
-                }
-            } else {
-                args.append(library)
-            }
-        }
-
-        shell(path: clangPath, args: args)
-
-        let endTime = gettime()
-        let totalTime = endTime - startTime
-        linkStageTiming += totalTime
-    }
-
     public func cleanupBuildProducts() {
         do {
             try removeFile(at: buildDirectory)
