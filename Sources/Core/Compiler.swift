@@ -1,4 +1,6 @@
 
+import Foundation
+
 public var compiler: Compiler!
 
 public class Compiler {
@@ -18,9 +20,13 @@ public class Compiler {
     public var initialFile: SourceFile
     public var initialPackage: SourcePackage
 
+    var generatedPackage = SourcePackage.newStubPackage(fullpath: buildDirectory + "/generated", importPath: "")
+
     var packages: [String: SourcePackage] = [:]
     var files: [String: SourceFile] = [:]
     var jobs: [String: Job] = [:]
+
+    var specializations: [FunctionSpecialization] = []
 
     var costs: [SourceFile: Int] = [:]
 
@@ -67,6 +73,9 @@ public class Compiler {
             debugTimings.append((job.description, endTime - startTime))
         }
 
+        var gen = IRGenerator(specializations: specializations, package: generatedPackage)
+        gen.emit()
+
         guard !wasError else {
             for file in files.values {
                 emitErrors(for: file, at: "Parsing")
@@ -107,6 +116,82 @@ public class Compiler {
 
         initialFile.cost = initialFile.importees.reduce(0, { max($0, assignCost(forImport: $1)) }) + 1
     }
+
+    public func validateIR() {
+        generatedPackage.validateIR()
+        initialPackage.validateIR()
+    }
+
+    public func emitObjects() {
+        initialPackage.dependencies.append(generatedPackage)
+        initialPackage.emitObjects()
+    }
+
+    public func emitIntermediateRepresentation() {
+        generatedPackage.emitIntermediateRepresentation()
+        initialPackage.emitIntermediateRepresentation()
+    }
+
+    public func emitBitcode() {
+        generatedPackage.emitBitcode()
+        initialPackage.emitBitcode()
+    }
+
+    public func emitAssembly() {
+        generatedPackage.emitAssembly()
+        initialPackage.emitAssembly()
+    }
+
+    public func dumpIntermediateRepresentation() {
+        generatedPackage.dumpIntermediateRepresentation()
+        initialPackage.dumpIntermediateRepresentation()
+    }
+
+    public func linkObjects() {
+        let startTime = gettime()
+        let clangPath = getClangPath()
+
+        let objFilePaths = packages.values.map({ $0.objpath })
+        var args = ["-o"] + objFilePaths + [generatedPackage.objpath]
+
+        let allLinkedLibraries = packages.values.reduce(Set(), { $0.union($1.linkedLibraries) })
+        for library in allLinkedLibraries {
+            if library.hasSuffix(".framework") {
+
+                let frameworkName = library.components(separatedBy: ".").first!
+
+                args.append("-framework")
+                args.append(frameworkName)
+
+                guard library == basename(path: library) else {
+                    print("ERROR: Only system frameworks are supported")
+                    exit(1)
+                }
+            } else {
+                args.append(library)
+            }
+        }
+
+        shell(path: clangPath, args: args)
+        print(clangPath + " " + args.joined(separator: " "))
+
+        let endTime = gettime()
+        let totalTime = endTime - startTime
+        linkStageTiming += totalTime
+    }
+
+    public func cleanupBuildProducts() {
+        do {
+            try removeFile(at: buildDirectory)
+        } catch {
+            print("ERROR: \(error)")
+            print("  While cleaning up build directory")
+            exit(1)
+        }
+    }
+}
+
+extension Compiler {
 
     /// Creates all needed jobs to start processing the file.
     func declare(file: SourceFile) {

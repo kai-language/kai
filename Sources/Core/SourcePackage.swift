@@ -26,6 +26,8 @@ public final class SourcePackage {
     public var pathFirstImportedAs: String
     public var files: [SourceFile]
 
+    var emitted: Bool = false
+
     var cost: UInt? = nil
 
     public var dependencies: [SourcePackage] = []
@@ -46,7 +48,7 @@ public final class SourcePackage {
 
         return Module(name: moduleName, context: context)
     }()
-    
+
     lazy var builder: IRBuilder = {
         return IRBuilder(module: module)
     }()
@@ -123,7 +125,7 @@ public final class SourcePackage {
     }
 
     public static func newStubPackage(fullpath: String, importPath: String, importedFrom: SourceFile? = nil) -> SourcePackage {
-        if let existing = compiler.packages[fullpath] {
+        if let existing = compiler?.packages[fullpath] {
             return existing
         }
 
@@ -169,11 +171,17 @@ extension SourcePackage {
     }
 
     public func emitObjects() {
+        guard !emitted else {
+            return
+        }
+        emitted = true
         let startTime = gettime()
 
         for dep in dependencies {
             dep.emitObjects()
         }
+
+        print("emitting to \(objpath)")
 
         do {
             try targetMachine.emitToFile(

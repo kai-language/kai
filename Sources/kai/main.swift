@@ -33,27 +33,27 @@ setupBuildDirectories()
 
 if opts.flags.intersection([.emitIr, .emitBitcode, .emitAssembly]).isEmpty {
 
-    compiler.initialPackage.emitObjects()
-    compiler.initialPackage.linkObjects()
+    compiler.emitObjects()
+    compiler.linkObjects()
     if !opts.flags.contains(.noCleanup) {
-        compiler.initialPackage.cleanupBuildProducts()
+        compiler.cleanupBuildProducts()
     }
 } else {
     if opts.flags.contains(.emitIr) {
-        compiler.initialPackage.emitIntermediateRepresentation()
+        compiler.emitIntermediateRepresentation()
     }
 
     if opts.flags.contains(.emitBitcode) {
-        compiler.initialPackage.emitBitcode()
+        compiler.emitBitcode()
     }
 
     if opts.flags.contains(.emitAssembly) {
-        compiler.initialPackage.emitAssembly()
+        compiler.emitAssembly()
     }
 }
 
 if opts.flags.contains(.dumpIr) {
-    compiler.initialPackage.dumpIntermediateRepresentation()
+    compiler.dumpIntermediateRepresentation()
 }
 
 if opts.flags.contains(.emitDebugTimes) {
