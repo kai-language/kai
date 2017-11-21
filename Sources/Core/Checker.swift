@@ -2494,7 +2494,11 @@ extension Checker {
                 return Operand.invalid
             }
 
-            specializationTypes.append(baseType(type))
+            let specializationType = findPolymorphic(param.type!)
+                .map(baseType)
+                .map(lowerSpecializedPolymorphics)!
+
+            specializationTypes.append(specializationType)
         }
 
         // Determine if the types used match any existing specializations

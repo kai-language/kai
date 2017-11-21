@@ -91,7 +91,7 @@ func findPolymorphic(_ type: Type) -> ty.Polymorphic? {
         return findPolymorphic(type.pointeeType)
 
     case let type as ty.Function:
-        // FIXME: This needs to return multiple polymorphics. Since functions can have multiple bits
+        // FIXME: @polyfunctions This needs to return multiple polymorphics. Since functions can have multiple bits
         return type.params.map(findPolymorphic).first ?? nil
 
         // TODO: @PolyStruct
@@ -122,6 +122,7 @@ func findConcreteType(_ type: Type) -> Type {
 ///
 /// - Returns: Was specialization possible?
 func specialize(polyType: Type, with argType: Type) -> Bool {
+    // FIXME: @polyfunctions handle functions
     let polyType = baseType(polyType)
     let argType = baseType(argType)
 
@@ -420,7 +421,8 @@ enum ty {
         }
     }
 
-    struct Slice: Type, NamableType, IRNamableType {
+    // FIXME: Make IRNamable @pr
+    struct Slice: Type, NamableType {
         var width: Int? { return 3 * platformPointerWidth } // pointer, length, capacity
         var elementType: Type
 
@@ -691,6 +693,11 @@ func isInteger(_ type: Type) -> Bool {
     return type is ty.Integer || type is ty.UntypedInteger
 }
 
+func isSigned(_ type: Type) -> Bool {
+    let type = baseType(type)
+    return type is ty.UntypedInteger || (type as? ty.Integer)?.isSigned ?? false
+}
+
 func isFloatingPoint(_ type: Type) -> Bool {
     let type = baseType(type)
     return type is ty.FloatingPoint || type is ty.UntypedFloatingPoint
@@ -746,6 +753,10 @@ func isUntypedInteger(_ type: Type) -> Bool {
 
 func isUntypedFloatingPoint(_ type: Type) -> Bool {
     return type is ty.UntypedFloatingPoint
+}
+
+func isNamed(_ type: Type) -> Bool {
+    return type is ty.Named
 }
 
 func isMetatype(_ type: Type) -> Bool {

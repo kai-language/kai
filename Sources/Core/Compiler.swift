@@ -151,8 +151,8 @@ public class Compiler {
         let startTime = gettime()
         let clangPath = getClangPath()
 
-        let objFilePaths = packages.values.map({ $0.objpath })
-        var args = ["-o"] + objFilePaths + [generatedPackage.objpath]
+        let objFilePaths = packages.values.sorted(by: { $0.isInitialPackage || $1.isInitialPackage }).map({ $0.objpath })
+        var args = ["-o", options.outputFile ?? initialPackage.moduleName] + objFilePaths + [generatedPackage.objpath]
 
         let allLinkedLibraries = packages.values.reduce(Set(), { $0.union($1.linkedLibraries) })
         for library in allLinkedLibraries {
@@ -173,7 +173,6 @@ public class Compiler {
         }
 
         shell(path: clangPath, args: args)
-        print(clangPath + " " + args.joined(separator: " "))
 
         let endTime = gettime()
         let totalTime = endTime - startTime

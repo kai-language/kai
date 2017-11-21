@@ -83,7 +83,9 @@ struct IRGenerator {
         guard let entityPackage = entity.package else {
             return entity.value!
         }
-        guard entityPackage === package && specializations.isEmpty else {
+
+        let topLevelEntity = entity.owningScope.isPackage || entity.owningScope.isFile
+        guard entityPackage === package || !topLevelEntity else {
             // The entity is not in the same package as us, this means it will be in a
             //   different `.o` file and we will want to emit a 'stub'
             let symbol = self.symbol(for: entity)
@@ -115,7 +117,8 @@ struct IRGenerator {
 
         if entity.value == nil {
             let prevContext = context
-            assert(entity.owningScope.isFile, "Assumption is that entities without existing values are only possible at file scope")
+            assert(topLevelEntity, "Assumption is that entities without existing values are only possible at file or package scope")
+            assert(entity.package === package)
 
             // Use the context for the file itself
             context = entity.file!.irContext
@@ -969,7 +972,18 @@ extension IRGenerator {
     mutating func emit(lit: BasicLit, returnAddress: Bool, entity: Entity?) -> IRValue {
         // TODO: Use the mangled entity name
         if lit.token == .string {
-            return emit(constantString: lit.constant as! String, returnAddress: returnAddress)
+            let constant = lit.constant as! String
+            switch lit.type!.width! {
+            case 8:
+                return canonicalize(lit.type as! ty.Integer).constant(constant.utf8.first!)
+            case 16:
+                return canonicalize(lit.type as! ty.Integer).constant(constant.utf16.first!)
+            case 32:
+                return canonicalize(lit.type as! ty.Integer).constant(constant.unicodeScalars.first!.value)
+            default:
+                assert(lit.type == ty.string)
+                return emit(constantString: constant, returnAddress: returnAddress)
+            }
         }
 
         let type = canonicalize(lit.type)
@@ -995,6 +1009,7 @@ extension IRGenerator {
 
     mutating func emit(lit: CompositeLit, returnAddress: Bool, entity: Entity?) -> IRValue {
         // TODO: Use the mangled entity name
+        // TODO: Respect `returnAddress` for all of the following
         let irType = canonicalize(lit.type)
         var ir = irType.undef()
         switch baseType(lit.type) {
@@ -1154,7 +1169,38 @@ extension IRGenerator {
         return b.buildSelect(cond, then: then ?? cond, else: els)
     }
 
+    mutating func emit(args: [Expr], cABI: Bool) -> [IRValue] {
+        let irArgs: [IRValue]
+        if cABI {
+            irArgs = args.map {
+                var val = emit(expr: $0)
+
+                // C ABI requires integers less than 32bits to be promoted
+                if isInteger($0.type), $0.type.width! < 32 {
+                    val = b.buildCast(isSigned($0.type) ? .sext : .zext, value: val, type: i32)
+                }
+
+                // C ABI requires floats to be promoted to doubles
+                if isFloatingPoint($0.type), $0.type.width! < 64 {
+                    val = b.buildCast(.fpext, value: val, type: f64)
+                }
+
+                // TODO: Struct ABI stuff?
+                return val
+            }
+        } else {
+            irArgs = args.map {
+                let val = emit(expr: $0)
+                return val
+            }
+        }
+
+        return irArgs
+    }
+
     mutating func emit(call: Call, returnAddress: Bool = false) -> IRValue {
+        // FIXME: We need to convert unnamed types into named types in returns if necissary for aliases
+
         switch call.checked! {
         case .builtinCall(let builtin):
             return builtin.generate(builtin, call.args, &self)
@@ -1165,31 +1211,10 @@ extension IRGenerator {
             }
             let callee = emit(expr: call.fun, returnAddress: isGlobal)
 
-            let args: [IRValue]
-            // this code is structured in a way that non-variadic/non-function
-            // calls don't get punished for C's insane ABI.
-            // TODO: Check the call convention instead of the isCVariadic
-            if let function = baseType(call.fun.type) as? ty.Function, function.isCVariadic {
-                args = call.args.map {
-                    var val = emit(expr: $0)
+            // FIXME: Use the call convention instead of isCVariadic
+            let shouldUseCABI = (baseType(call.fun.type) as? ty.Function)?.isCVariadic ?? false
 
-                    // C ABI requires integers less than 32bits to be promoted
-                    if let type = baseType($0.type) as? ty.Integer, let int = val.type as? LLVM.IntType, int.width < 32 {
-                        val = b.buildCast(type.isSigned ? .sext : .zext , value: val, type: i32)
-                    }
-
-                    // C ABI requires floats to be promoted to doubles
-                    if let float = val.type as? LLVM.FloatType, float.kind == .float {
-                        val = b.buildCast(.fpext, value: val, type: f64)
-                    }
-
-                    return val
-                }
-            } else {
-                args = call.args.map {
-                    emit(expr: $0)
-                }
-            }
+            let args = emit(args: call.args, cABI: shouldUseCABI)
             let val = b.buildCall(callee, args: args)
             if returnAddress {
                 // allocate stack space to land this onto
@@ -1200,45 +1225,31 @@ extension IRGenerator {
             }
             return val
         case .specializedCall(let specialization):
-            let args = call.args.map({ emit(expr: $0) })
 
-            // NOTE: We always emit a stub as all polymorphic specializations are emitted into a specialization package.
-            let ir = addOrReuseFunction(named: specialization.mangledName, type: canonicalizeSignature(specialization.strippedType))
-            return b.buildCall(ir, args: args)
+            // The following maps a parameter to it's base type, if it is a named type in IR then this lowers it to an unamed type so that
+            //  aliases in specialized functions result in a single specialization (string and []u8)
+            let args = zip(call.args, specialization.strippedType.params).map { (arg, param) -> IRValue in
+                var val: IRValue
+                if arg.type is ty.Named && baseType(arg.type) is IRNamableType {
+                    // we need to lower these
+                    val = emit(expr: arg, returnAddress: true)
+                    assert(val.type is LLVM.PointerType)
 
-            /*
-            if let mangledName = specialization.mangledName {
-
-                guard let fn = module.function(named: mangledName) else {
-                    // There exists a specialization in another package. Emit a stub
-                    let ir = b.addFunction(specialization.mangledName, type: canonicalizeSignature(specialization.strippedType))
-                    return b.buildCall(ir, args: args)
+                    let irType = LLVM.PointerType(pointee: canonicalize(param))
+                    val = b.buildBitCast(val, type: irType)
+                    val = b.buildLoad(val)
+                } else {
+                    val = emit(expr: arg)
                 }
 
-                return b.buildCall(fn, args: args)
+                return val
             }
 
-            let callee = entity(from: call.fun)!
-
-            let name = symbol(for: callee)
-            let suffix = specialization.specializedTypes
-                .reduce("", { $0 + "$" + $1.description })
-
-            let mangledName = name + suffix
-
-            let previousContext = context
-            context = Context(mangledNamePrefix: "", deferBlocks: [], returnBlock: nil, previous: nil)
-
-            // The value for the entity that is a polymorphic type will be `llvm.trap` (See `emit(funcLit:,entity:,specializationMangle:)`)
-            //  we want to clear that value before emitting the specialization
-            callee.value = nil
-
-            let ir = emit(funcLit: specialization.generatedFunctionNode, entity: callee, specializationMangle: mangledName)
-
-            context = previousContext
-
-            return b.buildCall(ir, args: args)
-            */
+            // NOTE: We always emit a stub as all polymorphic specializations are emitted into a specialization package.
+            let function = addOrReuseFunction(named: specialization.mangledName, type: canonicalizeSignature(specialization.strippedType))
+            var result: IRValue = b.buildCall(function, args: args)
+            result = b.buildBitCast(result, type: canonicalize(call.type))
+            return result
         }
     }
 
@@ -1258,7 +1269,6 @@ extension IRGenerator {
             let fnType = canonicalizeSignature(fn.type as! ty.Function)
 
             // NOTE: The entity.value should be set already for recursion
-//            let function = (entity?.value as? Function) ?? b.addFunction(specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
             let function = (entity?.value as? Function) ?? addOrReuseFunction(named: specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
             let prevBlock = b.insertBlock
 

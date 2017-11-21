@@ -181,8 +181,6 @@ extension SourcePackage {
             dep.emitObjects()
         }
 
-        print("emitting to \(objpath)")
-
         do {
             try targetMachine.emitToFile(
                 module: module,
@@ -263,7 +261,7 @@ extension SourcePackage {
         let clangPath = getClangPath()
 
         let objFilePaths = compiler.packages.values.map({ $0.objpath })
-        var args = ["-o", compiler.options.outputName ?? moduleName] + objFilePaths
+        var args = ["-o", compiler.options.outputFile ?? moduleName] + objFilePaths
 
         if compiler.options.flags.contains(.shared) {
             args.append("-shared")

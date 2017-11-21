@@ -9,7 +9,8 @@ public struct Options {
 
     public var flags: Flags = []
     public var jobs: Int = 1
-    public var outputName: String?
+    public var outputFile: String?
+
     public var optimizationLevel: Int = 0
 
     public init(arguments: ArraySlice<String>) {
@@ -64,12 +65,12 @@ public struct Options {
                 flags.insert(.shared)
             case "-dynamiclib":
                 flags.insert(.dynamicLib)
-            case "-o":
+            case "-o", "-output":
                 guard let v = val else {
                     print("ERROR: -o expects an output name")
                     exit(1)
                 }
-                outputName = v
+                outputFile = v
                 skip = true
             case "-jobs":
                 guard let v = val, let j = Int(v) else {
@@ -109,9 +110,8 @@ public struct Options {
         print("  -emit-ir               Emit LLVM IR file(s)")
         print("  -emit-times            Emit times for each stage of compilation")
         print()
-        print("  -jobs <value>          Controls the amount of workers (default is # of cores)")
-        print()
-        print("  -no-cleanup            Keeps the build folder after compilation")
+        print("  -o <file>")
+        print("  -output <file>         Write output to file")
         print()
         print("  -Onone                 Compile with no optimizations")
         print("  -O1                    Compile with basic optimizations")
