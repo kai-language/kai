@@ -73,8 +73,10 @@ public class Compiler {
             debugTimings.append((job.description, endTime - startTime))
         }
 
-        var gen = IRGenerator(specializations: specializations, package: generatedPackage)
-        gen.emit()
+        if !specializations.isEmpty {
+            var gen = IRGenerator(specializations: specializations, package: generatedPackage)
+            gen.emit()
+        }
 
         guard !wasError else {
             for file in files.values {
