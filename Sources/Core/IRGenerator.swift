@@ -1247,9 +1247,16 @@ extension IRGenerator {
 
             // NOTE: We always emit a stub as all polymorphic specializations are emitted into a specialization package.
             let function = addOrReuseFunction(named: specialization.mangledName, type: canonicalizeSignature(specialization.strippedType))
-            var result: IRValue = b.buildCall(function, args: args)
-            result = b.buildBitCast(result, type: canonicalize(call.type))
-            return result
+
+            let result: IRValue = b.buildCall(function, args: args)
+            // FIXME: This get's around calls to functions that return `[]u8` but want to store that into a named `[]u8` such as `string`
+            //  This can't just be a simple bitcast because LLVM does not allow bitcasts on aggregate types. Only on pointers to them.
+            //  So we allocated some stack memory for now.
+            var mem = entryBlockAlloca(type: result.type)
+            b.buildStore(result, to: mem)
+            let type = canonicalize(call.type)
+            mem = b.buildBitCast(mem, type: LLVM.PointerType(pointee: type))
+            return b.buildLoad(mem)
         }
     }
 

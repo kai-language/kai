@@ -502,7 +502,7 @@ extension Checker {
                 reportError("Explicit types are prohibited when calling a multiple-value function", at: decl.explicitType!.start)
                 return dependencies
             }
-            let operand = check(call: call)
+            let operand = check(call: call, desiredType: expectedType)
             dependencies.formUnion(operand.dependencies)
             if let tuple = operand.type as? ty.Tuple {
                 guard decl.names.count == tuple.types.count else {
@@ -1122,7 +1122,7 @@ extension Checker {
             return check(slice: s)
 
         case let call as Call:
-            return check(call: call)
+            return check(call: call, desiredType: desiredType)
 
         case let cast as Cast:
             return check(cast: cast)
@@ -2261,7 +2261,7 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(call: Call) -> Operand {
+    mutating func check(call: Call, desiredType: Type? = nil) -> Operand {
         var dependencies: Set<Entity> = []
 
         let callee = check(expr: call.fun)
@@ -2317,7 +2317,7 @@ extension Checker {
         }
 
         if isPolymorphic(calleeFn) {
-            return check(polymorphicCall: call, calleeType: calleeType as! ty.Function)
+            return check(polymorphicCall: call, calleeType: calleeType as! ty.Function, desiredType: desiredType)
         }
 
         var builtin: BuiltinFunction?
@@ -2466,7 +2466,7 @@ extension Checker {
         return Operand(mode: .computed, expr: l, type: l.type, constant: l.constant, dependencies: [])
     }
 
-    mutating func check(polymorphicCall call: Call, calleeType: ty.Function) -> Operand {
+    mutating func check(polymorphicCall call: Call, calleeType: ty.Function, desiredType: Type? = nil) -> Operand {
         let fnLitNode = calleeType.node!
 
         // In the parameter scope we want to set T.specialization.val to the argument type.
@@ -2522,6 +2522,10 @@ extension Checker {
 
             call.type = returnType
             call.checked = .specializedCall(specialization)
+            if let desiredType = desiredType, desiredType == returnType {
+                // NOTE: This is used for changing `[]u8` (unamed) to `string` (named) when needed
+                call.type = desiredType
+            }
             return Operand(mode: .computed, expr: call, type: call.type, constant: nil, dependencies: [])
         }
 
@@ -2622,6 +2626,10 @@ extension Checker {
 
         call.type = returnType
         call.checked = .specializedCall(specialization)
+        if let desiredType = desiredType, desiredType == returnType {
+            // NOTE: This is used for changing `[]u8` (unamed) to `string` (named) when needed
+            call.type = desiredType
+        }
 
         return Operand(mode: .computed, expr: call, type: returnType, constant: nil, dependencies: [])
     }

@@ -421,8 +421,7 @@ enum ty {
         }
     }
 
-    // FIXME: Make IRNamable @pr
-    struct Slice: Type, NamableType {
+    struct Slice: Type, NamableType, IRNamableType {
         var width: Int? { return 3 * platformPointerWidth } // pointer, length, capacity
         var elementType: Type
 
