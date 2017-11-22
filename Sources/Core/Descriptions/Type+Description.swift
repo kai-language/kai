@@ -80,7 +80,19 @@ extension ty.Vector {
 
 extension ty.Function {
     var description: String {
-        return "(" + params.map({ $0.description }).joined(separator: ", ") + ") -> " + returnType.description
+        var str = "("
+        var requiredParams = AnySequence(params)
+        if isVariadic {
+            requiredParams = requiredParams.dropLast()
+        }
+        str += requiredParams.map({ $0.description }).joined(separator: ", ")
+        if isVariadic {
+            str += ".."
+            str += (params.last! as! ty.Slice).elementType.description
+        }
+        str += ") -> "
+        str += returnType.description
+        return str
     }
 }
 
