@@ -1024,7 +1024,10 @@ extension Checker {
             return Operand(mode: .type, expr: expr, type: type, constant: nil, dependencies: [])
 
         case let variadic as VariadicType:
-            return check(expr: variadic.explicitType)
+            var operand = check(expr: variadic.explicitType)
+            operand.type = ty.Metatype(instanceType: ty.Slice(elementType: lowerFromMetatype(operand.type, atNode: expr)))
+            expr.type = operand.type
+            return operand
 
         case let pointer as PointerType:
             let operand = check(expr: pointer.explicitType)
@@ -1431,12 +1434,11 @@ extension Checker {
                 needsSpecialization = needsSpecialization || param.isPolymorphic
 
                 let operand = check(expr: param)
-                var type = lowerFromMetatype(operand.type, atNode: param)
+                let type = lowerFromMetatype(operand.type, atNode: param)
 
                 if let paramType = param as? VariadicType {
                     fn.flags.insert(paramType.isCvargs ? .cVariadic : .variadic)
                     typeFlags.insert(paramType.isCvargs ? .cVariadic : .variadic) // NOTE: Not sure this is useful on the type?
-                    type = ty.Slice(elementType: type)
                 }
 
                 let entity = newEntity(ident: label, type: type, flags: param.isPolymorphic ? .polyParameter : .parameter)
@@ -1511,12 +1513,11 @@ extension Checker {
             let operand = check(expr: param)
             dependencies.formUnion(operand.dependencies)
 
-            var type = lowerFromMetatype(operand.type, atNode: param)
+            let type = lowerFromMetatype(operand.type, atNode: param)
 
             if let param = param as? VariadicType {
                 fn.flags.insert(param.isCvargs ? .cVariadic : .variadic)
                 typeFlags.insert(param.isCvargs ? .cVariadic : .variadic)
-                type = ty.Slice(elementType: type)
             }
             params.append(type)
         }
