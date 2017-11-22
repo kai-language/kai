@@ -139,12 +139,6 @@ extension ty.Invalid {
     }
 }
 
-extension ty.CVarArg {
-    var description: String {
-        return "#cvargs ..any"
-    }
-}
-
 extension ty.File {
     var description: String {
         return "< file >"

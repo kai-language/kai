@@ -1,0 +1,21 @@
+
+#import kai("posix")
+
+sum :: fn(nums: ..i64) -> i64 {
+    total : i64 = 0
+    for num in nums {
+        total += num
+    }
+    return total
+}
+
+main :: fn() -> void {
+    toFive := sum(1, 2, 3, 4, 5)
+    posix.printf("%ld\n".raw, toFive)
+
+    toTwo := sum(1, 2)
+    posix.printf("%ld\n".raw, toTwo)
+
+    ofNothing := sum()
+    posix.printf("%ld\n".raw, ofNothing)
+}

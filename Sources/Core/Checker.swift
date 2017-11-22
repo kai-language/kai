@@ -1432,18 +1432,17 @@ extension Checker {
 
                 let operand = check(expr: param)
                 var type = lowerFromMetatype(operand.type, atNode: param)
+
+                if let paramType = param as? VariadicType {
+                    fn.flags.insert(paramType.isCvargs ? .cVariadic : .variadic)
+                    typeFlags.insert(paramType.isCvargs ? .cVariadic : .variadic) // NOTE: Not sure this is useful on the type?
+                    type = ty.Slice(elementType: type)
+                }
+
                 let entity = newEntity(ident: label, type: type, flags: param.isPolymorphic ? .polyParameter : .parameter)
                 declare(entity)
                 params.append(entity)
                 dependencies.formUnion(operand.dependencies)
-
-                if let paramType = param as? VariadicType {
-                    fn.flags.insert(paramType.isCvargs ? .cVariadic : .variadic)
-                    typeFlags.insert(paramType.isCvargs ? .cVariadic : .variadic)
-                    if paramType.isCvargs && isAnyy(type) {
-                        type = ty.cvargAny
-                    }
-                }
 
                 inputs.append(type)
             }
@@ -1517,9 +1516,7 @@ extension Checker {
             if let param = param as? VariadicType {
                 fn.flags.insert(param.isCvargs ? .cVariadic : .variadic)
                 typeFlags.insert(param.isCvargs ? .cVariadic : .variadic)
-                if param.isCvargs && isAnyy(type) {
-                    type = ty.cvargAny
-                }
+                type = ty.Slice(elementType: type)
             }
             params.append(type)
         }
@@ -2288,28 +2285,15 @@ extension Checker {
             return Operand.invalid
         }
 
-        if call.args.count > calleeFn.params.count {
-            let excessArgs = call.args[calleeFn.params.count...]
-            guard calleeFn.isVariadic else {
-                reportError("Too many arguments in call to \(call.fun)", at: excessArgs.first!.start)
-                call.type = calleeFn.returnType
-                return Operand(mode: .computed, expr: call, type: ty.invalid, constant: nil, dependencies: dependencies)
-            }
-
-            let expectedType = calleeFn.params.last!
-            for arg in excessArgs {
-                let argument = check(expr: arg, desiredType: expectedType)
-                dependencies.formUnion(argument.dependencies)
-
-                guard convert(argument.type, to: expectedType, at: arg) else {
-                    reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
-                    file.attachNote("In call to '\(callee)'")
-                    continue
-                }
-            }
+        if call.args.count > calleeFn.params.count && !calleeFn.isVariadic {
+            reportError("Too many arguments in call to \(callee)", at: call.args[calleeFn.params.count].start)
+            call.type = calleeFn.returnType
+            return Operand(mode: .computed, expr: call, type: calleeFn.returnType, constant: nil, dependencies: dependencies)
         }
 
-        if call.args.count < calleeFn.params.count {
+        let requiredArgs = calleeFn.isVariadic ? calleeFn.params.count - 1 : calleeFn.params.count
+        if call.args.count < requiredArgs {
+            // Less arguments then parameters
             guard calleeFn.isVariadic, call.args.count + 1 == calleeFn.params.count else {
                 reportError("Not enough arguments in call to '\(callee)'", at: call.start)
                 return Operand(mode: .computed, expr: call, type: ty.invalid, constant: nil, dependencies: dependencies)
@@ -2339,7 +2323,11 @@ extension Checker {
             builtin = b
         }
 
-        for (arg, expectedType) in zip(call.args, calleeFn.params) {
+        var paramArgPairs = AnySequence(zip(call.args, calleeFn.params))
+        if calleeFn.isVariadic {
+            paramArgPairs = paramArgPairs.dropLast()
+        }
+        for (arg, expectedType) in zip(call.args, calleeFn.params).dropLast() {
             let argument = check(expr: arg, desiredType: expectedType)
             dependencies.formUnion(argument.dependencies)
 
@@ -2347,6 +2335,22 @@ extension Checker {
                 reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
                 file.attachNote("In call to \(callee)")
                 continue
+            }
+        }
+
+        if calleeFn.isVariadic {
+            let excessArgs = call.args[requiredArgs...]
+            let expectedType = (calleeFn.params.last as! ty.Slice).elementType
+            for arg in excessArgs {
+                let argument = check(expr: arg, desiredType: expectedType)
+                dependencies.formUnion(argument.dependencies)
+
+                // Only perform conversions if the variadics are not C style
+                guard calleeFn.isCVariadic || convert(argument.type, to: expectedType, at: arg) else {
+                    reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
+                    file.attachNote("In call to '\(callee)'")
+                    continue
+                }
             }
         }
 

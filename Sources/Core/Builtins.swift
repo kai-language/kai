@@ -65,7 +65,6 @@ extension Entity {
 
 extension ty {
     static let invalid  = ty.Invalid.instance
-    static let cvargAny = ty.CVarArg.instance
 }
 
 
