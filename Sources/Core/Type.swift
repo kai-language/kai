@@ -375,6 +375,13 @@ func canCast(_ exprType: Type, to targetType: Type) -> Bool {
     }
 }
 
+func splatTuple(_ tuple: ty.Tuple) -> Type {
+    if tuple.types.count == 1 {
+        return tuple.types[0]
+    }
+    return tuple
+}
+
 /// A name space containing all type specifics
 enum ty {
 

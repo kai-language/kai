@@ -80,6 +80,7 @@ extension ty.Vector {
 
 extension ty.Function {
     var description: String {
+        // FIXME: For polymorphic types `$` should only appear for the first declaration of a type name. ie: ($T) ->$T should only have `$` in the first position
         var str = "("
         var requiredParams = AnySequence(params)
         if isVariadic {
@@ -91,7 +92,7 @@ extension ty.Function {
             str += (params.last! as! ty.Slice).elementType.description
         }
         str += ") -> "
-        str += returnType.description
+        str += splatTuple(returnType).description
         return str
     }
 }
