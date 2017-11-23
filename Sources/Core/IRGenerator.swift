@@ -1067,7 +1067,7 @@ extension IRGenerator {
     }
 
     mutating func emit(ident: Ident, returnAddress: Bool) -> IRValue {
-        if returnAddress || isFunction(ident.type) && ident.entity.isConstant{
+        if returnAddress || isFunction(ident.type) && ident.entity.isConstant {
             // refering to global functions should retrieve their address
             return value(for: ident.entity)
         }
@@ -1212,9 +1212,32 @@ extension IRGenerator {
             let callee = emit(expr: call.fun, returnAddress: isGlobal)
 
             // FIXME: Use the call convention instead of isCVariadic
-            let shouldUseCABI = (baseType(call.fun.type) as? ty.Function)?.isCVariadic ?? false
+            let fn = findConcreteType(baseType(call.fun.type)) as! ty.Function
+            let shouldUseCABI = fn.isCVariadic
 
-            let args = emit(args: call.args, cABI: shouldUseCABI)
+            var args = emit(args: call.args, cABI: shouldUseCABI)
+            if fn.isVariadic && !fn.isCVariadic {
+                // bundle the excess args into a slice
+                let requiredArgs = fn.params.count - 1
+                let excessArgs = args[requiredArgs...]
+                var val = canonicalize(fn.params.last!).undef()
+                let sliceElementType = canonicalize((fn.params.last! as! ty.Slice).elementType)
+                var ptr = LLVM.PointerType(pointee: sliceElementType).null()
+                if !excessArgs.isEmpty {
+                    let array = entryBlockAlloca(type: LLVM.ArrayType(elementType: sliceElementType, count: excessArgs.count))
+                    for (index, arg) in excessArgs.enumerated() {
+                        let target = b.buildInBoundsGEP(array, indices: [0, index])
+                        b.buildStore(arg, to: target)
+                    }
+                    ptr = b.buildGEP(array, indices: [0, 0])
+                }
+                val = b.buildInsertValue(aggregate: val, element: ptr, index: 0)
+                val = b.buildInsertValue(aggregate: val, element: excessArgs.count, index: 1)
+                val = b.buildInsertValue(aggregate: val, element: excessArgs.count, index: 2)
+
+                args = Array(args.dropLast(args.count - requiredArgs))
+                args.append(val)
+            }
             let val = b.buildCall(callee, args: args)
             if returnAddress {
                 // allocate stack space to land this onto
@@ -1226,9 +1249,18 @@ extension IRGenerator {
             return val
         case .specializedCall(let specialization):
 
+            var expectedParamTypes = ArraySlice(specialization.strippedType.params)
+            // Because we use the param types below to lower any named IR types into their unnamed variants, we must
+            //  have enough params of the right type to zip up with
+            if specialization.strippedType.isVariadic && !specialization.strippedType.isCVariadic {
+                expectedParamTypes = expectedParamTypes.dropLast()
+                let variadicElementType = (specialization.strippedType.params.last! as! ty.Slice).elementType
+                expectedParamTypes.append(contentsOf: repeatElement(variadicElementType, count: call.args.count - expectedParamTypes.count))
+            }
+
             // The following maps a parameter to it's base type, if it is a named type in IR then this lowers it to an unamed type so that
             //  aliases in specialized functions result in a single specialization (string and []u8)
-            let args = zip(call.args, specialization.strippedType.params).map { (arg, param) -> IRValue in
+            var args = zip(call.args, expectedParamTypes).map { (arg, param) -> IRValue in
                 var val: IRValue
                 if arg.type is ty.Named && baseType(arg.type) is IRNamableType {
                     // we need to lower these
@@ -1243,6 +1275,30 @@ extension IRGenerator {
                 }
 
                 return val
+            }
+
+            let fn = specialization.strippedType
+            if fn.isVariadic && !fn.isCVariadic {
+                // bundle the excess args into a slice
+                let requiredArgs = fn.params.count - 1
+                let excessArgs = args[requiredArgs...]
+                var val = canonicalize(fn.params.last!).undef()
+                let sliceElementType = canonicalize((fn.params.last! as! ty.Slice).elementType)
+                var ptr = LLVM.PointerType(pointee: sliceElementType).null()
+                if !excessArgs.isEmpty {
+                    let array = entryBlockAlloca(type: LLVM.ArrayType(elementType: sliceElementType, count: excessArgs.count))
+                    for (index, arg) in excessArgs.enumerated() {
+                        let target = b.buildInBoundsGEP(array, indices: [0, index])
+                        b.buildStore(arg, to: target)
+                    }
+                    ptr = b.buildGEP(array, indices: [0, 0])
+                }
+                val = b.buildInsertValue(aggregate: val, element: ptr, index: 0)
+                val = b.buildInsertValue(aggregate: val, element: excessArgs.count, index: 1)
+                val = b.buildInsertValue(aggregate: val, element: excessArgs.count, index: 2)
+
+                args = Array(args.dropLast(args.count - requiredArgs))
+                args.append(val)
             }
 
             // NOTE: We always emit a stub as all polymorphic specializations are emitted into a specialization package.
@@ -1742,8 +1798,7 @@ extension IRGenerator {
     mutating func canonicalizeSignature(_ fn: ty.Function) -> FunctionType {
         var paramTypes: [IRType] = []
 
-        // FIXME: Only C vargs should use LLVM variadics, native variadics should use slices.
-        let requiredParams = fn.isVariadic ? fn.params[..<(fn.params.endIndex - 1)] : ArraySlice(fn.params)
+        let requiredParams = fn.isCVariadic ? fn.params[..<(fn.params.endIndex - 1)] : ArraySlice(fn.params)
         for param in requiredParams {
             let type = canonicalize(param)
             paramTypes.append(type)

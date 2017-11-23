@@ -80,7 +80,20 @@ extension ty.Vector {
 
 extension ty.Function {
     var description: String {
-        return "(" + params.map({ $0.description }).joined(separator: ", ") + ") -> " + returnType.description
+        // FIXME: For polymorphic types `$` should only appear for the first declaration of a type name. ie: ($T) ->$T should only have `$` in the first position
+        var str = "("
+        var requiredParams = AnySequence(params)
+        if isVariadic {
+            requiredParams = requiredParams.dropLast()
+        }
+        str += requiredParams.map({ $0.description }).joined(separator: ", ")
+        if isVariadic {
+            str += ".."
+            str += (params.last! as! ty.Slice).elementType.description
+        }
+        str += ") -> "
+        str += splatTuple(returnType).description
+        return str
     }
 }
 
@@ -136,12 +149,6 @@ extension ty.Tuple {
 extension ty.Invalid {
     var description: String {
         return "< invalid >"
-    }
-}
-
-extension ty.CVarArg {
-    var description: String {
-        return "#cvargs ..any"
     }
 }
 

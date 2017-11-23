@@ -768,10 +768,7 @@ extension Checker {
     mutating func check(return ret: Return) -> Set<Entity> {
         let expectedReturn = context.nearestExpectedReturnType!
 
-        var isVoidReturn = false
-        if expectedReturn.types.count == 1 && isVoid(expectedReturn.types[0]) {
-            isVoidReturn = true
-        }
+        let isVoidReturn = isVoid(splatTuple(expectedReturn))
 
         var dependencies: Set<Entity> = []
         for (value, expected) in zip(ret.results, expectedReturn.types) {
@@ -1024,7 +1021,10 @@ extension Checker {
             return Operand(mode: .type, expr: expr, type: type, constant: nil, dependencies: [])
 
         case let variadic as VariadicType:
-            return check(expr: variadic.explicitType)
+            var operand = check(expr: variadic.explicitType)
+            operand.type = ty.Metatype(instanceType: ty.Slice(elementType: lowerFromMetatype(operand.type, atNode: expr)))
+            expr.type = operand.type
+            return operand
 
         case let pointer as PointerType:
             let operand = check(expr: pointer.explicitType)
@@ -1431,19 +1431,17 @@ extension Checker {
                 needsSpecialization = needsSpecialization || param.isPolymorphic
 
                 let operand = check(expr: param)
-                var type = lowerFromMetatype(operand.type, atNode: param)
+                let type = lowerFromMetatype(operand.type, atNode: param)
+
+                if let paramType = param as? VariadicType {
+                    fn.flags.insert(paramType.isCvargs ? .cVariadic : .variadic)
+                    typeFlags.insert(paramType.isCvargs ? .cVariadic : .variadic) // NOTE: Not sure this is useful on the type?
+                }
+
                 let entity = newEntity(ident: label, type: type, flags: param.isPolymorphic ? .polyParameter : .parameter)
                 declare(entity)
                 params.append(entity)
                 dependencies.formUnion(operand.dependencies)
-
-                if let paramType = param as? VariadicType {
-                    fn.flags.insert(paramType.isCvargs ? .cVariadic : .variadic)
-                    typeFlags.insert(paramType.isCvargs ? .cVariadic : .variadic)
-                    if paramType.isCvargs && isAnyy(type) {
-                        type = ty.cvargAny
-                    }
-                }
 
                 inputs.append(type)
             }
@@ -1477,7 +1475,7 @@ extension Checker {
         context.expectedReturnType = prevReturnType
 
         // TODO: Only allow single void return
-        if isVoid(result.types[0]) {
+        if isVoid(splatTuple(result)) {
             if fn.isDiscardable {
                 reportError("#discardable on void returning function is superflous", at: fn.start)
             }
@@ -1489,7 +1487,7 @@ extension Checker {
 
         if needsSpecialization && !fn.isSpecialization {
             typeFlags.insert(.polymorphic)
-            fn.type = ty.Function(node: fn, labels: fn.labels, params: inputs, returnType: result, flags: .polymorphic)
+            fn.type = ty.Function(node: fn, labels: fn.labels, params: inputs, returnType: result, flags: typeFlags)
             fn.checked = .polymorphic(declaringScope: context.scope.parent!, specializations: [])
         } else {
             fn.type = ty.Function(node: fn, labels: fn.labels, params: inputs, returnType: result, flags: typeFlags)
@@ -1512,14 +1510,11 @@ extension Checker {
             let operand = check(expr: param)
             dependencies.formUnion(operand.dependencies)
 
-            var type = lowerFromMetatype(operand.type, atNode: param)
+            let type = lowerFromMetatype(operand.type, atNode: param)
 
             if let param = param as? VariadicType {
                 fn.flags.insert(param.isCvargs ? .cVariadic : .variadic)
                 typeFlags.insert(param.isCvargs ? .cVariadic : .variadic)
-                if param.isCvargs && isAnyy(type) {
-                    type = ty.cvargAny
-                }
             }
             params.append(type)
         }
@@ -1535,7 +1530,7 @@ extension Checker {
 
         let returnType = ty.Tuple.make(returnTypes)
 
-        if returnTypes.count == 1 && isVoid(returnTypes[0]) && fn.isDiscardable {
+        if isVoid(splatTuple(returnType)) && fn.isDiscardable {
             reportError("#discardable on void returning function is superflous", at: fn.start)
         }
 
@@ -2288,28 +2283,15 @@ extension Checker {
             return Operand.invalid
         }
 
-        if call.args.count > calleeFn.params.count {
-            let excessArgs = call.args[calleeFn.params.count...]
-            guard calleeFn.isVariadic else {
-                reportError("Too many arguments in call to \(call.fun)", at: excessArgs.first!.start)
-                call.type = calleeFn.returnType
-                return Operand(mode: .computed, expr: call, type: ty.invalid, constant: nil, dependencies: dependencies)
-            }
-
-            let expectedType = calleeFn.params.last!
-            for arg in excessArgs {
-                let argument = check(expr: arg, desiredType: expectedType)
-                dependencies.formUnion(argument.dependencies)
-
-                guard convert(argument.type, to: expectedType, at: arg) else {
-                    reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
-                    file.attachNote("In call to '\(callee)'")
-                    continue
-                }
-            }
+        if call.args.count > calleeFn.params.count && !calleeFn.isVariadic {
+            reportError("Too many arguments in call to \(callee)", at: call.args[calleeFn.params.count].start)
+            call.type = calleeFn.returnType
+            return Operand(mode: .computed, expr: call, type: calleeFn.returnType, constant: nil, dependencies: dependencies)
         }
 
-        if call.args.count < calleeFn.params.count {
+        let requiredArgs = calleeFn.isVariadic ? calleeFn.params.count - 1 : calleeFn.params.count
+        if call.args.count < requiredArgs {
+            // Less arguments then parameters
             guard calleeFn.isVariadic, call.args.count + 1 == calleeFn.params.count else {
                 reportError("Not enough arguments in call to '\(callee)'", at: call.start)
                 return Operand(mode: .computed, expr: call, type: ty.invalid, constant: nil, dependencies: dependencies)
@@ -2326,9 +2308,7 @@ extension Checker {
 
                 // FIXME: How to do Dependencies for customChecks for builtin's??
                 var returnType = customCheck(&self, call)
-                if (returnType as! ty.Tuple).types.count == 1 {
-                    returnType = (returnType as! ty.Tuple).types[0]
-                }
+                returnType = splatTuple(returnType as! ty.Tuple)
 
                 call.type = returnType
                 call.checked = .builtinCall(b)
@@ -2339,7 +2319,11 @@ extension Checker {
             builtin = b
         }
 
-        for (arg, expectedType) in zip(call.args, calleeFn.params) {
+        var paramArgPairs = AnySequence(zip(call.args, calleeFn.params))
+        if calleeFn.isVariadic && call.args.count > requiredArgs {
+            paramArgPairs = paramArgPairs.dropLast()
+        }
+        for (arg, expectedType) in paramArgPairs {
             let argument = check(expr: arg, desiredType: expectedType)
             dependencies.formUnion(argument.dependencies)
 
@@ -2347,6 +2331,22 @@ extension Checker {
                 reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
                 file.attachNote("In call to \(callee)")
                 continue
+            }
+        }
+
+        if calleeFn.isVariadic {
+            let excessArgs = call.args[requiredArgs...]
+            let expectedType = (calleeFn.params.last as! ty.Slice).elementType
+            for arg in excessArgs {
+                let argument = check(expr: arg, desiredType: expectedType)
+                dependencies.formUnion(argument.dependencies)
+
+                // Only perform conversions if the variadics are not C style
+                guard calleeFn.isCVariadic || convert(argument.type, to: expectedType, at: arg) else {
+                    reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
+                    file.attachNote("In call to '\(callee)'")
+                    continue
+                }
             }
         }
 
@@ -2364,8 +2364,7 @@ extension Checker {
             call.checked = .call
         }
 
-        // splat!
-        let returnType = calleeFn.returnType.types.count == 1 ? calleeFn.returnType.types[0] : calleeFn.returnType
+        let returnType = splatTuple(calleeFn.returnType)
         call.type = returnType
         return Operand(mode: .computed, expr: call, type: returnType, constant: nil, dependencies: dependencies)
     }
@@ -2488,8 +2487,15 @@ extension Checker {
 
             let argument = check(expr: arg)
             let type = constrainUntypedToDefault(argument.type!)
+            // Use the constrained type for the argument
+            arg.type = type
 
-            guard specialize(polyType: param.type!, with: type) else {
+            var paramType = param.type!
+            if calleeType.isVariadic {
+                paramType = (paramType as! ty.Slice).elementType
+            }
+
+            guard specialize(polyType: paramType, with: type) else {
                 reportError("Failed to specialize parameter \(param.name) (type \(param.type!)) with \(argument)", at: arg.start)
                 return Operand.invalid
             }
@@ -2516,8 +2522,30 @@ extension Checker {
                 }
             }
 
-            var returnType = specialization.strippedType.returnType.types.count == 1 ?
-                specialization.strippedType.returnType.types[0] : specialization.strippedType.returnType
+            let generated = specialization.generatedFunctionNode
+            if generated.isVariadic {
+                // Check the remaining arguments
+                let requiredArgs = generated.isVariadic ? generated.params.count - 1 : generated.params.count
+                var excessArgs = call.args[requiredArgs...]
+                let expectedType = lowerSpecializedPolymorphics((generated.params.last?.type as! ty.Slice).elementType)
+                if isPolymorphic(calleeType.params.last!) {
+                    // If the variadic type is polymoprphic then we will have checked the first variadic argument already
+                    excessArgs = excessArgs.dropFirst()
+                }
+                for arg in excessArgs {
+                    let argument = check(expr: arg, desiredType: expectedType)
+                    //                dependencies.formUnion(argument.dependencies)
+
+                    // Only perform conversions if the variadics are not C style
+                    guard generated.isCVariadic || convert(argument.type, to: expectedType, at: arg) else {
+                        reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
+                        file.attachNote("In call to '\(call.fun)'")
+                        continue
+                    }
+                }
+            }
+
+            var returnType = splatTuple(specialization.strippedType.returnType)
             returnType = lowerSpecializedPolymorphics(returnType)
 
             call.type = returnType
@@ -2586,8 +2614,35 @@ extension Checker {
 
             params.append(param)
 
-            param.type = arg.type
+            param.type = lowerSpecializedPolymorphics(param.type!)
             assert(!isPolymorphic(param.type!))
+        }
+
+        if generated.isVariadic {
+            // Check the remaining arguments
+            let requiredArgs = generated.params.count - 1
+            var excessArgs = call.args[requiredArgs...]
+            guard !excessArgs.isEmpty else {
+                reportError("Failed to specialize '\(call)' (type \(calleeType))", at: call.start)
+                file.attachNote("Unable to find type for specializing '\(findPolymorphic(generated.params.last!.type!)!.entity.name)'")
+                return Operand.invalid
+            }
+            let expectedType = lowerSpecializedPolymorphics((generated.params.last?.type as! ty.Slice).elementType)
+            if isPolymorphic(calleeType.params.last!) {
+                // If the variadic type is polymoprphic then we will have checked the first variadic argument already
+                excessArgs = excessArgs.dropFirst()
+            }
+            for arg in excessArgs {
+                let argument = check(expr: arg, desiredType: expectedType)
+//                dependencies.formUnion(argument.dependencies)
+
+                // Only perform conversions if the variadics are not C style
+                guard generated.isCVariadic || convert(argument.type, to: expectedType, at: arg) else {
+                    reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
+                    file.attachNote("In call to '\(call.fun)'")
+                    continue
+                }
+            }
         }
 
         // TODO: How do we handle invalid types
@@ -2596,6 +2651,7 @@ extension Checker {
 
         // Find the entity we are calling with
         let callee = entity(from: call.fun)!
+        // FIXME: No "." if the mangledNamePrefix is empty @mangling
         let prefix = callee.file!.irContext.mangledNamePrefix + "." + callee.name
         let suffix = specializationTypes
             .reduce("", { $0 + "$" + $1.description })
@@ -2619,9 +2675,10 @@ extension Checker {
 
         /// Remove specializations from the result type for the callee to check with
         var calleeType = calleeType
+        // FIXME: It looks like we are lowering Specialized Polymorphics at least twice (But likely more since we have probably done it prior also)
         calleeType.returnType.types = calleeType.returnType.types.map(lowerSpecializedPolymorphics)
 
-        var returnType = calleeType.returnType.types.count == 1 ? calleeType.returnType.types[0] : calleeType.returnType
+        var returnType = splatTuple(calleeType.returnType)
         returnType = lowerSpecializedPolymorphics(returnType)
 
         call.type = returnType
@@ -2693,6 +2750,8 @@ extension Node {
             return pointer.explicitType.isPolymorphic
         case let vector as VectorType:
             return vector.explicitType.isPolymorphic
+        case let variadic as VariadicType:
+            return variadic.explicitType.isPolymorphic
         case let fnType as FuncType:
             return fnType.params.reduce(false, { $0 || $1.isPolymorphic })
         case is PolyType, is PolyStructType, is PolyParameterList:

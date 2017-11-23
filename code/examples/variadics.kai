@@ -1,0 +1,33 @@
+
+#import kai("posix")
+
+average :: fn(nums: ..f32) -> f32 {
+    if nums.len == 0 return 0
+    total : f32 = 0
+    for num in nums {
+        total += num
+    }
+    return total / cast(f32) nums.len
+}
+
+sum :: fn(nums: ..$T) -> T {
+    total : T = 0
+    for num in nums {
+        total += num
+    }
+    return total
+}
+
+main :: fn() -> void {
+    toFive := sum(1, 2, 3, 4, 5)
+    posix.printf("sum(1, 2, 3, 4, 5) = %ld\n".raw, toFive)
+
+    toTwo := sum(1.0, 2.5)
+    posix.printf("sum(1.0, 2.5) = %f\n".raw, toTwo)
+
+    avg := average(1, 2, 3, 4, 5)
+    posix.printf("average(1, 2, 3, 4, 5) = %f\n".raw, avg)
+
+    avg = average()
+    posix.printf("average() = %f\n".raw, avg)
+}

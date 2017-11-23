@@ -32,7 +32,6 @@ func == (lhs: Type, rhs: Type) -> Bool {
     switch (baseType(lhs), baseType(rhs)) {
     case (is ty.Void, is ty.Void),
          (is ty.Anyy, is ty.Anyy),
-         (is ty.CVarArg, is ty.CVarArg),
          (is ty.Boolean, is ty.Boolean),
          (is ty.UntypedInteger, is ty.UntypedInteger),
          (is ty.UntypedFloatingPoint, is ty.UntypedFloatingPoint):
@@ -149,7 +148,6 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
     switch type {
     case is ty.Anyy,
          is ty.Boolean,
-         is ty.CVarArg,
          is ty.FloatingPoint,
          is ty.Integer,
          is ty.Void:
@@ -211,6 +209,7 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
     }
 }
 
+/// Unwraps a named types
 func baseType(_ type: Type) -> Type {
     return (type as? ty.Named)?.base ?? type
 }
@@ -295,9 +294,6 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
     case (_, is ty.Anyy):
         allowed = true
 
-    case (_, is ty.CVarArg):
-        return true // return immediately, don't perform conversion
-
     case (let type as ty.Named, let target as ty.Named):
         if target.entity === Entity.rawptr && type.base is ty.Pointer {
             allowed = true
@@ -377,6 +373,13 @@ func canCast(_ exprType: Type, to targetType: Type) -> Bool {
     default:
         return false
     }
+}
+
+func splatTuple(_ tuple: ty.Tuple) -> Type {
+    if tuple.types.count == 1 {
+        return tuple.types[0]
+    }
+    return tuple
 }
 
 /// A name space containing all type specifics
@@ -654,10 +657,6 @@ enum ty {
         static let instance = Invalid()
     }
 
-    struct CVarArg: Type {
-        static let instance = CVarArg()
-    }
-
     struct File: Type {
         let memberScope: Scope
 
@@ -772,10 +771,6 @@ func isTuple(_ type: Type) -> Bool {
 
 func isInvalid(_ type: Type) -> Bool {
     return type is ty.Invalid
-}
-
-func isCVarArg(_ type: Type) -> Bool {
-    return type is ty.CVarArg
 }
 
 func isFile(_ type: Type) -> Bool {
