@@ -72,17 +72,17 @@ public class Compiler {
             let endTime = gettime()
             debugTimings.append((job.description, endTime - startTime))
         }
-
-        if !specializations.isEmpty {
-            var gen = IRGenerator(specializations: specializations, package: generatedPackage)
-            gen.emit()
-        }
-
+        
         guard !wasError else {
             for file in files.values {
                 emitErrors(for: file, at: "Parsing")
             }
             return
+        }
+
+        if !specializations.isEmpty {
+            var gen = IRGenerator(specializations: specializations, package: generatedPackage)
+            gen.emit()
         }
 
         while let job = generationQueue.dequeue() {
