@@ -1561,8 +1561,9 @@ extension IRGenerator {
         val = b.buildInsertValue(aggregate: val, element: cap, index: 2)
 
         if returnAddress {
-            // FIXME: What do? Should we alloca this and return that?
-            fatalError()
+            let ptr = entryBlockAlloca(type: canonicalize(slice.type))
+            _ = b.buildStore(val, to: ptr)
+            return ptr
         }
         return val
     }
