@@ -2271,7 +2271,7 @@ extension Checker {
         }
         call.checked = .call
 
-        var calleeType = callee.type!
+        var calleeType = baseType(callee.type!)
         if let pointer = calleeType as? ty.Pointer, isFunction(pointer.pointeeType) {
             calleeType = pointer.pointeeType
         }
