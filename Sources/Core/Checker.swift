@@ -678,7 +678,7 @@ extension Checker {
 
         let operand = check(expr: using.expr)
 
-        switch operand.type {
+        switch baseType(operand.type) {
         case let type as ty.File:
             for entity in type.memberScope.members.values {
                 declare(entity)
@@ -689,12 +689,12 @@ extension Checker {
                 declare(entity)
             }
         case let meta as ty.Metatype:
-            guard let type = lowerFromMetatype(meta, atNode: using.expr) as? ty.Enum else {
+            guard let type = baseType(lowerFromMetatype(meta, atNode: using.expr)) as? ty.Enum else {
                 fallthrough
             }
 
             for c in type.cases.orderedValues {
-                let entity = newEntity(ident: c.ident, type: type, flags: .field, owningScope: context.scope)
+                let entity = newEntity(ident: c.ident, type: type, flags: [.field, .constant], owningScope: context.scope)
                 entity.constant = c.constant ?? UInt64(c.number)
                 declare(entity)
             }

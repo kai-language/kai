@@ -1081,6 +1081,8 @@ extension IRGenerator {
                 return canonicalize(type).constant(ident.entity.constant as! Double)
             case let type as ty.UntypedFloatingPoint:
                 return canonicalize(type).constant(ident.entity.constant as! Double)
+            case let type as ty.Enum:
+                return canonicalize(type).constant(ident.entity.constant as! UInt64)
             default:
                 break
             }
