@@ -654,6 +654,8 @@ enum ty {
     }
 
     struct Invalid: Type {
+        // NOTE: Give invalid a width to prevent crashes
+        var width: Int? { return 1 }
         static let instance = Invalid()
     }
 
