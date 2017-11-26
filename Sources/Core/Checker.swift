@@ -2451,7 +2451,7 @@ extension Checker {
             // TODO: We need to support complex constants first.
             fatalError()
         case .function:
-            guard context.expectedReturnType != nil else {
+            guard context.nearestFunction != nil else {
                 reportError("#function cannot be used outside of a function", at: l.start)
                 l.type = ty.invalid
                 return Operand.invalid
