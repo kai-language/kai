@@ -320,7 +320,7 @@ extension IRGenerator {
 
             for entity in decl.entities where entity !== Entity.anonymous {
                 if let fn = entity.type as? ty.Function {
-                    let function = b.addFunction(symbol(for: entity), type: canonicalizeSignature(fn))
+                    let function = addOrReuseFunction(named: symbol(for: entity), type: canonicalizeSignature(fn))
                     switch decl.callconv {
                     case nil:
                         break
