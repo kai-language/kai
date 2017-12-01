@@ -935,22 +935,24 @@ extension Checker {
         }
 
         for (c, nextCase) in sw.cases.enumerated().map({ ($0.element, sw.cases[safe: $0.offset + 1]) }) {
-            if let match = c.match {
-                if let desiredType = type {
-                    let operand = check(expr: match, desiredType: desiredType)
-                    dependencies.formUnion(operand.dependencies)
+            if !c.match.isEmpty {
+                for match in c.match {
+                    if let desiredType = type {
+                        let operand = check(expr: match, desiredType: desiredType)
+                        dependencies.formUnion(operand.dependencies)
 
-                    guard convert(operand.type, to: desiredType, at: match) else {
-                        reportError("Cannot convert \(operand) to expected type '\(desiredType)'", at: match.start)
-                        continue
-                    }
-                } else {
-                    let operand = check(expr: match, desiredType: ty.bool)
-                    dependencies.formUnion(operand.dependencies)
+                        guard convert(operand.type, to: desiredType, at: match) else {
+                            reportError("Cannot convert \(operand) to expected type '\(desiredType)'", at: match.start)
+                            continue
+                        }
+                    } else {
+                        let operand = check(expr: match, desiredType: ty.bool)
+                        dependencies.formUnion(operand.dependencies)
 
-                    guard convert(operand.type, to: ty.bool, at: match) else {
-                        reportError("Cannot convert \(operand) to expected type '\(ty.bool)'", at: match.start)
-                        continue
+                        guard convert(operand.type, to: ty.bool, at: match) else {
+                            reportError("Cannot convert \(operand) to expected type '\(ty.bool)'", at: match.start)
+                            continue
+                        }
                     }
                 }
             } else if seenDefault {

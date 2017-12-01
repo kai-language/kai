@@ -306,7 +306,7 @@ extension Parser {
             case .asm:
                 fatalError("Inline assembly is not yet supported")
             case .file, .line, .location, .function:
-                return LocationDirective(directive: pos, kind: directive, type: nil, constant: nil)
+                return LocationDirective(directive: pos, kind: directive, type: nil, constant: nil, conversion: nil)
             }
         default:
             return parseType(allowPolyType: allowPolyOrVariadicType, allowVariadic: allowPolyOrVariadicType)
@@ -957,9 +957,9 @@ extension Parser {
 
     mutating func parseCaseClause() -> CaseClause {
         let keyword = eatToken()
-        var match: Expr?
+        var match: [Expr] = []
         if tok != .colon {
-            match = parseExpr()
+            match = parseExprList()
         }
         let colon = expect(.colon)
         let body = parseStmtList()

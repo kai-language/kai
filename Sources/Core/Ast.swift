@@ -118,11 +118,12 @@ class LocationDirective: Node, Expr, Convertable {
     var end: Pos { return directive + kind.rawValue.count }
 
 // sourcery:inline:auto:LocationDirective.Init
-init(directive: Pos, kind: LoneDirective, type: Type!, constant: Value!) {
+init(directive: Pos, kind: LoneDirective, type: Type!, constant: Value!, conversion: (from: Type, to: Type)?) {
     self.directive = directive
     self.kind = kind
     self.type = type
     self.constant = constant
+    self.conversion = conversion
 }
 // sourcery:end
 }
@@ -1047,7 +1048,7 @@ init(keyword: Pos, cond: Expr, body: Stmt, els: Stmt?) {
 
 class CaseClause: Node, Stmt {
     var keyword: Pos
-    var match: Expr?
+    var match: [Expr]
     var colon: Pos
     var block: Block
 
@@ -1057,7 +1058,7 @@ class CaseClause: Node, Stmt {
     var end: Pos { return block.end }
 
 // sourcery:inline:auto:CaseClause.Init
-init(keyword: Pos, match: Expr?, colon: Pos, block: Block, label: Entity!) {
+init(keyword: Pos, match: [Expr], colon: Pos, block: Block, label: Entity!) {
     self.keyword = keyword
     self.match = match
     self.colon = colon
@@ -1167,7 +1168,7 @@ class Import: Node, TopLevelStmt {
     var end: Pos { return alias?.end ?? path.end }
 
 // sourcery:inline:auto:Import.Init
-    init(directive: Pos, alias: Ident?, path: Expr, importSymbolsIntoScope: Bool, exportSymbolsOutOfScope: Bool, resolvedName: String?, scope: Scope!, importee: Importable!) {
+init(directive: Pos, alias: Ident?, path: Expr, importSymbolsIntoScope: Bool, exportSymbolsOutOfScope: Bool, resolvedName: String?, scope: Scope!, importee: Importable!) {
     self.directive = directive
     self.alias = alias
     self.path = path

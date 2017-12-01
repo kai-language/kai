@@ -3,6 +3,7 @@ import Foundation
 
 public var compiler: Compiler!
 
+// sourcery: noinit
 public class Compiler {
 
     /// - Note: Returns nil iff the invokePath is invalid

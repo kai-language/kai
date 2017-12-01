@@ -151,7 +151,7 @@ func copy(_ nodes: [Call]) -> [Call] {
 func copy(_ node: CaseClause) -> CaseClause {
     return CaseClause(
         keyword: node.keyword,
-        match: node.match.map(copy),
+        match: copy(node.match),
         colon: node.colon,
         block: copy(node.block),
         label: node.label
@@ -488,7 +488,8 @@ func copy(_ node: LocationDirective) -> LocationDirective {
         directive: node.directive,
         kind: node.kind,
         type: node.type,
-        constant: node.constant
+        constant: node.constant,
+        conversion: node.conversion
     )
 }
 

@@ -496,7 +496,7 @@ extension IRGenerator {
 
             // FIXME: Is it actually possible to encounter a metatype as the rhs of a variable declaration?
             //   if it is we should catch that in the checker for declarations
-            if let type = entity.type as? ty.Metatype {
+            if let t = entity.type, let type = baseType(t) as? ty.Metatype {
                 let irType = b.createStruct(name: symbol(for: entity))
 
                 switch type.instanceType {
@@ -529,7 +529,8 @@ extension IRGenerator {
 
                 b.buildStore(ir, to: stackValue)
 
-                if let lit = value as? BasicLit, lit.token == .string {
+                // NOTE: this checks entity type to ensure we don't force-cast integers
+                if let lit = value as? BasicLit, lit.token == .string, baseType(entity.type!) == ty.string {
 
                     // If we have a string then ensure the data contents are stored on the stack so they can be mutated
                     let count = (lit.constant as! String).utf8.count + 1 // + 1 for null byte
@@ -877,7 +878,7 @@ extension IRGenerator {
 
         var thenBlocks: [BasicBlock] = []
         for c in sw.cases {
-            if c.match != nil {
+            if !c.match.isEmpty {
                 let thenBlock = curFunction.appendBasicBlock(named: "switch.then", in: module.context)
                 thenBlocks.append(thenBlock)
             } else {
@@ -887,14 +888,17 @@ extension IRGenerator {
         }
 
         let value = sw.match.map({ emit(expr: $0) }) ?? i1.constant(1)
-        var matches: [IRValue] = []
+        var matches: [[IRValue]] = []
         for (i, c, nextCase) in sw.cases.enumerated().map({ ($0.offset, $0.element, sw.cases[safe: $0.offset + 1]) }) {
             let thenBlock = thenBlocks[i]
             nextCase?.label.value = thenBlocks[safe: i + 1]
 
-            if let match = c.match {
-                let val = emit(expr: match)
-                matches.append(val)
+            if !c.match.isEmpty {
+                var vals: [IRValue] = []
+                for match in c.match {
+                    vals.append(emit(expr: match))
+                }
+                matches.append(vals)
             }
 
             b.positionAtEnd(of: thenBlock)
@@ -907,10 +911,12 @@ extension IRGenerator {
             b.positionAtEnd(of: curBlock)
         }
 
-        let hasDefaultCase = sw.cases.last!.match == nil
+        let hasDefaultCase = sw.cases.last!.match.isEmpty
         let irSwitch = b.buildSwitch(value, else: hasDefaultCase ? thenBlocks.last! : postBlock, caseCount: thenBlocks.count)
-        for (match, block) in zip(matches, thenBlocks) {
-            irSwitch.addCase(match, block)
+        for (matches, block) in zip(matches, thenBlocks) {
+            for match in matches {
+                irSwitch.addCase(match, block)
+            }
         }
 
         b.positionAtEnd(of: postBlock)
@@ -973,13 +979,14 @@ extension IRGenerator {
         // TODO: Use the mangled entity name
         if lit.token == .string {
             let constant = lit.constant as! String
-            switch lit.type!.width! {
+            let litType = baseType(lit.type)
+            switch litType.width! {
             case 8:
-                return canonicalize(lit.type as! ty.Integer).constant(constant.utf8.first!)
+                return canonicalize(litType as! ty.Integer).constant(constant.utf8.first!)
             case 16:
-                return canonicalize(lit.type as! ty.Integer).constant(constant.utf16.first!)
+                return canonicalize(litType as! ty.Integer).constant(constant.utf16.first!)
             case 32:
-                return canonicalize(lit.type as! ty.Integer).constant(constant.unicodeScalars.first!.value)
+                return canonicalize(litType as! ty.Integer).constant(constant.unicodeScalars.first!.value)
             default:
                 assert(lit.type == ty.string)
                 return emit(constantString: constant, returnAddress: returnAddress)

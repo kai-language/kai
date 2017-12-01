@@ -129,6 +129,14 @@ extension Options {
     var isTestMode: Bool {
         return flags.contains(.testMode) 
     }
+
+    var isShared: Bool {
+        return flags.contains(.shared) 
+    }
+
+    var isDynamicLib: Bool {
+        return flags.contains(.dynamicLib) 
+    }
 }
 
 extension ty.Function {

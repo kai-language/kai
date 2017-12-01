@@ -579,7 +579,6 @@ func isDigit(_ ch: Unicode.Scalar) -> Bool {
 }
 
 func digitVal(_ ch: Unicode.Scalar) -> Int {
-
     if "0" <= ch && ch <= "9" {
         return Int(ch.value - UnicodeScalar("0")!.value)
     }
