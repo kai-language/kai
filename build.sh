@@ -2,17 +2,18 @@
 
 set -e
 
+MACOSX_DEPLOYMENT_TARGET=10.13
+
 case "$1" in
 xcode)
-    swift package generate-xcodeproj 
+    swift package generate-xcodeproj
 ;;
 
 sourcery)
     ./tools/genAccessors.sh
 ;;
 release)
-    MACOSX_DEPLOYMENT_TARGET=10.12
-    swift build -Xswiftc -DDEBUG -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx10.12" -c release
+    swift build -Xswiftc -DDEBUG -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx$MACOSX_DEPLOYMENT_TARGET" -c release
     cp .build/release/kai /usr/local/bin/
 ;;
 distribute)
@@ -24,7 +25,7 @@ distribute)
 
     echo "building binary"
 
-    swift build -c release -Xswiftc -static-stdlib -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx10.12";
+    swift build -c release -Xswiftc -static-stdlib -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx$MACOSX_DEPLOYMENT_TARGET"
     install_name_tool -change /usr/local/opt/llvm/lib/libc++.1.dylib /usr/lib/libc++.1.dylib .build/release/kai
     PACKAGE_NAME="kai-$TAG"
     mkdir -p ./$PACKAGE_NAME
@@ -44,8 +45,7 @@ distribute)
     git reset --hard HEAD
 ;;
 *)
-    MACOSX_DEPLOYMENT_TARGET=10.12
-    swift build -Xswiftc -DDEBUG -Xswiftc -DDEVELOPER -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx10.12"
+    swift build -Xswiftc -DDEBUG -Xswiftc -DDEVELOPER -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx$MACOSX_DEPLOYMENT_TARGET"
     cp .build/debug/kai /usr/local/bin/
 esac
 
