@@ -130,7 +130,11 @@ extension Checker {
     }
 
     mutating func collect(import i: Import) {
-
+        guard i.scope != nil else {
+            // assume we had an error somewhere and return to prevent crashes down
+            // below
+            return assert(file.errors.count > 0)
+        }
         var entity: Entity?
         if let alias = i.alias {
             entity = newEntity(ident: alias, flags: .file)
