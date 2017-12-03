@@ -1283,7 +1283,6 @@ extension Parser {
 
     func unquote(_ s: String) -> String {
         var s = s
-
         s = String(s.dropFirst().dropLast())
 
         var index = s.startIndex
@@ -1292,7 +1291,9 @@ extension Parser {
                 index = s.index(after: index)
                 continue
             }
+
             s.remove(at: index)
+
             var char: Character
             switch s[index] {
             case "a":  char = "\u{0007}" // alert or bell
@@ -1302,7 +1303,8 @@ extension Parser {
             case "r":  char = "\u{000d}" // carriage return
             case "t":  char = "\u{0009}" // horizontal tab
             case "v":  char = "\u{000b}" // vertical tab
-            case "\\": char = "\u{005c}" // backslash
+            case "\\":
+                char = "\u{005c}" // backslash
             case "\"": char = "\u{0022}" // double quote
             default:
                 let startIndex = index
@@ -1336,6 +1338,7 @@ extension Parser {
                 continue
             }
             s.replaceSubrange(index ..< s.index(after: index), with: [char])
+            index = s.index(after: index)
         }
 
         return s
