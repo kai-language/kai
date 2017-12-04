@@ -1276,7 +1276,7 @@ extension IRGenerator {
                     val = emit(expr: arg, returnAddress: true)
                     assert(val.type is LLVM.PointerType)
 
-                    let irType = LLVM.PointerType(pointee: canonicalize(param))
+                    let irType = LLVM.PointerType(pointee: canonicalize(baseType(param)))
                     val = b.buildBitCast(val, type: irType)
                     val = b.buildLoad(val)
                 } else {
@@ -1314,6 +1314,10 @@ extension IRGenerator {
             let function = addOrReuseFunction(named: specialization.mangledName, type: canonicalizeSignature(specialization.strippedType))
 
             let result: IRValue = b.buildCall(function, args: args)
+            if fn.returnType.types.first is ty.Void {
+                return result
+            }
+
             // FIXME: This get's around calls to functions that return `[]u8` but want to store that into a named `[]u8` such as `string`
             //  This can't just be a simple bitcast because LLVM does not allow bitcasts on aggregate types. Only on pointers to them.
             //  So we allocated some stack memory for now.
@@ -1693,9 +1697,9 @@ extension IRGenerator {
 
     mutating func canonicalize(_ type: Type) -> IRType {
 
-        if let named = type as? ty.Named, let mangledName = named.entity.mangledName, let existing = module.type(named: mangledName) {
-            return existing
-        }
+//        if let named = type as? ty.Named, let mangledName = named.entity.mangledName, let existing = module.type(named: mangledName) {
+//            return existing
+//        }
 
         switch type {
         case let type as ty.Void:
@@ -1729,24 +1733,24 @@ extension IRGenerator {
         case let type as ty.UntypedFloatingPoint:
             return canonicalize(type)
         case let type as ty.Named:
-            if let mangledName = type.entity.mangledName, let existing = module.type(named: mangledName) {
-                return existing
-            } else if type.base is IRNamableType && type.entity.isBuiltin {
-                // NOTE: `string` is a builtin IRNamableType
-
-                // Prepend a `.` so that builtin named types cannot collide
-                type.entity.mangledName = "." + type.entity.name
-
-                let irType = b.createStruct(name: type.entity.mangledName)
-                let type = canonicalize(type.base) as! LLVM.StructType
-                irType.setBody(type.elementTypes)
-                return irType
-            } else if type.base is IRNamableType {
-                emit(decl: type.entity.declaration!)
-                return module.type(named: type.entity.mangledName)!
-            } else {
+//            if let mangledName = type.entity.mangledName, let existing = module.type(named: mangledName) {
+//                return existing
+//            } else if type.base is IRNamableType && type.entity.isBuiltin {
+//                // NOTE: `string` is a builtin IRNamableType
+//
+//                // Prepend a `.` so that builtin named types cannot collide
+//                type.entity.mangledName = "." + type.entity.name
+//
+//                let irType = b.createStruct(name: type.entity.mangledName)
+//                let type = canonicalize(type.base) as! LLVM.StructType
+//                irType.setBody(type.elementTypes)
+//                return irType
+//            } else if type.base is IRNamableType {
+//                emit(decl: type.entity.declaration!)
+//                return module.type(named: type.entity.mangledName)!
+//            } else {
                 return canonicalize(type.base)
-            }
+//            }
         case is ty.Polymorphic:
             fatalError("Polymorphic types must be specialized before reaching the IRGenerator")
         case is ty.UntypedNil:

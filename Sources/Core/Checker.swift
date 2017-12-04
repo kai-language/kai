@@ -2304,7 +2304,7 @@ extension Checker {
             }
         }
 
-        if isPolymorphic(calleeFn) {
+        if isPolymorphic(calleeFn) || calleeFn.isPolymorphic {
             return check(polymorphicCall: call, calleeType: calleeType as! ty.Function, desiredType: desiredType)
         }
 
