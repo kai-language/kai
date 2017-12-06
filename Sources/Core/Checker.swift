@@ -2329,7 +2329,9 @@ extension Checker {
 
                 // FIXME: How to do Dependencies for customChecks for builtin's??
                 var returnType = customCheck(&self, call)
-                returnType = splatTuple(returnType as! ty.Tuple)
+                if let tuple = returnType as? ty.Tuple {
+                    returnType = splatTuple(tuple)
+                }
 
                 call.type = returnType
                 call.checked = .builtinCall(b)

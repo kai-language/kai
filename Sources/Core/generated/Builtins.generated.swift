@@ -19,6 +19,10 @@ extension Entity {
     static let i64 = Entity.makeBuiltin("i64", flags: .type)
     static let u64 = Entity.makeBuiltin("u64", flags: .type)
     static let type = Entity.makeBuiltin("type", flags: .type)
+    static let typeInfo = Entity.makeBuiltin("typeInfo", flags: .type)
+    static let booleanType = Entity.makeBuiltin("booleanType", flags: .type)
+    static let integerType = Entity.makeBuiltin("integerType", flags: .type)
+    static let floatType = Entity.makeBuiltin("floatType", flags: .type)
     static let untypedNil = Entity.makeBuiltin("nil", flags: .type)
 }
 
@@ -42,6 +46,10 @@ extension ty {
     static let untypedFloat = BuiltinType.untypedFloat.type
     static let untypedNil = BuiltinType.untypedNil.type
     static let type = BuiltinType.type.type
+    static let typeInfo = BuiltinType.typeInfo.type
+    static let booleanType = BuiltinType.booleanType.type
+    static let integerType = BuiltinType.integerType.type
+    static let floatType = BuiltinType.floatType.type
 
     static let builtin: [BuiltinType] = [
         BuiltinType.void,
@@ -63,11 +71,16 @@ extension ty {
         BuiltinType.untypedFloat,
         BuiltinType.untypedNil,
         BuiltinType.type,
+        BuiltinType.typeInfo,
+        BuiltinType.booleanType,
+        BuiltinType.integerType,
+        BuiltinType.floatType,
     ]
 }
 
 let builtinFunctions: [BuiltinFunction] = [
     BuiltinFunction.sizeof,
+    BuiltinFunction.typeof,
 ]
 
 let builtinEntities: [BuiltinEntity] = [
@@ -77,6 +90,7 @@ let builtinEntities: [BuiltinEntity] = [
 
 let builtins: [Entity] = [
     BuiltinFunction.sizeof.entity,
+    BuiltinFunction.typeof.entity,
     BuiltinEntity.trué.entity,
     BuiltinEntity.falsé.entity,
     BuiltinType.void.entity,
@@ -98,5 +112,9 @@ let builtins: [Entity] = [
     BuiltinType.untypedFloat.entity,
     BuiltinType.untypedNil.entity,
     BuiltinType.type.entity,
+    BuiltinType.typeInfo.entity,
+    BuiltinType.booleanType.entity,
+    BuiltinType.integerType.entity,
+    BuiltinType.floatType.entity,
 ]
 

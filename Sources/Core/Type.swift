@@ -478,41 +478,22 @@ enum ty {
             }
         }
 
-        @available(*, unavailable)
-        static func make(named name: String, builder: IRBuilder, _ members: [(String, Type)]) -> BuiltinType {
-            // NOTE: Not sure how to do these yet. Likely this will be gone.
-            fatalError()
-            /*
+        /// Makes a builtin struct
+        static func make(name: String, _ members: [(String, Type)]) -> BuiltinType {
             var width = 0
-            var fields: [Struct.Field] = []
+            var fields: [Field] = []
             for (index, (name, type)) in members.enumerated() {
-
-                let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-
-                let field = Struct.Field(ident: ident, type: type, index: index, offset: width)
+                let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+                let field = Field(ident: ident, type: type, index: index, offset: width)
                 fields.append(field)
-
                 width = (width + type.width!).round(upToNearest: 8)
             }
 
-            let irType = builder.createStruct(name: name)
-            var irTypes: [IRType] = []
-            for field in fields {
-                let fieldType = canonicalize(field.type)
-                irTypes.append(fieldType)
-            }
-
             let entity = Entity.makeBuiltin(name)
-
-            irType.setBody(irTypes)
-
-            var type: Type
-            type = Struct(width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields, isPolymorphic: false)
-            type = Metatype(instanceType: type)
+            let type = Struct(width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields)
 
             entity.type = type
             return BuiltinType(entity: entity, type: type)
-            */
         }
     }
 
@@ -531,6 +512,23 @@ enum ty {
         struct Case {
             var ident: Ident
             var type: Type
+        }
+
+        static func make(name: String, _ members: [(String, Type)]) -> BuiltinType {
+            var width = 0
+            var cases: [Case] = []
+            for (name, type) in members {
+                let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+                let c = Case(ident: ident, type: type)
+                cases.append(c)
+                width = max(width, type.width!)
+            }
+
+            let entity = Entity.makeBuiltin(name)
+            let type = Union(width: width, cases: cases)
+
+            entity.type = type
+            return BuiltinType(entity: entity, type: type)
         }
     }
 

@@ -1,12 +1,21 @@
 
 #import kai("posix")
 
-main :: fn() -> void {
-    defer posix.printf("Defer in main\n".raw)
-    Other()
+Foo :: struct {
+    a, b, c: i64
 }
 
-Other :: fn() -> void {
-    defer posix.printf("Defer in Other\n".raw)
+main :: fn() -> i32 {
+
+    ty := typeof(cast(i64) 5)
+    posix.printf("%d\n".raw, ty.Tag)
+    posix.printf("%d\n".raw, ty.Integer.Signed)
+    posix.printf("%d\n".raw, ty.Integer.Width)
+
+    ty = typeof(cast(f32) 5.0)
+    posix.printf("%d\n".raw, ty.Tag)
+    posix.printf("%d\n".raw, ty.Float.Width)
+
+    return 5
 }
 

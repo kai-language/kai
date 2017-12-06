@@ -161,6 +161,19 @@ struct IRGenerator {
         return IntType(width: 1, in: module.context)
     }()
 
+    // Odd sizes
+    lazy var i3: IntType = {
+        return IntType(width: 3, in: module.context)
+    }()
+
+    lazy var i61: IntType = {
+        return IntType(width: 61, in: module.context)
+    }()
+
+    lazy var i60: IntType = {
+        return IntType(width: 60, in: module.context)
+    }()
+
     lazy var i8: IntType = {
         return IntType(width: 8, in: module.context)
     }()

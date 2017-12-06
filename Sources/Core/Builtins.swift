@@ -47,6 +47,32 @@ struct BuiltinType {
     /// - Note: The type type only exists at compile time
     static let type = BuiltinType(entity: .type, type: ty.Metatype(instanceType: ty.Tuple(width: 0, types: [])))
 
+    // FIXME: Add these to the types packages
+    static let typeInfo = ty.Union.make(name: "Type", [
+        ("Tag", ty.Integer(width: 3, isSigned: false)),
+        ("Compound", ty.rawptr), // platform width is max width here
+        ("Boolean", ty.booleanType),
+        ("Integer", ty.integerType),
+        ("Float", ty.floatType),
+    ])
+
+    static let booleanType = ty.Struct.make(name: "Boolean", [
+        ("Tag", ty.Integer(width: 3, isSigned: false)),
+        ("Width", ty.Integer(width: 61, isSigned: false)),
+    ])
+
+    // TODO: Communicate signedness
+    static let integerType = ty.Struct.make(name: "Integer", [
+        ("Tag", ty.Integer(width: 3, isSigned: false)),
+        ("Signed", ty.Boolean()),
+        ("Width", ty.Integer(width: 60, isSigned: false)),
+    ])
+
+    static let floatType = ty.Struct.make(name: "Float", [
+        ("Tag", ty.Integer(width: 3, isSigned: false)),
+        ("Width", ty.Integer(width: 61, isSigned: false)),
+    ])
+
 //    static let TypeInfo = ty.Struct.make(named: "TypeInfo", builder: stdlib.builder, [
 //        ("kind", ty.u8), // TODO: Make this an enumeration
 //        ("name", ty.string),
@@ -156,6 +182,44 @@ class BuiltinFunction {
             // TODO: Ensure the integer returned matches the `untypedInteger` types width.
             return gen.b.buildSizeOf(irType)
         }, onCallCheck: nil
+    )
+
+    static let typeof = BuiltinFunction(
+        entity: Entity.makeBuiltin("typeof", type: ty.Function.make([ty.any], [ty.typeInfo])), generate: { function, exprs, gen in
+            var type = baseType(exprs[0].type!) // FIXME: Don't unwrap named types
+
+            let (info, boolean, integer, floatingPoint) = generateTypeInfoLLVM(&gen)
+            let tag = typeInfoTag(for: type)
+            let value: IRValue
+            switch type {
+            case let type as ty.Boolean:
+                value = boolean.constant(values: [gen.i3.constant(tag), gen.i61.constant(type.width!)])
+
+            case let type as ty.Integer:
+                // Tag, Signed, Width
+                value = integer.constant(values: [gen.i3.constant(tag), gen.i1.constant(type.isSigned ? 1 : 0), gen.i60.constant(type.width!)])
+
+            case let type as ty.FloatingPoint:
+                value = floatingPoint.constant(values: [gen.i3.constant(tag), gen.i61.constant(type.width!)])
+
+            default:
+                fatalError()
+            }
+
+            let stackPtr = gen.b.buildAlloca(type: value.type)
+            gen.b.buildStore(value, to: stackPtr)
+            let ptr = gen.b.buildBitCast(stackPtr, type: LLVM.PointerType(pointee: info))
+            return gen.b.buildLoad(ptr)
+        }, onCallCheck: { (checker, call) in
+            guard call.args.count == 1 else {
+                checker.reportError("Expected 1 argument in call to 'typeInfo'", at: call.start)
+                return ty.invalid
+            }
+
+            _ = checker.check(expr: call.args[0])
+
+            return ty.typeInfo
+        }
     )
 }
 
