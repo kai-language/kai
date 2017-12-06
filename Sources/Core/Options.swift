@@ -97,7 +97,7 @@ public struct Options {
 
         print("\(purple)OVERVIEW\(reset): Kai compiler\n")
 
-        print("\(purple)USAGE\(reset): kai [options] <inputs>\n")
+        print("\(purple)USAGE\(reset): kai [options] \u{001B}[36m<inputs>\u{001B}[0m\n")
 
         print("\(purple)OPTIONS\(reset):")
         print("  -dump-ir               Dump LLVM IR")
@@ -110,10 +110,10 @@ public struct Options {
         print("  -emit-ir               Emit LLVM IR file(s)")
         print("  -emit-times            Emit times for each stage of compilation")
         print()
-        print("  -o <file>")
-        print("  -output <file>         Write output to file")
+        print("  -o \u{001B}[36m<file>\u{001B}[0m")
+        print("  -output \u{001B}[36m<file>\u{001B}[0m         Write output to file")
         print()
-        print("  -jobs <value>          Controls the amount of workers (default is # of cores)")
+        print("  -jobs \u{001B}[36m<value>\u{001B}[0m          Controls the amount of workers (default is # of cores)")
         print()
         print("  -no-cleanup            Keeps the build folder after compilation")
         print()
@@ -121,8 +121,6 @@ public struct Options {
         print("  -O1                    Compile with basic optimizations")
         print("  -O2                    Compile with most optimizations")
         print("  -O3                    Compile with tail call elimination and loop unrolling")
-        print()
-        print("  -o <file>              Write output to <file>")
         print()
         print("  -shared                Emit shared object")
         print()
@@ -133,7 +131,17 @@ public struct Options {
     }
 
     public func emitVersion() {
-        print("Kai version \(Options.version)")
+        print("\u{001B}[35m")
+        print("   ▄█   ▄█▄    ▄████████  ▄█")
+        print("  ███ ▄███▀   ███    ███ ███")
+        print("  ███▐██▀     ███    ███ ███▌")
+        print(" ▄█████▀      ███    ███ ███▌")
+        print("▀▀█████▄    ▀███████████ ███▌")
+        print("  ███▐██▄     ███    ███ ███")
+        print("  ███ ▀███▄   ███    ███ ███")
+        print("  ███   ▀█▀   ███    █▀  █▀\u{001B}[0m   \(Options.version)")
+        print("")
+
         exit(0)
     }
 

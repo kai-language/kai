@@ -1275,7 +1275,7 @@ class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplica
     var emitted: Bool
 
     var start: Pos { return names.first!.start }
-    var end: Pos { return values.first!.end }
+    var end: Pos { return values.first?.end ?? names.last!.start }
 
     init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?, isTest: Bool) {
         self.names = names

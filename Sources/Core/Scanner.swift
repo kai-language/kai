@@ -438,7 +438,7 @@ struct Scanner {
             if lit.count > 1 { // all keywords are longer than 1 character
                 tok = lookupKeyword(lit) ?? .ident
                 switch tok {
-                case .ident, .break, .continue, .fallthrough, .return:
+                case .ident, .break, .continue, .fallthrough, .return, .nil:
                     insertSemi = true
                 case .if, .for, .switch:
                     insertSemiBeforeLbrace = true
