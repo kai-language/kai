@@ -80,7 +80,6 @@ extension ty.Vector {
 
 extension ty.Function {
     var description: String {
-        // FIXME: For polymorphic types `$` should only appear for the first declaration of a type name. ie: ($T) ->$T should only have `$` in the first position
         var str = "("
         var requiredParams = AnySequence(params)
         if isVariadic {
@@ -132,8 +131,10 @@ extension ty.Metatype {
 
 extension ty.Polymorphic {
     var description: String {
-        if let specialization = self.specialization.val {
-            return entity.name + " specialized to " + specialization.description
+        if !declaring {
+            return entity.name
+        } else if let specialization = self.specialization.val {
+            return "$" + entity.name + " specialized to " + specialization.description
         } else {
             return "$" + entity.name
         }

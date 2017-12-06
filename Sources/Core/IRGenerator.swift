@@ -982,11 +982,11 @@ extension IRGenerator {
             let litType = baseType(lit.type)
             switch litType.width! {
             case 8:
-                return canonicalize(litType as! ty.Integer).constant(constant.utf8.first!)
+                return canonicalize(baseType(lit.type) as! ty.Integer).constant(constant.utf8.first!)
             case 16:
-                return canonicalize(litType as! ty.Integer).constant(constant.utf16.first!)
+                return canonicalize(baseType(lit.type) as! ty.Integer).constant(constant.utf16.first!)
             case 32:
-                return canonicalize(litType as! ty.Integer).constant(constant.unicodeScalars.first!.value)
+                return canonicalize(baseType(lit.type) as! ty.Integer).constant(constant.unicodeScalars.first!.value)
             default:
                 assert(lit.type == ty.string)
                 return emit(constantString: constant, returnAddress: returnAddress)
@@ -1269,22 +1269,24 @@ extension IRGenerator {
 
             // The following maps a parameter to it's base type, if it is a named type in IR then this lowers it to an unamed type so that
             //  aliases in specialized functions result in a single specialization (string and []u8)
-            var args = zip(call.args, expectedParamTypes).map { (arg, param) -> IRValue in
-                var val: IRValue
-                if arg.type is ty.Named && baseType(arg.type) is IRNamableType {
-                    // we need to lower these
-                    val = emit(expr: arg, returnAddress: true)
-                    assert(val.type is LLVM.PointerType)
+//            var args = zip(call.args, expectedParamTypes).map { (arg, param) -> IRValue in
+//                var val: IRValue
+//                if isFunction(arg.type) || (isNamed(arg.type) && baseType(arg.type) is IRNamableType) {
+//                    // we need to lower these
+//                    val = emit(expr: arg, returnAddress: true)
+//                    assert(val.type is LLVM.PointerType)
+//
+//                    let irType = LLVM.PointerType(pointee: canonicalize(param))
+//                    val = b.buildBitCast(val, type: irType)
+//                    val = b.buildLoad(val)
+//                } else {
+//                    val = emit(expr: arg)
+//                }
+//
+//                return val
+//            }
 
-                    let irType = LLVM.PointerType(pointee: canonicalize(param))
-                    val = b.buildBitCast(val, type: irType)
-                    val = b.buildLoad(val)
-                } else {
-                    val = emit(expr: arg)
-                }
-
-                return val
-            }
+            var args = call.args.map({ emit(expr: $0) })
 
             let fn = specialization.strippedType
             if fn.isVariadic && !fn.isCVariadic {
@@ -1384,19 +1386,7 @@ extension IRGenerator {
 
             return function
 
-        case .polymorphic(_, _):
-            /*
-            let mangledName = entity.map(symbol) ?? ".fn"
-            for specialization in specializations {
-                if specialization.mangledName == nil {
-                    let suffix = specialization.specializedTypes
-                        .reduce("", { $0 + "$" + $1.description })
-                    specialization.mangledName = mangledName + suffix
-                }
-
-                specialization.llvm = emit(funcLit: specialization.generatedFunctionNode, entity: entity, specializationMangle: specialization.mangledName)
-            }
-            */
+        case .polymorphic:
             return trap // dummy value. It doesn't matter.
         }
     }
@@ -1420,7 +1410,8 @@ extension IRGenerator {
                 }
             }
             let address = value(for: entity)
-            if returnAddress {
+            if returnAddress || isFunction(sel.type) && entity.isConstant {
+                // refering to global functions should retrieve their address
                 return address
             }
             return b.buildLoad(address)

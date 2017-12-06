@@ -1168,6 +1168,12 @@ extension Checker {
         assert(entity.type != nil || !entity.isChecked, "Either we have a type or the entity is yet to be checked")
         var type = entity.type
         if entity.type == nil {
+            guard entity.declaration != nil else {
+                reportError("Use of '\(ident)' in it's own definition", at: ident.start)
+                ident.entity = Entity.invalid
+                ident.type = ty.invalid
+                return Operand.invalid
+            }
             check(topLevelStmt: entity.declaration!)
             assert(entity.isChecked && entity.type != nil)
             type = entity.type
@@ -1395,12 +1401,14 @@ extension Checker {
         case let ident as Ident:
             let entity = newEntity(ident: ident, type: ty.invalid, flags: .implicitType)
             declare(entity)
-            var type: Type
-            type = ty.Polymorphic(entity: entity, specialization: Ref(nil))
-            type = ty.Metatype(instanceType: type)
-            entity.type = type
-            polyType.type = type
-            return type
+            var type = ty.Polymorphic(declaring: false, entity: entity, specialization: Ref(nil))
+            entity.type = ty.Metatype(instanceType: type)
+
+            // For the node's type we want to mark the polymorphic as being the one that declares the type.
+            type.declaring = true
+            let metatype = ty.Metatype(instanceType: type)
+            polyType.type = metatype
+            return metatype
         case is ArrayType, is SliceType:
             fatalError("TODO")
         default:
@@ -2334,7 +2342,7 @@ extension Checker {
             dependencies.formUnion(argument.dependencies)
 
             guard convert(argument.type, to: expectedType, at: arg) else {
-                reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
+                reportError("Cannot convert value \(argument) to expected argument type '\(expectedType)'", at: arg.start)
                 file.attachNote("In call to \(callee)")
                 continue
             }
@@ -2484,7 +2492,7 @@ extension Checker {
 
         var specializationTypes: [Type] = []
         for (arg, param) in zip(call.args, fnLitNode.params)
-            where param.isPolyParameter // FIXME: We don't want the polymorphic type we want the polymorphic Node
+            where param.isPolyParameter // Check the parameter entities flags to see if it has been marked as a polymorphic parameter.
         {
             guard !(arg is Nil) else {
                 reportError("'nil' requires a contextual type", at: arg.start)
@@ -2497,20 +2505,29 @@ extension Checker {
             arg.type = type
 
             var paramType = param.type!
-            if calleeType.isVariadic {
+            let isVariadic = calleeType.isVariadic && fnLitNode.params.last === param
+            if isVariadic {
                 paramType = (paramType as! ty.Slice).elementType
             }
 
             guard specialize(polyType: paramType, with: type) else {
-                reportError("Failed to specialize parameter \(param.name) (type \(param.type!)) with \(argument)", at: arg.start)
+                reportError("Failed to specialize parameter '\(param.name)' (type \(param.type!)) with \(argument)", at: arg.start)
                 return Operand.invalid
             }
 
-            let specializationType = findPolymorphic(param.type!)
-                .map(baseType)
-                .map(lowerSpecializedPolymorphics)!
+            // FIXME: @pr how does this work with variadics
+            // FIXME: @pr remove
+//            let specializationType = findPolymorphic(paramType)
+//                .map(baseType)
+//                .map(lowerSpecializedPolymorphics)!
 
-            specializationTypes.append(specializationType)
+//            param.type = type
+
+            if isVariadic {
+                specializationTypes.append(ty.Slice(elementType: type))
+            } else {
+                specializationTypes.append(type)
+            }
         }
 
         // Determine if the types used match any existing specializations
@@ -2556,10 +2573,11 @@ extension Checker {
 
             call.type = returnType
             call.checked = .specializedCall(specialization)
-            if let desiredType = desiredType, desiredType == returnType {
-                // NOTE: This is used for changing `[]u8` (unamed) to `string` (named) when needed
-                call.type = desiredType
-            }
+            // FIXME: @pr remove this
+//            if let desiredType = desiredType, desiredType == returnType {
+//                // NOTE: This is used for changing `[]u8` (unamed) to `string` (named) when needed
+//                call.type = desiredType
+//            }
             return Operand(mode: .computed, expr: call, type: call.type, constant: nil, dependencies: [])
         }
 
@@ -2596,6 +2614,8 @@ extension Checker {
                 entity.type = lowerSpecializedPolymorphics(entity.type!)
 
                 declare(entity)
+
+                param.type = lowerSpecializedPolymorphics(param.type!)
 
             } else {
                 assert(arg.type == nil)
@@ -2671,6 +2691,7 @@ extension Checker {
         fnLitNode.checked = .polymorphic(declaringScope: declaringScope, specializations: specializations)
 
         generated.params = params
+        generated.type = type
 
         assert(functionScope.members.count > generated.explicitType.params.count, "There had to be at least 1 polymorphic type declared")
 
@@ -2689,10 +2710,11 @@ extension Checker {
 
         call.type = returnType
         call.checked = .specializedCall(specialization)
-        if let desiredType = desiredType, desiredType == returnType {
-            // NOTE: This is used for changing `[]u8` (unamed) to `string` (named) when needed
-            call.type = desiredType
-        }
+        // FIXME: @pr remove
+//        if let desiredType = desiredType, desiredType == returnType {
+//            // NOTE: This is used for changing `[]u8` (unamed) to `string` (named) when needed
+//            call.type = desiredType
+//        }
 
         return Operand(mode: .computed, expr: call, type: returnType, constant: nil, dependencies: [])
     }
@@ -2759,7 +2781,7 @@ extension Node {
         case let variadic as VariadicType:
             return variadic.explicitType.isPolymorphic
         case let fnType as FuncType:
-            return fnType.params.reduce(false, { $0 || $1.isPolymorphic })
+            return fnType.params.reduce(false, { $0 || $1.isPolymorphic }) || fnType.results.reduce(false, { $0 || $1.isPolymorphic })
         case is PolyType, is PolyStructType, is PolyParameterList:
             return true
         default:

@@ -67,11 +67,14 @@ func == (lhs: Type, rhs: Type) -> Bool {
     case (_, let rhs as ty.Polymorphic):
         return rhs.specialization.val! == lhs
     case (let lhs as ty.Named, let rhs as ty.Named):
-        return lhs.base == rhs.base
-    case (let lhs as ty.Named, _):
-        return lhs.base == rhs
-    case (_, let rhs as ty.Named):
-        return lhs == rhs.base
+        return lhs.entity === rhs.entity
+
+        // FIXME: @pr remove
+//        return lhs.base == rhs.base
+//    case (let lhs as ty.Named, _):
+//        return lhs.base == rhs
+//    case (_, let rhs as ty.Named):
+//        return lhs == rhs.base
     default:
         return false
     }
@@ -91,11 +94,14 @@ func findPolymorphic(_ type: Type) -> ty.Polymorphic? {
 
     case let type as ty.Function:
         // FIXME: @polyfunctions This needs to return multiple polymorphics. Since functions can have multiple bits
-        return type.params.map(findPolymorphic).first ?? nil
+        let params = type.params.flatMap(findPolymorphic)
+        let results = type.returnType.types.flatMap(findPolymorphic)
+
+        return params.first ?? results.first
 
         // TODO: @PolyStruct
 
-    case let type as ty.Polymorphic:
+    case let type as ty.Polymorphic where type.declaring:
         return type
     default:
         return nil
@@ -121,11 +127,12 @@ func findConcreteType(_ type: Type) -> Type {
 ///
 /// - Returns: Was specialization possible?
 func specialize(polyType: Type, with argType: Type) -> Bool {
-    // FIXME: @polyfunctions handle functions
-    let polyType = baseType(polyType)
-    let argType = baseType(argType)
+    // FIXME: What to do if we end up _respecializing_ and how to prevent it if necisary
 
-    switch (polyType, argType) {
+    let basePolyType = baseType(polyType)
+    let baseArgType = baseType(argType)
+
+    switch (basePolyType, baseArgType) {
     case (let polyType as ty.Array, let argType as ty.Array):
         return specialize(polyType: polyType.elementType, with: argType.elementType)
     case (let polyType as ty.Slice, let argType as ty.Slice):
@@ -134,8 +141,20 @@ func specialize(polyType: Type, with argType: Type) -> Bool {
         return specialize(polyType: polyType.elementType, with: argType.elementType)
     case (let polyType as ty.Pointer, let argType as ty.Pointer):
         return specialize(polyType: polyType.pointeeType, with: argType.pointeeType)
+    case (let funcType as ty.Function, let argType as ty.Function):
+        guard funcType.params.count == argType.params.count && funcType.returnType.types.count == argType.returnType.types.count else {
+            return false
+        }
+        var didSpecialize = false
+        for (l, r) in zip(funcType.params, argType.params) {
+            didSpecialize = specialize(polyType: l, with: r) || didSpecialize
+        }
+        for (l, r) in zip(funcType.returnType.types, argType.returnType.types) {
+            didSpecialize = specialize(polyType: l, with: r) || didSpecialize
+        }
+        return didSpecialize
 
-    case (let polyType as ty.Polymorphic, _):
+    case (let polyType as ty.Polymorphic, _) where polyType.declaring:
         polyType.specialization.val = argType
         return true
     default:
@@ -181,7 +200,7 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
 
     case var type as ty.Function:
         type.params = type.params.map(lowerSpecializedPolymorphics)
-        // No polymorphic return types.
+        type.returnType.types = type.returnType.types.map(lowerSpecializedPolymorphics)
         return type
 
     case let type as ty.Named:
@@ -424,7 +443,7 @@ enum ty {
         }
     }
 
-    struct Slice: Type, NamableType, IRNamableType {
+    struct Slice: Type, NamableType {
         var width: Int? { return 3 * platformPointerWidth } // pointer, length, capacity
         var elementType: Type
 
@@ -636,6 +655,8 @@ enum ty {
     }
 
     struct Polymorphic: Type {
+        /// Is this the first type with this name?
+        var declaring: Bool
         var entity: Entity
         var specialization: Ref<Type?>
     }
