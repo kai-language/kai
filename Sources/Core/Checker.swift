@@ -2017,7 +2017,7 @@ extension Checker {
         let operand = check(expr: selector.rec)
         dependencies.formUnion(operand.dependencies)
 
-        let (underlyingType, levelsOfIndirection) = lowerPointer(operand.type)
+        let (underlyingType, levelsOfIndirection) = lowerPointer(baseType(operand.type))
         selector.levelsOfIndirection = levelsOfIndirection
         switch baseType(underlyingType) {
         case let file as ty.File:
@@ -2158,7 +2158,7 @@ extension Checker {
 
         default:
             // Don't spam diagnostics if the type is already invalid
-            if !(operand.type is ty.Invalid) {
+            if !(baseType(operand.type) is ty.Invalid) {
                 reportError("\(operand), does not have a member scope", at: selector.start)
             }
 
