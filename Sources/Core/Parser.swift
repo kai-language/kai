@@ -938,6 +938,13 @@ extension Parser {
     mutating func parseSwitchStmt() -> Switch {
         let keyword = eatToken()
         var match: Expr?
+
+        var usingMatch = false
+        if tok == .using {
+            next()
+            usingMatch = true
+        }
+
         if tok != .lbrace && tok != .semicolon {
             match = parseExpr()
         }
@@ -952,7 +959,7 @@ extension Parser {
         }
         let rbrace = expect(.rbrace)
         expectTerm()
-        return Switch(keyword: keyword, match: match, cases: cases, rbrace: rbrace, label: nil)
+        return Switch(keyword: keyword, match: match, usingMatch: usingMatch, cases: cases, rbrace: rbrace, label: nil)
     }
 
     mutating func parseCaseClause() -> CaseClause {

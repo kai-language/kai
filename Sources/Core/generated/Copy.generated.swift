@@ -685,6 +685,7 @@ func copy(_ node: Switch) -> Switch {
     return Switch(
         keyword: node.keyword,
         match: node.match.map(copy),
+        usingMatch: node.usingMatch,
         cases: copy(node.cases),
         rbrace: node.rbrace,
         label: node.label

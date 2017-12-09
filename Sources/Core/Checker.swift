@@ -930,6 +930,21 @@ extension Checker {
                 reportError("Can only switch on integer and enum types", at: match.start)
                 return dependencies
             }
+
+            if sw.usingMatch {
+                guard let type = baseType(match.type) as? ty.Enum else {
+                    reportError("using is invalid on \(operand)", at: match.start)
+                    return dependencies
+                }
+
+                for c in type.cases.orderedValues {
+                    let entity = newEntity(ident: c.ident, type: type, flags: [.field, .constant], owningScope: context.scope)
+                    entity.constant = c.constant ?? UInt64(c.number)
+                    declare(entity)
+                }
+            }
+        } else if sw.usingMatch {
+            reportError("Using expects an entity", at: sw.start)
         }
 
         var seenDefault = false

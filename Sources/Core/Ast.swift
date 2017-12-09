@@ -1071,6 +1071,7 @@ init(keyword: Pos, match: [Expr], colon: Pos, block: Block, label: Entity!) {
 class Switch: Node, Stmt {
     var keyword: Pos
     var match: Expr?
+    var usingMatch: Bool
     var cases: [CaseClause]
     var rbrace: Pos
 
@@ -1080,9 +1081,10 @@ class Switch: Node, Stmt {
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:Switch.Init
-init(keyword: Pos, match: Expr?, cases: [CaseClause], rbrace: Pos, label: Entity!) {
+init(keyword: Pos, match: Expr?, usingMatch: Bool, cases: [CaseClause], rbrace: Pos, label: Entity!) {
     self.keyword = keyword
     self.match = match
+    self.usingMatch = usingMatch
     self.cases = cases
     self.rbrace = rbrace
     self.label = label
