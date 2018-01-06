@@ -295,7 +295,7 @@ extension Parser {
         case .autocast:
             return parseAutocast()
         case .lparen:
-            return parseFuncType(allowParenthesizedExpr: true)
+            return parseFuncType()
         case .directive:
             let name = lit
             let pos = eatToken()
@@ -394,11 +394,16 @@ extension Parser {
             let type = parseType()
             return PointerType(star: star, explicitType: type, type: nil)
         case .lparen:
-            return parseFuncType(allowParenthesizedExpr: false)
+            return parseFuncType()
         case .dollar:
             let dollar = eatToken()
             let type = parseType(allowPolyType: false)
-            return PolyType(dollar: dollar, explicitType: type, type: nil)
+            var specialization: Expr?
+            if tok == .quo {
+                next()
+                specialization = parseExpr(allowPolyOrVariadicType: true)
+            }
+            return PolyType(dollar: dollar, explicitType: type, specialization: specialization, type: nil)
         case .struct:
             return parseStructType()
         case .union:
@@ -425,7 +430,7 @@ extension Parser {
         }
     }
 
-    mutating func parseFuncType(allowParenthesizedExpr: Bool) -> Expr {
+    mutating func parseFuncType() -> Expr {
         let lparen = eatToken()
         if tok == .rparen {
             next()
@@ -498,36 +503,6 @@ extension Parser {
         }
     }
 
-    mutating func parseParameterTypeList() -> [Expr] {
-        if tok == .ellipsis {
-            let ellipsis = eatToken()
-            let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: false, type: nil)
-            return [variadic]
-        } else if tok == .directive && lit == "cvargs" {
-            next()
-            let ellipsis = expect(.ellipsis)
-            let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: true, type: nil)
-            return [variadic]
-        }
-        var list = [parseType(allowPolyType: true)]
-        while tok == .comma {
-            next()
-            if tok == .ellipsis {
-                let ellipsis = eatToken()
-                let variadicType = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: false, type: nil)
-                list.append(variadicType)
-                return list
-            } else if tok == .directive && lit == "cvargs" {
-                next()
-                let ellipsis = expect(.ellipsis)
-                let variadic = VariadicType(ellipsis: ellipsis, explicitType: parseType(allowPolyType: true), isCvargs: true, type: nil)
-                return [variadic]
-            }
-            list.append(parseType(allowPolyType: true))
-        }
-        return list
-    }
-
     mutating func parseStructType() -> Expr {
         let keyword = eatToken()
 
@@ -537,14 +512,23 @@ extension Parser {
 
         let lbrace = expect(.lbrace)
         var fields: [StructField] = []
+        var unions: [Expr] = []
         if tok != .rbrace {
-            fields = parseStructFieldList()
+            (fields, unions) = parseStructFieldList(allowAnonymousUnions: true)
         }
         if tok == .semicolon {
             next()
         }
         let rbrace = expect(.rbrace)
-        return StructType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace, type: nil, checked: nil)
+        return StructType(
+            keyword: keyword,
+            lbrace: lbrace,
+            fields: fields,
+            anonymousUnions: unions,
+            rbrace: rbrace,
+            type: nil,
+            checked: nil
+        )
     }
 
     mutating func parseEnumType() -> Expr {
@@ -575,7 +559,7 @@ extension Parser {
         let lrbrace = expect(.lbrace)
         var fields: [StructField] = []
         if tok != .rbrace {
-            fields = parseStructFieldList()
+            (fields, _) = parseStructFieldList(allowAnonymousUnions: false)
         }
         if tok == .semicolon {
             next()
@@ -589,7 +573,7 @@ extension Parser {
         let lbrace = expect(.lbrace)
         var fields: [StructField] = []
         if tok != .rbrace {
-            fields = parseStructFieldList()
+            (fields, _) = parseStructFieldList(allowAnonymousUnions: false)
         }
         if tok == .semicolon {
             next()
@@ -602,9 +586,12 @@ extension Parser {
         let params = parsePolyStructSignature()
         let lbrace = expect(.lbrace)
         var fields: [StructField] = []
+        var unions: [Expr] = []
+
         if tok != .rbrace {
-            fields = parseStructFieldList()
+            (fields, unions) = parseStructFieldList(allowAnonymousUnions: true)
         }
+        
         if tok == .semicolon {
             next()
         }
@@ -634,14 +621,27 @@ extension Parser {
     mutating func parsePolyType() -> PolyType {
         let dollar = expect(.dollar)
         let explicitType = parseIdent()
-        return PolyType(dollar: dollar, explicitType: explicitType, type: nil)
+        var specialization: Expr?
+        if tok == .quo {
+            next()
+            specialization = parseType(allowPolyType: true, allowVariadic: false)
+        }
+        return PolyType(dollar: dollar, explicitType: explicitType, specialization: specialization, type: nil)
     }
 
-    mutating func parseStructFieldList() -> [StructField] {
+    mutating func parseStructFieldList(allowAnonymousUnions: Bool) -> ([StructField], [Expr]) {
         var list: [StructField] = []
+        var anonymousUnions: [Expr] = []
         while true {
-            let stmt = parseStructField()
-            list.append(stmt)
+            // NOTE: anonymous unions
+            if tok == .union && allowAnonymousUnions {
+                let union = parseUnionType()
+                anonymousUnions.append(union)
+            } else {
+                let stmt = parseStructField()
+                list.append(stmt)
+            }
+
             if tok == .rbrace || tok == .eof {
                 break
             }
@@ -650,7 +650,7 @@ extension Parser {
                 break
             }
         }
-        return list
+        return (list, anonymousUnions)
     }
 
     mutating func parseStructField() -> StructField {
@@ -687,7 +687,7 @@ extension Parser {
 
     mutating func parseFuncLit() -> Expr {
         let keyword = eatToken()
-        let type = parseFuncType(allowParenthesizedExpr: false)
+        let type = parseFuncType()
         guard let fnType = type as? FuncType else {
             // @Recovery what do we do to recover
             return type
@@ -1145,7 +1145,9 @@ extension Parser {
 
             test.isTest = true
             return stmt
-
+        case .if?:
+            let cond = parseExpr()
+            print()
         default:
             if TrailingDirective(rawValue: name) != nil {
                 reportError("'\(name)' is a trailing directive", at: directive)

@@ -21,6 +21,17 @@ public class Compiler {
     public var initialFile: SourceFile
     public var initialPackage: SourcePackage
 
+#if os(Linux)
+    public static var isLinux = true
+    public static var isMac = false
+#elseif os(macOS)
+    public static var isLinux = false
+    public static var isMac = true
+#else
+    public static var isLinux = false
+    public static var isMac = false
+#endif
+
     var generatedPackage = SourcePackage.newStubPackage(fullpath: buildDirectory + "/generated", importPath: "")
 
     var packages: [String: SourcePackage] = [:]

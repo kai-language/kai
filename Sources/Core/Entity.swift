@@ -90,6 +90,9 @@ func entity(from expr: Expr) -> Entity? {
         }
         return entity
 
+    case let expr as PolyType:
+        return entity(from: expr.explicitType)
+        
     default:
         return nil
     }

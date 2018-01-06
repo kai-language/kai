@@ -1334,7 +1334,47 @@ extension Checker {
             }
             lit.type = type
             return Operand(mode: .computed, expr: lit, type: type, constant: nil, dependencies: dependencies)
+        case let s as ty.StructSpecialization:
+            if lit.elements.count > s.fields.count {
+                reportError("Too many values in struct initializer", at: lit.elements[s.fields.count].start)
+            }
+            for (el, field) in zip(lit.elements, s.fields.orderedValues) {
 
+                if let key = el.key {
+                    guard let ident = key as? Ident else {
+                        reportError("Expected identifier for key in composite literal for struct", at: key.start)
+                        // bail, likely everything is wrong
+                        return Operand(mode: .invalid, expr: lit, type: type, constant: nil, dependencies: operand?.dependencies ?? [])
+                    }
+                    guard let field = s.fields[ident.name] else {
+                        reportError("Unknown field '\(ident)' for struct '\(type!)'", at: ident.start)
+                        continue
+                    }
+
+                    el.structField = field
+                    let operand = check(expr: el.value, desiredType: field.type)
+                    dependencies.formUnion(operand.dependencies)
+
+                    el.type = operand.type
+                    guard convert(el.type, to: field.type, at: el.value) else {
+                        reportError("Cannot convert element \(operand) to expected type '\(field.type)'", at: el.value.start)
+                        continue
+                    }
+                } else {
+                    el.structField = field
+                    let operand = check(expr: el.value, desiredType: field.type)
+                    dependencies.formUnion(operand.dependencies)
+
+                    el.type = operand.type
+                    guard convert(el.type, to: field.type, at: el.value) else {
+                        reportError("Cannot convert element \(operand) to expected type '\(field.type)'", at: el.value.start)
+                        continue
+                    }
+                }
+            }
+            lit.type = type
+            return Operand(mode: .computed, expr: lit, type: type, constant: nil, dependencies: dependencies)
+            
         case var type as ty.Array:
             if type.length != nil {
                 if lit.elements.count != type.length {
@@ -1406,6 +1446,12 @@ extension Checker {
             // Do not redeclare any poly types which have been checked before.
             return polyType.type
         }
+
+        // TODO(Brett): this should be registered in the type info
+        if let specialization = polyType.specialization {
+            _ = check(expr: specialization)
+        }
+
         switch polyType.explicitType {
         case let ident as Ident:
             let entity = newEntity(ident: ident, type: ty.invalid, flags: .implicitType)
@@ -1458,6 +1504,22 @@ extension Checker {
                     fn.flags.insert(paramType.isCvargs ? .cVariadic : .variadic)
                     typeFlags.insert(paramType.isCvargs ? .cVariadic : .variadic) // NOTE: Not sure this is useful on the type?
                 }
+
+                // FIXME(Brett): make recursive
+//                if
+//                    let paramType = param as? PolyType,
+//                    let spec = paramType.specialization,
+//                    let call = spec as? Call
+//                {
+//                    for arg in call.args {
+//                        if
+//                            let p = arg as? PolyType,
+//                            let type = lowerFromMetatype(p.type, atNode: arg) as? ty.Polymorphic
+//                        {
+//                            declare(type.entity)
+//                        }
+//                    }
+//                }
 
                 let entity = newEntity(ident: label, type: type, flags: param.isPolymorphic ? .polyParameter : .parameter)
                 declare(entity)
@@ -1578,6 +1640,7 @@ extension Checker {
         var width = 0
         var index = 0
         var fields: [ty.Struct.Field] = []
+        // FIXME: we need to ensure that all fields have unique names!
         for x in s.fields {
             let operand = check(field: x)
             dependencies.formUnion(operand.dependencies)
@@ -1590,11 +1653,16 @@ extension Checker {
                     reportError("Invalid recursive type \(named)", at: name.start)
                     continue
                 }
-                // FIXME: This will align fields to bytes, maybe not best default?
+
                 width = (width + x.type.width!).round(upToNearest: 8)
                 index += 1
             }
         }
+
+        for x in s.anonymousUnions {
+            // TODO(Brett): figure out what I want to do and finish this
+        }
+
         var type: Type
         type = ty.Struct(width: width, node: s, fields: fields, isPolymorphic: false)
         type = ty.Metatype(instanceType: type)
@@ -1608,10 +1676,12 @@ extension Checker {
 
         var width = 0
         var index = 0
+
         var fields: [ty.Struct.Field] = []
+        var polymorphicFields: [Int] = []
 
         for x in polyStruct.polyTypes.list {
-            check(polyType: x)
+            _ = check(polyType: x)
         }
 
         for x in polyStruct.fields {
@@ -1626,13 +1696,23 @@ extension Checker {
                     reportError("Invalid recursive type \(named)", at: name.start)
                     continue
                 }
-                // FIXME: This will align fields to bytes, maybe not best default?
+
+                if isPolymorphic(operand.type) {
+                    polymorphicFields.append(index)
+                }
+
                 width = (width + x.type.width!).round(upToNearest: 8)
                 index += 1
             }
         }
         var type: Type
-        type = ty.Struct(width: width, node: polyStruct, fields: fields, isPolymorphic: true)
+        type = ty.StructSpecialization(
+            width: width,
+            node: polyStruct,
+            fields: fields,
+            polymorphicFields: polymorphicFields,
+            args: []
+        )
         type = ty.Metatype(instanceType: type)
         polyStruct.type = type
         return Operand(mode: .type, expr: polyStruct, type: type, constant: nil, dependencies: dependencies)
@@ -2285,7 +2365,7 @@ extension Checker {
 
         if callee.type is ty.Metatype {
             let lowered = callee.type.lower()
-            if let strućt = lowered as? ty.Struct, strućt.isPolymorphic {
+            if let strućt = baseType(lowered) as? ty.StructSpecialization {
                 return check(polymorphicCall: call, calleeType: strućt)
             }
             fatalError("TODO")
@@ -2553,6 +2633,7 @@ extension Checker {
                     // If the variadic type is polymoprphic then we will have checked the first variadic argument already
                     excessArgs = excessArgs.dropFirst()
                 }
+
                 for arg in excessArgs {
                     let argument = check(expr: arg, desiredType: expectedType)
                     //                dependencies.formUnion(argument.dependencies)
@@ -2596,6 +2677,19 @@ extension Checker {
 
         var params: [Entity] = []
 
+        func declareAndSpecEntities(_ type: Type) {
+            guard let type = findPolymorphic(type) else { return }
+            let entity = copy(type.entity)
+            entity.type = lowerSpecializedPolymorphics(entity.type!)
+            declare(entity)
+
+            if let type = type.specialization.val as? ty.StructSpecialization {
+                for f in type.polymorphicFields {
+                    declareAndSpecEntities(type.fields[f].value.type)
+                }
+            }
+        }
+
         // Declare polymorphic types for all polymorphic parameters
         for (arg, var param) in zip(call.args, generated.params) {
             // create a unique entity for every parameter
@@ -2606,12 +2700,19 @@ extension Checker {
 
                 // Create a unique entity for each specialization of each polymorphic type
                 let entity = copy(type.entity)
-
                 // Lower any polymorphic types within
                 entity.type = lowerSpecializedPolymorphics(entity.type!)
-
                 declare(entity)
 
+                if let spec = type.specialization.val as? ty.StructSpecialization {
+                    for f in spec.polymorphicFields {
+                        if let poly = findPolymorphic(spec.fields[f].value.type) {
+                            
+                        }
+                    }
+                    print()
+                    fatalError()
+                }
             } else {
                 assert(arg.type == nil)
                 let paramType = lowerSpecializedPolymorphics(param.type!)
@@ -2712,8 +2813,27 @@ extension Checker {
         return Operand(mode: .computed, expr: call, type: returnType, constant: nil, dependencies: [])
     }
 
-    mutating func check(polymorphicCall call: Call, calleeType: ty.Struct) -> Operand {
-        fatalError("TODO")
+    mutating func check(polymorphicCall call: Call, calleeType: ty.StructSpecialization) -> Operand {
+        guard call.args.count == calleeType.polymorphicFields.count else {
+            reportError("Failed to specialize struct. Expected \(calleeType.polymorphicFields.count) arguments, got \(call.args.count)", at: call.start)
+            return Operand.invalid
+        }
+
+        var calleeType = calleeType
+        calleeType.args = call.args
+
+        for (arg, type) in zip(call.args, calleeType.polymorphicFields) {
+            let argType = check(expr: arg)
+            let poly = findPolymorphic(calleeType.fields[type].value.type)!
+
+            guard specialize(polyType: poly, with: argType.type) else {
+                reportError("Failed to specialize parameter", at: arg.start)
+                return Operand.invalid
+            }
+        }
+
+        let type = ty.Metatype(instanceType: calleeType)
+        return Operand(mode: .type, expr: call, type: type, constant: nil, dependencies: [])
     }
 }
 

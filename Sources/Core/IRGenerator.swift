@@ -1020,7 +1020,7 @@ extension IRGenerator {
         let irType = canonicalize(lit.type)
         var ir = irType.undef()
         switch baseType(lit.type) {
-        case is ty.Struct:
+        case is ty.Struct, is ty.StructSpecialization:
             for el in lit.elements {
                 let val = emit(expr: el.value)
                 ir = b.buildInsertValue(aggregate: ir, element: val, index: el.structField!.index)
@@ -1722,6 +1722,8 @@ extension IRGenerator {
             return canonicalize(type)
         case let type as ty.Struct:
             return canonicalize(type)
+        case let type as ty.StructSpecialization:
+            return canonicalize(type)
         case let type as ty.Enum:
             return canonicalize(type)
         case let type as ty.Union:
@@ -1751,8 +1753,14 @@ extension IRGenerator {
 //            } else {
                 return canonicalize(type.base)
 //            }
-        case is ty.Polymorphic:
-            fatalError("Polymorphic types must be specialized before reaching the IRGenerator")
+        case let type as ty.Metatype:
+            return canonicalize(type.instanceType)
+        case let poly as ty.Polymorphic:
+            guard let spec = poly.specialization.val else {
+                fatalError("Polymorphic types must be specialized before reaching the IRGenerator")
+            }
+
+            return canonicalize(spec)
         case is ty.UntypedNil:
             fatalError("Untyped nil should be constrained to target type")
         default:
@@ -1857,7 +1865,17 @@ extension IRGenerator {
 //            return irType
 //        }
 
-        return LLVM.StructType(elementTypes: struc.fields.orderedValues.map({ canonicalize($0.type) }), in: module.context)
+        return LLVM.StructType(
+            elementTypes: struc.fields.orderedValues.map({ canonicalize($0.type) }),
+            in: module.context
+        )
+    }
+
+    mutating func canonicalize(_ struc: ty.StructSpecialization) -> LLVM.StructType {
+        return LLVM.StructType(
+            elementTypes: struc.fields.orderedValues.map({ canonicalize($0.type) }),
+            in: module.context
+        )
     }
 
     mutating func canonicalize(_ e: ty.Enum) -> IntType {

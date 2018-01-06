@@ -107,6 +107,25 @@ init(start: Pos, end: Pos) {
 // sourcery:end
 }
 
+class ConditionalDirective: Node, Stmt {
+    var directive: Pos
+    var condition: Bool
+    var stmts: Block
+    var els: Stmt?
+
+    var start: Pos { return directive }
+    var end: Pos { return stmts.end }
+
+// sourcery:inline:auto:ConditionalDirective.Init
+init(directive: Pos, condition: Bool, stmts: Block, els: Stmt?) {
+    self.directive = directive
+    self.condition = condition
+    self.stmts = stmts
+    self.els = els
+}
+// sourcery:end
+}
+
 class LocationDirective: Node, Expr, Convertable {
     var directive: Pos
     var kind: LoneDirective
@@ -693,6 +712,7 @@ class StructType: Node, Expr {
     var keyword: Pos
     var lbrace: Pos
     var fields: [StructField]
+    var anonymousUnions: [Expr]
     var rbrace: Pos
 
     var type: Type!
@@ -707,10 +727,11 @@ class StructType: Node, Expr {
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:StructType.Init
-init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!, checked: Checked!) {
+    init(keyword: Pos, lbrace: Pos, fields: [StructField], anonymousUnions: [Expr], rbrace: Pos, type: Type!, checked: Checked!) {
     self.keyword = keyword
     self.lbrace = lbrace
     self.fields = fields
+    self.anonymousUnions = anonymousUnions
     self.rbrace = rbrace
     self.type = type
     self.checked = checked
@@ -809,16 +830,17 @@ init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!)
 class PolyType: Node, Expr {
     var dollar: Pos
     var explicitType: Expr
-
+    var specialization: Expr?
     var type: Type!
 
     var start: Pos { return dollar }
     var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:PolyType.Init
-init(dollar: Pos, explicitType: Expr, type: Type!) {
+init(dollar: Pos, explicitType: Expr, specialization: Expr?, type: Type!) {
     self.dollar = dollar
     self.explicitType = explicitType
+    self.specialization = specialization
     self.type = type
 }
 // sourcery:end

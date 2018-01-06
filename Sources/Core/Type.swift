@@ -134,8 +134,12 @@ func specialize(polyType: Type, with argType: Type) -> Bool {
         return specialize(polyType: polyType.elementType, with: argType.elementType)
     case (let polyType as ty.Pointer, let argType as ty.Pointer):
         return specialize(polyType: polyType.pointeeType, with: argType.pointeeType)
-
+    case (let polyType as ty.Metatype, let argType as ty.Metatype):
+        return specialize(polyType:  polyType.instanceType, with: argType.instanceType)
     case (let polyType as ty.Polymorphic, _):
+        if let p = polyType.specialization.val {
+            return specialize(polyType: p, with: argType)
+        }
         polyType.specialization.val = argType
         return true
     default:
@@ -513,6 +517,25 @@ enum ty {
             entity.type = type
             return BuiltinType(entity: entity, type: type)
             */
+        }
+    }
+
+    struct StructSpecialization: Type, NamableType, IRNamableType {
+        var width: Int?
+        var node: Node
+        var fields: OrderedDictionary<String, Struct.Field>
+        var polymorphicFields: [Int]
+        var args: [Expr]
+
+        init(width: Int, node: Node, fields: [Struct.Field], polymorphicFields: [Int], args: [Expr]) {
+            self.width = width
+            self.node = node
+            self.fields = [:]
+            for field in fields {
+                self.fields[field.ident.name] = field
+            }
+            self.polymorphicFields = polymorphicFields
+            self.args = args
         }
     }
 

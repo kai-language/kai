@@ -560,9 +560,15 @@ func copy(_ nodes: [PolyStructType]) -> [PolyStructType] {
 }
 
 func copy(_ node: PolyType) -> PolyType {
+    var specialization: Expr?
+    if let s = node.specialization {
+        specialization = copy(s)
+    }
+
     return PolyType(
         dollar: node.dollar,
         explicitType: copy(node.explicitType),
+        specialization: specialization,
         type: node.type
     )
 }
@@ -656,6 +662,7 @@ func copy(_ node: StructType) -> StructType {
         keyword: node.keyword,
         lbrace: node.lbrace,
         fields: copy(node.fields),
+        anonymousUnions: copy(node.anonymousUnions),
         rbrace: node.rbrace,
         type: node.type,
         checked: node.checked

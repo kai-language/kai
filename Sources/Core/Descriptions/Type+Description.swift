@@ -41,6 +41,13 @@ extension ty.Struct {
     }
 }
 
+extension ty.StructSpecialization {
+    // TODO(Brett)
+    var description: String {
+        return "$struct{" + fields.orderedValues.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
+    }
+}
+
 extension ty.Union {
     var description: String {
 
