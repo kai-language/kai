@@ -765,6 +765,7 @@ init(keyword: Pos, explicitType: Expr?, cases: [EnumCase], rbrace: Pos, type: Ty
 class UnionType: Node, Expr {
     var keyword: Pos
     var lbrace: Pos
+    var tagOverride: UnionTag?
     var fields: [StructField]
     var rbrace: Pos
 
@@ -774,11 +775,32 @@ class UnionType: Node, Expr {
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:UnionType.Init
-init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!) {
+init(keyword: Pos, lbrace: Pos, tagOverride: UnionTag?, fields: [StructField], rbrace: Pos, type: Type!) {
     self.keyword = keyword
     self.lbrace = lbrace
+    self.tagOverride = tagOverride
     self.fields = fields
     self.rbrace = rbrace
+    self.type = type
+}
+// sourcery:end
+}
+
+class UnionTag: Node {
+    var ident: Ident
+    var explicitType: Expr?
+    var offset: Expr?
+
+    var type: Type?
+
+    var start: Pos { return ident.start }
+    var end: Pos { return offset?.end ?? explicitType?.end ?? ident.end }
+
+// sourcery:inline:auto:UnionTag.Init
+init(ident: Ident, explicitType: Expr?, offset: Expr?, type: Type?) {
+    self.ident = ident
+    self.explicitType = explicitType
+    self.offset = offset
     self.type = type
 }
 // sourcery:end

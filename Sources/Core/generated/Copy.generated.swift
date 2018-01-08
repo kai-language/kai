@@ -726,10 +726,24 @@ func copy(_ nodes: [Unary]) -> [Unary] {
     return nodes.map(copy)
 }
 
+func copy(_ node: UnionTag) -> UnionTag {
+    return UnionTag(
+        ident: copy(node.ident),
+        explicitType: node.explicitType.map(copy),
+        offset: node.offset.map(copy),
+        type: node.type
+    )
+}
+
+func copy(_ nodes: [UnionTag]) -> [UnionTag] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: UnionType) -> UnionType {
     return UnionType(
         keyword: node.keyword,
         lbrace: node.lbrace,
+        tagOverride: node.tagOverride.map(copy),
         fields: copy(node.fields),
         rbrace: node.rbrace,
         type: node.type

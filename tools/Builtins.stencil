@@ -1,60 +1,71 @@
 
 extension Entity {
-{% for type in types.all where type.name == "BuiltinType" %}
-{% for var in type.staticVariables where var.name|!hasPrefix:"untyped" %}
-    static let {{ var.name }} = Entity.makeBuiltin("{{ var.name }}", flags: .type)
+{% for type in types.all where type.name == "builtin.globals" %}
+{% for var in type.staticVariables %}
+    static var {{ var.name }} = Entity.makeBuiltin("{{ var.name }}", flags: .type)
 {% endfor %}
     static let untypedNil = Entity.makeBuiltin("nil", flags: .type)
 {% endfor %}
 }
 
 extension ty {
-{% for type in types.all where type.name == "BuiltinType" %}
+{% for type in types.all where type.name == "builtin.globals" %}
 {% for var in type.staticVariables %}
-    static let {{ var.name }} = BuiltinType.{{ var.name }}.type
+    static var {{ var.name }} = builtin.globals.{{ var.name }}.type
 {% endfor %}
 {% endfor %}
+    static let untypedInteger = builtin.untypedInteger.type
+    static let untypedFloat   = builtin.untypedFloat.type
+    static let untypedNil     = builtin.untypedNil.type
+}
 
-    static let builtin: [BuiltinType] = [
-    {% for type in types.all where type.name == "BuiltinType" %}
+var builtinFunctions: [BuiltinFunction] = [
+{% for package in types.enums where package.name|hasPrefix:"builtin." %}
+{% for var in package.staticVariables where var.typeName|hasPrefix:"BuiltinFunction" %}
+    {{ package.name }}.{{ var.name }},
+{% endfor %}
+{% endfor %}
+]
+
+var builtinEntities: [BuiltinEntity] = [
+{% for package in types.enums where package.name|hasPrefix:"builtin." %}
+{% for var in package.staticVariables where var.typeName|hasPrefix:"BuiltinEntity" %}
+    {{ package.name }}.{{ var.name }},
+{% endfor %}
+{% endfor %}
+]
+
+var globalBuiltins: Set<Entity> = {
+    return [
+    {% for type in types.all where type.name == "builtin.globals" %}
     {% for var in type.staticVariables %}
-        BuiltinType.{{ var.name }},
+        builtin.globals.{{ var.name }}.entity,
     {% endfor %}
     {% endfor %}
     ]
+}()
+
+
+// MARK: Package scopes
+
+// FIXME: @pr Add in the builtin packages. Hopefully after we work out how to auto generate their definitions
+var builtinPackages: [String: Scope] = [
+{% for package in types.enums where package.name|hasPrefix:"builtin." %}
+    "{{ package.localName }}": {{ package.name }}.scope,
+{% endfor %}
+]
+
+{% for package in types.enums where package.name|hasPrefix:"builtin." %}
+
+extension {{ package.name }} {
+
+    static let scope: Scope = {
+        let members: [String: Entity] = [
+        {% for var in package.staticVariables %}
+            {{ package.name }}.{{ var.name }}.entity,
+        {% endfor %}
+        ].toDictionary(with: { $0.name })
+        return Scope(parent: .global, owningNode: nil, isFile: false, isPackage: true, members: members)
+    }()
 }
-
-let builtinFunctions: [BuiltinFunction] = [
-{% for type in types.all where type.name == "BuiltinFunction" %}
-{% for var in type.staticVariables %}
-    BuiltinFunction.{{ var.name }},
 {% endfor %}
-{% endfor %}
-]
-
-let builtinEntities: [BuiltinEntity] = [
-{% for type in types.all where type.name == "BuiltinEntity" %}
-{% for var in type.staticVariables %}
-    BuiltinEntity.{{ var.name }},
-{% endfor %}
-{% endfor %}
-]
-
-let builtins: [Entity] = [
-{% for type in types.all where type.name == "BuiltinFunction" %}
-{% for var in type.staticVariables %}
-    BuiltinFunction.{{ var.name }}.entity,
-{% endfor %}
-{% endfor %}
-{% for type in types.all where type.name == "BuiltinEntity" %}
-{% for var in type.staticVariables %}
-    BuiltinEntity.{{ var.name }}.entity,
-{% endfor %}
-{% endfor %}
-{% for type in types.all where type.name == "BuiltinType" %}
-{% for var in type.staticVariables %}
-    BuiltinType.{{ var.name }}.entity,
-{% endfor %}
-{% endfor %}
-]
-

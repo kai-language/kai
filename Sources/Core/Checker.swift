@@ -927,7 +927,7 @@ extension Checker {
 
             type = operand.type
             guard isInteger(operand.type) || isEnum(operand.type) else {
-                reportError("Can only switch on integer and enum types", at: match.start)
+                reportError("Cannot switch on type '\(operand.type!)'. Can only switch on integer and enum types", at: match.start)
                 return dependencies
             }
 
@@ -1006,7 +1006,7 @@ extension Checker {
             if let desiredType = desiredType {
                 return Operand(mode: .computed, expr: expr, type: desiredType, constant: expr, dependencies: [])
             }
-            return Operand(mode: .computed, expr: expr, type: ty.untypedNil, constant: expr, dependencies: [])
+            return Operand(mode: .computed, expr: expr, type: builtin.untypedNil.type, constant: expr, dependencies: [])
 
             // TODO: Should the following errors be used?
             /*
@@ -1114,9 +1114,6 @@ extension Checker {
 
         case let u as UnionType:
             return check(union: u)
-
-        case let v as VariantType:
-            return check(variant: v)
 
         case let e as EnumType:
             return check(enumType: e)
@@ -1662,35 +1659,6 @@ extension Checker {
         type = ty.Metatype(instanceType: type)
         u.type = type
         return Operand(mode: .type, expr: u, type: type, constant: nil, dependencies: dependencies)
-    }
-
-    mutating func check(variant v: VariantType) -> Operand {
-        var dependencies: Set<Entity> = []
-
-        var index = 0
-        var largestWidth = 0
-        var cases: [ty.Variant.Case] = []
-        for x in v.fields {
-            let operand = check(field: x)
-            dependencies.formUnion(operand.dependencies)
-
-            for name in x.names {
-                let casé = ty.Variant.Case(ident: name, type: operand.type, index: index)
-                cases.append(casé)
-                let width = operand.type.width!.round(upToNearest: 8)
-                if width > largestWidth {
-                    largestWidth = width
-                }
-
-                index += 1
-            }
-        }
-
-        var type: Type
-        type = ty.Variant(width: largestWidth, cases: cases)
-        type = ty.Metatype(instanceType: type)
-        v.type = type
-        return Operand(mode: .type, expr: v, type: type, constant: nil, dependencies: dependencies)
     }
 
     @discardableResult
@@ -2324,10 +2292,10 @@ extension Checker {
         }
 
         var builtin: BuiltinFunction?
-        if calleeFn.isBuiltin, let b = lookupBuiltinFunction(call.fun) {
+        let funEntity = entity(from: call.fun)
+        if calleeFn.isBuiltin, let b = builtinFunctions.first(where: { $0.entity === funEntity }) {
             if let customCheck = b.onCallCheck {
 
-                // FIXME: How to do Dependencies for customChecks for builtin's??
                 var returnType = customCheck(&self, call)
                 if let tuple = returnType as? ty.Tuple {
                     returnType = splatTuple(tuple)

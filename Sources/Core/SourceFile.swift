@@ -135,6 +135,27 @@ extension SourceFile {
 
                 compiler.declare(file: file)
             }
+
+        case let call as Call where (call.fun as? Ident)?.name == "builtin":
+            guard call.args.count >= 1 else {
+                addError("Expected 1 or more arguments", call.lparen)
+                return
+            }
+            guard let lit = call.args[0] as? BasicLit, let packageName = lit.constant as? String else {
+                addError("Expected string literal with the name of the builtin package", call.args[0].start)
+                // TODO: @documentation link to internal packages page
+                return
+            }
+            guard let package = builtinPackages[packageName] else {
+                addError("No such builtin package named '\(packageName)'", call.args[0].start)
+                // TODO: @documentation link to internal packages page
+                return
+            }
+            performAllPackageTypePatches()
+            i.resolvedName = i.alias?.name ?? pathToEntityName(packageName)
+            i.scope = package
+
+
         case let call as Call where (call.fun as? Ident)?.name == "kai":
             guard call.args.count >= 1 else {
                 addError("Expected 1 or more arguments", call.lparen)

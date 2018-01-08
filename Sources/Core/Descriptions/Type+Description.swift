@@ -48,12 +48,6 @@ extension ty.Union {
     }
 }
 
-extension ty.Variant {
-    var description: String {
-        return "variant{" + cases.orderedValues.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
-    }
-}
-
 extension ty.Enum {
     var description: String {
         return "enum{" + cases.orderedValues.map({ $0.ident.name + ($0.value.map({ " = " + String(describing: $0) }) ?? "") }).joined(separator: ", ") + "}"

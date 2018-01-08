@@ -573,15 +573,39 @@ extension Parser {
     mutating func parseUnionType() -> Expr {
         let keyword = eatToken()
         let lrbrace = expect(.lbrace)
+        let tag = parseUnionTag()
         var fields: [StructField] = []
         if tok != .rbrace {
             fields = parseStructFieldList()
+        } else {
+            reportError("Unions require at least a single member", at: pos)
         }
         if tok == .semicolon {
             next()
         }
         let rbrace = expect(.rbrace)
-        return UnionType(keyword: keyword, lbrace: lrbrace, fields: fields, rbrace: rbrace, type: nil)
+        return UnionType(keyword: keyword, lbrace: lrbrace, tagOverride: tag, fields: fields, rbrace: rbrace, type: nil)
+    }
+
+    mutating func parseUnionTag() -> UnionTag? {
+        guard tok == .ident && lit == "Tag" || lit == "tag" else {
+            return nil
+        }
+        let ident = parseIdent()
+        var type: Expr?
+        var offset: Expr?
+        if tok == .colon {
+            next()
+            type = parseType()
+        }
+        if tok == .directive {
+            if lit != "offset" {
+                reportError("Only the offset directive is allowed for the tag on unions", at: pos)
+            }
+            next()
+            offset = parseExpr()
+        }
+        return UnionTag(ident: ident, explicitType: type, offset: offset, type: nil)
     }
 
     mutating func parseVariantType() -> Expr {

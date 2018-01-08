@@ -174,8 +174,7 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
 
     case is ty.Enum,
          is ty.Union,
-         is ty.Struct,
-         is ty.Variant:
+         is ty.Struct:
         // TODO: do we permit anonymous polymorphic complex types???
         return type
 
@@ -477,24 +476,6 @@ enum ty {
                 return ident.name
             }
         }
-
-        /// Makes a builtin struct
-        static func make(name: String, _ members: [(String, Type)]) -> BuiltinType {
-            var width = 0
-            var fields: [Field] = []
-            for (index, (name, type)) in members.enumerated() {
-                let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
-                let field = Field(ident: ident, type: type, index: index, offset: width)
-                fields.append(field)
-                width = (width + type.width!).round(upToNearest: 8)
-            }
-
-            let entity = Entity.makeBuiltin(name)
-            let type = Struct(width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields)
-
-            entity.type = type
-            return BuiltinType(entity: entity, type: type)
-        }
     }
 
     struct Union: Type, NamableType {
@@ -512,42 +493,6 @@ enum ty {
         struct Case {
             var ident: Ident
             var type: Type
-        }
-
-        static func make(name: String, _ members: [(String, Type)]) -> BuiltinType {
-            var width = 0
-            var cases: [Case] = []
-            for (name, type) in members {
-                let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
-                let c = Case(ident: ident, type: type)
-                cases.append(c)
-                width = max(width, type.width!)
-            }
-
-            let entity = Entity.makeBuiltin(name)
-            let type = Union(width: width, cases: cases)
-
-            entity.type = type
-            return BuiltinType(entity: entity, type: type)
-        }
-    }
-
-    struct Variant: Type, NamableType, IRNamableType {
-        var width: Int?
-        var cases: OrderedDictionary<String, Case>
-
-        init(width: Int, cases: [Case]) {
-            self.width = width
-            self.cases = [:]
-            for c in cases {
-                self.cases[c.ident.name] = c
-            }
-        }
-
-        struct Case {
-            var ident: Ident
-            var type: Type
-            var index: Int
         }
     }
 
@@ -727,10 +672,6 @@ func isStruct(_ type: Type) -> Bool {
 
 func isUnion(_ type: Type) -> Bool {
     return baseType(type) is ty.Union
-}
-
-func isVariant(_ type: Type) -> Bool {
-    return baseType(type) is ty.Variant
 }
 
 func isEnum(_ type: Type) -> Bool {

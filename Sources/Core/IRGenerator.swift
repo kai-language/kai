@@ -79,6 +79,9 @@ struct IRGenerator {
         if entity.isParameter {
             // parameters are always in the same package.
             return entity.value!
+        } else if entity.isBuiltin {
+            let builtin = builtinEntities.first(where: { $0.entity === entity })!
+            return builtin.gen(&self)
         }
         guard let entityPackage = entity.package else {
             return entity.value!
@@ -155,6 +158,20 @@ struct IRGenerator {
             return existing
         }
         return b.addFunction(named, type: type)
+    }
+
+    func addOrReuseGlobal(named: String, type: IRType) -> Global {
+        if let existing = module.global(named: named) {
+            return existing
+        }
+        return b.addGlobal(named, type: type)
+    }
+
+    func addOrReuseGlobal(named: String, initializer: IRValue) -> Global {
+        if let existing = module.global(named: named) {
+            return existing
+        }
+        return b.addGlobal(named, initializer: initializer)
     }
 
     lazy var i1: IntType = {
@@ -972,8 +989,8 @@ extension IRGenerator {
             val = emit(slice: slice, returnAddress: returnAddress)
         case let l as LocationDirective:
             val = emit(locationDirective: l, returnAddress: returnAddress)
-        case let cast as Cast: // These return directly
-            return emit(cast: cast)
+        case let cast as Cast:
+            return emit(cast: cast, returnAddress: returnAddress)
         case let autocast as Autocast:
             return emit(autocast: autocast)
         default:
@@ -1087,7 +1104,7 @@ extension IRGenerator {
     }
 
     mutating func emit(ident: Ident, returnAddress: Bool) -> IRValue {
-        if returnAddress || isFunction(ident.type) && ident.entity.isConstant {
+        if returnAddress || ident.entity.isBuiltin || isFunction(ident.type) && ident.entity.isConstant {
             // refering to global functions should retrieve their address
             return value(for: ident.entity)
         }
@@ -1106,12 +1123,6 @@ extension IRGenerator {
             default:
                 break
             }
-        }
-
-        if ident.entity.isBuiltin {
-            assert(!returnAddress)
-            let builtin = builtinEntities.first(where: { $0.entity === ident.entity })!
-            return builtin.gen(b)
         }
 
         return b.buildLoad(value(for: ident.entity))
@@ -1347,8 +1358,13 @@ extension IRGenerator {
         return performConversion(from: autocast.expr.type, to: autocast.type, with: val)
     }
 
-    mutating func emit(cast: Cast) -> IRValue {
-        let val = emit(expr: cast.expr, returnAddress: isArray(cast.expr.type) || isFunction(cast.expr.type))
+    mutating func emit(cast: Cast, returnAddress: Bool = false) -> IRValue {
+        let val = emit(expr: cast.expr, returnAddress: isArray(cast.expr.type) || isFunction(cast.expr.type) || returnAddress)
+
+        if returnAddress {
+            return b.buildBitCast(val, type: LLVM.PointerType(pointee: canonicalize(cast.type)))
+        }
+
         return performConversion(from: cast.expr.type, to: cast.type, with: val)
     }
 
@@ -1905,7 +1921,7 @@ extension IRGenerator {
 //        return LLVM.StructType(elementTypes: [IntType(width: e.width!, in: module.context)], isPacked: true, in: module.context)
     }
 
-    mutating func canonicalize(_ u: ty.Union) -> LLVM.StructType {
+    mutating func canonicalize(_ u: ty.Union) -> LLVM.IntType {
 //        if let entity = u.entity {
 //            let sym = symbol(for: entity)
 //            if let ptr = module.type(named: sym) {
@@ -1918,8 +1934,11 @@ extension IRGenerator {
 //            return irType
 //        }
 
-        let containerType = LLVM.ArrayType(elementType: i8, count: u.width!.bytes())
-        return LLVM.StructType(elementTypes: [containerType] , in: module.context)
+//        let containerType = LLVM.ArrayType(elementType: i1, count: u.width!)
+//        return LLVM.StructType(elementTypes: [containerType] , in: module.context)
+
+        // TODO: Settle on how Unions are represented to LLVM
+        return LLVM.IntType(width: u.width!, in: module.context)
     }
 
     mutating func canonicalize(_ integer: ty.UntypedInteger) -> IntType {

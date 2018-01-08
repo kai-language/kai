@@ -69,6 +69,9 @@ extension BidirectionalCollection {
         }
         return self[index]
     }
+}
+
+extension Collection {
 
     func toDictionary<Key: Hashable>(with selectKey: (Element) -> Key) -> [Key: Element] {
         var dict: [Key: Element] = [:]
