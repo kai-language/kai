@@ -2005,7 +2005,7 @@ extension Checker {
         switch baseType(underlyingType) {
         case let file as ty.File:
             guard let member = file.memberScope.lookup(selector.sel.name) else {
-                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                reportError("Member '\(selector.sel)' not found in scope of \(operand)", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
                 return Operand.invalid
@@ -2036,7 +2036,7 @@ extension Checker {
 
         case let strućt as ty.Struct:
             guard let field = strućt.fields[selector.sel.name] else {
-                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                reportError("Member '\(selector.sel)' not found in scope of \(operand)", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
                 return Operand.invalid
@@ -2051,7 +2051,7 @@ extension Checker {
                 selector.checked = .staticLength(array.length)
                 selector.type = ty.u64
             default:
-                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                reportError("Member '\(selector.sel)' not found in scope of \(operand)", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
                 return Operand.invalid
@@ -2070,7 +2070,7 @@ extension Checker {
                 selector.checked = .array(.capacity)
                 selector.type = ty.u64
             default:
-                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                reportError("Member '\(selector.sel)' not found in scope of \(operand)", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
             }
@@ -2091,7 +2091,7 @@ extension Checker {
                 case "w" where vector.size >= 4, "a" where vector.size >= 4:
                     indices.append(3)
                 default:
-                    reportError("'\(name)' is not a component of '\(selector.rec)'", at: selector.sel.start)
+                    reportError("'\(name)' is not a component of \(operand)'", at: selector.sel.start)
                     selector.checked = .invalid
                     selector.type = ty.invalid
                     return Operand(mode: .addressable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
@@ -2110,7 +2110,7 @@ extension Checker {
 
         case let union as ty.Union:
             guard let casé = union.cases[selector.sel.name] else {
-                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                reportError("Member '\(selector.sel)' not found in scope of \(operand)", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
                 return Operand.invalid
@@ -2142,7 +2142,7 @@ extension Checker {
         default:
             // Don't spam diagnostics if the type is already invalid
             if !(baseType(operand.type) is ty.Invalid) {
-                reportError("\(operand), does not have a member scope", at: selector.start)
+                reportError("\(operand) does not have a member scope", at: selector.start)
             }
 
             selector.checked = .invalid
