@@ -1755,9 +1755,9 @@ extension IRGenerator {
 
     mutating func canonicalize(_ type: Type) -> IRType {
 
-//        if let named = type as? ty.Named, let mangledName = named.entity.mangledName, let existing = module.type(named: mangledName) {
-//            return existing
-//        }
+        if let named = type as? ty.Named, let mangledName = named.entity.mangledName, let existing = module.type(named: mangledName) {
+            return existing
+        }
 
         switch type {
         case let type as ty.Void:
@@ -1791,24 +1791,25 @@ extension IRGenerator {
         case let type as ty.UntypedFloatingPoint:
             return canonicalize(type)
         case let type as ty.Named:
-//            if let mangledName = type.entity.mangledName, let existing = module.type(named: mangledName) {
-//                return existing
-//            } else if type.base is IRNamableType && type.entity.isBuiltin {
-//                // NOTE: `string` is a builtin IRNamableType
-//
-//                // Prepend a `.` so that builtin named types cannot collide
-//                type.entity.mangledName = "." + type.entity.name
-//
-//                let irType = b.createStruct(name: type.entity.mangledName)
-//                let type = canonicalize(type.base) as! LLVM.StructType
-//                irType.setBody(type.elementTypes)
-//                return irType
-//            } else if type.base is IRNamableType {
-//                emit(decl: type.entity.declaration!)
-//                return module.type(named: type.entity.mangledName)!
-//            } else {
+            if let mangledName = type.entity.mangledName, let existing = module.type(named: mangledName) {
+                return existing
+            } else if type.base is IRNamableType && type.entity.isBuiltin {
+                // NOTE: `string` is a builtin IRNamableType
+                let packed = (type.base as? ty.Struct)?.isPacked ?? false
+
+                // Prepend a `.` so that builtin named types cannot collide
+                type.entity.mangledName = "." + type.entity.name
+
+                let irType = b.createStruct(name: type.entity.mangledName)
+                let type = canonicalize(type.base) as! LLVM.StructType
+                irType.setBody(type.elementTypes, isPacked: packed)
+                return irType
+            } else if type.base is IRNamableType {
+                emit(decl: type.entity.declaration!)
+                return module.type(named: type.entity.mangledName)!
+            } else {
                 return canonicalize(type.base)
-//            }
+            }
         case is ty.Polymorphic:
             fatalError("Polymorphic types must be specialized before reaching the IRGenerator")
         case is ty.UntypedNil:
