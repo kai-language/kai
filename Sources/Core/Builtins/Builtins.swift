@@ -6,7 +6,7 @@ var platformPointerWidth: Int = {
 }()
 
 func performAllPackageTypePatches() {
-    patchTypesPackageCompoundPointer()
+    builtin.types.patchTypes()
 }
 
 enum builtin {
@@ -93,7 +93,7 @@ class BuiltinEntity {
 // sourcery:noinit
 class BuiltinFunction {
     // TODO: Take IRGen too
-    typealias Generate = (BuiltinFunction, [Expr], inout IRGenerator) -> IRValue
+    typealias Generate = (BuiltinFunction, _ returnAddress: Bool, [Expr], inout IRGenerator) -> IRValue
     typealias CallCheck = (inout Checker, Call) -> Type
 
     var entity: Entity
@@ -156,7 +156,7 @@ extension Entity {
 extension BuiltinType {
 
     /// Makes a builtin struct in the builtin package named by `package` or in the global scope if package is nil
-    init(name: String, structMembers: [(String, Type)]) {
+    init(name: String, flags: ty.Struct.Flags = .none, structMembers: [(String, Type)]) {
         var width = 0
         var fields: [ty.Struct.Field] = []
         for (index, (name, type)) in structMembers.enumerated() {
@@ -168,18 +168,17 @@ extension BuiltinType {
         }
 
         let entity = Entity.makeBuiltin(name)
-        let type = ty.Struct(width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields)
+        let type = ty.Struct(width: width, flags: flags, node: Empty(semicolon: noPos, isImplicit: true), fields: fields)
 
         entity.type = type
         self.init(entity: entity, type: type)
     }
 }
 
-
 extension BuiltinType {
 
     /// Makes a builtin union in the builtin package named by `package` or in the global scope if package is nil
-    init(name: String, unionMembers: [(String, Type)]) {
+    init(name: String, flags: ty.Union.Flags = .none, unionMembers: [(String, Type)]) {
         var width = 0
         var cases: [ty.Union.Case] = []
         for (name, type) in unionMembers {
@@ -190,7 +189,14 @@ extension BuiltinType {
         }
 
         let entity = Entity.makeBuiltin(name)
-        let type = ty.Union(width: width, cases: cases)
+
+        let tagWidth = unionMembers.count.bitsNeeded()
+
+        if !flags.contains(.inlineTag) {
+            width += tagWidth
+        }
+
+        let type = ty.Union(width: width, tagWidth: tagWidth, flags: flags, cases: cases)
 
         entity.type = type
         self.init(entity: entity, type: type)

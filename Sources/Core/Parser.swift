@@ -169,7 +169,7 @@ extension Parser {
 
     mutating func parseUnaryExpr(allowPolyOrVariadicType: Bool = false) -> Expr {
         switch tok {
-        case .add, .sub, .not, .xor, .and, .lss:
+        case .add, .sub, .not, .bnot, .xor, .and, .lss:
             let op = tok
             let pos = eatToken()
             let expr = parseUnaryExpr()
@@ -403,8 +403,6 @@ extension Parser {
             return parseStructType()
         case .union:
             return parseUnionType()
-        case .variant:
-            return parseVariantType()
         case .enum:
             return parseEnumType()
         case .ellipsis where allowVariadic:
@@ -528,9 +526,26 @@ extension Parser {
         return list
     }
 
+    mutating func parseTypeDirectives() -> Set<TypeDirective> {
+        var directives: Set<TypeDirective> = []
+        while tok == .directive {
+            guard let directive = TypeDirective(rawValue: lit) else {
+                reportError("Directive \(lit) not a valid type directive", at: pos)
+                next()
+                continue
+            }
+            if directives.contains(directive) {
+                reportError("Duplicate directive \(directive)", at: pos)
+            }
+            directives.insert(directive)
+            next()
+        }
+        return directives
+    }
+
     mutating func parseStructType() -> Expr {
         let keyword = eatToken()
-
+        let directives = parseTypeDirectives()
         if tok == .lparen {
             return parsePolymorphicStructType()
         }
@@ -544,7 +559,7 @@ extension Parser {
             next()
         }
         let rbrace = expect(.rbrace)
-        return StructType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace, type: nil, checked: nil)
+        return StructType(keyword: keyword, directives: directives, lbrace: lbrace, fields: fields, rbrace: rbrace, type: nil, checked: nil)
     }
 
     mutating func parseEnumType() -> Expr {
@@ -572,54 +587,27 @@ extension Parser {
 
     mutating func parseUnionType() -> Expr {
         let keyword = eatToken()
-        let lrbrace = expect(.lbrace)
-        let tag = parseUnionTag()
+        let directives = parseTypeDirectives()
+        let lbrace = expect(.lbrace)
+        var tag: StructField?
         var fields: [StructField] = []
         if tok != .rbrace {
             fields = parseStructFieldList()
-        } else {
+            if let (index, field) = fields.enumerated().first(where: { $0.element.names.contains(where: { $0.name == "Tag" }) }) {
+                if field.names.count > 1 {
+                    reportError("Tag must be declared as a singular member", at: field.names.first(where: { $0.name == "Tag" })!.start)
+                }
+                tag = fields.remove(at: index)
+            }
+        }
+        if fields.isEmpty {
             reportError("Unions require at least a single member", at: pos)
         }
         if tok == .semicolon {
             next()
         }
         let rbrace = expect(.rbrace)
-        return UnionType(keyword: keyword, lbrace: lrbrace, tagOverride: tag, fields: fields, rbrace: rbrace, type: nil)
-    }
-
-    mutating func parseUnionTag() -> UnionTag? {
-        guard tok == .ident && lit == "Tag" || lit == "tag" else {
-            return nil
-        }
-        let ident = parseIdent()
-        var type: Expr?
-        var offset: Expr?
-        if tok == .colon {
-            next()
-            type = parseType()
-        }
-        if tok == .directive {
-            if lit != "offset" {
-                reportError("Only the offset directive is allowed for the tag on unions", at: pos)
-            }
-            next()
-            offset = parseExpr()
-        }
-        return UnionTag(ident: ident, explicitType: type, offset: offset, type: nil)
-    }
-
-    mutating func parseVariantType() -> Expr {
-        let keyword = eatToken()
-        let lbrace = expect(.lbrace)
-        var fields: [StructField] = []
-        if tok != .rbrace {
-            fields = parseStructFieldList()
-        }
-        if tok == .semicolon {
-            next()
-        }
-        let rbrace = expect(.rbrace)
-        return VariantType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace, type: nil)
+        return UnionType(keyword: keyword, directives: directives, lbrace: lbrace, tag: tag, fields: fields, rbrace: rbrace, type: nil)
     }
 
     mutating func parsePolymorphicStructType() -> Expr {
@@ -810,7 +798,7 @@ extension Parser {
         switch tok {
         case .ident, .int, .float, .string, .fn, .lparen, // operands
              .lbrack, .struct, .union, .enum,             // composite types
-             .add, .sub, .mul, .and, .xor, .not, .lss:    // unary operators
+             .add, .sub, .mul, .and, .xor, .not, .bnot, .lss:          // unary operators
              let s = parseSimpleStmt()
             expectTerm()
             return s

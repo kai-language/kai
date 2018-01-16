@@ -21,3 +21,8 @@ enum LeadingDirective: String {
 enum TrailingDirective: String {
     case linkname
 }
+
+enum TypeDirective: String {
+    case inlineTag
+    case packed
+}

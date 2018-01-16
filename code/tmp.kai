@@ -3,61 +3,50 @@
 #import builtin("types")
 #import builtin("platform")
 
-Foo :: struct {
-    a, b, c: i64
+name :: fn(type: types.Type) -> string {
+    switch type.Tag {
+    case 0x0: return "Struct"
+    case 0x1: return "Function"
+    case 0x2: return "Array"
+    case 0x3: return "Vector"
+    case 0x4: return "Union"
+    case 0x5: return "Enum"
+    case 0x6: return "Slice"
+    case 0x7: return "Pointer"
+    case 0x8: return "Any"
+    case 0x9: return "Float"
+    case 0xA: return "Boolean"
+    case 0xB: return "Integer"
+    case:     return "malformed"
+    }
 }
-
-//width :: fn(type: types.Type) -> i64 {
-//    switch type.Tag {
-//    case 0b001: // ty.Boolean:
-//        return autocast (bitcast(types.Boolean)type).Width
-//    case 0b010: // ty.Integer:
-//        return autocast (bitcast(types.Integer)type).Width
-//    case 0b011: // ty.FloatingPoint:
-//        return autocast (bitcast(types.Float)type).Width
-//    case 0b100: // ty.Anyy:
-//        return 64
-//    case:
-//        return compoundWidth(<type.Compound)
-//    }
-//}
-//
-//compoundWidth :: fn(type: types.Compound) -> i64 {
-//    switch type.Tag {
-//    case 0b000: // ty.Named:
-//        return 0
-//    case 0b001: // ty.Function:
-//        return 64
-//    case 0b010: // ty.Array:
-//        return 1
-//    case 0b011: // ty.Vector:
-//        return 1
-//    case 0b100: // ty.Struct:
-//        return 1
-//    case 0b101: // ty.Union:
-//        return 1
-//    case 0b110: // ty.Enum:
-//        return 1
-//    case 0b111: // ty.Pointer:
-//        return 8123
-//    case:
-//       return -1
-//    }
-//}
 
 main :: fn() -> i32 {
 
-    ty1 := types.TypeOf(*i64)
-    ty2 := cast(*types.Pointer)(ty1.Compound)
+    ty1 := bitcast(types.Float)   types.TypeOf(f64)
+    posix.printf("Type: %s\n".raw, name(bitcast(types.Type) ty1).raw)
+    posix.printf("Value: %p\n".raw, bitcast(u64) ty1)
+    posix.printf("Width: %d\n".raw, ty1.Width)
+    posix.printf("reserved: %d\n".raw, ty1.reserved)
+    posix.printf("\n".raw)
 
-    //w := width(ty1)
+    ty2 := bitcast(types.Integer) types.TypeOf(i64)
+    posix.printf("Type: %s\n".raw, name(bitcast(types.Type) ty2).raw)
+    posix.printf("Value: %p\n".raw, bitcast(u64) ty2)
+    posix.printf("Width: %d\n".raw, ty2.Width)
+    posix.printf("Signed: %hu\n".raw, ty2.Signed)
+    posix.printf("reserved: %d\n".raw, ty2.reserved)
+    posix.printf("\n".raw)
 
-    //posix.printf("%d\n".raw, w)
-    posix.printf("%p\n".raw, ty1)
-    posix.printf("%p\n".raw, <ty2)
-    //posix.printf("%s\n".raw, platform.OSTriple.raw)
-    //posix.printf("%d\n".raw, platform.PointerWidth)
-    //posix.printf("%d\n".raw, platform.IsBigEndian)
+    ty3 := types.TypeOf(*i8)
+    posix.printf("Type: %s\n".raw, name(bitcast(types.Type) ty3).raw)
+    posix.printf("Value: %p\n".raw, bitcast(u64) ty3)
+    posix.printf("Tag: %p\n".raw, types.TypeOf(*i8).Tag)
+    posix.printf("%p\n".raw, types.TypeOf(*i8))
+
+    posix.printf("\n".raw)
+    posix.printf("%s\n".raw, platform.OSTriple.raw)
+    posix.printf("%d\n".raw, platform.PointerWidth)
+    posix.printf("%d\n".raw, platform.IsBigEndian)
     return 5
 }
-

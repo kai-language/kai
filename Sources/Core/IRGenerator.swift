@@ -398,7 +398,7 @@ extension IRGenerator {
                         let fieldType = canonicalize(field.type)
                         irTypes.append(fieldType)
                     }
-                    irType.setBody(irTypes)
+                    irType.setBody(irTypes, isPacked: type.isPacked)
 
                 case is ty.Enum:
                     return
@@ -719,7 +719,7 @@ extension IRGenerator {
         let postBlock = b.currentFunction!.appendBasicBlock(named: "if.post", in: module.context)
 
         let cond = emit(expr: iff.cond)
-        b.buildCondBr(condition: cond, then: thenBlock, else: elseBlock ?? postBlock)
+        b.buildCondBr(condition: b.buildTruncOrBitCast(cond, type: i1), then: thenBlock, else: elseBlock ?? postBlock)
 
         b.positionAtEnd(of: thenBlock)
         emit(statement: iff.body)
@@ -770,7 +770,7 @@ extension IRGenerator {
             b.positionAtEnd(of: loopCond!)
 
             let cond = emit(expr: condition)
-            b.buildCondBr(condition: cond, then: loopBody, else: loopPost)
+            b.buildCondBr(condition: b.buildTruncOrBitCast(cond, type: i1), then: loopBody, else: loopPost)
         } else {
             if f.step != nil {
                 loopStep = currentFunc.appendBasicBlock(named: "for.step", in: module.context)
@@ -857,8 +857,8 @@ extension IRGenerator {
         b.buildBr(loopCond)
         b.positionAtEnd(of: loopCond)
 
-        let cond = b.buildICmp(b.buildLoad(index), len, .signedLessThan)
-        b.buildCondBr(condition: cond, then: loopBody, else: loopPost)
+        let withinBounds = b.buildICmp(b.buildLoad(index), len, .signedLessThan)
+        b.buildCondBr(condition: withinBounds, then: loopBody, else: loopPost)
 
         b.positionAtEnd(of: loopBody)
         defer {
@@ -1134,6 +1134,7 @@ extension IRGenerator {
         case .add:
             return val
         case .sub:
+            // TODO: Overflow behaviour?
             return b.buildNeg(val)
         case .lss:
             if returnAddress {
@@ -1142,6 +1143,8 @@ extension IRGenerator {
             return b.buildLoad(val)
         case .not:
             return b.buildNot(val)
+        case .bnot:
+            return b.buildNeg(val)
         case .and:
             return val
         default:
@@ -1199,7 +1202,7 @@ extension IRGenerator {
         let cond = emit(expr: ternary.cond)
         let then = ternary.then.map({ emit(expr: $0) })
         let els  = emit(expr: ternary.els)
-        return b.buildSelect(cond, then: then ?? cond, else: els)
+        return b.buildSelect(b.buildTruncOrBitCast(cond, type: i1), then: then ?? cond, else: els)
     }
 
     mutating func emit(args: [Expr], cABI: Bool) -> [IRValue] {
@@ -1217,6 +1220,8 @@ extension IRGenerator {
                 if isFloatingPoint($0.type), $0.type.width! < 64 {
                     val = b.buildCast(.fpext, value: val, type: f64)
                 }
+
+                // FIXME: We need to determine how to actually pass structs to C ABI functions
 
                 // TODO: Struct ABI stuff?
                 return val
@@ -1236,7 +1241,7 @@ extension IRGenerator {
 
         switch call.checked! {
         case .builtinCall(let builtin):
-            return builtin.generate(builtin, call.args, &self)
+            return builtin.generate(builtin, returnAddress, call.args, &self)
         case .call:
             var isGlobal = false
             if let entity = entity(from: call.fun) {
@@ -1359,13 +1364,23 @@ extension IRGenerator {
     }
 
     mutating func emit(cast: Cast, returnAddress: Bool = false) -> IRValue {
-        let val = emit(expr: cast.expr, returnAddress: isArray(cast.expr.type) || isFunction(cast.expr.type) || returnAddress)
-
-        if returnAddress {
-            return b.buildBitCast(val, type: LLVM.PointerType(pointee: canonicalize(cast.type)))
+        // NOTE: For unions we want to do the bitcast before we load the aggregate type
+        // TODO: What is the rule for the other types here (arrays, functions ..)
+        var value = emit(expr: cast.expr, returnAddress: true)
+        if let pointer = value.type as? LLVM.PointerType {
+            // FIXME: recurse down pointer until we can GEP a struct if possible
+            if pointer.pointee is LLVM.StructType {
+                value = b.buildGEP(value, indices: [0])
+            }
+            let pointer = b.buildBitCast(value, type: LLVM.PointerType(pointee: canonicalize(cast.type)))
+            if isArray(cast.expr.type) || isFunction(cast.expr.type) || returnAddress {
+                return pointer
+            }
+            return b.buildLoad(pointer)
         }
+//        let val = emit(expr: cast.expr, returnAddress: isArray(cast.expr.type) || isFunction(cast.expr.type) || isUnionType || returnAddress)
 
-        return performConversion(from: cast.expr.type, to: cast.type, with: val)
+        return performConversion(from: cast.expr.type, to: cast.type, with: value)
     }
 
     mutating func emit(funcLit fn: FuncLit, entity: Entity?, specializationMangle: String? = nil) -> Function {
@@ -1469,6 +1484,20 @@ extension IRGenerator {
             return b.buildLoad(fieldAddress)
         case .enum(let c):
             return canonicalize(baseType(sel.type) as! ty.Enum).constant(c.number)
+        case .unionTag:
+            var aggregate = emit(expr: sel.rec, returnAddress: true)
+            for _ in 0 ..< sel.levelsOfIndirection {
+                aggregate = b.buildLoad(aggregate)
+            }
+            let type = canonicalize(sel.type) as! LLVM.IntType // FIXME: Assumes tag type must be integer (Not checked in checker)
+            let address = b.buildBitCast(aggregate, type: LLVM.PointerType(pointee: type))
+            if returnAddress {
+                return address
+            }
+            let mask = type.allOnes()
+            let tag = b.buildLoad(address, alignment: 16)
+            return b.buildAnd(mask, tag)
+
         case .union(let c):
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
@@ -1693,7 +1722,7 @@ extension IRGenerator {
             return b.buildCast(target.isSigned ? .fpToSI : .fpToUI, value: value, type: type)
 
         case (is ty.Pointer, is ty.Boolean):
-            return b.buildPtrToInt(value, type: i1)
+            return b.buildPtrToInt(value, type: type as! IntType)
         case (is ty.Pointer, is ty.Integer):
             return b.buildPtrToInt(value, type: type as! IntType)
         case (is ty.Pointer, is ty.Pointer),
@@ -1794,7 +1823,7 @@ extension IRGenerator {
     }
 
     mutating func canonicalize(_ boolean: ty.Boolean) -> IntType {
-        return IntType(width: 1, in: module.context)
+        return IntType(width: boolean.width!, in: module.context)
     }
 
     mutating func canonicalize(_ integer: ty.Integer) -> IntType {
@@ -1871,74 +1900,21 @@ extension IRGenerator {
     }
 
     mutating func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
-//        if let entity = struc.entity {
-//            let sym = symbol(for: entity)
-//            if let ptr = module.type(named: sym) {
-//                return ptr as! LLVM.StructType
-//            }
-//            let irType = b.createStruct(name: sym)
-//            var irTypes: [IRType] = []
-//            for field in struc.fields.orderedValues {
-//                let fieldType = canonicalize(field.type)
-//                irTypes.append(fieldType)
-//            }
-//            irType.setBody(irTypes)
-//            return irType
-//        }
-
-        return LLVM.StructType(elementTypes: struc.fields.orderedValues.map({ canonicalize($0.type) }), in: module.context)
+        return LLVM.StructType(elementTypes: struc.fields.orderedValues.map({ canonicalize($0.type) }), isPacked: struc.isPacked, in: module.context)
     }
 
     mutating func canonicalize(_ e: ty.Enum) -> IntType {
         return IntType(width: e.width!, in: module.context)
-//        if let entity = e.entity {
-//            let sym = symbol(for: entity)
-//            if let ptr = module.type(named: sym) {
-//                return ptr as! LLVM.StructType
-//            }
-//            let type = IntType(width: e.width!, in: module.context)
-//            let irType = b.createStruct(name: sym, types: [type], isPacked: true)
-//            var globals: [Global] = []
-//            for c in e.cases {
-//                let name = sym.appending("." + c.ident.name)
-//                let value = irType.constant(values: [type.constant(c.number)])
-//                let global = b.addGlobal(name, initializer: value)
-//                globals.append(global)
-//            }
-//            _ = b.addGlobal(sym.appending("..cases"), initializer: LLVM.ArrayType.constant(globals, type: irType))
-//            if let associatedType = e.associatedType, !(associatedType is ty.Integer)  {
-//                var associatedGlobals: [Global] = []
-//                for c in e.cases {
-//                    let name = sym.appending("." + c.ident.name).appending(".raw")
-//                    let value = emit(expr: c.value!)
-//                    let global = b.addGlobal(name, initializer: value)
-//                    associatedGlobals.append(global)
-//                }
-//                _ = b.addGlobal(sym.appending("..associated"), initializer: LLVM.ArrayType.constant(associatedGlobals, type: canonicalize(associatedType)))
-//            }
-//        }
-//
-//        return LLVM.StructType(elementTypes: [IntType(width: e.width!, in: module.context)], isPacked: true, in: module.context)
     }
 
-    mutating func canonicalize(_ u: ty.Union) -> LLVM.IntType {
-//        if let entity = u.entity {
-//            let sym = symbol(for: entity)
-//            if let ptr = module.type(named: sym) {
-//                return ptr as! LLVM.StructType
-//            }
-//
-//            let irType = b.createStruct(name: sym)
-//            let containerType = LLVM.ArrayType(elementType: i8, count: u.width!.bytes())
-//            irType.setBody([containerType])
-//            return irType
-//        }
-
-//        let containerType = LLVM.ArrayType(elementType: i1, count: u.width!)
-//        return LLVM.StructType(elementTypes: [containerType] , in: module.context)
-
-        // TODO: Settle on how Unions are represented to LLVM
-        return LLVM.IntType(width: u.width!, in: module.context)
+    mutating func canonicalize(_ u: ty.Union) -> IRType {
+        if u.isInlineTag {
+            let data = LLVM.IntType(width: u.width!, in: module.context)
+            return LLVM.StructType(elementTypes: [data])
+        }
+        let data = LLVM.IntType(width: u.width! - u.tagType.width!, in: module.context)
+        let tag  = canonicalize(u.tagType)
+        return LLVM.StructType(elementTypes: [tag, data])
     }
 
     mutating func canonicalize(_ integer: ty.UntypedInteger) -> IntType {

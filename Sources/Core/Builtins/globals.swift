@@ -17,8 +17,8 @@ extension builtin {
         static let void = BuiltinType(entity: .void, type: ty.Void())
         static let any  = BuiltinType(entity: .any,  type: ty.Anyy())
 
-        static let bool = BuiltinType(entity:   .bool,   type: ty.Boolean())
-        static let rawptr = BuiltinType(entity: .rawptr, type: ty.Pointer(pointeeType: u8.type))
+        static let bool   = BuiltinType(entity: .bool,   type: ty.Boolean(width: 1))
+        static let rawptr = BuiltinType(entity: .rawptr, type: ty.Pointer(u8.type))
         static let string = BuiltinType(entity: .string, type: ty.Slice(elementType: u8.type))
 
         static let f32 = BuiltinType(entity: .f32, type: ty.FloatingPoint(width: 32))
@@ -33,6 +33,7 @@ extension builtin {
         static let i64 = BuiltinType(entity: .i64, type: ty.Integer(width: 64, isSigned: true))
         static let u64 = BuiltinType(entity: .u64, type: ty.Integer(width: 64, isSigned: false))
 
+        // FIXME: For builtin entities we need to allow the desired type to propigate the correct boolean type into here, in case it's a non 1 width boolean
         static let trué: BuiltinEntity = BuiltinEntity(name: "true", type: bool.type, gen: { IntType(width: 1, in: $0.module.context).constant(1) })
         static let falsé: BuiltinEntity = BuiltinEntity(name: "false", type: bool.type, gen: { IntType(width: 1, in: $0.module.context).constant(0) })
     }

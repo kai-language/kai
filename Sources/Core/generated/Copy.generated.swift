@@ -654,6 +654,7 @@ func copy(_ nodes: [StructField]) -> [StructField] {
 func copy(_ node: StructType) -> StructType {
     return StructType(
         keyword: node.keyword,
+        directives: node.directives,
         lbrace: node.lbrace,
         fields: copy(node.fields),
         rbrace: node.rbrace,
@@ -726,24 +727,12 @@ func copy(_ nodes: [Unary]) -> [Unary] {
     return nodes.map(copy)
 }
 
-func copy(_ node: UnionTag) -> UnionTag {
-    return UnionTag(
-        ident: copy(node.ident),
-        explicitType: node.explicitType.map(copy),
-        offset: node.offset.map(copy),
-        type: node.type
-    )
-}
-
-func copy(_ nodes: [UnionTag]) -> [UnionTag] {
-    return nodes.map(copy)
-}
-
 func copy(_ node: UnionType) -> UnionType {
     return UnionType(
         keyword: node.keyword,
+        directives: node.directives,
         lbrace: node.lbrace,
-        tagOverride: node.tagOverride.map(copy),
+        tag: node.tag.map(copy),
         fields: copy(node.fields),
         rbrace: node.rbrace,
         type: node.type
@@ -775,20 +764,6 @@ func copy(_ node: VariadicType) -> VariadicType {
 }
 
 func copy(_ nodes: [VariadicType]) -> [VariadicType] {
-    return nodes.map(copy)
-}
-
-func copy(_ node: VariantType) -> VariantType {
-    return VariantType(
-        keyword: node.keyword,
-        lbrace: node.lbrace,
-        fields: copy(node.fields),
-        rbrace: node.rbrace,
-        type: node.type
-    )
-}
-
-func copy(_ nodes: [VariantType]) -> [VariantType] {
     return nodes.map(copy)
 }
 
@@ -837,7 +812,6 @@ func copy(_ node: Expr) -> Expr {
     case let node as Unary: return copy(node)
     case let node as UnionType: return copy(node)
     case let node as VariadicType: return copy(node)
-    case let node as VariantType: return copy(node)
     case let node as VectorType: return copy(node)
     default: fatalError()
     }

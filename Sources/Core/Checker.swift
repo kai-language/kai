@@ -409,7 +409,7 @@ extension Checker {
             context.function = ident.entity
             let operand = check(funcType: value.explicitType)
             ident.entity.type = operand.type.lower()
-        } else if value is StructType || value is PolyStructType || value is UnionType || value is VariantType || value is EnumType {
+        } else if value is StructType || value is PolyStructType || value is UnionType || value is EnumType { // FIXME: Use `isStruct` etc
             // declare a stub type, collect all member declarations
             let stub = ty.Named(entity: ident.entity, base: nil)
             ident.entity.type = ty.Metatype(instanceType: stub)
@@ -1051,7 +1051,7 @@ extension Checker {
             let operand = check(expr: pointer.explicitType)
             let pointee = lowerFromMetatype(operand.type, atNode: pointer.explicitType)
             // TODO: If this cannot be lowered we should not that `<` is used for deref
-            let type = ty.Pointer(pointeeType: pointee)
+            let type = ty.Pointer(pointee)
             pointer.type = ty.Metatype(instanceType: type)
             return Operand(mode: .type, expr: expr, type: pointer.type, constant: nil, dependencies: operand.dependencies)
 
@@ -1593,9 +1593,17 @@ extension Checker {
             }
         }
         var type: Type
-        type = ty.Struct(width: width, node: s, fields: fields, isPolymorphic: false)
+        var flags: ty.Struct.Flags = .none
+        if s.directives.contains(.packed) {
+            flags.insert(.packed)
+            s.directives.remove(.packed)
+        }
+        type = ty.Struct(width: width, flags: flags, node: s, fields: fields, isPolymorphic: false)
         type = ty.Metatype(instanceType: type)
         s.type = type
+        for directive in s.directives {
+            reportError("Directive \(directive) not valid on type of kind struct", at: s.keyword)
+        }
         return Operand(mode: .type, expr: s, type: type, constant: nil, dependencies: dependencies)
     }
 
@@ -1629,7 +1637,7 @@ extension Checker {
             }
         }
         var type: Type
-        type = ty.Struct(width: width, node: polyStruct, fields: fields, isPolymorphic: true)
+        type = ty.Struct(width: width, flags: .none, node: polyStruct, fields: fields, isPolymorphic: true)
         type = ty.Metatype(instanceType: type)
         polyStruct.type = type
         return Operand(mode: .type, expr: polyStruct, type: type, constant: nil, dependencies: dependencies)
@@ -1654,10 +1662,25 @@ extension Checker {
             }
         }
 
+        if let tag = u.tag {
+            let operand = check(field: tag)
+            if operand.type.width! < cases.count.bitsNeeded() {
+                reportError("Tag specifies a width of \(operand.type!.width!) bits but the union has \(cases.count) cases, requiring \(cases.count.bitsNeeded()) bits for inferred tagging", at: tag.start)
+            }
+        }
+
         var type: Type
-        type = ty.Union(width: largestWidth, cases: cases)
+        var flags: ty.Union.Flags = .none
+        if u.directives.contains(.inlineTag) {
+            flags.insert(.inlineTag)
+            u.directives.remove(.inlineTag)
+        }
+        type = ty.Union(width: largestWidth, flags: flags, cases: cases)
         type = ty.Metatype(instanceType: type)
         u.type = type
+        for directive in u.directives {
+            reportError("Directive \(directive) not valid on type of kind union", at: u.keyword)
+        }
         return Operand(mode: .type, expr: u, type: type, constant: nil, dependencies: dependencies)
     }
 
@@ -1755,6 +1778,13 @@ extension Checker {
             }
             constant = operand.constant.map(not)
 
+        case .bnot:
+            guard isInteger(type) else {
+                reportError("Invalid operation '\(unary.op)' on \(operand), expected type of kind Integer", at: unary.start)
+                return Operand.invalid
+            }
+            constant = operand.constant.map(bnot)
+
         case .lss:
             guard let pointer = baseType(type) as? ty.Pointer else {
                 reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
@@ -1767,7 +1797,7 @@ extension Checker {
                 reportError("Cannot take the address of a non lvalue", at: unary.start)
                 return Operand.invalid
             }
-            type = ty.Pointer(pointeeType: type)
+            type = ty.Pointer(type)
 
         default:
             reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
@@ -2062,7 +2092,7 @@ extension Checker {
             switch selector.sel.name {
             case "raw":
                 selector.checked = .array(.raw)
-                selector.type = ty.Pointer(pointeeType: slice.elementType)
+                selector.type = ty.Pointer(slice.elementType)
             case "len":
                 selector.checked = .array(.length)
                 selector.type = ty.u64
@@ -2109,6 +2139,11 @@ extension Checker {
             return Operand(mode: .assignable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
 
         case let union as ty.Union:
+            if selector.sel.name == "Tag" {
+                selector.checked = .unionTag
+                selector.type = union.tagType
+                return Operand(mode: .addressable, expr: selector, type: union.tagType, constant: nil, dependencies: dependencies)
+            }
             guard let casé = union.cases[selector.sel.name] else {
                 reportError("Member '\(selector.sel)' not found in scope of \(operand)", at: selector.sel.start)
                 selector.checked = .invalid
@@ -2419,7 +2454,7 @@ extension Checker {
 
         case .bitcast:
             guard exprType.width == targetType.width else {
-                reportError("Cannot bitcast \(operand) to type of different size (\(targetType))", at: cast.keyword)
+                reportError("Cannot bitcast \(operand) with width of \(operand.type.width!) to type of different size (\(targetType)) with width of \(targetType.width!)", at: cast.keyword)
                 return Operand(mode: .computed, expr: cast, type: targetType, constant: nil, dependencies: dependencies)
             }
 

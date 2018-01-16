@@ -158,3 +158,17 @@ extension ty.Function {
     }
 }
 
+extension ty.Struct {
+
+    var isPacked: Bool {
+        return flags.contains(.packed) 
+    }
+}
+
+extension ty.Union {
+
+    var isInlineTag: Bool {
+        return flags.contains(.inlineTag) 
+    }
+}
+

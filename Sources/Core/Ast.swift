@@ -354,6 +354,7 @@ class Selector: Node, Expr, Convertable {
         case `struct`(ty.Struct.Field)
         case `enum`(ty.Enum.Case)
         case union(ty.Union.Case)
+        case unionTag
         case array(ArrayMember)
         case staticLength(Int)
         case scalar(Int)
@@ -507,6 +508,7 @@ init(fun: Expr, lparen: Pos, labels: [Ident?], args: [Expr], rparen: Pos, type: 
 }
 
 class Unary: Node, Expr, Convertable {
+
     var start: Pos
     var op: Token
     var element: Expr
@@ -691,6 +693,7 @@ init(lbrack: Pos, size: Expr, rbrack: Pos, explicitType: Expr, type: Type!) {
 
 class StructType: Node, Expr {
     var keyword: Pos
+    var directives: Set<TypeDirective>
     var lbrace: Pos
     var fields: [StructField]
     var rbrace: Pos
@@ -707,8 +710,9 @@ class StructType: Node, Expr {
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:StructType.Init
-init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!, checked: Checked!) {
+init(keyword: Pos, directives: Set<TypeDirective>, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!, checked: Checked!) {
     self.keyword = keyword
+    self.directives = directives
     self.lbrace = lbrace
     self.fields = fields
     self.rbrace = rbrace
@@ -764,9 +768,10 @@ init(keyword: Pos, explicitType: Expr?, cases: [EnumCase], rbrace: Pos, type: Ty
 
 class UnionType: Node, Expr {
     var keyword: Pos
+    var directives: Set<TypeDirective>
     var lbrace: Pos
-    var tagOverride: UnionTag?
-    var fields: [StructField]
+    var tag: StructField?
+    var fields: [StructField] // TODO: Switch to `UnionField` so we can provide customizations specific to union members
     var rbrace: Pos
 
     var type: Type!
@@ -775,52 +780,11 @@ class UnionType: Node, Expr {
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:UnionType.Init
-init(keyword: Pos, lbrace: Pos, tagOverride: UnionTag?, fields: [StructField], rbrace: Pos, type: Type!) {
+init(keyword: Pos, directives: Set<TypeDirective>, lbrace: Pos, tag: StructField?, fields: [StructField], rbrace: Pos, type: Type!) {
     self.keyword = keyword
+    self.directives = directives
     self.lbrace = lbrace
-    self.tagOverride = tagOverride
-    self.fields = fields
-    self.rbrace = rbrace
-    self.type = type
-}
-// sourcery:end
-}
-
-class UnionTag: Node {
-    var ident: Ident
-    var explicitType: Expr?
-    var offset: Expr?
-
-    var type: Type?
-
-    var start: Pos { return ident.start }
-    var end: Pos { return offset?.end ?? explicitType?.end ?? ident.end }
-
-// sourcery:inline:auto:UnionTag.Init
-init(ident: Ident, explicitType: Expr?, offset: Expr?, type: Type?) {
-    self.ident = ident
-    self.explicitType = explicitType
-    self.offset = offset
-    self.type = type
-}
-// sourcery:end
-}
-
-class VariantType: Node, Expr {
-    var keyword: Pos
-    var lbrace: Pos
-    var fields: [StructField]
-    var rbrace: Pos
-
-    var type: Type!
-
-    var start: Pos { return keyword }
-    var end: Pos { return rbrace }
-
-// sourcery:inline:auto:VariantType.Init
-init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!) {
-    self.keyword = keyword
-    self.lbrace = lbrace
+    self.tag = tag
     self.fields = fields
     self.rbrace = rbrace
     self.type = type

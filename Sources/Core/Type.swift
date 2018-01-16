@@ -391,7 +391,7 @@ enum ty {
     }
 
     struct Boolean: Type, NamableType {
-        var width: Int? { return 1 }
+        var width: Int?
     }
 
     struct Integer: Type, NamableType {
@@ -407,7 +407,7 @@ enum ty {
         var width: Int? { return platformPointerWidth }
         var pointeeType: Type
 
-        init(pointeeType: Type) {
+        init(_ pointeeType: Type) {
             self.pointeeType = pointeeType
         }
     }
@@ -449,14 +449,15 @@ enum ty {
 
     struct Struct: Type, NamableType, IRNamableType {
         var width: Int?
-
+        var flags: Flags
         var node: Node
         var fields: OrderedDictionary<String, Field>
 
         var isPolymorphic: Bool
 
-        init(width: Int, node: Node, fields: [Field], isPolymorphic: Bool = false) {
+        init(width: Int, flags: Flags, node: Node, fields: [Field], isPolymorphic: Bool = false) {
             self.width = width
+            self.flags = flags
             self.node = node
             self.fields = [:]
             for field in fields {
@@ -476,14 +477,26 @@ enum ty {
                 return ident.name
             }
         }
+
+        struct Flags: OptionSet {
+            var rawValue: UInt8
+
+            static let none   = Flags(rawValue: 0b0000)
+            static let packed = Flags(rawValue: 0b0001)
+        }
     }
 
-    struct Union: Type, NamableType {
+    struct Union: Type, NamableType, IRNamableType {
         var width: Int?
+        var flags: Flags
+        var tagType: Integer
         var cases: OrderedDictionary<String, Case>
 
-        init(width: Int, cases: [Case]) {
+        /// - Parameter tagWidth: if nil width is inferred from number of cases
+        init(width: Int, tagWidth: Int? = nil, flags: Flags = .none, cases: [Case]) {
             self.width = width
+            self.tagType = ty.Integer(width: tagWidth ?? cases.count.bitsNeeded(), isSigned: false)
+            self.flags = flags
             self.cases = [:]
             for c in cases {
                 self.cases[c.ident.name] = c
@@ -493,6 +506,13 @@ enum ty {
         struct Case {
             var ident: Ident
             var type: Type
+        }
+
+        struct Flags: OptionSet {
+            var rawValue: UInt8
+
+            static let none      = Flags(rawValue: 0b0000)
+            static let inlineTag = Flags(rawValue: 0b0001)
         }
     }
 
@@ -608,6 +628,13 @@ enum ty {
         init(memberScope: Scope) {
             self.memberScope = memberScope
         }
+    }
+}
+
+extension ty.Union {
+
+    func tag(for name: String) -> Int {
+        return cases.orderedKeys.index(where: { $0 == name })!
     }
 }
 

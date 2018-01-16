@@ -48,7 +48,6 @@ var globalBuiltins: Set<Entity> = {
 
 // MARK: Package scopes
 
-// FIXME: @pr Add in the builtin packages. Hopefully after we work out how to auto generate their definitions
 var builtinPackages: [String: Scope] = [
 {% for package in types.enums where package.name|hasPrefix:"builtin." %}
     "{{ package.localName }}": {{ package.name }}.scope,
@@ -67,5 +66,15 @@ extension {{ package.name }} {
         ].toDictionary(with: { $0.name })
         return Scope(parent: .global, owningNode: nil, isFile: false, isPackage: true, members: members)
     }()
+}
+{% endfor %}
+
+{% for package in types.enums where package.name|hasPrefix:"builtin.types" %}
+
+extension {{ package.name }} {
+
+    {% for var in package.staticVariables %}
+    static var {{ var.name|replace:"`","" }}Type: Type { return {{ package.name }}.{{ var.name }}.type }
+    {% endfor %}
 }
 {% endfor %}

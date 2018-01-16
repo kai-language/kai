@@ -21,6 +21,7 @@ enum Token: UInt8 {
     case and     // &
     case or      // |
     case xor     // ^
+    case bnot    // ~
     case shl     // <<
     case shr     // >>
 
@@ -91,7 +92,6 @@ enum Token: UInt8 {
 
     case fn
     case union
-    case variant
     case `enum`
     case `struct`
 
@@ -159,6 +159,7 @@ extension Token: CustomStringConvertible {
         case .and:       return "&"
         case .or:        return "|"
         case .xor:       return "^"
+        case .bnot:      return "~"
         case .shl:       return "<<"
         case .shr:       return ">>"
         case .land:      return "&&"
@@ -203,7 +204,6 @@ extension Token: CustomStringConvertible {
         case .case:      return "case"
         case .fn:        return "fn"
         case .union:     return "union"
-        case .variant:   return "variant"
         case .enum:      return "enum"
         case .struct:    return "struct"
         case .nil:       return "nil"

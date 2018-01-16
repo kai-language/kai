@@ -84,7 +84,6 @@ var globalBuiltins: Set<Entity> = {
 
 // MARK: Package scopes
 
-// FIXME: @pr Add in the builtin packages. Hopefully after we work out how to auto generate their definitions
 var builtinPackages: [String: Scope] = [
     "globals": builtin.globals.scope,
     "platform": builtin.platform.scope,
@@ -139,18 +138,41 @@ extension builtin.types {
             builtin.types.integer.entity,
             builtin.types.float.entity,
             builtin.types.any.entity,
-            builtin.types.compound.entity,
             builtin.types.pointer.entity,
             builtin.types.slice.entity,
+            builtin.types.function.entity,
             builtin.types.array.entity,
             builtin.types.vector.entity,
             builtin.types.`struct`.entity,
             builtin.types.union.entity,
             builtin.types.`enum`.entity,
             builtin.types.named.entity,
+            builtin.types.param.entity,
             builtin.types.sizeOf.entity,
             builtin.types.typeOf.entity,
         ].toDictionary(with: { $0.name })
         return Scope(parent: .global, owningNode: nil, isFile: false, isPackage: true, members: members)
     }()
+}
+
+
+extension builtin.types {
+
+    static var typeInfoType: Type { return builtin.types.typeInfo.type }
+    static var booleanType: Type { return builtin.types.boolean.type }
+    static var integerType: Type { return builtin.types.integer.type }
+    static var floatType: Type { return builtin.types.float.type }
+    static var anyType: Type { return builtin.types.any.type }
+    static var pointerType: Type { return builtin.types.pointer.type }
+    static var sliceType: Type { return builtin.types.slice.type }
+    static var functionType: Type { return builtin.types.function.type }
+    static var arrayType: Type { return builtin.types.array.type }
+    static var vectorType: Type { return builtin.types.vector.type }
+    static var structType: Type { return builtin.types.`struct`.type }
+    static var unionType: Type { return builtin.types.union.type }
+    static var enumType: Type { return builtin.types.`enum`.type }
+    static var namedType: Type { return builtin.types.named.type }
+    static var paramType: Type { return builtin.types.param.type }
+    static var sizeOfType: Type { return builtin.types.sizeOf.type }
+    static var typeOfType: Type { return builtin.types.typeOf.type }
 }
