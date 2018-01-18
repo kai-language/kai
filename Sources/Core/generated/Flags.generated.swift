@@ -139,6 +139,17 @@ extension Options {
     }
 }
 
+extension Switch {
+
+    var isUsing: Bool {
+        return flags.contains(.using) 
+    }
+
+    var isType: Bool {
+        return flags.contains(.type) 
+    }
+}
+
 extension ty.Function {
 
     var isVariadic: Bool {

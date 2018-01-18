@@ -152,6 +152,7 @@ func copy(_ node: CaseClause) -> CaseClause {
     return CaseClause(
         keyword: node.keyword,
         match: copy(node.match),
+        binding: node.binding.map(copy),
         colon: node.colon,
         block: copy(node.block),
         label: node.label
@@ -686,9 +687,9 @@ func copy(_ node: Switch) -> Switch {
     return Switch(
         keyword: node.keyword,
         match: node.match.map(copy),
-        usingMatch: node.usingMatch,
         cases: copy(node.cases),
         rbrace: node.rbrace,
+        flags: node.flags,
         label: node.label
     )
 }

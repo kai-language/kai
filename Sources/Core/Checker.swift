@@ -926,12 +926,16 @@ extension Checker {
             dependencies.formUnion(operand.dependencies)
 
             type = operand.type
-            guard isInteger(operand.type) || isEnum(operand.type) else {
-                reportError("Cannot switch on type '\(operand.type!)'. Can only switch on integer and enum types", at: match.start)
+            guard isInteger(type!) || isEnum(type!) || isUnion(type!) else {
+                reportError("Cannot switch on type '\(type!)'. Can only switch on integer and enum types", at: match.start)
                 return dependencies
             }
 
-            if sw.usingMatch {
+            if isUnion(type!) {
+                sw.flags.insert(.type)
+            }
+
+            if sw.isUsing {
                 guard let type = baseType(match.type) as? ty.Enum else {
                     reportError("using is invalid on \(operand)", at: match.start)
                     return dependencies
@@ -943,7 +947,7 @@ extension Checker {
                     declare(entity)
                 }
             }
-        } else if sw.usingMatch {
+        } else if sw.isUsing {
             reportError("Using expects an entity", at: sw.start)
         }
 
@@ -954,7 +958,29 @@ extension Checker {
         }
 
         for (c, nextCase) in sw.cases.enumerated().map({ ($0.element, sw.cases[safe: $0.offset + 1]) }) {
-            if !c.match.isEmpty {
+            var binding: Entity?
+            if !c.match.isEmpty, let union = type.map(baseType) as? ty.Union {
+                if c.match.count > 1 {
+                    reportError("Cannot match multiple union members", at: c.match[1].start)
+                }
+
+                guard let ident = c.match[0] as? Ident else {
+                    continue
+                }
+                guard let unionCase = union.cases[ident.name] else {
+                    reportError("Union has no member \(ident)", at: ident.start)
+                    continue
+                }
+
+                if let bIdent = c.binding {
+                    binding = newEntity(ident: bIdent, type: unionCase.type, flags: .none)
+                    bIdent.entity = binding
+                    bIdent.type = unionCase.type
+                }
+
+                ident.constant = UInt64(unionCase.tag)
+
+            } else if !c.match.isEmpty {
                 for match in c.match {
                     if let desiredType = type {
                         let operand = check(expr: match, desiredType: desiredType)
@@ -982,6 +1008,7 @@ extension Checker {
 
             context.nextCase = nextCase
             pushContext()
+            binding.map({ declare($0) })
             let deps = check(stmt: c.block)
             popContext()
             dependencies.formUnion(deps)
@@ -1648,12 +1675,12 @@ extension Checker {
 
         var largestWidth = 0
         var cases: [ty.Union.Case] = []
-        for x in u.fields {
+        for (i, x) in u.fields.enumerated() {
             let operand = check(field: x)
             dependencies.formUnion(operand.dependencies)
 
             for name in x.names {
-                let casé = ty.Union.Case(ident: name, type: operand.type)
+                let casé = ty.Union.Case(ident: name, type: operand.type, tag: i)
                 cases.append(casé)
                 let width = operand.type.width!.round(upToNearest: 8)
                 if width > largestWidth {

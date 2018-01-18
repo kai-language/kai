@@ -46,11 +46,11 @@ extension builtin {
         ])
 
         static let pointer: BuiltinType = BuiltinType(name: "Pointer", structMembers: [
-            ("Type", typeInfoType),
+            ("PointeeType", typeInfoType),
         ])
 
         static let slice: BuiltinType = BuiltinType(name: "Slice", structMembers: [
-            ("Type", typeInfoType),
+            ("ElementType", typeInfoType),
         ])
 
         static let function: BuiltinType = BuiltinType(name: "Function", structMembers: [
@@ -59,12 +59,12 @@ extension builtin {
         ])
 
         static let array: BuiltinType = BuiltinType(name: "Array", structMembers: [
-            ("Type", typeInfoType),
+            ("ElementType", typeInfoType),
             ("Size", ty.Integer(width: 64, isSigned: false)),
         ])
 
         static let vector: BuiltinType = BuiltinType(name: "Vector", structMembers: [
-            ("Type", typeInfoType),
+            ("ElementType", typeInfoType),
             ("Size", ty.Integer(width: 64, isSigned: false)),
         ])
 

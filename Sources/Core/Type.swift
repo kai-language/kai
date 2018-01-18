@@ -506,6 +506,7 @@ enum ty {
         struct Case {
             var ident: Ident
             var type: Type
+            var tag: Int
         }
 
         struct Flags: OptionSet {

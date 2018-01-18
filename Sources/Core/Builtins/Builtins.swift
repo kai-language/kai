@@ -181,9 +181,9 @@ extension BuiltinType {
     init(name: String, flags: ty.Union.Flags = .none, unionMembers: [(String, Type)]) {
         var width = 0
         var cases: [ty.Union.Case] = []
-        for (name, type) in unionMembers {
+        for (index, (name, type)) in unionMembers.enumerated() {
             let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
-            let c = ty.Union.Case(ident: ident, type: type)
+            let c = ty.Union.Case(ident: ident, type: type, tag: index)
             cases.append(c)
             width = max(width, type.width!)
         }

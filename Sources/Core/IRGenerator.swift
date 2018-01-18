@@ -496,7 +496,7 @@ extension IRGenerator {
                 } else {
                     let stackValue = entryBlockAlloca(type: type, name: entity.name)
                     let rvaluePtr = b.buildStructGEP(stackAggregate, index: index)
-                    let rvalue = b.buildLoad(rvaluePtr)
+                    let rvalue = buildLoad(rvaluePtr)
 
                     b.buildStore(rvalue, to: stackValue)
 
@@ -566,7 +566,7 @@ extension IRGenerator {
                     let count = (lit.constant as! String).utf8.count + 1 // + 1 for null byte
                     var dstPtr = entryBlockAlloca(type: LLVM.ArrayType(elementType: i8, count: count))
                     dstPtr = b.buildBitCast(dstPtr, type: LLVM.PointerType(pointee: i8))
-                    let tmp = b.buildInsertValue(aggregate: b.buildLoad(stackValue), element: dstPtr, index: 0)
+                    let tmp = b.buildInsertValue(aggregate: buildLoad(stackValue), element: dstPtr, index: 0)
                     b.buildStore(tmp, to: stackValue)
 
                     let srcPtr = (ir as! Constant<Struct>).getElement(indices: [0])
@@ -650,7 +650,7 @@ extension IRGenerator {
             {
                 let lvalueAddress = emit(expr: lvalue, returnAddress: true)
                 let rvaluePtr = b.buildStructGEP(stackAggregate, index: index)
-                let rvalue = b.buildLoad(rvaluePtr)
+                let rvalue = buildLoad(rvaluePtr)
                 b.buildStore(rvalue, to: lvalueAddress)
             }
             return
@@ -842,9 +842,9 @@ extension IRGenerator {
         case .slice:
             let aggBox = emit(expr: f.aggregate, returnAddress: true)
             let aggPtr = b.buildStructGEP(aggBox, index: 0)
-            agg = b.buildLoad(aggPtr)
+            agg = buildLoad(aggPtr)
             let lenPtr = b.buildStructGEP(aggBox, index: 1)
-            len = b.buildLoad(lenPtr)
+            len = buildLoad(lenPtr)
         case .enumeration:
             fatalError("Unimplemented")
         }
@@ -857,7 +857,7 @@ extension IRGenerator {
         b.buildBr(loopCond)
         b.positionAtEnd(of: loopCond)
 
-        let withinBounds = b.buildICmp(b.buildLoad(index), len, .signedLessThan)
+        let withinBounds = b.buildICmp(buildLoad(index), len, .signedLessThan)
         b.buildCondBr(condition: withinBounds, then: loopBody, else: loopPost)
 
         b.positionAtEnd(of: loopBody)
@@ -868,14 +868,14 @@ extension IRGenerator {
         f.breakLabel.value = loopPost
         f.continueLabel.value = loopCond
 
-        let indexLoad = b.buildLoad(index)
+        let indexLoad = buildLoad(index)
         let indices: [IRValue]
         switch f.checked! {
         case .array: indices = [0, indexLoad]
         default: indices = [indexLoad]
         }
         let elPtr = b.buildGEP(agg, indices: indices)
-        b.buildStore(b.buildLoad(elPtr), to: element)
+        b.buildStore(buildLoad(elPtr), to: element)
         emit(statement: f.body)
 
         let hasJump = b.insertBlock?.terminator != nil
@@ -884,7 +884,7 @@ extension IRGenerator {
         }
 
         b.positionAtEnd(of: loopStep)
-        let val = b.buildAdd(b.buildLoad(index), i64.constant(1))
+        let val = b.buildAdd(buildLoad(index), i64.constant(1))
         b.buildStore(val, to: index)
         b.buildBr(loopCond)
 
@@ -917,13 +917,35 @@ extension IRGenerator {
             }
         }
 
-        let value = sw.match.map({ emit(expr: $0) }) ?? i1.constant(1)
+        let valueAddress = sw.match.map { match in
+            return emit(expr: match, returnAddress: true)
+        }
+
+        var value: IRValue
+        if sw.isType {
+            let union = baseType(sw.match!.type) as! ty.Union
+            let address = b.buildBitCast(valueAddress!, type: LLVM.PointerType(pointee: canonicalize(union.tagType)))
+            value = buildLoad(address)
+        } else {
+            value = valueAddress.map({ buildLoad($0) }) ?? i1.constant(1)
+        }
         var matches: [[IRValue]] = []
         for (i, c, nextCase) in sw.cases.enumerated().map({ ($0.offset, $0.element, sw.cases[safe: $0.offset + 1]) }) {
             let thenBlock = thenBlocks[i]
             nextCase?.label.value = thenBlocks[safe: i + 1]
 
-            if !c.match.isEmpty {
+            if sw.isType && !c.match.isEmpty {
+                let match = c.match[0] as! Ident
+                let union = (baseType(sw.match!.type) as! ty.Union)
+                let tag = canonicalize(union.tagType).constant(match.constant! as! UInt64)
+                matches.append([tag])
+                if union.isInlineTag, let binding = c.binding {
+                    let bindingType = LLVM.PointerType(pointee: canonicalize(binding.type))
+                    binding.entity.value = b.buildBitCast(valueAddress!, type: bindingType)
+                } else {
+                    // TODO: Do something
+                }
+            } else if !c.match.isEmpty {
                 var vals: [IRValue] = []
                 for match in c.match {
                     vals.append(emit(expr: match))
@@ -1125,7 +1147,7 @@ extension IRGenerator {
             }
         }
 
-        return b.buildLoad(value(for: ident.entity))
+        return buildLoad(value(for: ident.entity))
     }
 
     mutating func emit(unary: Unary, returnAddress: Bool) -> IRValue {
@@ -1140,7 +1162,7 @@ extension IRGenerator {
             if returnAddress {
                 return val
             }
-            return b.buildLoad(val)
+            return buildLoad(val)
         case .not:
             return b.buildNot(val)
         case .bnot:
@@ -1307,7 +1329,7 @@ extension IRGenerator {
 
                     let irType = LLVM.PointerType(pointee: canonicalize(baseType(param)))
                     val = b.buildBitCast(val, type: irType)
-                    val = b.buildLoad(val)
+                    val = buildLoad(val)
                 } else {
                     val = emit(expr: arg)
                 }
@@ -1354,7 +1376,7 @@ extension IRGenerator {
             b.buildStore(result, to: mem)
             let type = canonicalize(call.type)
             mem = b.buildBitCast(mem, type: LLVM.PointerType(pointee: type))
-            return b.buildLoad(mem)
+            return buildLoad(mem)
         }
     }
 
@@ -1376,7 +1398,7 @@ extension IRGenerator {
             if isArray(cast.expr.type) || isFunction(cast.expr.type) || returnAddress {
                 return pointer
             }
-            return b.buildLoad(pointer)
+            return buildLoad(pointer)
         }
 //        let val = emit(expr: cast.expr, returnAddress: isArray(cast.expr.type) || isFunction(cast.expr.type) || isUnionType || returnAddress)
 
@@ -1403,7 +1425,7 @@ extension IRGenerator {
                 b.buildRetVoid()
             } else {
                 resultPtr = entryBlockAlloca(type: fnType.returnType, name: "result")
-                b.buildRet(b.buildLoad(resultPtr!))
+                b.buildRet(buildLoad(resultPtr!))
             }
 
             b.positionAtEnd(of: entryBlock)
@@ -1471,23 +1493,23 @@ extension IRGenerator {
             if returnAddress {
                 return address
             }
-            return b.buildLoad(address)
+            return buildLoad(address)
         case .struct(let field):
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
-                aggregate = b.buildLoad(aggregate)
+                aggregate = buildLoad(aggregate)
             }
             let fieldAddress = b.buildStructGEP(aggregate, index: field.index)
             if returnAddress {
                 return fieldAddress
             }
-            return b.buildLoad(fieldAddress)
+            return buildLoad(fieldAddress)
         case .enum(let c):
             return canonicalize(baseType(sel.type) as! ty.Enum).constant(c.number)
         case .unionTag:
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
-                aggregate = b.buildLoad(aggregate)
+                aggregate = buildLoad(aggregate)
             }
             let type = canonicalize(sel.type) as! LLVM.IntType // FIXME: Assumes tag type must be integer (Not checked in checker)
             let address = b.buildBitCast(aggregate, type: LLVM.PointerType(pointee: type))
@@ -1495,37 +1517,37 @@ extension IRGenerator {
                 return address
             }
             let mask = type.allOnes()
-            let tag = b.buildLoad(address, alignment: 16)
+            let tag = buildLoad(address, alignment: 16)
             return b.buildAnd(mask, tag)
 
         case .union(let c):
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
-                aggregate = b.buildLoad(aggregate)
+                aggregate = buildLoad(aggregate)
             }
             let type = canonicalize(c.type)
             let address = b.buildBitCast(aggregate, type: LLVM.PointerType(pointee: type))
             if returnAddress {
                 return address
             }
-            return b.buildLoad(address)
+            return buildLoad(address)
         case .array(let member):
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
-                aggregate = b.buildLoad(aggregate)
+                aggregate = buildLoad(aggregate)
             }
             let index = member.rawValue
             let fieldAddress = b.buildStructGEP(aggregate, index: index)
             if returnAddress {
                 return fieldAddress
             }
-            return b.buildLoad(fieldAddress)
+            return buildLoad(fieldAddress)
         case .staticLength(let length):
             return i64.constant(length)
         case .scalar(let index):
             var vector = emit(expr: sel.rec, returnAddress: returnAddress)
             for _ in 0 ..< sel.levelsOfIndirection {
-                vector = b.buildLoad(vector)
+                vector = buildLoad(vector)
             }
 
             if returnAddress {
@@ -1536,7 +1558,7 @@ extension IRGenerator {
         case .swizzle(let indices):
             var vector = emit(expr: sel.rec)
             for _ in 0 ..< sel.levelsOfIndirection {
-                vector = b.buildLoad(vector)
+                vector = buildLoad(vector)
             }
 
             let recType = canonicalize(findConcreteType(sel.rec.type))
@@ -1572,7 +1594,7 @@ extension IRGenerator {
         case is ty.Slice:
             let structPtr = emit(expr: sub.rec, returnAddress: true)
             let arrayPtr = b.buildStructGEP(structPtr, index: 0)
-            aggregate = b.buildLoad(arrayPtr)
+            aggregate = buildLoad(arrayPtr)
             indicies = [index]
 
         case is ty.Pointer:
@@ -1587,7 +1609,7 @@ extension IRGenerator {
         if returnAddress {
             return val
         }
-        return b.buildLoad(val)
+        return buildLoad(val)
     }
 
     mutating func emit(slice: Slice, returnAddress: Bool) -> IRValue {
@@ -1611,13 +1633,13 @@ extension IRGenerator {
 
         case is ty.Slice:
             let rec = emit(expr: slice.rec, returnAddress: true)
-            let prevLen = b.buildLoad(b.buildStructGEP(rec, index: 1))
-            let prevCap = b.buildLoad(b.buildStructGEP(rec, index: 2))
+            let prevLen = buildLoad(b.buildStructGEP(rec, index: 1))
+            let prevCap = buildLoad(b.buildStructGEP(rec, index: 2))
             lo = lo ?? i64.zero()
             hi = hi ?? prevLen
 
             // load the address in the struct then offset it by lo
-            ptr = b.buildLoad(b.buildStructGEP(rec, index: 0))
+            ptr = buildLoad(b.buildStructGEP(rec, index: 0))
             ptr = b.buildGEP(ptr, indices: [lo!])
             len = b.buildSub(hi!, lo!)
             cap = b.buildSub(prevCap, lo!)
@@ -1750,6 +1772,30 @@ extension IRGenerator {
         }
     }
 }
+
+
+// MARK: LLVM Helpers
+
+extension IRGenerator {
+
+    public func buildLoad(_ ptr: IRValue, ordering: AtomicOrdering = .notAtomic, volatile: Bool = false, alignment: Int = 0, name: String = "") -> IRValue {
+        var ptr = ptr
+        guard let pointer = ptr.type as? LLVM.PointerType else {
+            fatalError()
+        }
+        if let i = pointer.pointee as? LLVM.IntType, i.width < 8 {
+            ptr = b.buildBitCast(ptr, type: LLVM.PointerType(pointee: IntType(width: 8, in: i.context)))
+        }
+        let loadInst = b.buildLoad(ptr, ordering: ordering, volatile: volatile, alignment: alignment, name: name)
+        if let i = pointer.pointee as? LLVM.IntType, i.width < 8 {
+            return b.buildTrunc(loadInst, type: i)
+        }
+        return loadInst
+    }
+}
+
+
+// MARK: Type canonicalization
 
 extension IRGenerator {
 
