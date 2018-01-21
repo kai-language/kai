@@ -21,7 +21,6 @@ enum Token: UInt8 {
     case and     // &
     case or      // |
     case xor     // ^
-    case bnot    // ~
     case shl     // <<
     case shr     // >>
 
@@ -43,6 +42,7 @@ enum Token: UInt8 {
     case lss        // <
     case gtr        // >
     case not        // !
+    case bnot       // ~
 
     case eql        // ==
     case neq        // !=
