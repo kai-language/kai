@@ -1192,7 +1192,13 @@ extension Checker {
             if constrainUntyped(type!, to: desiredType) {
                 ident.conversion = (from: entity.type!, to: desiredType)
                 ident.type = desiredType
-                return Operand(mode: entity.isType ? .type : .addressable, expr: ident, type: desiredType, constant: entity.constant, dependencies: [entity])
+                return Operand(
+                    mode: entity.isType ? .type : .addressable,
+                    expr: ident,
+                    type: desiredType,
+                    constant: entity.constant,
+                    dependencies: [entity]
+                )
             }
         }
         ident.type = type
@@ -1988,12 +1994,12 @@ extension Checker {
                 reportError("Implicit conversion between signed and unsigned integers in operator is disallowed", at: binary.opPos)
                 return Operand.invalid
             }
-            // select the largest
-            if lhsType.width! < rhsType.width! {
-                resultType = rhsType
-            } else {
-                resultType = lhsType
+
+            if lhsType.width! != rhsType.width! {
+                reportError("Implicit conversion between `\(lhsType)' and '\(rhsType)' in operator is disallowed", at: binary.opPos)
             }
+
+            resultType = lhsType
         } else if let lhsType = baseType(lhsType) as? ty.Pointer, isInteger(rhsType) {
             // Can only increment/decrement a pointer
             guard binary.op == .add || binary.op == .sub else {
@@ -2676,19 +2682,6 @@ extension Checker {
         context.specializationCallNode = call
 
         var params: [Entity] = []
-
-        func declareAndSpecEntities(_ type: Type) {
-            guard let type = findPolymorphic(type) else { return }
-            let entity = copy(type.entity)
-            entity.type = lowerSpecializedPolymorphics(entity.type!)
-            declare(entity)
-
-            if let type = type.specialization.val as? ty.StructSpecialization {
-                for f in type.polymorphicFields {
-                    declareAndSpecEntities(type.fields[f].value.type)
-                }
-            }
-        }
 
         // Declare polymorphic types for all polymorphic parameters
         for (arg, var param) in zip(call.args, generated.params) {

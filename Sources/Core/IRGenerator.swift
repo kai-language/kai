@@ -76,12 +76,18 @@ struct IRGenerator {
     }
 
     mutating func value(for entity: Entity) -> IRValue {
+        var entity = entity
+
         if entity.isParameter {
             // parameters are always in the same package.
             return entity.value!
         }
         guard let entityPackage = entity.package else {
             return entity.value!
+        }
+
+        if entity.isField {
+            print()
         }
 
         let topLevelEntity = entity.owningScope.isPackage || entity.owningScope.isFile

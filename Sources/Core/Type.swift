@@ -137,9 +137,12 @@ func specialize(polyType: Type, with argType: Type) -> Bool {
     case (let polyType as ty.Metatype, let argType as ty.Metatype):
         return specialize(polyType:  polyType.instanceType, with: argType.instanceType)
     case (let polyType as ty.Polymorphic, _):
-        if let p = polyType.specialization.val {
-            return specialize(polyType: p, with: argType)
-        }
+        // FIXME(Brett): I forget why I had this code, but it was causing issues.
+        // I'm keeping it here because I forgot what it was originally for, but
+        // I am certain that it fixes another issue
+//        if let p = polyType.specialization.val {
+//            return specialize(polyType: p, with: argType)
+//        }
         polyType.specialization.val = argType
         return true
     default:
@@ -148,7 +151,6 @@ func specialize(polyType: Type, with argType: Type) -> Bool {
 }
 
 func lowerSpecializedPolymorphics(_ type: Type) -> Type {
-
     switch type {
     case is ty.Anyy,
          is ty.Boolean,
