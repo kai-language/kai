@@ -359,6 +359,8 @@ class Selector: Node, Expr, Convertable {
         case staticLength(Int)
         case scalar(Int)
         case swizzle([Int])
+        case anyData
+        case anyType
 
         enum ArrayMember: Int {
             case raw
@@ -433,24 +435,26 @@ init(rec: Expr, lbrack: Pos, lo: Expr?, hi: Expr?, rbrack: Pos, type: Type!) {
 // sourcery:end
 }
 
-class Cast: Node, Expr {
+class Cast: Node, Expr, Convertable {
     var keyword: Pos
     var kind: Token
     var explicitType: Expr?
     var expr: Expr
 
     var type: Type!
+    var conversion: (from: Type, to: Type)?
 
     var start: Pos { return keyword }
     var end: Pos { return expr.end }
 
 // sourcery:inline:auto:Cast.Init
-init(keyword: Pos, kind: Token, explicitType: Expr?, expr: Expr, type: Type!) {
+init(keyword: Pos, kind: Token, explicitType: Expr?, expr: Expr, type: Type!, conversion: (from: Type, to: Type)?) {
     self.keyword = keyword
     self.kind = kind
     self.explicitType = explicitType
     self.expr = expr
     self.type = type
+    self.conversion = conversion
 }
 // sourcery:end
 }

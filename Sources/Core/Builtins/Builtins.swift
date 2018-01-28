@@ -12,7 +12,7 @@ func performAllPackageTypePatches() {
 enum builtin {
 
     static let untypedInteger = BuiltinType(entity: .anonymous, type: ty.UntypedInteger())
-    static let untypedFloat   = BuiltinType(entity: .anonymous, type: ty.UntypedFloatingPoint())
+    static let untypedFloat   = BuiltinType(entity: .anonymous, type: ty.UntypedFloat())
     static let untypedNil     = BuiltinType(entity: .untypedNil, type: ty.UntypedNil())
 
     /// - Note: The type type only exists at compile time

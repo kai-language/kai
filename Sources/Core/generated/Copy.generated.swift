@@ -157,7 +157,8 @@ func copy(_ node: Cast) -> Cast {
         kind: node.kind,
         explicitType: node.explicitType.map(copy),
         expr: copy(node.expr),
-        type: node.type
+        type: node.type,
+        conversion: node.conversion
     )
 }
 

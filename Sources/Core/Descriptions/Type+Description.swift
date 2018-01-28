@@ -17,7 +17,7 @@ extension ty.Integer {
     }
 }
 
-extension ty.FloatingPoint {
+extension ty.Float {
     var description: String {
         return "f\(width!)"
     }
@@ -109,7 +109,7 @@ extension ty.UntypedInteger {
     }
 }
 
-extension ty.UntypedFloatingPoint {
+extension ty.UntypedFloat {
     var description: String {
         return "float"
     }

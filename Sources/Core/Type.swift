@@ -34,11 +34,11 @@ func == (lhs: Type, rhs: Type) -> Bool {
          (is ty.Anyy, is ty.Anyy),
          (is ty.Boolean, is ty.Boolean),
          (is ty.UntypedInteger, is ty.UntypedInteger),
-         (is ty.UntypedFloatingPoint, is ty.UntypedFloatingPoint):
+         (is ty.UntypedFloat, is ty.UntypedFloat):
         return true
     case (let lhs as ty.Integer, let rhs as ty.Integer):
         return lhs.isSigned == rhs.isSigned && lhs.width == rhs.width
-    case (is ty.FloatingPoint, is ty.FloatingPoint):
+    case (is ty.Float, is ty.Float):
         return lhs.width == rhs.width
     case (let lhs as ty.Pointer, let rhs as ty.Pointer):
         return lhs.pointeeType == rhs.pointeeType
@@ -148,7 +148,7 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
     switch type {
     case is ty.Anyy,
          is ty.Boolean,
-         is ty.FloatingPoint,
+         is ty.Float,
          is ty.Integer,
          is ty.Void:
         return type
@@ -194,7 +194,7 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
 
     case is ty.UntypedNil,
          is ty.UntypedInteger,
-         is ty.UntypedFloatingPoint:
+         is ty.UntypedFloat:
         return type
 
     case is ty.Invalid:
@@ -218,11 +218,11 @@ func constrainUntyped(_ type: Type, to targetType: Type) -> Bool {
     case (is ty.UntypedNil, is ty.Pointer),
 
          (is ty.UntypedInteger, is ty.Integer),
-         (is ty.UntypedInteger, is ty.FloatingPoint),
+         (is ty.UntypedInteger, is ty.Float),
          (is ty.UntypedInteger, is ty.Pointer),
 
-         (is ty.UntypedFloatingPoint, is ty.Integer),
-         (is ty.UntypedFloatingPoint, is ty.FloatingPoint):
+         (is ty.UntypedFloat, is ty.Integer),
+         (is ty.UntypedFloat, is ty.Float):
         return true
     default:
         return false
@@ -238,7 +238,7 @@ func constrainUntypedToDefault(_ type: Type) -> Type {
     case is ty.UntypedInteger:
         return ty.i64
 
-    case is ty.UntypedFloatingPoint:
+    case is ty.UntypedFloat:
         return ty.f64
 
     default:
@@ -272,9 +272,9 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
     case (is ty.UntypedNil, is ty.Pointer),
 
          (is ty.UntypedInteger, is ty.Integer),
-         (is ty.UntypedInteger, is ty.FloatingPoint),
+         (is ty.UntypedInteger, is ty.Float),
 
-         (is ty.UntypedFloatingPoint, is ty.FloatingPoint),
+         (is ty.UntypedFloat, is ty.Float),
 
          (is ty.Array, is ty.Slice):
         allowed = true
@@ -337,18 +337,18 @@ func canCast(_ exprType: Type, to targetType: Type) -> Bool {
     case (is ty.UntypedNil, is ty.Pointer),
 
          (is ty.UntypedInteger, is ty.Integer),
-         (is ty.UntypedInteger, is ty.FloatingPoint),
+         (is ty.UntypedInteger, is ty.Float),
          (is ty.UntypedInteger, is ty.Pointer),
 
-         (is ty.UntypedFloatingPoint, is ty.Integer),
-         (is ty.UntypedFloatingPoint, is ty.FloatingPoint),
+         (is ty.UntypedFloat, is ty.Integer),
+         (is ty.UntypedFloat, is ty.Float),
 
          (is ty.Integer, is ty.Integer),
-         (is ty.Integer, is ty.FloatingPoint),
+         (is ty.Integer, is ty.Float),
          (is ty.Integer, is ty.Pointer),
 
-         (is ty.FloatingPoint, is ty.FloatingPoint),
-         (is ty.FloatingPoint, is ty.Integer),
+         (is ty.Float, is ty.Float),
+         (is ty.Float, is ty.Integer),
 
          (is ty.Pointer, is ty.Boolean),
          (is ty.Pointer, is ty.Integer),
@@ -399,7 +399,7 @@ enum ty {
         var isSigned: Bool
     }
 
-    struct FloatingPoint: Type, NamableType {
+    struct Float: Type, NamableType {
         var width: Int?
     }
 
@@ -427,7 +427,7 @@ enum ty {
         var width: Int? { return 3 * platformPointerWidth } // pointer, length, capacity
         var elementType: Type
 
-        init(elementType: Type) {
+        init(_ elementType: Type) {
             self.elementType = elementType
         }
     }
@@ -444,7 +444,7 @@ enum ty {
     }
 
     struct Anyy: Type {
-        var width: Int? { return platformPointerWidth }
+        var width: Int? { return platformPointerWidth * 2 }
     }
 
     struct Struct: Type, NamableType, IRNamableType {
@@ -573,7 +573,7 @@ enum ty {
         var width: Int? { return 64 } // NOTE: Bump up to larger size for more precision.
     }
 
-    struct UntypedFloatingPoint: Type {
+    struct UntypedFloat: Type {
         var width: Int? { return 64 }
     }
 
@@ -644,7 +644,7 @@ func isUntyped(_ type: Type) -> Bool {
 }
 
 func isUntypedNumber(_ type: Type) -> Bool {
-    return type is ty.UntypedInteger || type is ty.UntypedFloatingPoint
+    return type is ty.UntypedInteger || type is ty.UntypedFloat
 }
 
 func isNumber(_ type: Type) -> Bool {
@@ -671,7 +671,7 @@ func isSigned(_ type: Type) -> Bool {
 
 func isFloatingPoint(_ type: Type) -> Bool {
     let type = baseType(type)
-    return type is ty.FloatingPoint || type is ty.UntypedFloatingPoint
+    return type is ty.Float || type is ty.UntypedFloat
 }
 
 func isPointer(_ type: Type) -> Bool {
@@ -719,7 +719,7 @@ func isUntypedInteger(_ type: Type) -> Bool {
 }
 
 func isUntypedFloatingPoint(_ type: Type) -> Bool {
-    return type is ty.UntypedFloatingPoint
+    return type is ty.UntypedFloat
 }
 
 func isNamed(_ type: Type) -> Bool {

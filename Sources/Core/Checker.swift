@@ -546,7 +546,7 @@ extension Checker {
             }
 
             ident.entity.flags.insert(.checked)
-            ident.entity.type = operand.type
+            ident.entity.type = expectedType ?? operand.type
         }
 
         return dependencies
@@ -1070,7 +1070,7 @@ extension Checker {
 
         case let variadic as VariadicType:
             var operand = check(expr: variadic.explicitType)
-            operand.type = ty.Metatype(instanceType: ty.Slice(elementType: lowerFromMetatype(operand.type, atNode: expr)))
+            operand.type = ty.Metatype(instanceType: ty.Slice(lowerFromMetatype(operand.type, atNode: expr)))
             expr.type = operand.type
             return operand
 
@@ -1107,7 +1107,7 @@ extension Checker {
             let elementOperand = check(expr: array.explicitType)
             let elementType = lowerFromMetatype(elementOperand.type, atNode: array)
 
-            let type = ty.Slice(elementType: elementType)
+            let type = ty.Slice(elementType)
             array.type = ty.Metatype(instanceType: type)
             return Operand(mode: .type, expr: expr, type: array.type, constant: nil, dependencies: elementOperand.dependencies)
 
@@ -2162,6 +2162,23 @@ extension Checker {
 
             return Operand(mode: .assignable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
 
+        case is ty.Anyy:
+            switch selector.sel.name {
+            case "type":
+                selector.checked = .anyType
+                selector.type = builtin.types.typeInfoType
+
+            case "data":
+                selector.checked = .anyData
+                selector.type = ty.rawptr
+
+            default:
+                reportError("Member '\(selector.sel)' not found in scope of \(operand)", at: selector.sel.start)
+                selector.checked = .invalid
+                selector.type = ty.invalid
+            }
+            return Operand(mode: .addressable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
+
         case let union as ty.Union:
             if selector.sel.name == "Tag" {
                 selector.checked = .unionTag
@@ -2285,7 +2302,7 @@ extension Checker {
 
         switch baseType(receiver.type) {
         case let x as ty.Array:
-            slice.type = ty.Slice(elementType: x.elementType)
+            slice.type = ty.Slice(x.elementType)
             // TODO: Check for invalid hi & lo's when constant
 
         case let x as ty.Slice:
@@ -2830,7 +2847,7 @@ func canSequence(_ type: Type) -> Bool {
 
 func canVector(_ type: Type) -> Bool {
     switch baseType(type) {
-    case is ty.Integer, is ty.FloatingPoint, is ty.Polymorphic:
+    case is ty.Integer, is ty.Float, is ty.Polymorphic:
         return true
     default:
         return false

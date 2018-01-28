@@ -321,7 +321,7 @@ extension Parser {
             expect(.rparen)
         }
         let expr = parseUnaryExpr()
-        return Cast(keyword: keyword, kind: kind, explicitType: explicitType, expr: expr, type: nil)
+        return Cast(keyword: keyword, kind: kind, explicitType: explicitType, expr: expr, type: nil, conversion: nil)
     }
 
     mutating func parseUsingStmt() -> Using {

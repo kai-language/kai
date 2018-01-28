@@ -1019,10 +1019,11 @@ extension IRGenerator {
             val = emit(locationDirective: l, returnAddress: returnAddress)
         case let cast as Cast:
             if cast.kind == .bitcast {
-                return emit(bitcast: cast, returnAddress: returnAddress)
+                val = emit(bitcast: cast, returnAddress: returnAddress)
+            } else {
+                assert(cast.kind == .cast || cast.kind == .autocast)
+                val = emit(cast: cast, returnAddress: returnAddress)
             }
-            assert(cast.kind == .cast || cast.kind == .autocast)
-            return emit(cast: cast, returnAddress: returnAddress)
         default:
             preconditionFailure()
         }
@@ -1145,9 +1146,9 @@ extension IRGenerator {
                 return canonicalize(type).constant(ident.entity.constant as! UInt64)
             case let type as ty.UntypedInteger:
                 return canonicalize(type).constant(ident.entity.constant as! UInt64)
-            case let type as ty.FloatingPoint:
+            case let type as ty.Float:
                 return canonicalize(type).constant(ident.entity.constant as! Double)
-            case let type as ty.UntypedFloatingPoint:
+            case let type as ty.UntypedFloat:
                 return canonicalize(type).constant(ident.entity.constant as! Double)
             case let type as ty.Enum:
                 return canonicalize(type).constant(ident.entity.constant as! UInt64)
@@ -1561,9 +1562,9 @@ extension IRGenerator {
                     return canonicalize(type).constant(sel.constant as! UInt64)
                 case let type as ty.UntypedInteger:
                     return canonicalize(type).constant(sel.constant as! UInt64)
-                case let type as ty.FloatingPoint:
+                case let type as ty.Float:
                     return canonicalize(type).constant(sel.constant as! Double)
-                case let type as ty.UntypedFloatingPoint:
+                case let type as ty.UntypedFloat:
                     return canonicalize(type).constant(sel.constant as! Double)
                 default:
                     break
@@ -1574,6 +1575,17 @@ extension IRGenerator {
                 return address
             }
             return buildLoad(address)
+
+        case .anyData:
+            let value = emit(expr: sel.rec, returnAddress: true)
+            let dataAddress = b.buildStructGEP(value, index: 0)
+            return buildLoad(dataAddress)
+
+        case .anyType:
+            let value = emit(expr: sel.rec, returnAddress: true)
+            let dataAddress = b.buildStructGEP(value, index: 1)
+            return buildLoad(dataAddress)
+
         case .struct(let field):
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
@@ -1584,8 +1596,10 @@ extension IRGenerator {
                 return fieldAddress
             }
             return buildLoad(fieldAddress)
+            
         case .enum(let c):
             return canonicalize(baseType(sel.type) as! ty.Enum).constant(c.number)
+
         case .unionTag:
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
@@ -1611,6 +1625,7 @@ extension IRGenerator {
                 return address
             }
             return buildLoad(address)
+
         case .array(let member):
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
@@ -1622,8 +1637,10 @@ extension IRGenerator {
                 return fieldAddress
             }
             return buildLoad(fieldAddress)
+
         case .staticLength(let length):
             return i64.constant(length)
+
         case .scalar(let index):
             var vector = emit(expr: sel.rec, returnAddress: returnAddress)
             for _ in 0 ..< sel.levelsOfIndirection {
@@ -1635,6 +1652,7 @@ extension IRGenerator {
             }
 
             return b.buildExtractElement(vector: vector, index: index)
+
         case .swizzle(let indices):
             var vector = emit(expr: sel.rec)
             for _ in 0 ..< sel.levelsOfIndirection {
@@ -1789,18 +1807,18 @@ extension IRGenerator {
             } else {
                 return b.buildCast(.sext, value: value, type: type)
             }
-        case (is ty.UntypedInteger, is ty.FloatingPoint):
+        case (is ty.UntypedInteger, is ty.Float):
             return b.buildCast(.siToFP, value: value, type: type)
         case (is ty.UntypedInteger, is ty.Pointer):
             return b.buildIntToPtr(value, type: type as! LLVM.PointerType)
 
-        case (let from as ty.UntypedFloatingPoint, let target as ty.FloatingPoint):
+        case (let from as ty.UntypedFloat, let target as ty.Float):
             if from.width! == target.width! {
                 return value
             }
             let ext = from.width! < target.width!
             return b.buildCast(ext ? .fpext : .fpTrunc, value: value, type: type)
-        case (is ty.UntypedFloatingPoint, let target as ty.Integer):
+        case (is ty.UntypedFloat, let target as ty.Integer):
             return b.buildCast(target.isSigned ? .fpToSI : .fpToUI, value: value, type: type)
 
         case (let from as ty.Integer, let target as ty.Integer):
@@ -1812,15 +1830,15 @@ extension IRGenerator {
             } else {
                 return b.buildCast(from.isSigned ? .sext : .zext, value: value, type: type)
             }
-        case (let from as ty.Integer, is ty.FloatingPoint):
+        case (let from as ty.Integer, is ty.Float):
             return b.buildCast(from.isSigned ? .siToFP : .uiToFP, value: value, type: type)
         case (is ty.Integer, is ty.Pointer):
             return b.buildIntToPtr(value, type: type as! LLVM.PointerType)
 
-        case (let from as ty.FloatingPoint, let target as ty.FloatingPoint):
+        case (let from as ty.Float, let target as ty.Float):
             let ext = from.width! < target.width!
             return b.buildCast(ext ? .fpext : .fpTrunc, value: value, type: type)
-        case (is ty.FloatingPoint, let target as ty.Integer):
+        case (is ty.Float, let target as ty.Integer):
             return b.buildCast(target.isSigned ? .fpToSI : .fpToUI, value: value, type: type)
 
         case (is ty.Pointer, is ty.Boolean):
@@ -1849,6 +1867,19 @@ extension IRGenerator {
             }
             let ext = from.width! < target.width!
             return b.buildCast(ext ? .zext : .trunc, value: value, type: type)
+
+        case (_, is ty.Anyy):
+            // We need a heap allocation here, for now we will use malloc from libc.
+            let dataType = canonicalize(from)
+            var dataPointer = b.buildMalloc(dataType)
+            b.buildStore(value, to: dataPointer)
+            dataPointer = b.buildBitCast(dataPointer, type: LLVM.PointerType.toVoid)
+
+            let typeInfo = builtin.types.llvmTypeInfo(from, gen: &self)
+            var aggregate = canonicalize(ty.any).undef()
+            aggregate = b.buildInsertValue(aggregate: aggregate, element: dataPointer, index: 0)
+            aggregate = b.buildInsertValue(aggregate: aggregate, element: typeInfo, index: 1)
+            return aggregate
 
         default:
             return b.buildBitCast(value, type: type)
@@ -1904,7 +1935,9 @@ extension IRGenerator {
             return canonicalize(type)
         case let type as ty.Integer:
             return canonicalize(type)
-        case let type as ty.FloatingPoint:
+        case let type as ty.Float:
+            return canonicalize(type)
+        case let type as ty.Anyy:
             return canonicalize(type)
         case let type as ty.Pointer:
             return canonicalize(type)
@@ -1926,7 +1959,7 @@ extension IRGenerator {
             return canonicalize(type)
         case let type as ty.UntypedInteger:
             return canonicalize(type)
-        case let type as ty.UntypedFloatingPoint:
+        case let type as ty.UntypedFloat:
             return canonicalize(type)
         case let type as ty.Named:
             if let mangledName = type.entity.mangledName, let existing = module.type(named: mangledName) {
@@ -1961,6 +1994,12 @@ extension IRGenerator {
         return VoidType(in: module.context)
     }
 
+    mutating func canonicalize(_ any: ty.Anyy) -> LLVM.StructType {
+        let rawptr = canonicalize(ty.rawptr)
+        let typeInfo = canonicalize(builtin.types.typeInfoType)
+        return LLVM.StructType(elementTypes: [rawptr, typeInfo], isPacked: true, in: module.context)
+    }
+
     mutating func canonicalize(_ boolean: ty.Boolean) -> IntType {
         return IntType(width: boolean.width!, in: module.context)
     }
@@ -1969,7 +2008,7 @@ extension IRGenerator {
         return IntType(width: integer.width!, in: module.context)
     }
 
-    mutating func canonicalize(_ float: ty.FloatingPoint) -> FloatType {
+    mutating func canonicalize(_ float: ty.Float) -> FloatType {
         switch float.width! {
         case 16: return FloatType(kind: .half, in: module.context)
         case 32: return FloatType(kind: .float, in: module.context)
@@ -2060,7 +2099,7 @@ extension IRGenerator {
         return IntType(width: integer.width!, in: module.context)
     }
 
-    mutating func canonicalize(_ float: ty.UntypedFloatingPoint) -> FloatType {
+    mutating func canonicalize(_ float: ty.UntypedFloat) -> FloatType {
         return FloatType(kind: .double, in: module.context)
     }
 }

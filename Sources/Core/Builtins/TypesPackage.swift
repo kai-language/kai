@@ -78,13 +78,13 @@ extension builtin {
         ])
 
         static let function: BuiltinType = BuiltinType(name: "Function", structMembers: [
-            ("Params", ty.Slice(elementType: typeInfoType)),
-            ("Results", ty.Slice(elementType: typeInfoType)),
+            ("Params", ty.Slice(typeInfoType)),
+            ("Results", ty.Slice(typeInfoType)),
             ("Flags", ty.u64),
         ])
 
         static let `struct`: BuiltinType = BuiltinType(name: "Struct", structMembers: [
-            ("Fields", ty.Slice(elementType: structFieldType)),
+            ("Fields", ty.Slice(structFieldType)),
             ("Flags", ty.u64),
         ])
 
@@ -95,7 +95,7 @@ extension builtin {
         ])
 
         static let union: BuiltinType = BuiltinType(name: "Union", structMembers: [
-            ("Cases", ty.Slice(elementType: unionCaseType)),
+            ("Cases", ty.Slice(unionCaseType)),
             ("Flags", ty.u64),
         ])
 
@@ -106,7 +106,7 @@ extension builtin {
         ])
 
         static let `enum`: BuiltinType = BuiltinType(name: "Enum", structMembers: [
-            ("Cases", ty.Slice(elementType: enumCaseType)),
+            ("Cases", ty.Slice(enumCaseType)),
             ("Flags", ty.u64),
         ])
 
@@ -181,7 +181,7 @@ extension builtin {
             switch type {
             case is ty.Integer:         return 0x00
             case is ty.Boolean:         return 0x10
-            case is ty.FloatingPoint:   return 0x20
+            case is ty.Float:   return 0x20
             case is ty.Anyy:            return 0x30
             case is ty.Void:            return 0x40
             case is ty.Array:           return 0x01
@@ -326,7 +326,7 @@ extension builtin {
             case is ty.Anyy, is ty.Void:
                 value = intptr.constant(0)
 
-            case is ty.Boolean, is ty.FloatingPoint:
+            case is ty.Boolean, is ty.Float:
                 assert(type.width! < numericCast(UInt16.max))
                 value = intptr.constant(0 | UInt64(type.width!) << 8)
 
