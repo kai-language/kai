@@ -433,28 +433,10 @@ init(rec: Expr, lbrack: Pos, lo: Expr?, hi: Expr?, rbrack: Pos, type: Type!) {
 // sourcery:end
 }
 
-class Autocast: Node, Expr {
-    var keyword: Pos
-    var expr: Expr
-
-    var type: Type!
-
-    var start: Pos { return keyword }
-    var end: Pos { return expr.end }
-
-// sourcery:inline:auto:Autocast.Init
-init(keyword: Pos, expr: Expr, type: Type!) {
-    self.keyword = keyword
-    self.expr = expr
-    self.type = type
-}
-// sourcery:end
-}
-
 class Cast: Node, Expr {
     var keyword: Pos
     var kind: Token
-    var explicitType: Expr
+    var explicitType: Expr?
     var expr: Expr
 
     var type: Type!
@@ -463,7 +445,7 @@ class Cast: Node, Expr {
     var end: Pos { return expr.end }
 
 // sourcery:inline:auto:Cast.Init
-init(keyword: Pos, kind: Token, explicitType: Expr, expr: Expr, type: Type!) {
+init(keyword: Pos, kind: Token, explicitType: Expr?, expr: Expr, type: Type!) {
     self.keyword = keyword
     self.kind = kind
     self.explicitType = explicitType
@@ -1332,6 +1314,10 @@ init(start: Pos, end: Pos) {
     self.end = end
 }
 // sourcery:end
+}
+
+func isAddressOfExpr(_ e: Expr) -> Bool {
+    return (e as? Unary)?.op == .and
 }
 
 struct FunctionFlags: OptionSet {

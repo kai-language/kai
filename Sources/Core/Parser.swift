@@ -290,10 +290,8 @@ extension Parser {
             return val
         case .fn:
             return parseFuncLit()
-        case .cast, .bitcast:
+        case .autocast, .cast, .bitcast:
             return parseCast()
-        case .autocast:
-            return parseAutocast()
         case .lparen:
             return parseFuncType(allowParenthesizedExpr: true)
         case .directive:
@@ -316,17 +314,14 @@ extension Parser {
     mutating func parseCast() -> Cast {
         let kind = tok
         let keyword = eatToken()
-        expect(.lparen)
-        let explicitType = parseType()
-        expect(.rparen)
+        var explicitType: Expr?
+        if kind != .autocast {
+            expect(.lparen)
+            explicitType = parseType()
+            expect(.rparen)
+        }
         let expr = parseUnaryExpr()
         return Cast(keyword: keyword, kind: kind, explicitType: explicitType, expr: expr, type: nil)
-    }
-
-    mutating func parseAutocast() -> Autocast {
-        let keyword = eatToken()
-        let expr = parseUnaryExpr()
-        return Autocast(keyword: keyword, expr: expr, type: nil)
     }
 
     mutating func parseUsingStmt() -> Using {

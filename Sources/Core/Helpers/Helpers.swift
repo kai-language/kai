@@ -207,6 +207,21 @@ extension Int {
         return (self + multiple - 1) & ~(multiple - 1)
     }
 
+    func nextLoadablePowerOfTwoAlignment() -> Int {
+        var n = self
+        n -= 1
+        n |= n >> 1
+        n |= n >> 2
+        n |= n >> 4
+        n |= n >> 8
+        n |= n >> 16
+        n += 1
+        if n < 8 {
+            return 8
+        }
+        return n
+    }
+
     func bytes() -> Int {
         return round(upToNearest: 8) / 8
     }

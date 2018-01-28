@@ -29,18 +29,6 @@ func copy(_ nodes: [Assign]) -> [Assign] {
     return nodes.map(copy)
 }
 
-func copy(_ node: Autocast) -> Autocast {
-    return Autocast(
-        keyword: node.keyword,
-        expr: copy(node.expr),
-        type: node.type
-    )
-}
-
-func copy(_ nodes: [Autocast]) -> [Autocast] {
-    return nodes.map(copy)
-}
-
 func copy(_ node: BadDecl) -> BadDecl {
     return BadDecl(
         start: node.start,
@@ -167,7 +155,7 @@ func copy(_ node: Cast) -> Cast {
     return Cast(
         keyword: node.keyword,
         kind: node.kind,
-        explicitType: copy(node.explicitType),
+        explicitType: node.explicitType.map(copy),
         expr: copy(node.expr),
         type: node.type
     )
@@ -785,7 +773,6 @@ func copy(_ nodes: [VectorType]) -> [VectorType] {
 func copy(_ node: Expr) -> Expr {
     switch node {
     case let node as ArrayType: return copy(node)
-    case let node as Autocast: return copy(node)
     case let node as BadExpr: return copy(node)
     case let node as BasicLit: return copy(node)
     case let node as Binary: return copy(node)

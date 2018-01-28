@@ -40,11 +40,6 @@ struct BuiltinType {
 
 extension Entity {
     static let anonymous = Entity.makeBuiltin("_")
-
-    // NOTE: Used for builtins with generics
-    static let T = Entity.makeBuiltin("T")
-    static let U = Entity.makeBuiltin("U")
-    static let V = Entity.makeBuiltin("V")
 }
 
 extension ty {
@@ -92,7 +87,7 @@ class BuiltinEntity {
 
 // sourcery:noinit
 class BuiltinFunction {
-    // TODO: Take IRGen too
+    // FIXME: right now we can only _call_ to builtin functions, refering to them without calling them will crash as their entities have no value!
     typealias Generate = (BuiltinFunction, _ returnAddress: Bool, [Expr], inout IRGenerator) -> IRValue
     typealias CallCheck = (inout Checker, Call) -> Type
 
@@ -178,7 +173,7 @@ extension BuiltinType {
 extension BuiltinType {
 
     /// Makes a builtin union in the builtin package named by `package` or in the global scope if package is nil
-    init(name: String, flags: ty.Union.Flags = .none, unionMembers: [(String, Type)]) {
+    init(name: String, flags: ty.Union.Flags = .none, tagWidth: Int? = nil, unionMembers: [(String, Type)]) {
         var width = 0
         var cases: [ty.Union.Case] = []
         for (index, (name, type)) in unionMembers.enumerated() {
@@ -190,7 +185,32 @@ extension BuiltinType {
 
         let entity = Entity.makeBuiltin(name)
 
-        let tagWidth = unionMembers.count.bitsNeeded()
+        let tagWidth = tagWidth ?? unionMembers.count.bitsNeeded()
+
+        if !flags.contains(.inlineTag) {
+            width += tagWidth
+        }
+
+        let type = ty.Union(width: width, tagWidth: tagWidth, flags: flags, cases: cases)
+
+        entity.type = type
+        self.init(entity: entity, type: type)
+    }
+
+    /// Makes a builtin union in the builtin package named by `package` or in the global scope if package is nil
+    init(name: String, flags: ty.Union.Flags = .none, tagWidth: Int? = nil, unionMembers: [(String, Type, Int)]) {
+        var width = 0
+        var cases: [ty.Union.Case] = []
+        for (name, type, tag) in unionMembers {
+            let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+            let c = ty.Union.Case(ident: ident, type: type, tag: tag)
+            cases.append(c)
+            width = max(width, type.width!)
+        }
+
+        let entity = Entity.makeBuiltin(name)
+
+        let tagWidth = tagWidth ?? unionMembers.count.bitsNeeded()
 
         if !flags.contains(.inlineTag) {
             width += tagWidth

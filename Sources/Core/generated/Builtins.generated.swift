@@ -134,20 +134,23 @@ extension builtin.types {
     static let scope: Scope = {
         let members: [String: Entity] = [
             builtin.types.typeInfo.entity,
+            builtin.types.simple.entity,
             builtin.types.boolean.entity,
             builtin.types.integer.entity,
             builtin.types.float.entity,
             builtin.types.any.entity,
+            builtin.types.void.entity,
+            builtin.types.array.entity,
             builtin.types.pointer.entity,
             builtin.types.slice.entity,
             builtin.types.function.entity,
-            builtin.types.array.entity,
-            builtin.types.vector.entity,
             builtin.types.`struct`.entity,
+            builtin.types.structField.entity,
             builtin.types.union.entity,
+            builtin.types.unionCase.entity,
             builtin.types.`enum`.entity,
+            builtin.types.enumCase.entity,
             builtin.types.named.entity,
-            builtin.types.param.entity,
             builtin.types.sizeOf.entity,
             builtin.types.typeOf.entity,
         ].toDictionary(with: { $0.name })
@@ -159,20 +162,23 @@ extension builtin.types {
 extension builtin.types {
 
     static var typeInfoType: Type { return builtin.types.typeInfo.type }
+    static var simpleType: Type { return builtin.types.simple.type }
     static var booleanType: Type { return builtin.types.boolean.type }
     static var integerType: Type { return builtin.types.integer.type }
     static var floatType: Type { return builtin.types.float.type }
     static var anyType: Type { return builtin.types.any.type }
+    static var voidType: Type { return builtin.types.void.type }
+    static var arrayType: Type { return builtin.types.array.type }
     static var pointerType: Type { return builtin.types.pointer.type }
     static var sliceType: Type { return builtin.types.slice.type }
     static var functionType: Type { return builtin.types.function.type }
-    static var arrayType: Type { return builtin.types.array.type }
-    static var vectorType: Type { return builtin.types.vector.type }
     static var structType: Type { return builtin.types.`struct`.type }
+    static var structFieldType: Type { return builtin.types.structField.type }
     static var unionType: Type { return builtin.types.union.type }
+    static var unionCaseType: Type { return builtin.types.unionCase.type }
     static var enumType: Type { return builtin.types.`enum`.type }
+    static var enumCaseType: Type { return builtin.types.enumCase.type }
     static var namedType: Type { return builtin.types.named.type }
-    static var paramType: Type { return builtin.types.param.type }
     static var sizeOfType: Type { return builtin.types.sizeOf.type }
     static var typeOfType: Type { return builtin.types.typeOf.type }
 }

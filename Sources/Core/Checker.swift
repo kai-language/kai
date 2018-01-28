@@ -968,7 +968,7 @@ extension Checker {
                     continue
                 }
                 guard let unionCase = union.cases[ident.name] else {
-                    reportError("Union has no member \(ident)", at: ident.start)
+                    reportError("Union '\(type!)' has no member \(ident)", at: ident.start)
                     continue
                 }
 
@@ -1170,10 +1170,7 @@ extension Checker {
             return check(call: call, desiredType: desiredType)
 
         case let cast as Cast:
-            return check(cast: cast)
-
-        case let autocast as Autocast:
-            return check(autocast: autocast, desiredType: desiredType)
+            return check(cast: cast, desiredType: desiredType)
 
         case let l as LocationDirective:
             return check(locationDirective: l, desiredType: desiredType)
@@ -2423,33 +2420,19 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(autocast: Autocast, desiredType: Type?) -> Operand {
-        guard let desiredType = desiredType else {
-            reportError("Unabled to infer type for autocast", at: autocast.keyword)
-            autocast.type = ty.invalid
-            return Operand.invalid
-        }
-
-        let operand = check(expr: autocast.expr, desiredType: desiredType)
-
-        autocast.type = desiredType
-        guard canCast(operand.type, to: desiredType) else {
-            reportError("Cannot cast between \(operand) and unrelated type '\(desiredType)'", at: autocast.start)
-            autocast.type = ty.invalid
-            return Operand(mode: .computed, expr: autocast, type: ty.invalid, constant: nil, dependencies: operand.dependencies)
-        }
-
-        return Operand(mode: .computed, expr: autocast, type: desiredType, constant: nil, dependencies: operand.dependencies)
-    }
-
-    @discardableResult
-    mutating func check(cast: Cast) -> Operand {
+    mutating func check(cast: Cast, desiredType: Type?) -> Operand {
         var dependencies: Set<Entity> = []
 
-        var operand = check(expr: cast.explicitType)
-        dependencies.formUnion(operand.dependencies)
+        var operand: Operand
+        var targetType = desiredType ?? ty.invalid
 
-        var targetType = lowerFromMetatype(operand.type, atNode: cast.explicitType)
+
+        if let explicitType = cast.explicitType {
+            operand = check(expr: explicitType)
+            targetType = lowerFromMetatype(operand.type, atNode: explicitType)
+
+            dependencies.formUnion(operand.dependencies)
+        }
 
         if let poly = targetType as? ty.Polymorphic, let val = poly.specialization.val {
             targetType = val
@@ -2473,6 +2456,10 @@ extension Checker {
         */
 
         switch cast.kind {
+        case .autocast:
+            if desiredType == nil {
+                reportError("Unabled to infer type for autocast", at: cast.keyword)
+            }
         case .cast:
             guard canCast(exprType, to: targetType) else {
                 reportError("Cannot cast \(operand) to unrelated type '\(targetType)'", at: cast.start)
