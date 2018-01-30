@@ -2477,6 +2477,8 @@ extension Checker {
             if desiredType == nil {
                 reportError("Unabled to infer type for autocast", at: cast.keyword)
             }
+            fallthrough
+
         case .cast:
             guard canCast(exprType, to: targetType) else {
                 reportError("Cannot cast \(operand) to unrelated type '\(targetType)'", at: cast.start)
