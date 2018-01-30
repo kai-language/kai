@@ -1397,6 +1397,11 @@ extension IRGenerator {
         var target = canonicalize(cast.type)
         if returnAddress {
             target = LLVM.PointerType(pointee: target)
+        } else if (value.type as? LLVM.PointerType)?.pointee is LLVM.StructType {
+            // if it's a struct we must cast the pointer and perform a load
+            // LLVM doesn't let you bitcast any aggregate types, so the pointer must be reinterpreted
+            let pointer = b.buildBitCast(value, type: LLVM.PointerType(pointee: target))
+            return buildLoad(pointer)
         } else if !isAddressOfExpr(cast.expr) && value.type is LLVM.PointerType && !value.isAFunction { // if casting an address of operator the precedence should swap
             value = buildLoad(value)
         }

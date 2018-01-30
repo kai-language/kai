@@ -360,6 +360,9 @@ func canCast(_ exprType: Type, to targetType: Type) -> Bool {
          (is ty.Array, is ty.Slice):
         return true
 
+    case (let l as ty.Slice, let r as ty.Slice):
+        return l.elementType == r.elementType
+
     case (is ty.Function, is ty.Function):
         return true // TODO: Only if bitcasting.
 
@@ -423,7 +426,7 @@ enum ty {
         }
     }
 
-    struct Slice: Type, NamableType, IRNamableType {
+    struct Slice: Type, NamableType /*, IRNamableType */ {
         var width: Int? { return 3 * platformPointerWidth } // pointer, length, capacity
         var elementType: Type
 
@@ -447,7 +450,7 @@ enum ty {
         var width: Int? { return platformPointerWidth * 2 }
     }
 
-    struct Struct: Type, NamableType, IRNamableType {
+    struct Struct: Type, NamableType /*, IRNamableType */ {
         var width: Int?
         var flags: Flags
         var node: Node
@@ -486,7 +489,7 @@ enum ty {
         }
     }
 
-    struct Union: Type, NamableType, IRNamableType {
+    struct Union: Type, NamableType /*, IRNamableType */ {
         var width: Int?
         var flags: Flags
         var tagType: Integer
