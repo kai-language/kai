@@ -139,7 +139,6 @@ func copy(_ nodes: [Call]) -> [Call] {
 func copy(_ node: CaseClause) -> CaseClause {
     return CaseClause(
         keyword: node.keyword,
-        isMember: node.isMember,
         match: copy(node.match),
         binding: node.binding.map(copy),
         colon: node.colon,

@@ -12,7 +12,7 @@
       },
       {
         "package": "FileCheck",
-        "repositoryURL": "https://github.com/trill-lang/FileCheck.git",
+        "repositoryURL": "https://github.com/llvm-swift/FileCheck.git",
         "state": {
           "branch": null,
           "revision": "1c966580c83cf2e41be802992d46fe2edfc5c95f",
@@ -24,7 +24,7 @@
         "repositoryURL": "https://github.com/vdka/LLVMSwift.git",
         "state": {
           "branch": "master",
-          "revision": "a685df6ac7647c3e4b9cee922dab8764f06c032e",
+          "revision": "9a73b8806e5ac61357e69d76f7e0350fa0579dd9",
           "version": null
         }
       },
@@ -39,7 +39,7 @@
       },
       {
         "package": "cllvm",
-        "repositoryURL": "https://github.com/trill-lang/cllvm.git",
+        "repositoryURL": "https://github.com/llvm-swift/cllvm.git",
         "state": {
           "branch": null,
           "revision": "e85a8ebe9f45cff9fa31b43c32662318232b392a",

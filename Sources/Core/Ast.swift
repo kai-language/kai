@@ -1,5 +1,5 @@
-
 import LLVM
+
 
 // NOTE: For code gen everything must also explicitly conform to Node.
 protocol Node: class {
@@ -525,6 +525,7 @@ class Binary: Node, Expr, Convertable {
     var type: Type!
     var conversion: (from: Type, to: Type)?
 
+    // FIXME: @Decouple
     var irOp: OpCode.Binary!
     var isPointerArithmetic: Bool!
 
@@ -1340,6 +1341,8 @@ class FunctionSpecialization {
     let strippedType: ty.Function
     let generatedFunctionNode: FuncLit
     var mangledName: String
+
+    // FIXME: @Decouple
     var llvm: Function?
 
 // sourcery:inline:auto:FunctionSpecialization.Init

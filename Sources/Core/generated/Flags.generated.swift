@@ -145,10 +145,6 @@ extension Switch {
         return flags.contains(.using) 
     }
 
-    var isUnion: Bool {
-        return flags.contains(.union) 
-    }
-
     var isType: Bool {
         return flags.contains(.type) 
     }

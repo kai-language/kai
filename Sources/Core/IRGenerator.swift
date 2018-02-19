@@ -374,15 +374,15 @@ extension IRGenerator {
             return
         }
 
+        // Call to function to set (constant) values.
         if decl.values.count == 1, let call = decl.values.first as? Call {
             if decl.entities.count > 1 {
-                // TODO: Test this.
-                let aggregate = emit(call: call) as! Constant<Struct>
+                let aggregate = emit(call: call)
 
                 for (index, entity) in decl.entities.enumerated()
                     where entity !== Entity.anonymous
                 {
-                    entity.value = aggregate.getElement(indices: [index])
+                    entity.value = const.extractValue(aggregate, indices: [index])
                 }
             } else {
 
@@ -573,7 +573,7 @@ extension IRGenerator {
                     let tmp = b.buildInsertValue(aggregate: buildLoad(stackValue), element: dstPtr, index: 0)
                     b.buildStore(tmp, to: stackValue)
 
-                    let srcPtr = (ir as! Constant<Struct>).getElement(indices: [0])
+                    let srcPtr = const.extractValue(ir, indices: [0])
                     b.buildMemcpy(dstPtr, srcPtr, count: i64.constant((lit.constant as! String).utf8.count + 1))
                 }
             }

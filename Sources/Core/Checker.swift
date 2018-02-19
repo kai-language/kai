@@ -1856,6 +1856,7 @@ extension Checker {
 
         let resultType: Type
         let op: OpCode.Binary
+        // FIXME: @Decouple
 
         binary.isPointerArithmetic = false
 
