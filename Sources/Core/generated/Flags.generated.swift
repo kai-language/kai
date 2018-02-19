@@ -1,4 +1,4 @@
-// Generated using Sourcery 0.9.0 — https://github.com/krzysztofzablocki/Sourcery
+// Generated using Sourcery 0.10.1 — https://github.com/krzysztofzablocki/Sourcery
 // DO NOT EDIT
 
 
@@ -143,6 +143,10 @@ extension Switch {
 
     var isUsing: Bool {
         return flags.contains(.using) 
+    }
+
+    var isUnion: Bool {
+        return flags.contains(.union) 
     }
 
     var isType: Bool {

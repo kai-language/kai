@@ -1,4 +1,4 @@
-// Generated using Sourcery 0.9.0 — https://github.com/krzysztofzablocki/Sourcery
+// Generated using Sourcery 0.10.1 — https://github.com/krzysztofzablocki/Sourcery
 // DO NOT EDIT
 
 
@@ -139,6 +139,7 @@ func copy(_ nodes: [Call]) -> [Call] {
 func copy(_ node: CaseClause) -> CaseClause {
     return CaseClause(
         keyword: node.keyword,
+        isMember: node.isMember,
         match: copy(node.match),
         binding: node.binding.map(copy),
         colon: node.colon,
