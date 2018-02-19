@@ -32,10 +32,11 @@ func == (lhs: Type, rhs: Type) -> Bool {
     switch (baseType(lhs), baseType(rhs)) {
     case (is ty.Void, is ty.Void),
          (is ty.Anyy, is ty.Anyy),
-         (is ty.Boolean, is ty.Boolean),
          (is ty.UntypedInteger, is ty.UntypedInteger),
          (is ty.UntypedFloat, is ty.UntypedFloat):
         return true
+    case (let lhs as ty.Boolean, let rhs as ty.Boolean):
+        return lhs.width == rhs.width
     case (let lhs as ty.Integer, let rhs as ty.Integer):
         return lhs.isSigned == rhs.isSigned && lhs.width == rhs.width
     case (is ty.Float, is ty.Float):
@@ -282,6 +283,9 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
     case (is ty.Pointer, is ty.Pointer):
         // NOTE: Conversion to rawptr is handled earlier
         allowed = false
+
+    case (is ty.Boolean, is ty.Boolean):
+        allowed = true
 
     case (let exprType as ty.Enum, let targetType):
         if let associatedType = exprType.associatedType {

@@ -1186,8 +1186,14 @@ extension IRGenerator {
     }
 
     mutating func emit(binary: Binary) -> IRValue {
-        let lhs = emit(expr: binary.lhs)
+        var lhs = emit(expr: binary.lhs)
         var rhs = emit(expr: binary.rhs)
+
+        if isBoolean(binary.lhs.type) && isBoolean(binary.rhs.type) {
+            // Ensure any 2 potentially differently sized booleans are sized the same
+            lhs = b.buildTruncOrBitCast(lhs, type: i1)
+            rhs = b.buildTruncOrBitCast(rhs, type: i1)
+        }
 
         switch binary.irOp! {
         case .icmp:
@@ -1456,6 +1462,8 @@ extension IRGenerator {
             // TODO: cleanup, there are other types here that are unhandled, like arrays and vectors
         } else if !isAddressOfExpr(bitcast.expr) && value.type is LLVM.PointerType && !value.isAFunction { // if casting an address of operator the precedence should swap
             value = buildLoad(value)
+        } else if bitcast.type == bitcast.expr.type {
+            return value // TODO: load?
         }
 
         switch (value.type, target) {
@@ -1487,7 +1495,8 @@ extension IRGenerator {
             // TODO: LLVM.VectorType's & LLVM.ArrayType?
 
         default:
-            fatalError("Cast from type of \(bitcast.expr.type) to \(bitcast.type) unimplemented")
+            return buildLoad(value)
+//            fatalError("Cast from type of \(bitcast.expr.type) to \(bitcast.type) unimplemented")
         }
     }
 
@@ -1584,11 +1593,17 @@ extension IRGenerator {
         case .anyData:
             let value = emit(expr: sel.rec, returnAddress: true)
             let dataAddress = b.buildStructGEP(value, index: 0)
+            if returnAddress {
+                return dataAddress
+            }
             return buildLoad(dataAddress)
 
         case .anyType:
             let value = emit(expr: sel.rec, returnAddress: true)
             let dataAddress = b.buildStructGEP(value, index: 1)
+            if returnAddress {
+                return dataAddress
+            }
             return buildLoad(dataAddress)
 
         case .struct(let field):
@@ -1688,7 +1703,6 @@ extension IRGenerator {
         let indicies: [IRValue]
 
         // TODO: Array bounds checks
-
         switch baseType(sub.rec.type) {
         case is ty.Array:
             aggregate = emit(expr: sub.rec, returnAddress: true)

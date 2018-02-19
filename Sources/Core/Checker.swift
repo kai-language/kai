@@ -1918,6 +1918,15 @@ extension Checker {
             resultType = rhsType
         } else if isInteger(rhsType), isFloatingPoint(lhsType) {
             resultType = lhsType
+        } else if isBoolean(lhsType) && isBoolean(rhsType) {
+             // all boolean operators return the default boolean type or a desired boolean type
+            if let desiredType = desiredType, isBoolean(desiredType) {
+                resultType = desiredType
+            } else {
+                resultType = ty.bool
+            }
+            // FIXME: This is handled in the IRGen stage right now! When this is rewritten it should be handled in here via
+            //    conversions added to the left or right expression using convert(_:to:at:)
         } else if isFloatingPoint(lhsType) && isFloatingPoint(rhsType) {
             // select the largest
             if lhsType.width! < rhsType.width! {
