@@ -148,6 +148,14 @@ extension Switch {
     var isType: Bool {
         return flags.contains(.type) 
     }
+
+    var isAny: Bool {
+        return flags.contains(.any) 
+    }
+
+    var isUnion: Bool {
+        return flags.contains(.union) 
+    }
 }
 
 extension ty.Function {

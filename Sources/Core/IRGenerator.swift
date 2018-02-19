@@ -923,12 +923,17 @@ extension IRGenerator {
 
         var value: IRValue
         var tag: IRValue?
-        if sw.isType {
+        if sw.isUnion {
             let union = baseType(sw.match!.type) as! ty.Union
             let tagType = canonicalize(union.tagType)
             value = emit(expr: sw.match!, returnAddress: true)
             tag = b.buildBitCast(value, type: LLVM.PointerType(pointee: tagType))
             tag = buildLoad(tag!)
+        } else if sw.isAny {
+            value = emit(expr: sw.match!, returnAddress: true)
+            var ti = b.buildStructGEP(value, index: 1)
+            ti = buildLoad(ti)
+            tag = b.buildExtractValue(ti, index: 0)
         } else if let match = sw.match {
             value = emit(expr: match)
         } else {
@@ -939,18 +944,34 @@ extension IRGenerator {
         for (i, c, nextCase) in sw.cases.enumerated().map({ ($0.offset, $0.element, sw.cases[safe: $0.offset + 1]) }) {
             let thenBlock = thenBlocks[i]
             nextCase?.label.value = thenBlocks[safe: i + 1]
+            b.positionAtEnd(of: thenBlock)
 
-            if sw.isType && !c.match.isEmpty {
+            if sw.isUnion && !c.match.isEmpty {
                 let match = c.match[0] as! Ident
                 let union = baseType(sw.match!.type) as! ty.Union
                 let tag = canonicalize(union.tagType).constant(match.constant! as! UInt64)
                 matches.append([tag])
                 if union.isInlineTag, let binding = c.binding {
-                    let bindingType = LLVM.PointerType(pointee: canonicalize(binding.type))
-                    binding.entity.value = b.buildBitCast(value, type: bindingType)
+                    let type = LLVM.PointerType(pointee: canonicalize(binding.type!))
+                    binding.value = b.buildBitCast(value, type: type)
                 } else {
-                    // TODO: Do something
+                    // FIXME: Do something
                 }
+            } else if sw.isAny {
+                var vals: [IRValue] = []
+                for match in c.match {
+                    let tiPtr = builtin.types.typeOf.generate(builtin.types.typeOf, false, [match], &self)
+                    let ti = const.extractValue(tiPtr, indices: [0])
+                    vals.append(ti)
+                }
+                matches.append(vals)
+                if let binding = c.binding {
+                    let type = LLVM.PointerType(pointee: canonicalize(binding.type!))
+                    let dataAddrPtr = b.buildStructGEP(value, index: 0)
+                    let dataPtr = buildLoad(dataAddrPtr)
+                    binding.value = b.buildBitCast(dataPtr, type: type)
+                }
+
             } else if !c.match.isEmpty {
                 var vals: [IRValue] = []
                 for match in c.match {
@@ -958,8 +979,6 @@ extension IRGenerator {
                 }
                 matches.append(vals)
             }
-
-            b.positionAtEnd(of: thenBlock)
 
             emit(statement: c.block)
 

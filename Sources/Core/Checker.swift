@@ -926,13 +926,23 @@ extension Checker {
             dependencies.formUnion(operand.dependencies)
 
             type = operand.type
-            guard isInteger(type!) || isEnum(type!) || isUnion(type!) else {
+            guard isInteger(type!) || isEnum(type!) || isUnion(type!) || isAnyy(type!) else {
                 reportError("Cannot switch on type '\(type!)'. Can only switch on integer and enum types", at: match.start)
                 return dependencies
             }
 
-            if isUnion(type!) {
+            if isMetatype(type!) {
                 sw.flags.insert(.type)
+            }
+            if isUnion(type!) {
+                sw.flags.insert(.union)
+            }
+            if isAnyy(type!) {
+                sw.flags.insert(.any)
+            }
+            if (sw.isAny || sw.isUnion) && sw.binding == nil {
+                // if binding is unspecified and switch subject is an identifier shadow using it
+                sw.binding = sw.match as? Ident
             }
 
             if sw.isUsing {
@@ -958,8 +968,8 @@ extension Checker {
         }
 
         for (c, nextCase) in sw.cases.enumerated().map({ ($0.element, sw.cases[safe: $0.offset + 1]) }) {
-            var binding: Entity?
             if !c.match.isEmpty, let union = type.map(baseType) as? ty.Union {
+                assert(sw.isUnion)
                 if c.match.count > 1 {
                     reportError("Cannot match multiple union members", at: c.match[1].start)
                 }
@@ -972,13 +982,24 @@ extension Checker {
                     continue
                 }
 
-                if let bIdent = c.binding {
-                    binding = newEntity(ident: bIdent, type: unionCase.type, flags: .none)
-                    bIdent.entity = binding
-                    bIdent.type = unionCase.type
+                if let binding = sw.binding {
+                    c.binding = newEntity(ident: binding, type: unionCase.type, flags: .none)
                 }
 
                 ident.constant = UInt64(unionCase.tag)
+
+            } else if sw.isAny {
+                if c.match.count == 1, let binding = sw.binding {
+                    // set in the loop below
+                    c.binding = newEntity(ident: binding, type: nil, flags: .none)
+                }
+                for match in c.match {
+                    let operand = check(expr: match)
+                    dependencies.formUnion(operand.dependencies)
+
+                    c.binding?.type = lowerFromMetatype(operand.type, atNode: match)
+                }
+
 
             } else if !c.match.isEmpty {
                 for match in c.match {
@@ -1008,7 +1029,7 @@ extension Checker {
 
             context.nextCase = nextCase
             pushContext()
-            binding.map({ declare($0) })
+            c.binding.map({ declare($0) })
             let deps = check(stmt: c.block)
             popContext()
             dependencies.formUnion(deps)
