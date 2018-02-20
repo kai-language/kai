@@ -5,6 +5,20 @@ var platformPointerWidth: Int = {
     return targetMachine.dataLayout.pointerSize() * 8
 }()
 
+func performAllPackageTypePatches() {
+    builtin.types.patchTypes()
+}
+
+enum builtin {
+
+    static let untypedInteger = BuiltinType(entity: .anonymous, type: ty.UntypedInteger())
+    static let untypedFloat   = BuiltinType(entity: .anonymous, type: ty.UntypedFloat())
+    static let untypedNil     = BuiltinType(entity: .untypedNil, type: ty.UntypedNil())
+
+    /// - Note: The type type only exists at compile time
+//    static let type = BuiltinType(entity: .type, type: ty.Metatype(instanceType: ty.Tuple(width: 0, types: [])))
+}
+
 struct BuiltinType {
     var entity: Entity
     var type: Type
@@ -13,54 +27,19 @@ struct BuiltinType {
         entity.flags.insert(.builtin)
         self.entity = entity
         self.type = type
+        entity.type = ty.Metatype(instanceType: type)
     }
 
     init(entity: Entity, type: NamableType) {
         entity.flags.insert(.builtin)
         self.entity = entity
         self.type = ty.Named(entity: entity, base: type)
-        entity.type = type
+        entity.type = ty.Metatype(instanceType: self.type)
     }
-    static let void = BuiltinType(entity: .void, type: ty.Void())
-    static let any  = BuiltinType(entity: .any,  type: ty.Anyy())
-
-    static let bool = BuiltinType(entity:   .bool,   type: ty.Boolean())
-    static let rawptr = BuiltinType(entity: .rawptr, type: ty.Pointer(pointeeType: ty.u8))
-    static let string = BuiltinType(entity: .string, type: ty.Slice(elementType: ty.u8))
-
-    static let f32 = BuiltinType(entity: .f32, type: ty.FloatingPoint(width: 32))
-    static let f64 = BuiltinType(entity: .f64, type: ty.FloatingPoint(width: 64))
-
-    static let i8  = BuiltinType(entity: .i8,  type: ty.Integer(width: 8,  isSigned: true))
-    static let u8  = BuiltinType(entity: .u8,  type: ty.Integer(width: 8,  isSigned: false))
-    static let i16 = BuiltinType(entity: .i16, type: ty.Integer(width: 16, isSigned: true))
-    static let u16 = BuiltinType(entity: .u16, type: ty.Integer(width: 16, isSigned: false))
-    static let i32 = BuiltinType(entity: .i32, type: ty.Integer(width: 32, isSigned: true))
-    static let u32 = BuiltinType(entity: .u32, type: ty.Integer(width: 32, isSigned: false))
-    static let i64 = BuiltinType(entity: .i64, type: ty.Integer(width: 64, isSigned: true))
-    static let u64 = BuiltinType(entity: .u64, type: ty.Integer(width: 64, isSigned: false))
-
-    static let untypedInteger = BuiltinType(entity: .anonymous, type: ty.UntypedInteger())
-    static let untypedFloat   = BuiltinType(entity: .anonymous, type: ty.UntypedFloatingPoint())
-    static let untypedNil     = BuiltinType(entity: .untypedNil, type: ty.UntypedNil())
-
-    /// - Note: The type type only exists at compile time
-    static let type = BuiltinType(entity: .type, type: ty.Metatype(instanceType: ty.Tuple(width: 0, types: [])))
-
-//    static let TypeInfo = ty.Struct.make(named: "TypeInfo", builder: stdlib.builder, [
-//        ("kind", ty.u8), // TODO: Make this an enumeration
-//        ("name", ty.string),
-//        ("width", ty.i64),
-//    ])
 }
 
 extension Entity {
     static let anonymous = Entity.makeBuiltin("_")
-
-    // NOTE: Used for builtins with generics
-    static let T = Entity.makeBuiltin("T")
-    static let U = Entity.makeBuiltin("U")
-    static let V = Entity.makeBuiltin("V")
 }
 
 extension ty {
@@ -73,21 +52,21 @@ class BuiltinEntity {
 
     var entity: Entity
     var type: Type
-    var gen: (IRBuilder) -> IRValue
+    var gen: (inout IRGenerator) -> IRValue
 
-    init(entity: Entity, type: Type, gen: @escaping (IRBuilder) -> IRValue) {
+    init(entity: Entity, type: Type, gen: @escaping (inout IRGenerator) -> IRValue) {
         self.entity = entity
         self.type = type
         self.gen = {
             if let value = entity.value {
                 return value
             }
-            entity.value = gen($0)
+            entity.value = gen(&$0)
             return entity.value!
         }
     }
 
-    init(name: String, type: Type, gen: @escaping (IRBuilder) -> IRValue) {
+    init(name: String, type: Type, gen: @escaping (inout IRGenerator) -> IRValue) {
         let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
         let entity = Entity(ident: ident, type: type, flags: .builtin, constant: nil, file: nil, memberScope: nil, owningScope: nil, callconv: nil, linkname: nil, mangledName: nil, value: nil)
         self.entity = entity
@@ -96,27 +75,20 @@ class BuiltinEntity {
             if let value = entity.value {
                 return value
             }
-            entity.value = gen($0)
+            entity.value = gen(&$0)
             return entity.value!
         }
     }
-
-    static let trué = BuiltinEntity(name: "true", type: ty.bool, gen: { b in IntType(width: 1, in: b.module.context).constant(1) })
-    static let falsé = BuiltinEntity(name: "false", type: ty.bool, gen: { b in IntType(width: 1, in: b.module.context).constant(0) })
 }
 
 //let polymorphicT = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
 //let polymorphicU = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
 //let polymorphicV = ty.Metatype(instanceType: ty.Polymorphic(width: nil))
 
-func lookupBuiltinFunction(_ fun: Expr) -> BuiltinFunction? {
-    return builtinFunctions.first(where: { $0.entity.name == (fun as? Ident)?.name })
-}
-
 // sourcery:noinit
 class BuiltinFunction {
-    // TODO: Take IRGen too
-    typealias Generate = (BuiltinFunction, [Expr], inout IRGenerator) -> IRValue
+    // FIXME: right now we can only _call_ to builtin functions, refering to them without calling them will crash as their entities have no value!
+    typealias Generate = (BuiltinFunction, _ returnAddress: Bool, [Expr], inout IRGenerator) -> IRValue
     typealias CallCheck = (inout Checker, Call) -> Type
 
     var entity: Entity
@@ -144,19 +116,6 @@ class BuiltinFunction {
 
         return BuiltinFunction(entity: entity, generate: gen, onCallCheck: onCallCheck)
     }
-
-    static let sizeof = BuiltinFunction(
-        entity: Entity.makeBuiltin("sizeof", type: ty.Function.make([ty.any], [ty.untypedInteger])),
-        generate: { function, exprs, gen in
-            var type = exprs[0].type!
-            if let meta = type as? ty.Metatype {
-                type = meta.instanceType
-            }
-            let irType = gen.canonicalize(type)
-            // TODO: Ensure the integer returned matches the `untypedInteger` types width.
-            return gen.b.buildSizeOf(irType)
-        }, onCallCheck: nil
-    )
 }
 
 extension IRBuilder {
@@ -176,6 +135,91 @@ extension IRBuilder {
         return buildCall(memcpy,
                          args: [dest, source, count, IntType(width: 32, in: module.context).constant(alias), IntType(width: 1, in: module.context).constant(0)]
         )
+    }
+}
+
+extension Entity {
+
+    static func makeBuiltin(_ name: String, type: Type? = nil, flags: Flag = .none) -> Entity {
+
+        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+        let entity = Entity(ident: ident, type: type, flags: flags)
+        return entity
+    }
+}
+
+extension BuiltinType {
+
+    /// Makes a builtin struct in the builtin package named by `package` or in the global scope if package is nil
+    init(name: String, flags: ty.Struct.Flags = .none, structMembers: [(String, Type)]) {
+        var width = 0
+        var fields: [ty.Struct.Field] = []
+        for (index, (name, type)) in structMembers.enumerated() {
+            let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+            let field = ty.Struct.Field(ident: ident, type: type, index: index, offset: width)
+            fields.append(field)
+            width = (width + type.width!)
+//                width = (width + type.width!).round(upToNearest: 8)
+        }
+
+        let entity = Entity.makeBuiltin(name)
+        let type = ty.Struct(width: width, flags: flags, node: Empty(semicolon: noPos, isImplicit: true), fields: fields)
+
+        entity.type = type
+        self.init(entity: entity, type: type)
+    }
+}
+
+extension BuiltinType {
+
+    /// Makes a builtin union in the builtin package named by `package` or in the global scope if package is nil
+    init(name: String, flags: ty.Union.Flags = .none, tagWidth: Int? = nil, unionMembers: [(String, Type)]) {
+        var width = 0
+        var cases: [ty.Union.Case] = []
+        for (index, (name, type)) in unionMembers.enumerated() {
+            let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+            let c = ty.Union.Case(ident: ident, type: type, tag: index)
+            cases.append(c)
+            width = max(width, type.width!)
+        }
+
+        let entity = Entity.makeBuiltin(name)
+
+        let tagWidth = tagWidth ?? unionMembers.count.bitsNeeded()
+
+        if !flags.contains(.inlineTag) {
+            width += tagWidth
+        }
+
+        let type = ty.Union(width: width, tagWidth: tagWidth, flags: flags, cases: cases)
+
+        entity.type = type
+        self.init(entity: entity, type: type)
+    }
+
+    /// Makes a builtin union in the builtin package named by `package` or in the global scope if package is nil
+    init(name: String, flags: ty.Union.Flags = .none, tagWidth: Int? = nil, unionMembers: [(String, Type, Int)]) {
+        var width = 0
+        var cases: [ty.Union.Case] = []
+        for (name, type, tag) in unionMembers {
+            let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+            let c = ty.Union.Case(ident: ident, type: type, tag: tag)
+            cases.append(c)
+            width = max(width, type.width!)
+        }
+
+        let entity = Entity.makeBuiltin(name)
+
+        let tagWidth = tagWidth ?? unionMembers.count.bitsNeeded()
+
+        if !flags.contains(.inlineTag) {
+            width += tagWidth
+        }
+
+        let type = ty.Union(width: width, tagWidth: tagWidth, flags: flags, cases: cases)
+
+        entity.type = type
+        self.init(entity: entity, type: type)
     }
 }
 

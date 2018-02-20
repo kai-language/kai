@@ -323,6 +323,7 @@ struct Scanner {
     }
 
     mutating func lookupKeyword(_ identifier: String) -> Token? {
+        // TODO: @perf switch on identifier.count?
         switch identifier {
         case "cast":
             return .cast
@@ -360,8 +361,6 @@ struct Scanner {
             return .fn
         case "union":
             return .union
-        case "variant":
-            return .variant
         case "enum":
             return .enum
         case "struct":
@@ -534,6 +533,8 @@ struct Scanner {
                 tok = switch2(.rem, .assignRem)
             case "^":
                 tok = switch2(.xor, .assignXor)
+            case "~":
+                tok = .bnot
             case ">":
                 tok = switch4(.gtr, .geq, ">", .shr, .assignShr)
             case "<":

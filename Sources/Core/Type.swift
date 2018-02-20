@@ -34,11 +34,11 @@ func == (lhs: Type, rhs: Type) -> Bool {
          (is ty.Anyy, is ty.Anyy),
          (is ty.Boolean, is ty.Boolean),
          (is ty.UntypedInteger, is ty.UntypedInteger),
-         (is ty.UntypedFloatingPoint, is ty.UntypedFloatingPoint):
+         (is ty.UntypedFloat, is ty.UntypedFloat):
         return true
     case (let lhs as ty.Integer, let rhs as ty.Integer):
         return lhs.isSigned == rhs.isSigned && lhs.width == rhs.width
-    case (is ty.FloatingPoint, is ty.FloatingPoint):
+    case (is ty.Float, is ty.Float):
         return lhs.width == rhs.width
     case (let lhs as ty.Pointer, let rhs as ty.Pointer):
         return lhs.pointeeType == rhs.pointeeType
@@ -148,7 +148,7 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
     switch type {
     case is ty.Anyy,
          is ty.Boolean,
-         is ty.FloatingPoint,
+         is ty.Float,
          is ty.Integer,
          is ty.Void:
         return type
@@ -174,8 +174,7 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
 
     case is ty.Enum,
          is ty.Union,
-         is ty.Struct,
-         is ty.Variant:
+         is ty.Struct:
         // TODO: do we permit anonymous polymorphic complex types???
         return type
 
@@ -195,7 +194,7 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
 
     case is ty.UntypedNil,
          is ty.UntypedInteger,
-         is ty.UntypedFloatingPoint:
+         is ty.UntypedFloat:
         return type
 
     case is ty.Invalid:
@@ -219,11 +218,11 @@ func constrainUntyped(_ type: Type, to targetType: Type) -> Bool {
     case (is ty.UntypedNil, is ty.Pointer),
 
          (is ty.UntypedInteger, is ty.Integer),
-         (is ty.UntypedInteger, is ty.FloatingPoint),
+         (is ty.UntypedInteger, is ty.Float),
          (is ty.UntypedInteger, is ty.Pointer),
 
-         (is ty.UntypedFloatingPoint, is ty.Integer),
-         (is ty.UntypedFloatingPoint, is ty.FloatingPoint):
+         (is ty.UntypedFloat, is ty.Integer),
+         (is ty.UntypedFloat, is ty.Float):
         return true
     default:
         return false
@@ -239,7 +238,7 @@ func constrainUntypedToDefault(_ type: Type) -> Type {
     case is ty.UntypedInteger:
         return ty.i64
 
-    case is ty.UntypedFloatingPoint:
+    case is ty.UntypedFloat:
         return ty.f64
 
     default:
@@ -273,9 +272,9 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
     case (is ty.UntypedNil, is ty.Pointer),
 
          (is ty.UntypedInteger, is ty.Integer),
-         (is ty.UntypedInteger, is ty.FloatingPoint),
+         (is ty.UntypedInteger, is ty.Float),
 
-         (is ty.UntypedFloatingPoint, is ty.FloatingPoint),
+         (is ty.UntypedFloat, is ty.Float),
 
          (is ty.Array, is ty.Slice):
         allowed = true
@@ -338,18 +337,18 @@ func canCast(_ exprType: Type, to targetType: Type) -> Bool {
     case (is ty.UntypedNil, is ty.Pointer),
 
          (is ty.UntypedInteger, is ty.Integer),
-         (is ty.UntypedInteger, is ty.FloatingPoint),
+         (is ty.UntypedInteger, is ty.Float),
          (is ty.UntypedInteger, is ty.Pointer),
 
-         (is ty.UntypedFloatingPoint, is ty.Integer),
-         (is ty.UntypedFloatingPoint, is ty.FloatingPoint),
+         (is ty.UntypedFloat, is ty.Integer),
+         (is ty.UntypedFloat, is ty.Float),
 
          (is ty.Integer, is ty.Integer),
-         (is ty.Integer, is ty.FloatingPoint),
+         (is ty.Integer, is ty.Float),
          (is ty.Integer, is ty.Pointer),
 
-         (is ty.FloatingPoint, is ty.FloatingPoint),
-         (is ty.FloatingPoint, is ty.Integer),
+         (is ty.Float, is ty.Float),
+         (is ty.Float, is ty.Integer),
 
          (is ty.Pointer, is ty.Boolean),
          (is ty.Pointer, is ty.Integer),
@@ -360,6 +359,9 @@ func canCast(_ exprType: Type, to targetType: Type) -> Bool {
 
          (is ty.Array, is ty.Slice):
         return true
+
+    case (let l as ty.Slice, let r as ty.Slice):
+        return l.elementType == r.elementType
 
     case (is ty.Function, is ty.Function):
         return true // TODO: Only if bitcasting.
@@ -392,7 +394,7 @@ enum ty {
     }
 
     struct Boolean: Type, NamableType {
-        var width: Int? { return 1 }
+        var width: Int?
     }
 
     struct Integer: Type, NamableType {
@@ -400,7 +402,7 @@ enum ty {
         var isSigned: Bool
     }
 
-    struct FloatingPoint: Type, NamableType {
+    struct Float: Type, NamableType {
         var width: Int?
     }
 
@@ -408,7 +410,7 @@ enum ty {
         var width: Int? { return platformPointerWidth }
         var pointeeType: Type
 
-        init(pointeeType: Type) {
+        init(_ pointeeType: Type) {
             self.pointeeType = pointeeType
         }
     }
@@ -424,11 +426,11 @@ enum ty {
         }
     }
 
-    struct Slice: Type, NamableType, IRNamableType {
+    struct Slice: Type, NamableType /*, IRNamableType */ {
         var width: Int? { return 3 * platformPointerWidth } // pointer, length, capacity
         var elementType: Type
 
-        init(elementType: Type) {
+        init(_ elementType: Type) {
             self.elementType = elementType
         }
     }
@@ -445,19 +447,20 @@ enum ty {
     }
 
     struct Anyy: Type {
-        var width: Int? { return platformPointerWidth }
+        var width: Int? { return platformPointerWidth * 2 }
     }
 
-    struct Struct: Type, NamableType, IRNamableType {
+    struct Struct: Type, NamableType /*, IRNamableType */ {
         var width: Int?
-
+        var flags: Flags
         var node: Node
         var fields: OrderedDictionary<String, Field>
 
         var isPolymorphic: Bool
 
-        init(width: Int, node: Node, fields: [Field], isPolymorphic: Bool = false) {
+        init(width: Int, flags: Flags, node: Node, fields: [Field], isPolymorphic: Bool = false) {
             self.width = width
+            self.flags = flags
             self.node = node
             self.fields = [:]
             for field in fields {
@@ -478,50 +481,25 @@ enum ty {
             }
         }
 
-        @available(*, unavailable)
-        static func make(named name: String, builder: IRBuilder, _ members: [(String, Type)]) -> BuiltinType {
-            // NOTE: Not sure how to do these yet. Likely this will be gone.
-            fatalError()
-            /*
-            var width = 0
-            var fields: [Struct.Field] = []
-            for (index, (name, type)) in members.enumerated() {
+        struct Flags: OptionSet {
+            var rawValue: UInt8
 
-                let ident = Ident(start: noPos, name: name, entity: nil, type: nil, cast: nil, constant: nil)
-
-                let field = Struct.Field(ident: ident, type: type, index: index, offset: width)
-                fields.append(field)
-
-                width = (width + type.width!).round(upToNearest: 8)
-            }
-
-            let irType = builder.createStruct(name: name)
-            var irTypes: [IRType] = []
-            for field in fields {
-                let fieldType = canonicalize(field.type)
-                irTypes.append(fieldType)
-            }
-
-            let entity = Entity.makeBuiltin(name)
-
-            irType.setBody(irTypes)
-
-            var type: Type
-            type = Struct(width: width, node: Empty(semicolon: noPos, isImplicit: true), fields: fields, isPolymorphic: false)
-            type = Metatype(instanceType: type)
-
-            entity.type = type
-            return BuiltinType(entity: entity, type: type)
-            */
+            static let none   = Flags(rawValue: 0b0000)
+            static let packed = Flags(rawValue: 0b0001)
         }
     }
 
-    struct Union: Type, NamableType {
+    struct Union: Type, NamableType /*, IRNamableType */ {
         var width: Int?
+        var flags: Flags
+        var tagType: Integer
         var cases: OrderedDictionary<String, Case>
 
-        init(width: Int, cases: [Case]) {
+        /// - Parameter tagWidth: if nil width is inferred from number of cases
+        init(width: Int, tagWidth: Int? = nil, flags: Flags = .none, cases: [Case]) {
             self.width = width
+            self.tagType = ty.Integer(width: tagWidth ?? cases.count.bitsNeeded(), isSigned: false)
+            self.flags = flags
             self.cases = [:]
             for c in cases {
                 self.cases[c.ident.name] = c
@@ -531,25 +509,14 @@ enum ty {
         struct Case {
             var ident: Ident
             var type: Type
-        }
-    }
-
-    struct Variant: Type, NamableType, IRNamableType {
-        var width: Int?
-        var cases: OrderedDictionary<String, Case>
-
-        init(width: Int, cases: [Case]) {
-            self.width = width
-            self.cases = [:]
-            for c in cases {
-                self.cases[c.ident.name] = c
-            }
+            var tag: Int
         }
 
-        struct Case {
-            var ident: Ident
-            var type: Type
-            var index: Int
+        struct Flags: OptionSet {
+            var rawValue: UInt8
+
+            static let none      = Flags(rawValue: 0b0000)
+            static let inlineTag = Flags(rawValue: 0b0001)
         }
     }
 
@@ -609,7 +576,7 @@ enum ty {
         var width: Int? { return 64 } // NOTE: Bump up to larger size for more precision.
     }
 
-    struct UntypedFloatingPoint: Type {
+    struct UntypedFloat: Type {
         var width: Int? { return 64 }
     }
 
@@ -668,12 +635,19 @@ enum ty {
     }
 }
 
+extension ty.Union {
+
+    func tag(for name: String) -> Int {
+        return cases.orderedKeys.index(where: { $0 == name })!
+    }
+}
+
 func isUntyped(_ type: Type) -> Bool {
     return type is ty.UntypedNil || isUntypedNumber(type)
 }
 
 func isUntypedNumber(_ type: Type) -> Bool {
-    return type is ty.UntypedInteger || type is ty.UntypedFloatingPoint
+    return type is ty.UntypedInteger || type is ty.UntypedFloat
 }
 
 func isNumber(_ type: Type) -> Bool {
@@ -700,7 +674,7 @@ func isSigned(_ type: Type) -> Bool {
 
 func isFloatingPoint(_ type: Type) -> Bool {
     let type = baseType(type)
-    return type is ty.FloatingPoint || type is ty.UntypedFloatingPoint
+    return type is ty.Float || type is ty.UntypedFloat
 }
 
 func isPointer(_ type: Type) -> Bool {
@@ -731,10 +705,6 @@ func isUnion(_ type: Type) -> Bool {
     return baseType(type) is ty.Union
 }
 
-func isVariant(_ type: Type) -> Bool {
-    return baseType(type) is ty.Variant
-}
-
 func isEnum(_ type: Type) -> Bool {
     return baseType(type) is ty.Enum
 }
@@ -752,7 +722,7 @@ func isUntypedInteger(_ type: Type) -> Bool {
 }
 
 func isUntypedFloatingPoint(_ type: Type) -> Bool {
-    return type is ty.UntypedFloatingPoint
+    return type is ty.UntypedFloat
 }
 
 func isNamed(_ type: Type) -> Bool {

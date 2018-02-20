@@ -79,6 +79,9 @@ struct IRGenerator {
         if entity.isParameter {
             // parameters are always in the same package.
             return entity.value!
+        } else if entity.isBuiltin {
+            let builtin = builtinEntities.first(where: { $0.entity === entity })!
+            return builtin.gen(&self)
         }
         guard let entityPackage = entity.package else {
             return entity.value!
@@ -157,8 +160,35 @@ struct IRGenerator {
         return b.addFunction(named, type: type)
     }
 
+    func addOrReuseGlobal(named: String, type: IRType) -> Global {
+        if let existing = module.global(named: named) {
+            return existing
+        }
+        return b.addGlobal(named, type: type)
+    }
+
+    func addOrReuseGlobal(named: String, initializer: IRValue) -> Global {
+        if let existing = module.global(named: named) {
+            return existing
+        }
+        return b.addGlobal(named, initializer: initializer)
+    }
+
     lazy var i1: IntType = {
         return IntType(width: 1, in: module.context)
+    }()
+
+    // Odd sizes
+    lazy var i3: IntType = {
+        return IntType(width: 3, in: module.context)
+    }()
+
+    lazy var i61: IntType = {
+        return IntType(width: 61, in: module.context)
+    }()
+
+    lazy var i60: IntType = {
+        return IntType(width: 60, in: module.context)
     }()
 
     lazy var i8: IntType = {
@@ -179,6 +209,10 @@ struct IRGenerator {
 
     lazy var void: VoidType = {
         return VoidType(in: module.context)
+    }()
+
+    lazy var word: IntType = {
+        return targetMachine.dataLayout.intPointerType(context: module.context)
     }()
 
     lazy var signalCallbackType: FunctionType = {
@@ -368,7 +402,7 @@ extension IRGenerator {
                         let fieldType = canonicalize(field.type)
                         irTypes.append(fieldType)
                     }
-                    irType.setBody(irTypes)
+                    irType.setBody(irTypes, isPacked: type.isPacked)
 
                 case is ty.Enum:
                     return
@@ -466,7 +500,7 @@ extension IRGenerator {
                 } else {
                     let stackValue = entryBlockAlloca(type: type, name: entity.name)
                     let rvaluePtr = b.buildStructGEP(stackAggregate, index: index)
-                    let rvalue = b.buildLoad(rvaluePtr)
+                    let rvalue = buildLoad(rvaluePtr)
 
                     b.buildStore(rvalue, to: stackValue)
 
@@ -536,7 +570,7 @@ extension IRGenerator {
                     let count = (lit.constant as! String).utf8.count + 1 // + 1 for null byte
                     var dstPtr = entryBlockAlloca(type: LLVM.ArrayType(elementType: i8, count: count))
                     dstPtr = b.buildBitCast(dstPtr, type: LLVM.PointerType(pointee: i8))
-                    let tmp = b.buildInsertValue(aggregate: b.buildLoad(stackValue), element: dstPtr, index: 0)
+                    let tmp = b.buildInsertValue(aggregate: buildLoad(stackValue), element: dstPtr, index: 0)
                     b.buildStore(tmp, to: stackValue)
 
                     let srcPtr = (ir as! Constant<Struct>).getElement(indices: [0])
@@ -620,7 +654,7 @@ extension IRGenerator {
             {
                 let lvalueAddress = emit(expr: lvalue, returnAddress: true)
                 let rvaluePtr = b.buildStructGEP(stackAggregate, index: index)
-                let rvalue = b.buildLoad(rvaluePtr)
+                let rvalue = buildLoad(rvaluePtr)
                 b.buildStore(rvalue, to: lvalueAddress)
             }
             return
@@ -689,7 +723,7 @@ extension IRGenerator {
         let postBlock = b.currentFunction!.appendBasicBlock(named: "if.post", in: module.context)
 
         let cond = emit(expr: iff.cond)
-        b.buildCondBr(condition: cond, then: thenBlock, else: elseBlock ?? postBlock)
+        b.buildCondBr(condition: b.buildTruncOrBitCast(cond, type: i1), then: thenBlock, else: elseBlock ?? postBlock)
 
         b.positionAtEnd(of: thenBlock)
         emit(statement: iff.body)
@@ -740,7 +774,7 @@ extension IRGenerator {
             b.positionAtEnd(of: loopCond!)
 
             let cond = emit(expr: condition)
-            b.buildCondBr(condition: cond, then: loopBody, else: loopPost)
+            b.buildCondBr(condition: b.buildTruncOrBitCast(cond, type: i1), then: loopBody, else: loopPost)
         } else {
             if f.step != nil {
                 loopStep = currentFunc.appendBasicBlock(named: "for.step", in: module.context)
@@ -812,9 +846,9 @@ extension IRGenerator {
         case .slice:
             let aggBox = emit(expr: f.aggregate, returnAddress: true)
             let aggPtr = b.buildStructGEP(aggBox, index: 0)
-            agg = b.buildLoad(aggPtr)
+            agg = buildLoad(aggPtr)
             let lenPtr = b.buildStructGEP(aggBox, index: 1)
-            len = b.buildLoad(lenPtr)
+            len = buildLoad(lenPtr)
         case .enumeration:
             fatalError("Unimplemented")
         }
@@ -827,8 +861,8 @@ extension IRGenerator {
         b.buildBr(loopCond)
         b.positionAtEnd(of: loopCond)
 
-        let cond = b.buildICmp(b.buildLoad(index), len, .signedLessThan)
-        b.buildCondBr(condition: cond, then: loopBody, else: loopPost)
+        let withinBounds = b.buildICmp(buildLoad(index), len, .signedLessThan)
+        b.buildCondBr(condition: withinBounds, then: loopBody, else: loopPost)
 
         b.positionAtEnd(of: loopBody)
         defer {
@@ -838,14 +872,14 @@ extension IRGenerator {
         f.breakLabel.value = loopPost
         f.continueLabel.value = loopCond
 
-        let indexLoad = b.buildLoad(index)
+        let indexLoad = buildLoad(index)
         let indices: [IRValue]
         switch f.checked! {
         case .array: indices = [0, indexLoad]
         default: indices = [indexLoad]
         }
         let elPtr = b.buildGEP(agg, indices: indices)
-        b.buildStore(b.buildLoad(elPtr), to: element)
+        b.buildStore(buildLoad(elPtr), to: element)
         emit(statement: f.body)
 
         let hasJump = b.insertBlock?.terminator != nil
@@ -854,7 +888,7 @@ extension IRGenerator {
         }
 
         b.positionAtEnd(of: loopStep)
-        let val = b.buildAdd(b.buildLoad(index), i64.constant(1))
+        let val = b.buildAdd(buildLoad(index), i64.constant(1))
         b.buildStore(val, to: index)
         b.buildBr(loopCond)
 
@@ -879,7 +913,7 @@ extension IRGenerator {
         var thenBlocks: [BasicBlock] = []
         for c in sw.cases {
             if !c.match.isEmpty {
-                let thenBlock = curFunction.appendBasicBlock(named: "switch.then", in: module.context)
+                let thenBlock = curFunction.appendBasicBlock(named: "switch.then.\(c.match[0])", in: module.context)
                 thenBlocks.append(thenBlock)
             } else {
                 let thenBlock = curFunction.appendBasicBlock(named: "switch.default", in: module.context)
@@ -887,13 +921,37 @@ extension IRGenerator {
             }
         }
 
-        let value = sw.match.map({ emit(expr: $0) }) ?? i1.constant(1)
+        var value: IRValue
+        var tag: IRValue?
+        if sw.isType {
+            let union = baseType(sw.match!.type) as! ty.Union
+            let tagType = canonicalize(union.tagType)
+            value = emit(expr: sw.match!, returnAddress: true)
+            tag = b.buildBitCast(value, type: LLVM.PointerType(pointee: tagType))
+            tag = buildLoad(tag!)
+        } else if let match = sw.match {
+            value = emit(expr: match)
+        } else {
+            value = i1.constant(1)
+        }
+
         var matches: [[IRValue]] = []
         for (i, c, nextCase) in sw.cases.enumerated().map({ ($0.offset, $0.element, sw.cases[safe: $0.offset + 1]) }) {
             let thenBlock = thenBlocks[i]
             nextCase?.label.value = thenBlocks[safe: i + 1]
 
-            if !c.match.isEmpty {
+            if sw.isType && !c.match.isEmpty {
+                let match = c.match[0] as! Ident
+                let union = baseType(sw.match!.type) as! ty.Union
+                let tag = canonicalize(union.tagType).constant(match.constant! as! UInt64)
+                matches.append([tag])
+                if union.isInlineTag, let binding = c.binding {
+                    let bindingType = LLVM.PointerType(pointee: canonicalize(binding.type))
+                    binding.entity.value = b.buildBitCast(value, type: bindingType)
+                } else {
+                    // TODO: Do something
+                }
+            } else if !c.match.isEmpty {
                 var vals: [IRValue] = []
                 for match in c.match {
                     vals.append(emit(expr: match))
@@ -912,7 +970,7 @@ extension IRGenerator {
         }
 
         let hasDefaultCase = sw.cases.last!.match.isEmpty
-        let irSwitch = b.buildSwitch(value, else: hasDefaultCase ? thenBlocks.last! : postBlock, caseCount: thenBlocks.count)
+        let irSwitch = b.buildSwitch(tag ?? value, else: hasDefaultCase ? thenBlocks.last! : postBlock, caseCount: thenBlocks.count)
         for (matches, block) in zip(matches, thenBlocks) {
             for match in matches {
                 irSwitch.addCase(match, block)
@@ -959,16 +1017,20 @@ extension IRGenerator {
             val = emit(slice: slice, returnAddress: returnAddress)
         case let l as LocationDirective:
             val = emit(locationDirective: l, returnAddress: returnAddress)
-        case let cast as Cast: // These return directly
-            return emit(cast: cast)
-        case let autocast as Autocast:
-            return emit(autocast: autocast)
+        case let cast as Cast:
+            if cast.kind == .bitcast {
+                val = emit(bitcast: cast, returnAddress: returnAddress)
+            } else {
+                assert(cast.kind == .cast || cast.kind == .autocast)
+                val = emit(cast: cast, returnAddress: returnAddress)
+            }
         default:
             preconditionFailure()
         }
 
         if let conversion = (expr as? Convertable)?.conversion {
             assert(!returnAddress, "Likely a bug in the checker. Be suspicious.")
+            // FIXME: We want to ditch perform conversion
             val = performConversion(from: conversion.from, to: conversion.to, with: val)
         }
 
@@ -1074,7 +1136,7 @@ extension IRGenerator {
     }
 
     mutating func emit(ident: Ident, returnAddress: Bool) -> IRValue {
-        if returnAddress || isFunction(ident.type) && ident.entity.isConstant {
+        if returnAddress || ident.entity.isBuiltin || isFunction(ident.type) && ident.entity.isConstant {
             // refering to global functions should retrieve their address
             return value(for: ident.entity)
         }
@@ -1084,9 +1146,9 @@ extension IRGenerator {
                 return canonicalize(type).constant(ident.entity.constant as! UInt64)
             case let type as ty.UntypedInteger:
                 return canonicalize(type).constant(ident.entity.constant as! UInt64)
-            case let type as ty.FloatingPoint:
+            case let type as ty.Float:
                 return canonicalize(type).constant(ident.entity.constant as! Double)
-            case let type as ty.UntypedFloatingPoint:
+            case let type as ty.UntypedFloat:
                 return canonicalize(type).constant(ident.entity.constant as! Double)
             case let type as ty.Enum:
                 return canonicalize(type).constant(ident.entity.constant as! UInt64)
@@ -1095,13 +1157,7 @@ extension IRGenerator {
             }
         }
 
-        if ident.entity.isBuiltin {
-            assert(!returnAddress)
-            let builtin = builtinEntities.first(where: { $0.entity === ident.entity })!
-            return builtin.gen(b)
-        }
-
-        return b.buildLoad(value(for: ident.entity))
+        return buildLoad(value(for: ident.entity))
     }
 
     mutating func emit(unary: Unary, returnAddress: Bool) -> IRValue {
@@ -1110,15 +1166,19 @@ extension IRGenerator {
         case .add:
             return val
         case .sub:
+            // TODO: Overflow behaviour?
             return b.buildNeg(val)
         case .lss:
             if returnAddress {
                 return val
             }
-            return b.buildLoad(val)
+            return buildLoad(val)
         case .not:
+            // TODO: Should we do more here? ie ensure only the lowermost bit is set?
             return b.buildNot(val)
-        case .and:
+        case .bnot:
+            return b.buildNot(val)
+        case .and: // return the address (handled above)
             return val
         default:
             preconditionFailure()
@@ -1175,7 +1235,7 @@ extension IRGenerator {
         let cond = emit(expr: ternary.cond)
         let then = ternary.then.map({ emit(expr: $0) })
         let els  = emit(expr: ternary.els)
-        return b.buildSelect(cond, then: then ?? cond, else: els)
+        return b.buildSelect(b.buildTruncOrBitCast(cond, type: i1), then: then ?? cond, else: els)
     }
 
     mutating func emit(args: [Expr], cABI: Bool) -> [IRValue] {
@@ -1193,6 +1253,8 @@ extension IRGenerator {
                 if isFloatingPoint($0.type), $0.type.width! < 64 {
                     val = b.buildCast(.fpext, value: val, type: f64)
                 }
+
+                // FIXME: We need to determine how to actually pass structs to C ABI functions
 
                 // TODO: Struct ABI stuff?
                 return val
@@ -1212,7 +1274,7 @@ extension IRGenerator {
 
         switch call.checked! {
         case .builtinCall(let builtin):
-            return builtin.generate(builtin, call.args, &self)
+            return builtin.generate(builtin, returnAddress, call.args, &self)
         case .call:
             var isGlobal = false
             if let entity = entity(from: call.fun) {
@@ -1278,7 +1340,7 @@ extension IRGenerator {
 
                     let irType = LLVM.PointerType(pointee: canonicalize(baseType(param)))
                     val = b.buildBitCast(val, type: irType)
-                    val = b.buildLoad(val)
+                    val = buildLoad(val)
                 } else {
                     val = emit(expr: arg)
                 }
@@ -1325,18 +1387,108 @@ extension IRGenerator {
             b.buildStore(result, to: mem)
             let type = canonicalize(call.type)
             mem = b.buildBitCast(mem, type: LLVM.PointerType(pointee: type))
-            return b.buildLoad(mem)
+            return buildLoad(mem)
         }
     }
 
-    mutating func emit(autocast: Autocast) -> IRValue {
-        let val = emit(expr: autocast.expr, returnAddress: isArray(autocast.expr.type) || isFunction(autocast.expr.type))
-        return performConversion(from: autocast.expr.type, to: autocast.type, with: val)
+    mutating func emit(cast: Cast, returnAddress: Bool = false) -> IRValue {
+        var value = emit(expr: cast.expr, returnAddress: true)
+
+        var target = canonicalize(cast.type)
+        if returnAddress {
+            target = LLVM.PointerType(pointee: target)
+        } else if (value.type as? LLVM.PointerType)?.pointee is LLVM.StructType {
+            // if it's a struct we must cast the pointer and perform a load
+            // LLVM doesn't let you bitcast any aggregate types, so the pointer must be reinterpreted
+            let pointer = b.buildBitCast(value, type: LLVM.PointerType(pointee: target))
+            return buildLoad(pointer)
+        } else if !isAddressOfExpr(cast.expr) && value.type is LLVM.PointerType && !value.isAFunction { // if casting an address of operator the precedence should swap
+            value = buildLoad(value)
+        }
+
+        switch (value.type, target) {
+        case (let from as LLVM.IntType, let target as LLVM.IntType):
+            let trunc = from.width >= target.width
+            if trunc {
+                return b.buildTruncOrBitCast(value, type: target)
+            }
+            if isSigned(cast.expr.type) {
+                return b.buildSExt(value, type: target)
+            }
+            return b.buildZExtOrBitCast(value, type: target)
+
+        case (is LLVM.IntType, let target as LLVM.FloatType):
+            return b.buildIntToFP(value, type: target, signed: isSigned(cast.expr.type))
+
+        case (is LLVM.FloatType, let target as LLVM.IntType):
+            return b.buildFPToInt(value, type: target, signed: isSigned(cast.type))
+
+        case (is LLVM.FloatType, is LLVM.FloatType):
+            return b.buildFPCast(value, type: target)
+
+        case (is LLVM.IntType, let target as LLVM.PointerType):
+            return b.buildIntToPtr(value, type: target)
+
+        case (is LLVM.PointerType, let target as LLVM.IntType):
+            return b.buildPtrToInt(value, type: target)
+
+        case (is LLVM.PointerType, is LLVM.PointerType):
+            return b.buildBitCast(value, type: target)
+
+        case (is LLVM.FunctionType, is LLVM.PointerType),
+             (is LLVM.FunctionType, is LLVM.FunctionType):
+            return b.buildBitCast(value, type: target)
+
+        // TODO: LLVM.VectorType's
+
+        default:
+            fatalError("Cast from type of \(cast.expr.type) to \(cast.type) unimplemented")
+        }
     }
 
-    mutating func emit(cast: Cast) -> IRValue {
-        let val = emit(expr: cast.expr, returnAddress: isArray(cast.expr.type) || isFunction(cast.expr.type))
-        return performConversion(from: cast.expr.type, to: cast.type, with: val)
+    mutating func emit(bitcast: Cast, returnAddress: Bool = false) -> IRValue {
+        var value = emit(expr: bitcast.expr, returnAddress: true)
+
+        var target = canonicalize(bitcast.type)
+        if returnAddress {
+            target = LLVM.PointerType(pointee: target)
+        } else if let pointer = value.type as? LLVM.PointerType, pointer.pointee is LLVM.StructType || pointer.pointee is LLVM.FunctionType {
+            // TODO: cleanup, there are other types here that are unhandled, like arrays and vectors
+        } else if !isAddressOfExpr(bitcast.expr) && value.type is LLVM.PointerType && !value.isAFunction { // if casting an address of operator the precedence should swap
+            value = buildLoad(value)
+        }
+
+        switch (value.type, target) {
+        case (is LLVM.IntType, let target as LLVM.IntType):
+            return b.buildBitCast(value, type: target)
+
+        case (is LLVM.IntType, let target as LLVM.FloatType):
+            return b.buildIntToFP(value, type: target, signed: isSigned(bitcast.expr.type))
+
+        case (is LLVM.FloatType, let target as LLVM.IntType):
+            return b.buildFPToInt(value, type: target, signed: isSigned(bitcast.type))
+
+        case (is LLVM.FloatType, is LLVM.FloatType):
+            return b.buildFPCast(value, type: target)
+
+        case (is LLVM.IntType, let target as LLVM.PointerType):
+            return b.buildIntToPtr(value, type: target)
+
+        case (is LLVM.PointerType, let target as LLVM.IntType):
+            return b.buildPtrToInt(value, type: target)
+
+        case (is LLVM.PointerType, is LLVM.PointerType):
+            return b.buildBitCast(value, type: target)
+
+        case (is LLVM.FunctionType, is LLVM.PointerType),
+             (is LLVM.FunctionType, is LLVM.FunctionType):
+            return b.buildBitCast(value, type: target)
+
+            // TODO: LLVM.VectorType's & LLVM.ArrayType?
+
+        default:
+            fatalError("Cast from type of \(bitcast.expr.type) to \(bitcast.type) unimplemented")
+        }
     }
 
     mutating func emit(funcLit fn: FuncLit, entity: Entity?, specializationMangle: String? = nil) -> Function {
@@ -1359,7 +1511,7 @@ extension IRGenerator {
                 b.buildRetVoid()
             } else {
                 resultPtr = entryBlockAlloca(type: fnType.returnType, name: "result")
-                b.buildRet(b.buildLoad(resultPtr!))
+                b.buildRet(buildLoad(resultPtr!))
             }
 
             b.positionAtEnd(of: entryBlock)
@@ -1415,9 +1567,9 @@ extension IRGenerator {
                     return canonicalize(type).constant(sel.constant as! UInt64)
                 case let type as ty.UntypedInteger:
                     return canonicalize(type).constant(sel.constant as! UInt64)
-                case let type as ty.FloatingPoint:
+                case let type as ty.Float:
                     return canonicalize(type).constant(sel.constant as! Double)
-                case let type as ty.UntypedFloatingPoint:
+                case let type as ty.UntypedFloat:
                     return canonicalize(type).constant(sel.constant as! Double)
                 default:
                     break
@@ -1427,47 +1579,77 @@ extension IRGenerator {
             if returnAddress {
                 return address
             }
-            return b.buildLoad(address)
+            return buildLoad(address)
+
+        case .anyData:
+            let value = emit(expr: sel.rec, returnAddress: true)
+            let dataAddress = b.buildStructGEP(value, index: 0)
+            return buildLoad(dataAddress)
+
+        case .anyType:
+            let value = emit(expr: sel.rec, returnAddress: true)
+            let dataAddress = b.buildStructGEP(value, index: 1)
+            return buildLoad(dataAddress)
+
         case .struct(let field):
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
-                aggregate = b.buildLoad(aggregate)
+                aggregate = buildLoad(aggregate)
             }
             let fieldAddress = b.buildStructGEP(aggregate, index: field.index)
             if returnAddress {
                 return fieldAddress
             }
-            return b.buildLoad(fieldAddress)
+            return buildLoad(fieldAddress)
+            
         case .enum(let c):
             return canonicalize(baseType(sel.type) as! ty.Enum).constant(c.number)
+
+        case .unionTag:
+            var aggregate = emit(expr: sel.rec, returnAddress: true)
+            for _ in 0 ..< sel.levelsOfIndirection {
+                aggregate = buildLoad(aggregate)
+            }
+            let type = canonicalize(sel.type) as! LLVM.IntType // FIXME: Assumes tag type must be integer (Not checked in checker)
+            let address = b.buildBitCast(aggregate, type: LLVM.PointerType(pointee: type))
+            if returnAddress {
+                return address
+            }
+            let mask = type.allOnes()
+            let tag = buildLoad(address, alignment: 16)
+            return b.buildAnd(mask, tag)
+
         case .union(let c):
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
-                aggregate = b.buildLoad(aggregate)
+                aggregate = buildLoad(aggregate)
             }
             let type = canonicalize(c.type)
             let address = b.buildBitCast(aggregate, type: LLVM.PointerType(pointee: type))
             if returnAddress {
                 return address
             }
-            return b.buildLoad(address)
+            return buildLoad(address)
+
         case .array(let member):
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
-                aggregate = b.buildLoad(aggregate)
+                aggregate = buildLoad(aggregate)
             }
             let index = member.rawValue
             let fieldAddress = b.buildStructGEP(aggregate, index: index)
             if returnAddress {
                 return fieldAddress
             }
-            return b.buildLoad(fieldAddress)
+            return buildLoad(fieldAddress)
+
         case .staticLength(let length):
             return i64.constant(length)
+
         case .scalar(let index):
             var vector = emit(expr: sel.rec, returnAddress: returnAddress)
             for _ in 0 ..< sel.levelsOfIndirection {
-                vector = b.buildLoad(vector)
+                vector = buildLoad(vector)
             }
 
             if returnAddress {
@@ -1475,10 +1657,11 @@ extension IRGenerator {
             }
 
             return b.buildExtractElement(vector: vector, index: index)
+
         case .swizzle(let indices):
             var vector = emit(expr: sel.rec)
             for _ in 0 ..< sel.levelsOfIndirection {
-                vector = b.buildLoad(vector)
+                vector = buildLoad(vector)
             }
 
             let recType = canonicalize(findConcreteType(sel.rec.type))
@@ -1514,7 +1697,7 @@ extension IRGenerator {
         case is ty.Slice:
             let structPtr = emit(expr: sub.rec, returnAddress: true)
             let arrayPtr = b.buildStructGEP(structPtr, index: 0)
-            aggregate = b.buildLoad(arrayPtr)
+            aggregate = buildLoad(arrayPtr)
             indicies = [index]
 
         case is ty.Pointer:
@@ -1529,7 +1712,7 @@ extension IRGenerator {
         if returnAddress {
             return val
         }
-        return b.buildLoad(val)
+        return buildLoad(val)
     }
 
     mutating func emit(slice: Slice, returnAddress: Bool) -> IRValue {
@@ -1553,13 +1736,13 @@ extension IRGenerator {
 
         case is ty.Slice:
             let rec = emit(expr: slice.rec, returnAddress: true)
-            let prevLen = b.buildLoad(b.buildStructGEP(rec, index: 1))
-            let prevCap = b.buildLoad(b.buildStructGEP(rec, index: 2))
+            let prevLen = buildLoad(b.buildStructGEP(rec, index: 1))
+            let prevCap = buildLoad(b.buildStructGEP(rec, index: 2))
             lo = lo ?? i64.zero()
             hi = hi ?? prevLen
 
             // load the address in the struct then offset it by lo
-            ptr = b.buildLoad(b.buildStructGEP(rec, index: 0))
+            ptr = buildLoad(b.buildStructGEP(rec, index: 0))
             ptr = b.buildGEP(ptr, indices: [lo!])
             len = b.buildSub(hi!, lo!)
             cap = b.buildSub(prevCap, lo!)
@@ -1629,18 +1812,18 @@ extension IRGenerator {
             } else {
                 return b.buildCast(.sext, value: value, type: type)
             }
-        case (is ty.UntypedInteger, is ty.FloatingPoint):
+        case (is ty.UntypedInteger, is ty.Float):
             return b.buildCast(.siToFP, value: value, type: type)
         case (is ty.UntypedInteger, is ty.Pointer):
             return b.buildIntToPtr(value, type: type as! LLVM.PointerType)
 
-        case (let from as ty.UntypedFloatingPoint, let target as ty.FloatingPoint):
+        case (let from as ty.UntypedFloat, let target as ty.Float):
             if from.width! == target.width! {
                 return value
             }
             let ext = from.width! < target.width!
             return b.buildCast(ext ? .fpext : .fpTrunc, value: value, type: type)
-        case (is ty.UntypedFloatingPoint, let target as ty.Integer):
+        case (is ty.UntypedFloat, let target as ty.Integer):
             return b.buildCast(target.isSigned ? .fpToSI : .fpToUI, value: value, type: type)
 
         case (let from as ty.Integer, let target as ty.Integer):
@@ -1652,20 +1835,22 @@ extension IRGenerator {
             } else {
                 return b.buildCast(from.isSigned ? .sext : .zext, value: value, type: type)
             }
-        case (let from as ty.Integer, is ty.FloatingPoint):
+        case (let from as ty.Integer, is ty.Float):
             return b.buildCast(from.isSigned ? .siToFP : .uiToFP, value: value, type: type)
         case (is ty.Integer, is ty.Pointer):
             return b.buildIntToPtr(value, type: type as! LLVM.PointerType)
 
-        case (let from as ty.FloatingPoint, let target as ty.FloatingPoint):
+        case (let from as ty.Float, let target as ty.Float):
             let ext = from.width! < target.width!
             return b.buildCast(ext ? .fpext : .fpTrunc, value: value, type: type)
-        case (is ty.FloatingPoint, let target as ty.Integer):
+        case (is ty.Float, let target as ty.Integer):
             return b.buildCast(target.isSigned ? .fpToSI : .fpToUI, value: value, type: type)
 
         case (is ty.Pointer, is ty.Boolean):
-            return b.buildPtrToInt(value, type: i1)
+            return b.buildPtrToInt(value, type: type as! IntType)
         case (is ty.Pointer, is ty.Integer):
+            return b.buildPtrToInt(value, type: type as! IntType)
+        case (is ty.Union, is ty.Integer):
             return b.buildPtrToInt(value, type: type as! IntType)
         case (is ty.Pointer, is ty.Pointer),
              (is ty.Pointer, is ty.Function):
@@ -1679,6 +1864,7 @@ extension IRGenerator {
         // enums without an associated type may be converted to any Integer
         case (let from as ty.Enum, let target):
             if let associatedType = from.associatedType as? ty.Integer {
+                // FIXME: Load this into the new cast
                 return performConversion(from: associatedType, to: target, with: value)
             }
             if from.width! == target.width! {
@@ -1687,19 +1873,65 @@ extension IRGenerator {
             let ext = from.width! < target.width!
             return b.buildCast(ext ? .zext : .trunc, value: value, type: type)
 
+        case (_, is ty.Anyy):
+            // We need a heap allocation here, for now we will use malloc from libc.
+            let dataType = canonicalize(from)
+            var dataPointer = b.buildMalloc(dataType)
+            b.buildStore(value, to: dataPointer)
+            dataPointer = b.buildBitCast(dataPointer, type: LLVM.PointerType.toVoid)
+
+            let typeInfo = builtin.types.llvmTypeInfo(from, gen: &self)
+            var aggregate = canonicalize(ty.any).undef()
+            aggregate = b.buildInsertValue(aggregate: aggregate, element: dataPointer, index: 0)
+            aggregate = b.buildInsertValue(aggregate: aggregate, element: typeInfo, index: 1)
+            return aggregate
+
         default:
             return b.buildBitCast(value, type: type)
         }
     }
 }
 
+
+// MARK: LLVM Helpers
+
+extension IRGenerator {
+
+    /// - Note: Handles minimum sized loads for integers automatically
+    public func buildLoad(_ ptr: IRValue, ordering: AtomicOrdering = .notAtomic, volatile: Bool = false, alignment: Int = 8, name: String = "") -> IRValue {
+        var ptr = ptr
+        guard let pointer = ptr.type as? LLVM.PointerType else {
+            fatalError()
+        }
+        // integer, pointer, or floating-point type
+//        assert(pointer.pointee is LLVM.IntType || pointer.pointee is LLVM.PointerType || pointer.pointee is LLVM.FloatType, "LLVM load instruction must be on a pointer to an integer, float or pointer type")
+
+        // NOTE: the following is only necissary for atomic loads, however, bugs can occur even if the load is non Atomic
+        let width = targetMachine.dataLayout.sizeOfTypeInBits(pointer.pointee)
+        let minLoadWidth = width.nextLoadablePowerOfTwoAlignment()
+        if width < minLoadWidth, pointer.pointee is LLVM.IntType {
+            let newIntType = LLVM.IntType(width: minLoadWidth, in: module.context)
+            ptr = b.buildBitCast(ptr, type: LLVM.PointerType(pointee: newIntType))
+        }
+        let loadInst = b.buildLoad(ptr, ordering: ordering, volatile: volatile, alignment: alignment, name: name)
+
+        if width < minLoadWidth {
+            return b.buildTrunc(loadInst, type: pointer.pointee)
+        }
+        return loadInst
+    }
+}
+
+
+// MARK: Type canonicalization
+
 extension IRGenerator {
 
     mutating func canonicalize(_ type: Type) -> IRType {
 
-//        if let named = type as? ty.Named, let mangledName = named.entity.mangledName, let existing = module.type(named: mangledName) {
-//            return existing
-//        }
+        if let named = type as? ty.Named, let mangledName = named.entity.mangledName, let existing = module.type(named: mangledName) {
+            return existing
+        }
 
         switch type {
         case let type as ty.Void:
@@ -1708,7 +1940,9 @@ extension IRGenerator {
             return canonicalize(type)
         case let type as ty.Integer:
             return canonicalize(type)
-        case let type as ty.FloatingPoint:
+        case let type as ty.Float:
+            return canonicalize(type)
+        case let type as ty.Anyy:
             return canonicalize(type)
         case let type as ty.Pointer:
             return canonicalize(type)
@@ -1730,27 +1964,28 @@ extension IRGenerator {
             return canonicalize(type)
         case let type as ty.UntypedInteger:
             return canonicalize(type)
-        case let type as ty.UntypedFloatingPoint:
+        case let type as ty.UntypedFloat:
             return canonicalize(type)
         case let type as ty.Named:
-//            if let mangledName = type.entity.mangledName, let existing = module.type(named: mangledName) {
-//                return existing
-//            } else if type.base is IRNamableType && type.entity.isBuiltin {
-//                // NOTE: `string` is a builtin IRNamableType
-//
-//                // Prepend a `.` so that builtin named types cannot collide
-//                type.entity.mangledName = "." + type.entity.name
-//
-//                let irType = b.createStruct(name: type.entity.mangledName)
-//                let type = canonicalize(type.base) as! LLVM.StructType
-//                irType.setBody(type.elementTypes)
-//                return irType
-//            } else if type.base is IRNamableType {
-//                emit(decl: type.entity.declaration!)
-//                return module.type(named: type.entity.mangledName)!
-//            } else {
+            if let mangledName = type.entity.mangledName, let existing = module.type(named: mangledName) {
+                return existing
+            } else if type.base is IRNamableType && type.entity.isBuiltin {
+                // NOTE: `string` is a builtin IRNamableType
+                let packed = (type.base as? ty.Struct)?.isPacked ?? false
+
+                // Prepend a `.` so that builtin named types cannot collide
+                type.entity.mangledName = "." + type.entity.name
+
+                let irType = b.createStruct(name: type.entity.mangledName)
+                let type = canonicalize(type.base) as! LLVM.StructType
+                irType.setBody(type.elementTypes, isPacked: packed)
+                return irType
+            } else if type.base is IRNamableType {
+                emit(decl: type.entity.declaration!)
+                return module.type(named: type.entity.mangledName)!
+            } else {
                 return canonicalize(type.base)
-//            }
+            }
         case is ty.Polymorphic:
             fatalError("Polymorphic types must be specialized before reaching the IRGenerator")
         case is ty.UntypedNil:
@@ -1764,15 +1999,21 @@ extension IRGenerator {
         return VoidType(in: module.context)
     }
 
+    mutating func canonicalize(_ any: ty.Anyy) -> LLVM.StructType {
+        let rawptr = canonicalize(ty.rawptr)
+        let typeInfo = canonicalize(builtin.types.typeInfoType)
+        return LLVM.StructType(elementTypes: [rawptr, typeInfo], isPacked: true, in: module.context)
+    }
+
     mutating func canonicalize(_ boolean: ty.Boolean) -> IntType {
-        return IntType(width: 1, in: module.context)
+        return IntType(width: boolean.width!, in: module.context)
     }
 
     mutating func canonicalize(_ integer: ty.Integer) -> IntType {
         return IntType(width: integer.width!, in: module.context)
     }
 
-    mutating func canonicalize(_ float: ty.FloatingPoint) -> FloatType {
+    mutating func canonicalize(_ float: ty.Float) -> FloatType {
         switch float.width! {
         case 16: return FloatType(kind: .half, in: module.context)
         case 32: return FloatType(kind: .float, in: module.context)
@@ -1796,7 +2037,7 @@ extension IRGenerator {
 
     mutating func canonicalize(_ slice: ty.Slice) -> LLVM.StructType {
         let element = LLVM.PointerType(pointee: canonicalize(slice.elementType))
-        // Memory size is in bytes but LLVM types are in bits
+        // FIXME: Stop using compiler word size as target word size
         let systemWidthType = LLVM.IntType(width: MemoryLayout<Int>.size * 8, in: module.context)
         // { Element type, Length, Capacity }
         return LLVM.StructType(elementTypes: [element, systemWidthType, systemWidthType], in: module.context)
@@ -1842,78 +2083,28 @@ extension IRGenerator {
     }
 
     mutating func canonicalize(_ struc: ty.Struct) -> LLVM.StructType {
-//        if let entity = struc.entity {
-//            let sym = symbol(for: entity)
-//            if let ptr = module.type(named: sym) {
-//                return ptr as! LLVM.StructType
-//            }
-//            let irType = b.createStruct(name: sym)
-//            var irTypes: [IRType] = []
-//            for field in struc.fields.orderedValues {
-//                let fieldType = canonicalize(field.type)
-//                irTypes.append(fieldType)
-//            }
-//            irType.setBody(irTypes)
-//            return irType
-//        }
-
-        return LLVM.StructType(elementTypes: struc.fields.orderedValues.map({ canonicalize($0.type) }), in: module.context)
+        return LLVM.StructType(elementTypes: struc.fields.orderedValues.map({ canonicalize($0.type) }), isPacked: struc.isPacked, in: module.context)
     }
 
     mutating func canonicalize(_ e: ty.Enum) -> IntType {
         return IntType(width: e.width!, in: module.context)
-//        if let entity = e.entity {
-//            let sym = symbol(for: entity)
-//            if let ptr = module.type(named: sym) {
-//                return ptr as! LLVM.StructType
-//            }
-//            let type = IntType(width: e.width!, in: module.context)
-//            let irType = b.createStruct(name: sym, types: [type], isPacked: true)
-//            var globals: [Global] = []
-//            for c in e.cases {
-//                let name = sym.appending("." + c.ident.name)
-//                let value = irType.constant(values: [type.constant(c.number)])
-//                let global = b.addGlobal(name, initializer: value)
-//                globals.append(global)
-//            }
-//            _ = b.addGlobal(sym.appending("..cases"), initializer: LLVM.ArrayType.constant(globals, type: irType))
-//            if let associatedType = e.associatedType, !(associatedType is ty.Integer)  {
-//                var associatedGlobals: [Global] = []
-//                for c in e.cases {
-//                    let name = sym.appending("." + c.ident.name).appending(".raw")
-//                    let value = emit(expr: c.value!)
-//                    let global = b.addGlobal(name, initializer: value)
-//                    associatedGlobals.append(global)
-//                }
-//                _ = b.addGlobal(sym.appending("..associated"), initializer: LLVM.ArrayType.constant(associatedGlobals, type: canonicalize(associatedType)))
-//            }
-//        }
-//
-//        return LLVM.StructType(elementTypes: [IntType(width: e.width!, in: module.context)], isPacked: true, in: module.context)
     }
 
-    mutating func canonicalize(_ u: ty.Union) -> LLVM.StructType {
-//        if let entity = u.entity {
-//            let sym = symbol(for: entity)
-//            if let ptr = module.type(named: sym) {
-//                return ptr as! LLVM.StructType
-//            }
-//
-//            let irType = b.createStruct(name: sym)
-//            let containerType = LLVM.ArrayType(elementType: i8, count: u.width!.bytes())
-//            irType.setBody([containerType])
-//            return irType
-//        }
-
-        let containerType = LLVM.ArrayType(elementType: i8, count: u.width!.bytes())
-        return LLVM.StructType(elementTypes: [containerType] , in: module.context)
+    mutating func canonicalize(_ u: ty.Union) -> IRType {
+        if u.isInlineTag {
+            let data = LLVM.IntType(width: u.width!, in: module.context)
+            return LLVM.StructType(elementTypes: [data])
+        }
+        let data = LLVM.IntType(width: u.width! - u.tagType.width!, in: module.context)
+        let tag  = canonicalize(u.tagType)
+        return LLVM.StructType(elementTypes: [tag, data])
     }
 
     mutating func canonicalize(_ integer: ty.UntypedInteger) -> IntType {
         return IntType(width: integer.width!, in: module.context)
     }
 
-    mutating func canonicalize(_ float: ty.UntypedFloatingPoint) -> FloatType {
+    mutating func canonicalize(_ float: ty.UntypedFloat) -> FloatType {
         return FloatType(kind: .double, in: module.context)
     }
 }

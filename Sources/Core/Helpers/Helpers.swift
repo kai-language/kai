@@ -69,6 +69,9 @@ extension BidirectionalCollection {
         }
         return self[index]
     }
+}
+
+extension Collection {
 
     func toDictionary<Key: Hashable>(with selectKey: (Element) -> Key) -> [Key: Element] {
         var dict: [Key: Element] = [:]
@@ -202,6 +205,21 @@ extension Int {
 
     func round(upToNearest multiple: Int) -> Int {
         return (self + multiple - 1) & ~(multiple - 1)
+    }
+
+    func nextLoadablePowerOfTwoAlignment() -> Int {
+        var n = self
+        n -= 1
+        n |= n >> 1
+        n |= n >> 2
+        n |= n >> 4
+        n |= n >> 8
+        n |= n >> 16
+        n += 1
+        if n < 8 {
+            return 8
+        }
+        return n
     }
 
     func bytes() -> Int {

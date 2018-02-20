@@ -169,7 +169,7 @@ extension Parser {
 
     mutating func parseUnaryExpr(allowPolyOrVariadicType: Bool = false) -> Expr {
         switch tok {
-        case .add, .sub, .not, .xor, .and, .lss:
+        case .add, .sub, .not, .bnot, .xor, .and, .lss:
             let op = tok
             let pos = eatToken()
             let expr = parseUnaryExpr()
@@ -290,10 +290,8 @@ extension Parser {
             return val
         case .fn:
             return parseFuncLit()
-        case .cast, .bitcast:
+        case .autocast, .cast, .bitcast:
             return parseCast()
-        case .autocast:
-            return parseAutocast()
         case .lparen:
             return parseFuncType(allowParenthesizedExpr: true)
         case .directive:
@@ -316,17 +314,14 @@ extension Parser {
     mutating func parseCast() -> Cast {
         let kind = tok
         let keyword = eatToken()
-        expect(.lparen)
-        let explicitType = parseType()
-        expect(.rparen)
+        var explicitType: Expr?
+        if kind != .autocast {
+            expect(.lparen)
+            explicitType = parseType()
+            expect(.rparen)
+        }
         let expr = parseUnaryExpr()
-        return Cast(keyword: keyword, kind: kind, explicitType: explicitType, expr: expr, type: nil)
-    }
-
-    mutating func parseAutocast() -> Autocast {
-        let keyword = eatToken()
-        let expr = parseUnaryExpr()
-        return Autocast(keyword: keyword, expr: expr, type: nil)
+        return Cast(keyword: keyword, kind: kind, explicitType: explicitType, expr: expr, type: nil, conversion: nil)
     }
 
     mutating func parseUsingStmt() -> Using {
@@ -403,8 +398,6 @@ extension Parser {
             return parseStructType()
         case .union:
             return parseUnionType()
-        case .variant:
-            return parseVariantType()
         case .enum:
             return parseEnumType()
         case .ellipsis where allowVariadic:
@@ -528,9 +521,26 @@ extension Parser {
         return list
     }
 
+    mutating func parseTypeDirectives() -> Set<TypeDirective> {
+        var directives: Set<TypeDirective> = []
+        while tok == .directive {
+            guard let directive = TypeDirective(rawValue: lit) else {
+                reportError("Directive \(lit) not a valid type directive", at: pos)
+                next()
+                continue
+            }
+            if directives.contains(directive) {
+                reportError("Duplicate directive \(directive)", at: pos)
+            }
+            directives.insert(directive)
+            next()
+        }
+        return directives
+    }
+
     mutating func parseStructType() -> Expr {
         let keyword = eatToken()
-
+        let directives = parseTypeDirectives()
         if tok == .lparen {
             return parsePolymorphicStructType()
         }
@@ -544,7 +554,7 @@ extension Parser {
             next()
         }
         let rbrace = expect(.rbrace)
-        return StructType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace, type: nil, checked: nil)
+        return StructType(keyword: keyword, directives: directives, lbrace: lbrace, fields: fields, rbrace: rbrace, type: nil, checked: nil)
     }
 
     mutating func parseEnumType() -> Expr {
@@ -572,30 +582,27 @@ extension Parser {
 
     mutating func parseUnionType() -> Expr {
         let keyword = eatToken()
-        let lrbrace = expect(.lbrace)
-        var fields: [StructField] = []
-        if tok != .rbrace {
-            fields = parseStructFieldList()
-        }
-        if tok == .semicolon {
-            next()
-        }
-        let rbrace = expect(.rbrace)
-        return UnionType(keyword: keyword, lbrace: lrbrace, fields: fields, rbrace: rbrace, type: nil)
-    }
-
-    mutating func parseVariantType() -> Expr {
-        let keyword = eatToken()
+        let directives = parseTypeDirectives()
         let lbrace = expect(.lbrace)
+        var tag: StructField?
         var fields: [StructField] = []
         if tok != .rbrace {
             fields = parseStructFieldList()
+            if let (index, field) = fields.enumerated().first(where: { $0.element.names.contains(where: { $0.name == "Tag" }) }) {
+                if field.names.count > 1 {
+                    reportError("Tag must be declared as a singular member", at: field.names.first(where: { $0.name == "Tag" })!.start)
+                }
+                tag = fields.remove(at: index)
+            }
+        }
+        if fields.isEmpty {
+            reportError("Unions require at least a single member", at: pos)
         }
         if tok == .semicolon {
             next()
         }
         let rbrace = expect(.rbrace)
-        return VariantType(keyword: keyword, lbrace: lbrace, fields: fields, rbrace: rbrace, type: nil)
+        return UnionType(keyword: keyword, directives: directives, lbrace: lbrace, tag: tag, fields: fields, rbrace: rbrace, type: nil)
     }
 
     mutating func parsePolymorphicStructType() -> Expr {
@@ -786,7 +793,7 @@ extension Parser {
         switch tok {
         case .ident, .int, .float, .string, .fn, .lparen, // operands
              .lbrack, .struct, .union, .enum,             // composite types
-             .add, .sub, .mul, .and, .xor, .not, .lss:    // unary operators
+             .add, .sub, .mul, .and, .xor, .not, .bnot, .lss:          // unary operators
              let s = parseSimpleStmt()
             expectTerm()
             return s
@@ -938,11 +945,11 @@ extension Parser {
     mutating func parseSwitchStmt() -> Switch {
         let keyword = eatToken()
         var match: Expr?
+        var flags: Switch.Flags = .none
 
-        var usingMatch = false
         if tok == .using {
             next()
-            usingMatch = true
+            flags.insert(.using)
         }
 
         if tok != .lbrace && tok != .semicolon {
@@ -959,7 +966,7 @@ extension Parser {
         }
         let rbrace = expect(.rbrace)
         expectTerm()
-        return Switch(keyword: keyword, match: match, usingMatch: usingMatch, cases: cases, rbrace: rbrace, label: nil)
+        return Switch(keyword: keyword, match: match, cases: cases, rbrace: rbrace, flags: flags, label: nil)
     }
 
     mutating func parseCaseClause() -> CaseClause {
@@ -968,10 +975,19 @@ extension Parser {
         if tok != .colon {
             match = parseExprList()
         }
+        var binding: Ident?
+        if tok == .ident && lit == "binding" {
+            let bindingWord = pos
+            next()
+            binding = parseIdent()
+            if match.count > 1 || match.count == 0 {
+                reportError("Cannot create binding \(binding!) for multiple matches", at: bindingWord)
+            }
+        }
         let colon = expect(.colon)
         let body = parseStmtList()
         let block = Block(lbrace: colon, stmts: body, rbrace: body.last?.end ?? colon)
-        return CaseClause(keyword: keyword, match: match, colon: colon, block: block, label: nil)
+        return CaseClause(keyword: keyword, match: match, binding: binding, colon: colon, block: block, label: nil)
     }
 
     mutating func parseForStmt() -> Stmt {

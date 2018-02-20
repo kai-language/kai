@@ -97,13 +97,6 @@ func entity(from expr: Expr) -> Entity? {
 
 extension Entity {
 
-    static func makeBuiltin(_ name: String, type: Type? = nil, flags: Flag = .none) -> Entity {
-
-        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
-        let entity = Entity(ident: ident, type: type, flags: flags)
-        return entity
-    }
-
     static func makeAnonLabel() -> Entity {
         let entity = copy(Entity.anonymous)
         entity.flags.insert(.label)

@@ -354,10 +354,13 @@ class Selector: Node, Expr, Convertable {
         case `struct`(ty.Struct.Field)
         case `enum`(ty.Enum.Case)
         case union(ty.Union.Case)
+        case unionTag
         case array(ArrayMember)
         case staticLength(Int)
         case scalar(Int)
         case swizzle([Int])
+        case anyData
+        case anyType
 
         enum ArrayMember: Int {
             case raw
@@ -432,42 +435,26 @@ init(rec: Expr, lbrack: Pos, lo: Expr?, hi: Expr?, rbrack: Pos, type: Type!) {
 // sourcery:end
 }
 
-class Autocast: Node, Expr {
-    var keyword: Pos
-    var expr: Expr
-
-    var type: Type!
-
-    var start: Pos { return keyword }
-    var end: Pos { return expr.end }
-
-// sourcery:inline:auto:Autocast.Init
-init(keyword: Pos, expr: Expr, type: Type!) {
-    self.keyword = keyword
-    self.expr = expr
-    self.type = type
-}
-// sourcery:end
-}
-
-class Cast: Node, Expr {
+class Cast: Node, Expr, Convertable {
     var keyword: Pos
     var kind: Token
-    var explicitType: Expr
+    var explicitType: Expr?
     var expr: Expr
 
     var type: Type!
+    var conversion: (from: Type, to: Type)?
 
     var start: Pos { return keyword }
     var end: Pos { return expr.end }
 
 // sourcery:inline:auto:Cast.Init
-init(keyword: Pos, kind: Token, explicitType: Expr, expr: Expr, type: Type!) {
+init(keyword: Pos, kind: Token, explicitType: Expr?, expr: Expr, type: Type!, conversion: (from: Type, to: Type)?) {
     self.keyword = keyword
     self.kind = kind
     self.explicitType = explicitType
     self.expr = expr
     self.type = type
+    self.conversion = conversion
 }
 // sourcery:end
 }
@@ -507,6 +494,7 @@ init(fun: Expr, lparen: Pos, labels: [Ident?], args: [Expr], rparen: Pos, type: 
 }
 
 class Unary: Node, Expr, Convertable {
+
     var start: Pos
     var op: Token
     var element: Expr
@@ -691,6 +679,7 @@ init(lbrack: Pos, size: Expr, rbrack: Pos, explicitType: Expr, type: Type!) {
 
 class StructType: Node, Expr {
     var keyword: Pos
+    var directives: Set<TypeDirective>
     var lbrace: Pos
     var fields: [StructField]
     var rbrace: Pos
@@ -707,8 +696,9 @@ class StructType: Node, Expr {
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:StructType.Init
-init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!, checked: Checked!) {
+init(keyword: Pos, directives: Set<TypeDirective>, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!, checked: Checked!) {
     self.keyword = keyword
+    self.directives = directives
     self.lbrace = lbrace
     self.fields = fields
     self.rbrace = rbrace
@@ -764,8 +754,10 @@ init(keyword: Pos, explicitType: Expr?, cases: [EnumCase], rbrace: Pos, type: Ty
 
 class UnionType: Node, Expr {
     var keyword: Pos
+    var directives: Set<TypeDirective>
     var lbrace: Pos
-    var fields: [StructField]
+    var tag: StructField?
+    var fields: [StructField] // TODO: Switch to `UnionField` so we can provide customizations specific to union members
     var rbrace: Pos
 
     var type: Type!
@@ -774,31 +766,11 @@ class UnionType: Node, Expr {
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:UnionType.Init
-init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!) {
+init(keyword: Pos, directives: Set<TypeDirective>, lbrace: Pos, tag: StructField?, fields: [StructField], rbrace: Pos, type: Type!) {
     self.keyword = keyword
+    self.directives = directives
     self.lbrace = lbrace
-    self.fields = fields
-    self.rbrace = rbrace
-    self.type = type
-}
-// sourcery:end
-}
-
-class VariantType: Node, Expr {
-    var keyword: Pos
-    var lbrace: Pos
-    var fields: [StructField]
-    var rbrace: Pos
-
-    var type: Type!
-
-    var start: Pos { return keyword }
-    var end: Pos { return rbrace }
-
-// sourcery:inline:auto:VariantType.Init
-init(keyword: Pos, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!) {
-    self.keyword = keyword
-    self.lbrace = lbrace
+    self.tag = tag
     self.fields = fields
     self.rbrace = rbrace
     self.type = type
@@ -1049,6 +1021,7 @@ init(keyword: Pos, cond: Expr, body: Stmt, els: Stmt?) {
 class CaseClause: Node, Stmt {
     var keyword: Pos
     var match: [Expr]
+    var binding: Ident?
     var colon: Pos
     var block: Block
 
@@ -1058,9 +1031,10 @@ class CaseClause: Node, Stmt {
     var end: Pos { return block.end }
 
 // sourcery:inline:auto:CaseClause.Init
-init(keyword: Pos, match: [Expr], colon: Pos, block: Block, label: Entity!) {
+init(keyword: Pos, match: [Expr], binding: Ident?, colon: Pos, block: Block, label: Entity!) {
     self.keyword = keyword
     self.match = match
+    self.binding = binding
     self.colon = colon
     self.block = block
     self.label = label
@@ -1071,22 +1045,31 @@ init(keyword: Pos, match: [Expr], colon: Pos, block: Block, label: Entity!) {
 class Switch: Node, Stmt {
     var keyword: Pos
     var match: Expr?
-    var usingMatch: Bool
     var cases: [CaseClause]
     var rbrace: Pos
+
+    var flags: Flags
 
     var label: Entity!
 
     var start: Pos { return keyword }
     var end: Pos { return rbrace }
 
+    struct Flags: OptionSet {
+        let rawValue: UInt8
+
+        static let none  = Flags(rawValue: 0b0000)
+        static let using = Flags(rawValue: 0b0001)
+        static let type  = Flags(rawValue: 0b0010)
+    }
+
 // sourcery:inline:auto:Switch.Init
-init(keyword: Pos, match: Expr?, usingMatch: Bool, cases: [CaseClause], rbrace: Pos, label: Entity!) {
+init(keyword: Pos, match: Expr?, cases: [CaseClause], rbrace: Pos, flags: Flags, label: Entity!) {
     self.keyword = keyword
     self.match = match
-    self.usingMatch = usingMatch
     self.cases = cases
     self.rbrace = rbrace
+    self.flags = flags
     self.label = label
 }
 // sourcery:end
@@ -1335,6 +1318,10 @@ init(start: Pos, end: Pos) {
     self.end = end
 }
 // sourcery:end
+}
+
+func isAddressOfExpr(_ e: Expr) -> Bool {
+    return (e as? Unary)?.op == .and
 }
 
 struct FunctionFlags: OptionSet {

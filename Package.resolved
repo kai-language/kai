@@ -11,11 +11,20 @@
         }
       },
       {
+        "package": "FileCheck",
+        "repositoryURL": "https://github.com/trill-lang/FileCheck.git",
+        "state": {
+          "branch": null,
+          "revision": "1c966580c83cf2e41be802992d46fe2edfc5c95f",
+          "version": "0.0.5"
+        }
+      },
+      {
         "package": "LLVM",
         "repositoryURL": "https://github.com/vdka/LLVMSwift.git",
         "state": {
           "branch": "master",
-          "revision": "179d5614874e4c7dda4b830911d4d225d1c7b758",
+          "revision": "a685df6ac7647c3e4b9cee922dab8764f06c032e",
           "version": null
         }
       },

@@ -17,7 +17,7 @@ extension ty.Integer {
     }
 }
 
-extension ty.FloatingPoint {
+extension ty.Float {
     var description: String {
         return "f\(width!)"
     }
@@ -45,12 +45,6 @@ extension ty.Union {
     var description: String {
 
         return "union{" + cases.orderedValues.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
-    }
-}
-
-extension ty.Variant {
-    var description: String {
-        return "variant{" + cases.orderedValues.map({ $0.ident.name + ": " + $0.type.description }).joined(separator: ", ") + "}"
     }
 }
 
@@ -115,7 +109,7 @@ extension ty.UntypedInteger {
     }
 }
 
-extension ty.UntypedFloatingPoint {
+extension ty.UntypedFloat {
     var description: String {
         return "float"
     }

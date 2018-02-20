@@ -30,6 +30,13 @@ func not(_ value: Value) -> Value {
     }
 }
 
+func bnot(_ value: Value) -> Value {
+    guard let v = value as? UInt64 else {
+        return value
+    }
+    return ~v
+}
+
 private func application(for token: Token) -> ((Value, Value) -> Value?)? {
     switch token {
     case .lss:

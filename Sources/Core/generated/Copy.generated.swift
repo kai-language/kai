@@ -29,18 +29,6 @@ func copy(_ nodes: [Assign]) -> [Assign] {
     return nodes.map(copy)
 }
 
-func copy(_ node: Autocast) -> Autocast {
-    return Autocast(
-        keyword: node.keyword,
-        expr: copy(node.expr),
-        type: node.type
-    )
-}
-
-func copy(_ nodes: [Autocast]) -> [Autocast] {
-    return nodes.map(copy)
-}
-
 func copy(_ node: BadDecl) -> BadDecl {
     return BadDecl(
         start: node.start,
@@ -152,6 +140,7 @@ func copy(_ node: CaseClause) -> CaseClause {
     return CaseClause(
         keyword: node.keyword,
         match: copy(node.match),
+        binding: node.binding.map(copy),
         colon: node.colon,
         block: copy(node.block),
         label: node.label
@@ -166,9 +155,10 @@ func copy(_ node: Cast) -> Cast {
     return Cast(
         keyword: node.keyword,
         kind: node.kind,
-        explicitType: copy(node.explicitType),
+        explicitType: node.explicitType.map(copy),
         expr: copy(node.expr),
-        type: node.type
+        type: node.type,
+        conversion: node.conversion
     )
 }
 
@@ -654,6 +644,7 @@ func copy(_ nodes: [StructField]) -> [StructField] {
 func copy(_ node: StructType) -> StructType {
     return StructType(
         keyword: node.keyword,
+        directives: node.directives,
         lbrace: node.lbrace,
         fields: copy(node.fields),
         rbrace: node.rbrace,
@@ -685,9 +676,9 @@ func copy(_ node: Switch) -> Switch {
     return Switch(
         keyword: node.keyword,
         match: node.match.map(copy),
-        usingMatch: node.usingMatch,
         cases: copy(node.cases),
         rbrace: node.rbrace,
+        flags: node.flags,
         label: node.label
     )
 }
@@ -729,7 +720,9 @@ func copy(_ nodes: [Unary]) -> [Unary] {
 func copy(_ node: UnionType) -> UnionType {
     return UnionType(
         keyword: node.keyword,
+        directives: node.directives,
         lbrace: node.lbrace,
+        tag: node.tag.map(copy),
         fields: copy(node.fields),
         rbrace: node.rbrace,
         type: node.type
@@ -764,20 +757,6 @@ func copy(_ nodes: [VariadicType]) -> [VariadicType] {
     return nodes.map(copy)
 }
 
-func copy(_ node: VariantType) -> VariantType {
-    return VariantType(
-        keyword: node.keyword,
-        lbrace: node.lbrace,
-        fields: copy(node.fields),
-        rbrace: node.rbrace,
-        type: node.type
-    )
-}
-
-func copy(_ nodes: [VariantType]) -> [VariantType] {
-    return nodes.map(copy)
-}
-
 func copy(_ node: VectorType) -> VectorType {
     return VectorType(
         lbrack: node.lbrack,
@@ -795,7 +774,6 @@ func copy(_ nodes: [VectorType]) -> [VectorType] {
 func copy(_ node: Expr) -> Expr {
     switch node {
     case let node as ArrayType: return copy(node)
-    case let node as Autocast: return copy(node)
     case let node as BadExpr: return copy(node)
     case let node as BasicLit: return copy(node)
     case let node as Binary: return copy(node)
@@ -823,7 +801,6 @@ func copy(_ node: Expr) -> Expr {
     case let node as Unary: return copy(node)
     case let node as UnionType: return copy(node)
     case let node as VariadicType: return copy(node)
-    case let node as VariantType: return copy(node)
     case let node as VectorType: return copy(node)
     default: fatalError()
     }

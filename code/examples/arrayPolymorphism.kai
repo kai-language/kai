@@ -1,5 +1,6 @@
 
 #import kai("posix")
+#import builtin("types")
 
 main :: fn() -> void {
 
@@ -42,12 +43,12 @@ append :: fn(arr: []$T, val: T) -> []T {
 
 reserve :: fn(arr: []$T, cap: u64) -> []T {
     if arr.cap == 0 {
-        buf := cast(*T) posix.malloc(cap * sizeof(T))
-        cpy := cast(*T) posix.memcpy(buf, arr.raw, arr.len * sizeof(T))
+        buf := cast(*T) posix.malloc(cap * types.SizeOf(T))
+        cpy := cast(*T) posix.memcpy(buf, arr.raw, arr.len * types.SizeOf(T))
         arr.raw = cpy
     }
     else if arr.cap < cap {
-        buf := cast(*T) posix.realloc(arr.raw, cap * sizeof(T))
+        buf := cast(*T) posix.realloc(arr.raw, cap * types.SizeOf(T))
         arr.raw = buf
     }
     else { // arr.cap >= cap

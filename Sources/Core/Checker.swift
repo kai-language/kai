@@ -409,7 +409,7 @@ extension Checker {
             context.function = ident.entity
             let operand = check(funcType: value.explicitType)
             ident.entity.type = operand.type.lower()
-        } else if value is StructType || value is PolyStructType || value is UnionType || value is VariantType || value is EnumType {
+        } else if value is StructType || value is PolyStructType || value is UnionType || value is EnumType { // FIXME: Use `isStruct` etc
             // declare a stub type, collect all member declarations
             let stub = ty.Named(entity: ident.entity, base: nil)
             ident.entity.type = ty.Metatype(instanceType: stub)
@@ -546,7 +546,7 @@ extension Checker {
             }
 
             ident.entity.flags.insert(.checked)
-            ident.entity.type = operand.type
+            ident.entity.type = expectedType ?? operand.type
         }
 
         return dependencies
@@ -926,12 +926,16 @@ extension Checker {
             dependencies.formUnion(operand.dependencies)
 
             type = operand.type
-            guard isInteger(operand.type) || isEnum(operand.type) else {
-                reportError("Can only switch on integer and enum types", at: match.start)
+            guard isInteger(type!) || isEnum(type!) || isUnion(type!) else {
+                reportError("Cannot switch on type '\(type!)'. Can only switch on integer and enum types", at: match.start)
                 return dependencies
             }
 
-            if sw.usingMatch {
+            if isUnion(type!) {
+                sw.flags.insert(.type)
+            }
+
+            if sw.isUsing {
                 guard let type = baseType(match.type) as? ty.Enum else {
                     reportError("using is invalid on \(operand)", at: match.start)
                     return dependencies
@@ -943,7 +947,7 @@ extension Checker {
                     declare(entity)
                 }
             }
-        } else if sw.usingMatch {
+        } else if sw.isUsing {
             reportError("Using expects an entity", at: sw.start)
         }
 
@@ -954,7 +958,29 @@ extension Checker {
         }
 
         for (c, nextCase) in sw.cases.enumerated().map({ ($0.element, sw.cases[safe: $0.offset + 1]) }) {
-            if !c.match.isEmpty {
+            var binding: Entity?
+            if !c.match.isEmpty, let union = type.map(baseType) as? ty.Union {
+                if c.match.count > 1 {
+                    reportError("Cannot match multiple union members", at: c.match[1].start)
+                }
+
+                guard let ident = c.match[0] as? Ident else {
+                    continue
+                }
+                guard let unionCase = union.cases[ident.name] else {
+                    reportError("Union '\(type!)' has no member \(ident)", at: ident.start)
+                    continue
+                }
+
+                if let bIdent = c.binding {
+                    binding = newEntity(ident: bIdent, type: unionCase.type, flags: .none)
+                    bIdent.entity = binding
+                    bIdent.type = unionCase.type
+                }
+
+                ident.constant = UInt64(unionCase.tag)
+
+            } else if !c.match.isEmpty {
                 for match in c.match {
                     if let desiredType = type {
                         let operand = check(expr: match, desiredType: desiredType)
@@ -982,6 +1008,7 @@ extension Checker {
 
             context.nextCase = nextCase
             pushContext()
+            binding.map({ declare($0) })
             let deps = check(stmt: c.block)
             popContext()
             dependencies.formUnion(deps)
@@ -1006,7 +1033,7 @@ extension Checker {
             if let desiredType = desiredType {
                 return Operand(mode: .computed, expr: expr, type: desiredType, constant: expr, dependencies: [])
             }
-            return Operand(mode: .computed, expr: expr, type: ty.untypedNil, constant: expr, dependencies: [])
+            return Operand(mode: .computed, expr: expr, type: builtin.untypedNil.type, constant: expr, dependencies: [])
 
             // TODO: Should the following errors be used?
             /*
@@ -1043,7 +1070,7 @@ extension Checker {
 
         case let variadic as VariadicType:
             var operand = check(expr: variadic.explicitType)
-            operand.type = ty.Metatype(instanceType: ty.Slice(elementType: lowerFromMetatype(operand.type, atNode: expr)))
+            operand.type = ty.Metatype(instanceType: ty.Slice(lowerFromMetatype(operand.type, atNode: expr)))
             expr.type = operand.type
             return operand
 
@@ -1051,7 +1078,7 @@ extension Checker {
             let operand = check(expr: pointer.explicitType)
             let pointee = lowerFromMetatype(operand.type, atNode: pointer.explicitType)
             // TODO: If this cannot be lowered we should not that `<` is used for deref
-            let type = ty.Pointer(pointeeType: pointee)
+            let type = ty.Pointer(pointee)
             pointer.type = ty.Metatype(instanceType: type)
             return Operand(mode: .type, expr: expr, type: pointer.type, constant: nil, dependencies: operand.dependencies)
 
@@ -1080,7 +1107,7 @@ extension Checker {
             let elementOperand = check(expr: array.explicitType)
             let elementType = lowerFromMetatype(elementOperand.type, atNode: array)
 
-            let type = ty.Slice(elementType: elementType)
+            let type = ty.Slice(elementType)
             array.type = ty.Metatype(instanceType: type)
             return Operand(mode: .type, expr: expr, type: array.type, constant: nil, dependencies: elementOperand.dependencies)
 
@@ -1115,9 +1142,6 @@ extension Checker {
         case let u as UnionType:
             return check(union: u)
 
-        case let v as VariantType:
-            return check(variant: v)
-
         case let e as EnumType:
             return check(enumType: e)
 
@@ -1146,10 +1170,7 @@ extension Checker {
             return check(call: call, desiredType: desiredType)
 
         case let cast as Cast:
-            return check(cast: cast)
-
-        case let autocast as Autocast:
-            return check(autocast: autocast, desiredType: desiredType)
+            return check(cast: cast, desiredType: desiredType)
 
         case let l as LocationDirective:
             return check(locationDirective: l, desiredType: desiredType)
@@ -1596,9 +1617,17 @@ extension Checker {
             }
         }
         var type: Type
-        type = ty.Struct(width: width, node: s, fields: fields, isPolymorphic: false)
+        var flags: ty.Struct.Flags = .none
+        if s.directives.contains(.packed) {
+            flags.insert(.packed)
+            s.directives.remove(.packed)
+        }
+        type = ty.Struct(width: width, flags: flags, node: s, fields: fields, isPolymorphic: false)
         type = ty.Metatype(instanceType: type)
         s.type = type
+        for directive in s.directives {
+            reportError("Directive \(directive) not valid on type of kind struct", at: s.keyword)
+        }
         return Operand(mode: .type, expr: s, type: type, constant: nil, dependencies: dependencies)
     }
 
@@ -1632,7 +1661,7 @@ extension Checker {
             }
         }
         var type: Type
-        type = ty.Struct(width: width, node: polyStruct, fields: fields, isPolymorphic: true)
+        type = ty.Struct(width: width, flags: .none, node: polyStruct, fields: fields, isPolymorphic: true)
         type = ty.Metatype(instanceType: type)
         polyStruct.type = type
         return Operand(mode: .type, expr: polyStruct, type: type, constant: nil, dependencies: dependencies)
@@ -1643,12 +1672,12 @@ extension Checker {
 
         var largestWidth = 0
         var cases: [ty.Union.Case] = []
-        for x in u.fields {
+        for (i, x) in u.fields.enumerated() {
             let operand = check(field: x)
             dependencies.formUnion(operand.dependencies)
 
             for name in x.names {
-                let casé = ty.Union.Case(ident: name, type: operand.type)
+                let casé = ty.Union.Case(ident: name, type: operand.type, tag: i)
                 cases.append(casé)
                 let width = operand.type.width!.round(upToNearest: 8)
                 if width > largestWidth {
@@ -1657,40 +1686,26 @@ extension Checker {
             }
         }
 
+        if let tag = u.tag {
+            let operand = check(field: tag)
+            if operand.type.width! < cases.count.bitsNeeded() {
+                reportError("Tag specifies a width of \(operand.type!.width!) bits but the union has \(cases.count) cases, requiring \(cases.count.bitsNeeded()) bits for inferred tagging", at: tag.start)
+            }
+        }
+
         var type: Type
-        type = ty.Union(width: largestWidth, cases: cases)
+        var flags: ty.Union.Flags = .none
+        if u.directives.contains(.inlineTag) {
+            flags.insert(.inlineTag)
+            u.directives.remove(.inlineTag)
+        }
+        type = ty.Union(width: largestWidth, flags: flags, cases: cases)
         type = ty.Metatype(instanceType: type)
         u.type = type
-        return Operand(mode: .type, expr: u, type: type, constant: nil, dependencies: dependencies)
-    }
-
-    mutating func check(variant v: VariantType) -> Operand {
-        var dependencies: Set<Entity> = []
-
-        var index = 0
-        var largestWidth = 0
-        var cases: [ty.Variant.Case] = []
-        for x in v.fields {
-            let operand = check(field: x)
-            dependencies.formUnion(operand.dependencies)
-
-            for name in x.names {
-                let casé = ty.Variant.Case(ident: name, type: operand.type, index: index)
-                cases.append(casé)
-                let width = operand.type.width!.round(upToNearest: 8)
-                if width > largestWidth {
-                    largestWidth = width
-                }
-
-                index += 1
-            }
+        for directive in u.directives {
+            reportError("Directive \(directive) not valid on type of kind union", at: u.keyword)
         }
-
-        var type: Type
-        type = ty.Variant(width: largestWidth, cases: cases)
-        type = ty.Metatype(instanceType: type)
-        v.type = type
-        return Operand(mode: .type, expr: v, type: type, constant: nil, dependencies: dependencies)
+        return Operand(mode: .type, expr: u, type: type, constant: nil, dependencies: dependencies)
     }
 
     @discardableResult
@@ -1787,6 +1802,13 @@ extension Checker {
             }
             constant = operand.constant.map(not)
 
+        case .bnot:
+            guard isInteger(type) else {
+                reportError("Invalid operation '\(unary.op)' on \(operand), expected type of kind Integer", at: unary.start)
+                return Operand.invalid
+            }
+            constant = operand.constant.map(bnot)
+
         case .lss:
             guard let pointer = baseType(type) as? ty.Pointer else {
                 reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
@@ -1799,7 +1821,7 @@ extension Checker {
                 reportError("Cannot take the address of a non lvalue", at: unary.start)
                 return Operand.invalid
             }
-            type = ty.Pointer(pointeeType: type)
+            type = ty.Pointer(type)
 
         default:
             reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
@@ -2037,7 +2059,7 @@ extension Checker {
         switch baseType(underlyingType) {
         case let file as ty.File:
             guard let member = file.memberScope.lookup(selector.sel.name) else {
-                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                reportError("Member '\(selector.sel)' not found in scope of \(operand)", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
                 return Operand.invalid
@@ -2068,7 +2090,7 @@ extension Checker {
 
         case let strućt as ty.Struct:
             guard let field = strućt.fields[selector.sel.name] else {
-                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                reportError("Member '\(selector.sel)' not found in scope of \(operand)", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
                 return Operand.invalid
@@ -2083,7 +2105,7 @@ extension Checker {
                 selector.checked = .staticLength(array.length)
                 selector.type = ty.u64
             default:
-                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                reportError("Member '\(selector.sel)' not found in scope of \(operand)", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
                 return Operand.invalid
@@ -2094,7 +2116,7 @@ extension Checker {
             switch selector.sel.name {
             case "raw":
                 selector.checked = .array(.raw)
-                selector.type = ty.Pointer(pointeeType: slice.elementType)
+                selector.type = ty.Pointer(slice.elementType)
             case "len":
                 selector.checked = .array(.length)
                 selector.type = ty.u64
@@ -2102,7 +2124,7 @@ extension Checker {
                 selector.checked = .array(.capacity)
                 selector.type = ty.u64
             default:
-                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                reportError("Member '\(selector.sel)' not found in scope of \(operand)", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
             }
@@ -2123,7 +2145,7 @@ extension Checker {
                 case "w" where vector.size >= 4, "a" where vector.size >= 4:
                     indices.append(3)
                 default:
-                    reportError("'\(name)' is not a component of '\(selector.rec)'", at: selector.sel.start)
+                    reportError("'\(name)' is not a component of \(operand)'", at: selector.sel.start)
                     selector.checked = .invalid
                     selector.type = ty.invalid
                     return Operand(mode: .addressable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
@@ -2140,9 +2162,31 @@ extension Checker {
 
             return Operand(mode: .assignable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
 
+        case is ty.Anyy:
+            switch selector.sel.name {
+            case "type":
+                selector.checked = .anyType
+                selector.type = builtin.types.typeInfoType
+
+            case "data":
+                selector.checked = .anyData
+                selector.type = ty.rawptr
+
+            default:
+                reportError("Member '\(selector.sel)' not found in scope of \(operand)", at: selector.sel.start)
+                selector.checked = .invalid
+                selector.type = ty.invalid
+            }
+            return Operand(mode: .addressable, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
+
         case let union as ty.Union:
+            if selector.sel.name == "Tag" {
+                selector.checked = .unionTag
+                selector.type = union.tagType
+                return Operand(mode: .addressable, expr: selector, type: union.tagType, constant: nil, dependencies: dependencies)
+            }
             guard let casé = union.cases[selector.sel.name] else {
-                reportError("Member '\(selector.sel)' not found in scope of '\(selector.rec)'", at: selector.sel.start)
+                reportError("Member '\(selector.sel)' not found in scope of \(operand)", at: selector.sel.start)
                 selector.checked = .invalid
                 selector.type = ty.invalid
                 return Operand.invalid
@@ -2174,7 +2218,7 @@ extension Checker {
         default:
             // Don't spam diagnostics if the type is already invalid
             if !(baseType(operand.type) is ty.Invalid) {
-                reportError("\(operand), does not have a member scope", at: selector.start)
+                reportError("\(operand) does not have a member scope", at: selector.start)
             }
 
             selector.checked = .invalid
@@ -2258,7 +2302,7 @@ extension Checker {
 
         switch baseType(receiver.type) {
         case let x as ty.Array:
-            slice.type = ty.Slice(elementType: x.elementType)
+            slice.type = ty.Slice(x.elementType)
             // TODO: Check for invalid hi & lo's when constant
 
         case let x as ty.Slice:
@@ -2324,12 +2368,14 @@ extension Checker {
         }
 
         var builtin: BuiltinFunction?
-        if calleeFn.isBuiltin, let b = lookupBuiltinFunction(call.fun) {
+        let funEntity = entity(from: call.fun)
+        if calleeFn.isBuiltin, let b = builtinFunctions.first(where: { $0.entity === funEntity }) {
             if let customCheck = b.onCallCheck {
 
-                // FIXME: How to do Dependencies for customChecks for builtin's??
                 var returnType = customCheck(&self, call)
-                returnType = splatTuple(returnType as! ty.Tuple)
+                if let tuple = returnType as? ty.Tuple {
+                    returnType = splatTuple(tuple)
+                }
 
                 call.type = returnType
                 call.checked = .builtinCall(b)
@@ -2391,33 +2437,19 @@ extension Checker {
     }
 
     @discardableResult
-    mutating func check(autocast: Autocast, desiredType: Type?) -> Operand {
-        guard let desiredType = desiredType else {
-            reportError("Unabled to infer type for autocast", at: autocast.keyword)
-            autocast.type = ty.invalid
-            return Operand.invalid
-        }
-
-        let operand = check(expr: autocast.expr, desiredType: desiredType)
-
-        autocast.type = desiredType
-        guard canCast(operand.type, to: desiredType) else {
-            reportError("Cannot cast between \(operand) and unrelated type '\(desiredType)'", at: autocast.start)
-            autocast.type = ty.invalid
-            return Operand(mode: .computed, expr: autocast, type: ty.invalid, constant: nil, dependencies: operand.dependencies)
-        }
-
-        return Operand(mode: .computed, expr: autocast, type: desiredType, constant: nil, dependencies: operand.dependencies)
-    }
-
-    @discardableResult
-    mutating func check(cast: Cast) -> Operand {
+    mutating func check(cast: Cast, desiredType: Type?) -> Operand {
         var dependencies: Set<Entity> = []
 
-        var operand = check(expr: cast.explicitType)
-        dependencies.formUnion(operand.dependencies)
+        var operand: Operand
+        var targetType = desiredType ?? ty.invalid
 
-        var targetType = lowerFromMetatype(operand.type, atNode: cast.explicitType)
+
+        if let explicitType = cast.explicitType {
+            operand = check(expr: explicitType)
+            targetType = lowerFromMetatype(operand.type, atNode: explicitType)
+
+            dependencies.formUnion(operand.dependencies)
+        }
 
         if let poly = targetType as? ty.Polymorphic, let val = poly.specialization.val {
             targetType = val
@@ -2441,6 +2473,12 @@ extension Checker {
         */
 
         switch cast.kind {
+        case .autocast:
+            if desiredType == nil {
+                reportError("Unabled to infer type for autocast", at: cast.keyword)
+            }
+            fallthrough
+
         case .cast:
             guard canCast(exprType, to: targetType) else {
                 reportError("Cannot cast \(operand) to unrelated type '\(targetType)'", at: cast.start)
@@ -2449,7 +2487,7 @@ extension Checker {
 
         case .bitcast:
             guard exprType.width == targetType.width else {
-                reportError("Cannot bitcast \(operand) to type of different size (\(targetType))", at: cast.keyword)
+                reportError("Cannot bitcast \(operand) with width of \(operand.type.width!) to type of different size (\(targetType)) with width of \(targetType.width!)", at: cast.keyword)
                 return Operand(mode: .computed, expr: cast, type: targetType, constant: nil, dependencies: dependencies)
             }
 
@@ -2811,7 +2849,7 @@ func canSequence(_ type: Type) -> Bool {
 
 func canVector(_ type: Type) -> Bool {
     switch baseType(type) {
-    case is ty.Integer, is ty.FloatingPoint, is ty.Polymorphic:
+    case is ty.Integer, is ty.Float, is ty.Polymorphic:
         return true
     default:
         return false

@@ -256,7 +256,7 @@ extension SourcePackage: Importable {
 
 extension SourceFile: Importable {
     var importees: [Importable] {
-        return imports.map { i in
+        return imports.flatMap { i in
             return i.importee
         }
     }
