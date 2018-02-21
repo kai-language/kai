@@ -239,7 +239,7 @@ extension IRGenerator {
         guard specializations.isEmpty else {
             // Only the generated package may have specializations set.
             for specialization in specializations {
-                specialization.llvm = emit(funcLit: specialization.generatedFunctionNode, entity: nil, specializationMangle: specialization.mangledName)
+                _ = emit(funcLit: specialization.generatedFunctionNode, entity: nil, specializationMangle: specialization.mangledName)
             }
 /*
             let mangledName = entity.map(symbol) ?? ".fn"
