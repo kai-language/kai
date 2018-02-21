@@ -1,0 +1,22 @@
+
+#library "libc"
+
+#foreign libc #callconv "c" {
+    printf :: (fmt: rawptr, args: #cvargs ..any) -> i32
+}
+
+main :: fn() -> i32 {
+
+    v: any = cast(f64) 8.34
+
+    switch v {
+    case i64:
+        printf("i64: %ld\n".raw, v)
+    case f64:
+        printf("f64: %f\n".raw, v)
+    case:
+        printf("Default\n".raw)
+    }
+
+    return 0
+}

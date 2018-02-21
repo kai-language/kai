@@ -5,22 +5,22 @@
 width :: fn(type: types.Type) -> u64 {
 
     switch type {
-    case Simple binding s:
-        switch s {
-        case Integer binding i: return cast(u64) i.Width
-        case Boolean binding b: return cast(u64) b.Width
-        case Float   binding f: return cast(u64) f.Width
-        case Any:  return cast(u64) platform.PointerWidth * 2
-        case Void: return 0
-        case: return 0
+    case Simple:
+        switch type {
+        case Integer: return cast(u64) type.Width
+        case Boolean: return cast(u64) type.Width
+        case Float:   return cast(u64) type.Width
+        case Any:     return cast(u64) platform.PointerWidth * 2
+        case Void:    return 0
+        case:         return 0
         }
-    case Struct binding ptr:
-        s := bitcast(*types.Struct) (bitcast(u64) ptr & ~0b111)
+    case Struct:
+        s := bitcast(*types.Struct) (bitcast(u64) type & ~0b111)
         // the offset of the last field + the width of it's type is a structs total width.
         f := s.Fields[s.Fields.len - 1]
         return f.Offset + width(f.Type)
-    case Union binding ptr:
-        u := bitcast(*types.Union) (bitcast(u64) ptr & ~0b111)
+    case Union:
+        u := bitcast(*types.Union) (bitcast(u64) type & ~0b111)
         // a unions width is equal to it's largest member
         max: u64 = 0
         for c in u.Cases {
@@ -28,13 +28,13 @@ width :: fn(type: types.Type) -> u64 {
                 max = width(c.Type)
         }
         return max
-    case Enum binding ptr:
-        u := bitcast(*types.Union) (bitcast(u64) ptr & ~0b111)
+    case Enum:
+        u := bitcast(*types.Union) (bitcast(u64) type & ~0b111)
         return (cast(u64) posix.floor(posix.log2(cast(f64) u.Cases.len - 1))) + 1
-    case Function binding f:
+    case Function:
         return cast(u64) platform.PointerWidth
-    case Array binding ptr:
-        a := bitcast(*types.Array) (bitcast(u64) ptr & ~0b111)
+    case Array:
+        a := bitcast(*types.Array) (bitcast(u64) type & ~0b111)
         return a.Length * width(a.ElementType)
     case Slice:
         return 3 * cast(u64) platform.PointerWidth
@@ -46,14 +46,14 @@ width :: fn(type: types.Type) -> u64 {
 
 name :: fn(type: types.Type) -> string {
     switch type {
-    case Simple binding s:
-        switch s {
+    case Simple:
+        switch type {
         case Integer: return "Integer"
         case Boolean: return "Boolean"
         case Float:   return "Float"
         case Any:     return "Any"
         case Void:    return "Void"
-        case: return "Malformed simples"
+        case:         return "Malformed simples"
         }
     case Array:    return "Array"
     case Slice:    return "Slice"

@@ -945,6 +945,7 @@ extension Parser {
     mutating func parseSwitchStmt() -> Switch {
         let keyword = eatToken()
         var match: Expr?
+        var binding: Ident?
         var flags: Switch.Flags = .none
 
         if tok == .using {
@@ -954,6 +955,10 @@ extension Parser {
 
         if tok != .lbrace && tok != .semicolon {
             match = parseExpr()
+        }
+        if tok == .ident && lit == "binding" {
+            next()
+            binding = parseIdent()
         }
         if tok == .semicolon {
             // dummy terminator to prevent confusion with composite lits
@@ -966,7 +971,7 @@ extension Parser {
         }
         let rbrace = expect(.rbrace)
         expectTerm()
-        return Switch(keyword: keyword, match: match, cases: cases, rbrace: rbrace, flags: flags, label: nil)
+        return Switch(keyword: keyword, match: match, binding: binding, cases: cases, rbrace: rbrace, flags: flags, label: nil)
     }
 
     mutating func parseCaseClause() -> CaseClause {
@@ -987,7 +992,7 @@ extension Parser {
         let colon = expect(.colon)
         let body = parseStmtList()
         let block = Block(lbrace: colon, stmts: body, rbrace: body.last?.end ?? colon)
-        return CaseClause(keyword: keyword, match: match, binding: binding, colon: colon, block: block, label: nil)
+        return CaseClause(keyword: keyword, match: match, colon: colon, block: block, label: nil, binding: nil)
     }
 
     mutating func parseForStmt() -> Stmt {

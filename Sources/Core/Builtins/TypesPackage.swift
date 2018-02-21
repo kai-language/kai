@@ -1,6 +1,5 @@
 
 import LLVM
-import cllvm
 
 
 // Key is Type.description.hashValue
@@ -155,14 +154,10 @@ extension builtin {
 
                 assert(gen.b.insertBlock != nil, "For now type info in the global scope is forbidden")
 
-                let value = llvmTypeInfo(type, returnAddress: true, gen: &gen)
+                let value = llvmTypeInfo(type, gen: &gen)
 
                 typeInfoTable[type.description] = value
-                assert(!returnAddress || value.type is LLVM.PointerType)
-
-                if !returnAddress {
-                    return gen.buildLoad(value, alignment: 8)
-                }
+                assert(!returnAddress)
                 return value
             },
             onCallCheck: { (checker, call) in
@@ -181,7 +176,7 @@ extension builtin {
             switch type {
             case is ty.Integer:         return 0x00
             case is ty.Boolean:         return 0x10
-            case is ty.Float:   return 0x20
+            case is ty.Float:           return 0x20
             case is ty.Anyy:            return 0x30
             case is ty.Void:            return 0x40
             case is ty.Array:           return 0x01
@@ -195,205 +190,186 @@ extension builtin {
             }
         }
 
-        static func llvmTypeInfo(_ type: Type, returnAddress: Bool = false, gen: inout IRGenerator) -> IRValue {
+        static func llvmTypeInfo(_ type: Type, gen: inout IRGenerator) -> IRValue {
             let canonical: (inout IRGenerator, Type) -> LLVM.StructType = {
                 return $0.canonicalize($1) as! LLVM.StructType
             }
 
-            let type = baseType(type)
+            let typeInfoUnionIr = canonical(&gen, typeInfoType)
 
+            let type = baseType(type)
+            
             let intptr = targetMachine.dataLayout.intPointerType(context: gen.module.context)
+
+            let tag = tagForType(type)
 
             var value: IRValue
             switch type {
             case let type as ty.Struct:
+                let structFieldTypeIR = canonical(&gen, structFieldType)
                 var fieldsIr: [IRValue] = []
                 for f in type.fields.orderedValues {
-                    let name = gen.emit(constantString: f.name)
-                    let type = llvmTypeInfo(f.type, gen: &gen)
-                    let offs = gen.i64.constant(f.offset)
+                    let ir = structFieldTypeIR.constant(values: [
+                        gen.emit(constantString: f.name),
+                        llvmTypeInfo(f.type, gen: &gen),
+                        gen.i64.constant(f.offset),
+                    ])
 
-                    var ir = canonical(&gen, structFieldType).undef()
-                    ir = gen.b.buildInsertValue(aggregate: ir, element: name, index: 0)
-                    ir = gen.b.buildInsertValue(aggregate: ir, element: type, index: 1)
-                    ir = gen.b.buildInsertValue(aggregate: ir, element: offs, index: 2)
                     fieldsIr.append(ir)
                 }
 
-                let fields = llvmSlice(values: fieldsIr, type: canonical(&gen, structFieldType), gen: &gen)
-                let flags = gen.i64.constant(0xC0FEBABE) // TODO
+                let structTypeIr = canonical(&gen, structType)
+                var value: IRValue = structTypeIr.constant(values: [
+                    llvmSlice(values: fieldsIr, type: structFieldTypeIR, gen: &gen),
+                    gen.i64.constant(0xC0FEBABE), // flags
+                ])
 
-                value = canonical(&gen, structType).undef()
-                value = gen.b.buildInsertValue(aggregate: value, element: fields, index: 0)
-                value = gen.b.buildInsertValue(aggregate: value, element: flags, index: 1)
-
-                var global = gen.b.addGlobal("StructTypeInfo for \(type)", initializer: value.type.undef())
-                global.isGlobalConstant = false
-                gen.b.buildStore(value, to: global)
-                value = global
+                var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
+                global.isGlobalConstant = true
+                value = const.ptrToInt(global, to: intptr)
+                value = const.or(value, tag)
+                value = typeInfoUnionIr.constant(values: [value])
+                return value
 
             case let type as ty.Function:
                 let params = type.params.map({ llvmTypeInfo($0, gen: &gen) })
                 let results = type.returnType.types.map({ llvmTypeInfo($0, gen: &gen) })
-                value = canonical(&gen, functionType).undef()
 
-                let paramSlice = llvmSlice(values: params, type: canonical(&gen, typeInfoType), gen: &gen)
-                let resultSlice = llvmSlice(values: results, type: canonical(&gen, typeInfoType), gen: &gen)
-                let flags = gen.i64.constant(0xC0FEBABE) // TODO
+                let functionTypeIr = canonical(&gen, functionType)
+                var value: IRValue = functionTypeIr.constant(values: [
+                    llvmSlice(values: params, type: typeInfoUnionIr, gen: &gen),
+                    llvmSlice(values: results, type: typeInfoUnionIr, gen: &gen),
+                    gen.i64.constant(0xC0FEBABE), // flags
+                ])
 
-                value = gen.b.buildInsertValue(aggregate: value, element: paramSlice, index: 0)
-                value = gen.b.buildInsertValue(aggregate: value, element: resultSlice, index: 1)
-                value = gen.b.buildInsertValue(aggregate: value, element: flags, index: 2)
-
-                var global = gen.b.addGlobal("FunctionTypeInfo for \(type)", initializer: value.type.undef())
-                global.isGlobalConstant = false
-                gen.b.buildStore(value, to: global)
-                value = global
+                var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
+                global.isGlobalConstant = true
+                value = const.ptrToInt(global, to: intptr)
+                value = const.or(value, tag)
+                value = typeInfoUnionIr.constant(values: [value])
+                return value
 
             case let type as ty.Array:
-                let length = gen.i64.constant(type.length)
-                let flags  = gen.i64.constant(0xC0FEBABE) // TODO
-                let elementType = llvmTypeInfo(type.elementType, gen: &gen)
-                value = canonical(&gen, arrayType).undef()
-                value = gen.b.buildInsertValue(aggregate: value, element: length, index: 0)
-                value = gen.b.buildInsertValue(aggregate: value, element: flags, index: 1)
-                value = gen.b.buildInsertValue(aggregate: value, element: elementType, index: 2)
-                var global = gen.b.addGlobal("ArrayTypeInfo for \(type)", initializer: value.type.undef())
-                global.isGlobalConstant = false
-                gen.b.buildStore(value, to: global)
-                value = global
+                let arrayTypeIr = canonical(&gen, arrayType)
+                var value: IRValue = arrayTypeIr.constant(values: [
+                    gen.i64.constant(type.length),
+                    gen.i64.constant(0xC0FEBABE),
+                    llvmTypeInfo(type.elementType, gen: &gen)
+                ])
+                var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
+                global.isGlobalConstant = true
+                value = const.ptrToInt(global, to: intptr)
+                value = const.or(value, tag)
+                value = typeInfoUnionIr.constant(values: [value])
+                return value
 
             case is ty.Vector:
                 fatalError()
             case let type as ty.Union:
                 var casesIr: [IRValue] = []
-                for c in type.cases.orderedValues {
-                    let name = gen.emit(constantString: c.ident.name)
-                    let type = llvmTypeInfo(c.type, gen: &gen)
-                    let tag  = gen.i64.constant(c.tag)
 
-                    var ir = canonical(&gen, unionCaseType).undef()
-                    ir = gen.b.buildInsertValue(aggregate: ir, element: name, index: 0)
-                    ir = gen.b.buildInsertValue(aggregate: ir, element: type, index: 1)
-                    ir = gen.b.buildInsertValue(aggregate: ir, element: tag,  index: 2)
+                let caseTypeIr = canonical(&gen, unionCaseType)
+                for c in type.cases.orderedValues {
+                    let ir = caseTypeIr.constant(values: [
+                        gen.emit(constantString: c.ident.name),
+                        llvmTypeInfo(c.type, gen: &gen),
+                        gen.i64.constant(c.tag),
+                    ])
+
                     casesIr.append(ir)
                 }
 
-                let cases = llvmSlice(values: casesIr, type: canonical(&gen, unionCaseType), gen: &gen)
-                let flags = gen.i64.constant(0xC0FEBABE) // TODO
+                var value: IRValue = canonical(&gen, unionType).constant(values: [
+                    llvmSlice(values: casesIr, type: caseTypeIr, gen: &gen),
+                    gen.i64.constant(0xC0FEBABE),
+                ])
 
-                value = canonical(&gen, unionType).undef()
-                value = gen.b.buildInsertValue(aggregate: value, element: cases, index: 0)
-                value = gen.b.buildInsertValue(aggregate: value, element: flags, index: 1)
-
-                var global = gen.b.addGlobal("UnionTypeInfo for \(type)", initializer: value.type.undef())
-                global.isGlobalConstant = false
-                gen.b.buildStore(value, to: global)
-                value = global
+                var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
+                global.isGlobalConstant = true
+                value = const.ptrToInt(global, to: intptr)
+                value = const.or(value, tag)
+                value = typeInfoUnionIr.constant(values: [value])
+                return value
 
             case let type as ty.Enum:
                 var casesIr: [IRValue] = []
-                for (index, c) in type.cases.orderedValues.enumerated() {
-                    let name = gen.emit(constantString: c.ident.name)
-                    let tag  = gen.i64.constant(index)
 
-                    var ir = canonical(&gen, enumCaseType).undef()
-                    ir = gen.b.buildInsertValue(aggregate: ir, element: name, index: 0)
-                    ir = gen.b.buildInsertValue(aggregate: ir, element: tag, index: 1)
+                let caseTypeIr = canonical(&gen, enumCaseType)
+                for (index, c) in type.cases.orderedValues.enumerated() {
+
+                    let ir = caseTypeIr.constant(values: [
+                        gen.emit(constantString: c.ident.name),
+                        gen.i64.constant(index),
+                    ])
                     casesIr.append(ir)
                 }
 
-                let cases = llvmSlice(values: casesIr, type: canonical(&gen, enumCaseType), gen: &gen)
-                let flags = gen.i64.constant(0xC0FEBABE)
+                var value: IRValue = canonical(&gen, enumType).constant(values: [
+                    llvmSlice(values: casesIr, type: canonical(&gen, enumCaseType), gen: &gen),
+                    gen.i64.constant(0xC0FEBABE),
+                ])
 
-                value = canonical(&gen, enumType).undef()
-                value = gen.b.buildInsertValue(aggregate: value, element: cases, index: 0)
-                value = gen.b.buildInsertValue(aggregate: value, element: flags, index: 1)
-
-                var global = gen.b.addGlobal("EnumTypeInfo for \(type)", initializer: value.type.undef())
-                global.isGlobalConstant = false
-                gen.b.buildStore(value, to: global)
-                value = global
+                var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
+                global.isGlobalConstant = true
+                value = const.ptrToInt(global, to: intptr)
+                value = const.or(value, tag)
+                value = typeInfoUnionIr.constant(values: [value])
+                return value
 
             case let type as ty.Slice:
-                value = llvmTypeInfo(type.elementType, returnAddress: true, gen: &gen)
-                assert(value.type is LLVM.PointerType)
+                value = llvmTypeInfo(type.elementType, gen: &gen)
+                value = const.ptrToInt(value, to: intptr)
+                value = const.or(value, tag)
+                value = typeInfoUnionIr.constant(values: [value])
+                return value
 
             case let type as ty.Pointer:
-                value = llvmTypeInfo(type.pointeeType, returnAddress: true, gen: &gen)
-                assert(value.type is LLVM.PointerType)
+                value = llvmTypeInfo(type.pointeeType, gen: &gen)
+                value = const.ptrToInt(value, to: intptr)
+                value = const.or(value, tag)
+                value = typeInfoUnionIr.constant(values: [value])
+                return value
 
             case is ty.Anyy, is ty.Void:
-                value = intptr.constant(0)
+                value = intptr.constant(tag)
+                value = typeInfoUnionIr.constant(values: [value])
+                return value
 
             case is ty.Boolean, is ty.Float:
                 assert(type.width! < numericCast(UInt16.max))
-                value = intptr.constant(0 | UInt64(type.width!) << 8)
+                var v: UInt64 = 0
+                v |= UInt64(type.width!) << 8
+                v |= UInt64(tag)
+                value = intptr.constant(v)
+                value = typeInfoUnionIr.constant(values: [value])
+                return value
 
             case let type as ty.Integer:
                 assert(type.width! < numericCast(UInt16.max))
-                value = intptr.constant(0 | UInt64(type.width!) << 8 | UInt64(type.isSigned ? 1 : 0) << 24)
+                var v: UInt64 = 0
+                v |= UInt64(type.width!) << 8
+                v |= UInt64(type.isSigned ? 1 : 0) << 24
+                v |= UInt64(tag)
+                value = intptr.constant(v)
+                value = typeInfoUnionIr.constant(values: [value])
+                return value
 
             default:
                 fatalError()
             }
-
-            let tag = tagForType(type)
-
-            switch value.type {
-            case is LLVM.PointerType:
-                value = gen.b.buildPtrToInt(value, type: intptr)
-            case is LLVM.StructType:
-                fatalError("LLVM doesn't allow any form of conversion for aggregate types without going through memory")
-            default:
-                value = gen.b.buildBitCast(value, type: intptr)
-            }
-
-            value = gen.b.buildOr(value, intptr.constant(tag))
-
-            let irType = canonical(&gen, typeInfoType)
-
-            var global = gen.b.addGlobal("TypeInfo for \(type.description)", initializer: irType.undef())
-            global.alignment = 8
-            global.isGlobalConstant = false
-            let dummyGlobalPointer = gen.b.buildBitCast(global, type: LLVM.PointerType(pointee: intptr))
-            gen.b.buildStore(value, to: dummyGlobalPointer, alignment: 8)
-
-            if !returnAddress {
-                return gen.buildLoad(global, alignment: 8)
-            }
-
-            return global
         }
 
         static func llvmSlice(values: [IRValue], type: IRType, gen: inout IRGenerator) -> IRValue {
-            let indices: [IRValue]
-            var valuesAddress: IRValue
-            if !values.isEmpty {
-                var array = LLVM.ArrayType(elementType: type, count: values.count).undef()
-                for (index, value) in values.enumerated() {
-                    array = gen.b.buildInsertValue(aggregate: array, element: value, index: index)
-                }
-                indices = [gen.i64.zero(), gen.i64.zero()]
-                var global = gen.b.addGlobal("", initializer: array.type.undef())
-                global.isGlobalConstant = false
-                gen.b.buildStore(array, to: global)
-                valuesAddress = global
-            } else {
-                indices = [gen.i64.zero()]
-                valuesAddress = LLVM.PointerType(pointee: type).constPointerNull()
+            let elPointer = LLVM.PointerType(pointee: type)
+            let sliceType = LLVM.StructType(elementTypes: [elPointer, gen.word, gen.word], in: gen.module.context)
+            guard !values.isEmpty else {
+                return sliceType.null() // all zero's
             }
 
-            let length = gen.i64.constant(values.count)
+            var global = gen.b.addGlobal("", initializer: LLVM.ArrayType.constant(values, type: type))
+            global.isGlobalConstant = true
 
-            let sliceType = LLVM.StructType(elementTypes: [LLVM.PointerType(pointee: type), gen.word, gen.word], in: gen.module.context)
-            var slice = sliceType.undef()
-            valuesAddress = gen.b.buildInBoundsGEP(valuesAddress, indices: indices) // makes this a pointer
-            slice = gen.b.buildInsertValue(aggregate: slice, element: valuesAddress, index: 0) // raw
-            slice = gen.b.buildInsertValue(aggregate: slice, element: length, index: 1) // len
-            slice = gen.b.buildInsertValue(aggregate: slice, element: gen.i64.constant(0xDEADC0DE), index: 2) // cap
-
-            return slice
+            return sliceType.constant(values: [const.bitCast(global, to: elPointer), gen.i64.constant(values.count), gen.i64.constant(0xDEADC0DE)])
         }
 
         static func patchTypes() {

@@ -5,7 +5,7 @@
 extension {{ type.name }} {
     {% for flag in var.type.staticVariables where flag.name != "none" %}
 
-    var is{{ flag.name|upperFirst }}: Bool {
+    var is{{ flag.name|upperFirstLetter }}: Bool {
         return flags.contains(.{{ flag.name }}) 
     }
     {% endfor %}

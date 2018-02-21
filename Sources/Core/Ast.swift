@@ -1,5 +1,5 @@
-
 import LLVM
+
 
 // NOTE: For code gen everything must also explicitly conform to Node.
 protocol Node: class {
@@ -525,6 +525,7 @@ class Binary: Node, Expr, Convertable {
     var type: Type!
     var conversion: (from: Type, to: Type)?
 
+    // FIXME: @Decouple
     var irOp: OpCode.Binary!
     var isPointerArithmetic: Bool!
 
@@ -1021,23 +1022,23 @@ init(keyword: Pos, cond: Expr, body: Stmt, els: Stmt?) {
 class CaseClause: Node, Stmt {
     var keyword: Pos
     var match: [Expr]
-    var binding: Ident?
     var colon: Pos
     var block: Block
 
     var label: Entity!
+    var binding: Entity?
 
     var start: Pos { return keyword }
     var end: Pos { return block.end }
 
 // sourcery:inline:auto:CaseClause.Init
-init(keyword: Pos, match: [Expr], binding: Ident?, colon: Pos, block: Block, label: Entity!) {
+init(keyword: Pos, match: [Expr], colon: Pos, block: Block, label: Entity!, binding: Entity?) {
     self.keyword = keyword
     self.match = match
-    self.binding = binding
     self.colon = colon
     self.block = block
     self.label = label
+    self.binding = binding
 }
 // sourcery:end
 }
@@ -1045,6 +1046,7 @@ init(keyword: Pos, match: [Expr], binding: Ident?, colon: Pos, block: Block, lab
 class Switch: Node, Stmt {
     var keyword: Pos
     var match: Expr?
+    var binding: Ident?
     var cases: [CaseClause]
     var rbrace: Pos
 
@@ -1061,12 +1063,16 @@ class Switch: Node, Stmt {
         static let none  = Flags(rawValue: 0b0000)
         static let using = Flags(rawValue: 0b0001)
         static let type  = Flags(rawValue: 0b0010)
+        static let any   = Flags(rawValue: 0b0100)
+        static let union = Flags(rawValue: 0b1000)
+        // NOTE: The last three are basically exclusive
     }
 
 // sourcery:inline:auto:Switch.Init
-init(keyword: Pos, match: Expr?, cases: [CaseClause], rbrace: Pos, flags: Flags, label: Entity!) {
+init(keyword: Pos, match: Expr?, binding: Ident?, cases: [CaseClause], rbrace: Pos, flags: Flags, label: Entity!) {
     self.keyword = keyword
     self.match = match
+    self.binding = binding
     self.cases = cases
     self.rbrace = rbrace
     self.flags = flags
@@ -1340,6 +1346,8 @@ class FunctionSpecialization {
     let strippedType: ty.Function
     let generatedFunctionNode: FuncLit
     var mangledName: String
+
+    // FIXME: @Decouple
     var llvm: Function?
 
 // sourcery:inline:auto:FunctionSpecialization.Init
