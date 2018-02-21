@@ -1,5 +1,3 @@
-import LLVM
-
 
 // NOTE: For code gen everything must also explicitly conform to Node.
 protocol Node: class {
@@ -1346,17 +1344,13 @@ class FunctionSpecialization {
     let generatedFunctionNode: FuncLit
     var mangledName: String
 
-    // FIXME: @Decouple
-    var llvm: Function?
-
 // sourcery:inline:auto:FunctionSpecialization.Init
-init(file: SourceFile, specializedTypes: [Type], strippedType: ty.Function, generatedFunctionNode: FuncLit, mangledName: String, llvm: Function?) {
+init(file: SourceFile, specializedTypes: [Type], strippedType: ty.Function, generatedFunctionNode: FuncLit, mangledName: String) {
     self.file = file
     self.specializedTypes = specializedTypes
     self.strippedType = strippedType
     self.generatedFunctionNode = generatedFunctionNode
     self.mangledName = mangledName
-    self.llvm = llvm
 }
 // sourcery:end
 }

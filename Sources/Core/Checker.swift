@@ -1,4 +1,3 @@
-import LLVM
 
 // sourcery:noinit
 struct Checker {
@@ -2607,7 +2606,7 @@ extension Checker {
             .reduce("", { $0 + "$" + $1.description })
         let mangledName = prefix + suffix
 
-        let specialization = FunctionSpecialization(file: originalFile, specializedTypes: specializationTypes, strippedType: type, generatedFunctionNode: generated, mangledName: mangledName, llvm: nil)
+        let specialization = FunctionSpecialization(file: originalFile, specializedTypes: specializationTypes, strippedType: type, generatedFunctionNode: generated, mangledName: mangledName)
 
         // TODO: @threadsafety
         compiler.specializations.append(specialization)
