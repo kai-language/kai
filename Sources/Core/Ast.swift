@@ -58,13 +58,13 @@ class StructField: Node {
     var colon: Pos
     var explicitType: Expr
 
-    var type: Type!
+    var type: Type! = nil
 
     var start: Pos { return names.first?.start ?? explicitType.start }
     var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:StructField.Init
-init(names: [Ident], colon: Pos, explicitType: Expr, type: Type!) {
+init(names: [Ident], colon: Pos, explicitType: Expr, type: Type! = nil) {
     self.names = names
     self.colon = colon
     self.explicitType = explicitType
@@ -110,15 +110,16 @@ init(start: Pos, end: Pos) {
 class LocationDirective: Node, Expr, Convertable {
     var directive: Pos
     var kind: LoneDirective
-    var type: Type!
-    var constant: Value!
-    var conversion: (from: Type, to: Type)?
+
+    var type: Type! = nil
+    var constant: Value! = nil
+    var conversion: (from: Type, to: Type)? = nil
 
     var start: Pos { return directive }
     var end: Pos { return directive + kind.rawValue.count }
 
 // sourcery:inline:auto:LocationDirective.Init
-init(directive: Pos, kind: LoneDirective, type: Type!, constant: Value!, conversion: (from: Type, to: Type)?) {
+init(directive: Pos, kind: LoneDirective, type: Type! = nil, constant: Value! = nil, conversion: (from: Type, to: Type)? = nil) {
     self.directive = directive
     self.kind = kind
     self.type = type
@@ -134,10 +135,10 @@ class Nil: Node, Expr {
         return start + 3
     }
 
-    var type: Type!
+    var type: Type! = nil
 
 // sourcery:inline:auto:Nil.Init
-init(start: Pos, type: Type!) {
+init(start: Pos, type: Type! = nil) {
     self.start = start
     self.type = type
 }
@@ -148,16 +149,16 @@ class Ident: Node, Expr, Convertable {
     var start: Pos
     var name: String
 
-    var entity: Entity!
-    var type: Type!
-    var conversion: (from: Type, to: Type)?
-    var constant: Value?
+    var entity: Entity! = nil
+    var type: Type! = nil
+    var conversion: (from: Type, to: Type)? = nil
+    var constant: Value? = nil
 
 
     var end: Pos { return start + name.count }
 
 // sourcery:inline:auto:Ident.Init
-init(start: Pos, name: String, entity: Entity!, type: Type!, conversion: (from: Type, to: Type)?, constant: Value?) {
+init(start: Pos, name: String, entity: Entity! = nil, type: Type! = nil, conversion: (from: Type, to: Type)? = nil, constant: Value? = nil) {
     self.start = start
     self.name = name
     self.entity = entity
@@ -171,12 +172,13 @@ init(start: Pos, name: String, entity: Entity!, type: Type!, conversion: (from: 
 class Ellipsis: Node, Expr {
     var start: Pos
     var element: Expr?
-    var type: Type!
+
+    var type: Type! = nil
 
     var end: Pos { return element?.end ?? (start + 2) }
 
 // sourcery:inline:auto:Ellipsis.Init
-init(start: Pos, element: Expr?, type: Type!) {
+init(start: Pos, element: Expr?, type: Type! = nil) {
     self.start = start
     self.element = element
     self.type = type
@@ -188,14 +190,15 @@ class BasicLit: Node, Expr, Convertable {
     var start: Pos
     var token: Token
     var text: String
-    var type: Type!
-    var constant: Value!
-    var conversion: (from: Type, to: Type)?
+
+    var type: Type! = nil
+    var constant: Value! = nil
+    var conversion: (from: Type, to: Type)? = nil
 
     var end: Pos { return start + text.count }
 
 // sourcery:inline:auto:BasicLit.Init
-init(start: Pos, token: Token, text: String, type: Type!, constant: Value!, conversion: (from: Type, to: Type)?) {
+init(start: Pos, token: Token, text: String, type: Type! = nil, constant: Value! = nil, conversion: (from: Type, to: Type)? = nil) {
     self.start = start
     self.token = token
     self.text = text
@@ -260,9 +263,9 @@ class FuncLit: Node, Expr {
     var body: Block
     var flags: FunctionFlags
 
-    var type: Type!
-    var params: [Entity]!
-    var checked: Checked!
+    var type: Type! = nil
+    var params: [Entity]! = nil
+    var checked: Checked! = nil
     var labels: [Ident]? {
         return explicitType.labels
     }
@@ -276,7 +279,7 @@ class FuncLit: Node, Expr {
     var end: Pos { return body.end }
 
 // sourcery:inline:auto:FuncLit.Init
-init(keyword: Pos, explicitType: FuncType, body: Block, flags: FunctionFlags, type: Type!, params: [Entity]!, checked: Checked!) {
+init(keyword: Pos, explicitType: FuncType, body: Block, flags: FunctionFlags, type: Type! = nil, params: [Entity]! = nil, checked: Checked! = nil) {
     self.keyword = keyword
     self.explicitType = explicitType
     self.body = body
@@ -294,13 +297,13 @@ class CompositeLit: Node, Expr {
     var elements: [KeyValue]
     var rbrace: Pos
 
-    var type: Type!
+    var type: Type! = nil
 
     var start: Pos { return explicitType?.start ?? lbrace }
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:CompositeLit.Init
-init(explicitType: Expr?, lbrace: Pos, elements: [KeyValue], rbrace: Pos, type: Type!) {
+init(explicitType: Expr?, lbrace: Pos, elements: [KeyValue], rbrace: Pos, type: Type! = nil) {
     self.explicitType = explicitType
     self.lbrace = lbrace
     self.elements = elements
@@ -323,13 +326,13 @@ class Paren: Node, Expr, Convertable {
             element.type = newValue
         }
     }
-    var conversion: (from: Type, to: Type)?
+    var conversion: (from: Type, to: Type)? = nil
 
     var start: Pos { return lparen }
     var end: Pos { return rparen }
 
 // sourcery:inline:auto:Paren.Init
-init(lparen: Pos, element: Expr, rparen: Pos, conversion: (from: Type, to: Type)?) {
+init(lparen: Pos, element: Expr, rparen: Pos, conversion: (from: Type, to: Type)? = nil) {
     self.lparen = lparen
     self.element = element
     self.rparen = rparen
@@ -342,11 +345,11 @@ class Selector: Node, Expr, Convertable {
     var rec: Expr
     var sel: Ident
 
-    var checked: Checked!
-    var type: Type!
-    var levelsOfIndirection: Int!
-    var conversion: (from: Type, to: Type)?
-    var constant: Value?
+    var checked: Checked! = nil
+    var type: Type! = nil
+    var levelsOfIndirection: Int! = nil
+    var conversion: (from: Type, to: Type)? = nil
+    var constant: Value? = nil
 
     enum Checked {
         case invalid
@@ -373,7 +376,7 @@ class Selector: Node, Expr, Convertable {
     var end: Pos { return sel.end }
 
 // sourcery:inline:auto:Selector.Init
-init(rec: Expr, sel: Ident, checked: Checked!, type: Type!, levelsOfIndirection: Int!, conversion: (from: Type, to: Type)?, constant: Value?) {
+init(rec: Expr, sel: Ident, checked: Checked! = nil, type: Type! = nil, levelsOfIndirection: Int! = nil, conversion: (from: Type, to: Type)? = nil, constant: Value? = nil) {
     self.rec = rec
     self.sel = sel
     self.checked = checked
@@ -391,14 +394,14 @@ class Subscript: Expr, Node, Convertable {
     var index: Expr
     let rbrack: Pos
 
-    var type: Type!
-    var conversion: (from: Type, to: Type)?
+    var type: Type! = nil
+    var conversion: (from: Type, to: Type)? = nil
 
     var start: Pos { return rec.start }
     var end: Pos { return rbrack }
 
 // sourcery:inline:auto:Subscript.Init
-init(rec: Expr, lbrack: Pos, index: Expr, rbrack: Pos, type: Type!, conversion: (from: Type, to: Type)?) {
+init(rec: Expr, lbrack: Pos, index: Expr, rbrack: Pos, type: Type! = nil, conversion: (from: Type, to: Type)? = nil) {
     self.rec = rec
     self.lbrack = lbrack
     self.index = index
@@ -416,7 +419,7 @@ class Slice: Expr, Node {
     var hi: Expr?
     var rbrack: Pos
 
-    var type: Type!
+    var type: Type! = nil
 
     // TODO: Slice with certain capacity?
 
@@ -424,7 +427,7 @@ class Slice: Expr, Node {
     var end: Pos { return rbrack }
 
 // sourcery:inline:auto:Slice.Init
-init(rec: Expr, lbrack: Pos, lo: Expr?, hi: Expr?, rbrack: Pos, type: Type!) {
+init(rec: Expr, lbrack: Pos, lo: Expr?, hi: Expr?, rbrack: Pos, type: Type! = nil) {
     self.rec = rec
     self.lbrack = lbrack
     self.lo = lo
@@ -441,14 +444,14 @@ class Cast: Node, Expr, Convertable {
     var explicitType: Expr?
     var expr: Expr
 
-    var type: Type!
-    var conversion: (from: Type, to: Type)?
+    var type: Type! = nil
+    var conversion: (from: Type, to: Type)? = nil
 
     var start: Pos { return keyword }
     var end: Pos { return expr.end }
 
 // sourcery:inline:auto:Cast.Init
-init(keyword: Pos, kind: Token, explicitType: Expr?, expr: Expr, type: Type!, conversion: (from: Type, to: Type)?) {
+init(keyword: Pos, kind: Token, explicitType: Expr?, expr: Expr, type: Type! = nil, conversion: (from: Type, to: Type)? = nil) {
     self.keyword = keyword
     self.kind = kind
     self.explicitType = explicitType
@@ -466,9 +469,9 @@ class Call: Node, Expr, Convertable {
     var args: [Expr]
     var rparen: Pos
 
-    var type: Type!
-    var conversion: (from: Type, to: Type)?
-    var checked: Checked!
+    var type: Type! = nil
+    var conversion: (from: Type, to: Type)? = nil
+    var checked: Checked! = nil
 
     var start: Pos { return fun.start }
     var end: Pos { return rparen }
@@ -480,7 +483,7 @@ class Call: Node, Expr, Convertable {
     }
 
 // sourcery:inline:auto:Call.Init
-init(fun: Expr, lparen: Pos, labels: [Ident?], args: [Expr], rparen: Pos, type: Type!, conversion: (from: Type, to: Type)?, checked: Checked!) {
+init(fun: Expr, lparen: Pos, labels: [Ident?], args: [Expr], rparen: Pos, type: Type! = nil, conversion: (from: Type, to: Type)? = nil, checked: Checked! = nil) {
     self.fun = fun
     self.lparen = lparen
     self.labels = labels
@@ -499,13 +502,13 @@ class Unary: Node, Expr, Convertable {
     var op: Token
     var element: Expr
 
-    var type: Type!
-    var conversion: (from: Type, to: Type)?
+    var type: Type! = nil
+    var conversion: (from: Type, to: Type)? = nil
 
     var end: Pos { return element.end }
 
 // sourcery:inline:auto:Unary.Init
-init(start: Pos, op: Token, element: Expr, type: Type!, conversion: (from: Type, to: Type)?) {
+init(start: Pos, op: Token, element: Expr, type: Type! = nil, conversion: (from: Type, to: Type)? = nil) {
     self.start = start
     self.op = op
     self.element = element
@@ -515,34 +518,38 @@ init(start: Pos, op: Token, element: Expr, type: Type!, conversion: (from: Type,
 // sourcery:end
 }
 
-// sourcery:noinit
 class Binary: Node, Expr, Convertable {
     var lhs: Expr
     var op: Token
     var opPos: Pos
     var rhs: Expr
 
-    var type: Type!
-    var conversion: (from: Type, to: Type)?
+    var type: Type! = nil
+    var conversion: (from: Type, to: Type)? = nil
 
-    // FIXME: @Decouple
-    var irOp: OpCode.Binary!
-    var isPointerArithmetic: Bool!
+    var flags: Flags = .none
 
     var start: Pos { return lhs.start }
     var end: Pos { return rhs.end }
 
+    struct Flags: OptionSet {
+        var rawValue: UInt8
+
+        static let none    = Flags(rawValue: 0b0000)
+        static let ptrMath = Flags(rawValue: 0b0100)
+    }
+
 // sourcery:inline:auto:Binary.Init
-init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr, type: Type! = nil, conversion: (from: Type, to: Type)?, irOp: OpCode.Binary! = nil, isPointerArithmetic: Bool! = nil) {
+init(lhs: Expr, op: Token, opPos: Pos, rhs: Expr, type: Type! = nil, conversion: (from: Type, to: Type)? = nil, flags: Flags = .none) {
     self.lhs = lhs
     self.op = op
     self.opPos = opPos
     self.rhs = rhs
     self.type = type
     self.conversion = conversion
-    self.irOp = irOp
-    self.isPointerArithmetic = isPointerArithmetic
+    self.flags = flags
 }
+
 // sourcery:end
 }
 
@@ -553,14 +560,14 @@ class Ternary: Node, Expr, Convertable {
     var colon: Pos
     var els: Expr
 
-    var type: Type!
-    var conversion: (from: Type, to: Type)?
+    var type: Type! = nil
+    var conversion: (from: Type, to: Type)? = nil
 
     var start: Pos { return cond.start }
     var end: Pos { return els.end }
 
 // sourcery:inline:auto:Ternary.Init
-init(cond: Expr, qmark: Pos, then: Expr?, colon: Pos, els: Expr, type: Type!, conversion: (from: Type, to: Type)?) {
+init(cond: Expr, qmark: Pos, then: Expr?, colon: Pos, els: Expr, type: Type! = nil, conversion: (from: Type, to: Type)? = nil) {
     self.cond = cond
     self.qmark = qmark
     self.then = then
@@ -577,15 +584,15 @@ class KeyValue: Node, Expr, Convertable {
     var colon: Pos?
     var value: Expr
 
-    var type: Type!
-    var conversion: (from: Type, to: Type)?
-    var structField: ty.Struct.Field?
+    var type: Type! = nil
+    var conversion: (from: Type, to: Type)? = nil
+    var structField: ty.Struct.Field? = nil
 
     var start: Pos { return key?.start ?? value.start }
     var end: Pos { return value.end }
 
 // sourcery:inline:auto:KeyValue.Init
-init(key: Expr?, colon: Pos?, value: Expr, type: Type!, conversion: (from: Type, to: Type)?, structField: ty.Struct.Field?) {
+init(key: Expr?, colon: Pos?, value: Expr, type: Type! = nil, conversion: (from: Type, to: Type)? = nil, structField: ty.Struct.Field? = nil) {
     self.key = key
     self.colon = colon
     self.value = value
@@ -600,13 +607,13 @@ class PointerType: Node, Expr {
     var star: Pos
     var explicitType: Expr
 
-    var type: Type!
+    var type: Type! = nil
 
     var start: Pos { return star }
     var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:PointerType.Init
-init(star: Pos, explicitType: Expr, type: Type!) {
+init(star: Pos, explicitType: Expr, type: Type! = nil) {
     self.star = star
     self.explicitType = explicitType
     self.type = type
@@ -620,13 +627,13 @@ class ArrayType: Node, Expr {
     var rbrack: Pos
     var explicitType: Expr
 
-    var type: Type!
+    var type: Type! = nil
 
     var start: Pos { return lbrack }
     var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:ArrayType.Init
-init(lbrack: Pos, length: Expr?, rbrack: Pos, explicitType: Expr, type: Type!) {
+init(lbrack: Pos, length: Expr?, rbrack: Pos, explicitType: Expr, type: Type! = nil) {
     self.lbrack = lbrack
     self.length = length
     self.rbrack = rbrack
@@ -641,13 +648,13 @@ class SliceType: Node, Expr {
     var rbrack: Pos
     var explicitType: Expr
 
-    var type: Type!
+    var type: Type! = nil
     
     var start: Pos { return lbrack }
     var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:SliceType.Init
-init(lbrack: Pos, rbrack: Pos, explicitType: Expr, type: Type!) {
+init(lbrack: Pos, rbrack: Pos, explicitType: Expr, type: Type! = nil) {
     self.lbrack = lbrack
     self.rbrack = rbrack
     self.explicitType = explicitType
@@ -662,13 +669,13 @@ class VectorType: Node, Expr {
     var rbrack: Pos
     var explicitType: Expr
 
-    var type: Type!
+    var type: Type! = nil
 
     var start: Pos { return lbrack }
     var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:VectorType.Init
-init(lbrack: Pos, size: Expr, rbrack: Pos, explicitType: Expr, type: Type!) {
+init(lbrack: Pos, size: Expr, rbrack: Pos, explicitType: Expr, type: Type! = nil) {
     self.lbrack = lbrack
     self.size = size
     self.rbrack = rbrack
@@ -685,8 +692,8 @@ class StructType: Node, Expr {
     var fields: [StructField]
     var rbrace: Pos
 
-    var type: Type!
-    var checked: Checked!
+    var type: Type! = nil
+    var checked: Checked! = nil
 
     enum Checked {
         case regular(Scope)
@@ -697,7 +704,7 @@ class StructType: Node, Expr {
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:StructType.Init
-init(keyword: Pos, directives: Set<TypeDirective>, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type!, checked: Checked!) {
+init(keyword: Pos, directives: Set<TypeDirective>, lbrace: Pos, fields: [StructField], rbrace: Pos, type: Type! = nil, checked: Checked! = nil) {
     self.keyword = keyword
     self.directives = directives
     self.lbrace = lbrace
@@ -715,13 +722,13 @@ class PolyStructType: Node, Expr {
     var fields: [StructField]
     var rbrace: Pos
 
-    var type: Type!
+    var type: Type! = nil
 
     var start: Pos { return polyTypes.start }
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:PolyStructType.Init
-init(lbrace: Pos, polyTypes: PolyParameterList, fields: [StructField], rbrace: Pos, type: Type!) {
+init(lbrace: Pos, polyTypes: PolyParameterList, fields: [StructField], rbrace: Pos, type: Type! = nil) {
     self.lbrace = lbrace
     self.polyTypes = polyTypes
     self.fields = fields
@@ -737,13 +744,13 @@ class EnumType: Node, Expr {
     var cases: [EnumCase]
     var rbrace: Pos
 
-    var type: Type!
+    var type: Type! = nil
 
     var start: Pos { return keyword }
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:EnumType.Init
-init(keyword: Pos, explicitType: Expr?, cases: [EnumCase], rbrace: Pos, type: Type!) {
+init(keyword: Pos, explicitType: Expr?, cases: [EnumCase], rbrace: Pos, type: Type! = nil) {
     self.keyword = keyword
     self.explicitType = explicitType
     self.cases = cases
@@ -761,13 +768,13 @@ class UnionType: Node, Expr {
     var fields: [StructField] // TODO: Switch to `UnionField` so we can provide customizations specific to union members
     var rbrace: Pos
 
-    var type: Type!
+    var type: Type! = nil
 
     var start: Pos { return keyword }
     var end: Pos { return rbrace }
 
 // sourcery:inline:auto:UnionType.Init
-init(keyword: Pos, directives: Set<TypeDirective>, lbrace: Pos, tag: StructField?, fields: [StructField], rbrace: Pos, type: Type!) {
+init(keyword: Pos, directives: Set<TypeDirective>, lbrace: Pos, tag: StructField?, fields: [StructField], rbrace: Pos, type: Type! = nil) {
     self.keyword = keyword
     self.directives = directives
     self.lbrace = lbrace
@@ -783,13 +790,13 @@ class PolyType: Node, Expr {
     var dollar: Pos
     var explicitType: Expr
 
-    var type: Type!
+    var type: Type! = nil
 
     var start: Pos { return dollar }
     var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:PolyType.Init
-init(dollar: Pos, explicitType: Expr, type: Type!) {
+init(dollar: Pos, explicitType: Expr, type: Type! = nil) {
     self.dollar = dollar
     self.explicitType = explicitType
     self.type = type
@@ -803,13 +810,13 @@ class VariadicType: Node, Expr {
 
     var isCvargs: Bool
 
-    var type: Type!
+    var type: Type! = nil
 
     var start: Pos { return ellipsis }
     var end: Pos { return explicitType.end }
 
 // sourcery:inline:auto:VariadicType.Init
-init(ellipsis: Pos, explicitType: Expr, isCvargs: Bool, type: Type!) {
+init(ellipsis: Pos, explicitType: Expr, isCvargs: Bool, type: Type! = nil) {
     self.ellipsis = ellipsis
     self.explicitType = explicitType
     self.isCvargs = isCvargs
@@ -825,13 +832,13 @@ class FuncType: Node, Expr {
     var results: [Expr]
     var flags: FunctionFlags
 
-    var type: Type!
+    var type: Type! = nil
 
     var start: Pos { return lparen }
     var end: Pos { return results.last!.end }
 
 // sourcery:inline:auto:FuncType.Init
-init(lparen: Pos, labels: [Ident]?, params: [Expr], results: [Expr], flags: FunctionFlags, type: Type!) {
+init(lparen: Pos, labels: [Ident]?, params: [Expr], results: [Expr], flags: FunctionFlags, type: Type! = nil) {
     self.lparen = lparen
     self.labels = labels
     self.params = params
@@ -965,20 +972,20 @@ init(keyword: Pos, expr: Expr) {
 
 class Branch: Node, Stmt {
     /// Keyword Token (break, continue, fallthrough)
+    var start: Pos
     var token: Token
     var label: Ident?
 
-    var target: Entity!
+    var target: Entity! = nil
 
-    var start: Pos
     var end: Pos { return label?.end ?? (start + token.description.count) }
 
 // sourcery:inline:auto:Branch.Init
-init(token: Token, label: Ident?, target: Entity!, start: Pos) {
+init(start: Pos, token: Token, label: Ident?, target: Entity! = nil) {
+    self.start = start
     self.token = token
     self.label = label
     self.target = target
-    self.start = start
 }
 // sourcery:end
 }
@@ -1025,14 +1032,14 @@ class CaseClause: Node, Stmt {
     var colon: Pos
     var block: Block
 
-    var label: Entity!
-    var binding: Entity?
+    var label: Entity! = nil
+    var binding: Entity? = nil
 
     var start: Pos { return keyword }
     var end: Pos { return block.end }
 
 // sourcery:inline:auto:CaseClause.Init
-init(keyword: Pos, match: [Expr], colon: Pos, block: Block, label: Entity!, binding: Entity?) {
+init(keyword: Pos, match: [Expr], colon: Pos, block: Block, label: Entity! = nil, binding: Entity? = nil) {
     self.keyword = keyword
     self.match = match
     self.colon = colon
@@ -1052,7 +1059,7 @@ class Switch: Node, Stmt {
 
     var flags: Flags
 
-    var label: Entity!
+    var label: Entity! = nil
 
     var start: Pos { return keyword }
     var end: Pos { return rbrace }
@@ -1069,7 +1076,7 @@ class Switch: Node, Stmt {
     }
 
 // sourcery:inline:auto:Switch.Init
-init(keyword: Pos, match: Expr?, binding: Ident?, cases: [CaseClause], rbrace: Pos, flags: Flags, label: Entity!) {
+init(keyword: Pos, match: Expr?, binding: Ident?, cases: [CaseClause], rbrace: Pos, flags: Flags, label: Entity! = nil) {
     self.keyword = keyword
     self.match = match
     self.binding = binding
@@ -1088,14 +1095,14 @@ class For: Node, Stmt {
     var step: Stmt?
     var body: Block
 
-    var breakLabel: Entity!
-    var continueLabel: Entity!
+    var breakLabel: Entity! = nil
+    var continueLabel: Entity! = nil
 
     var start: Pos { return keyword }
     var end: Pos { return body.end }
 
 // sourcery:inline:auto:For.Init
-init(keyword: Pos, initializer: Stmt?, cond: Expr?, step: Stmt?, body: Block, breakLabel: Entity!, continueLabel: Entity!) {
+init(keyword: Pos, initializer: Stmt?, cond: Expr?, step: Stmt?, body: Block, breakLabel: Entity! = nil, continueLabel: Entity! = nil) {
     self.keyword = keyword
     self.initializer = initializer
     self.cond = cond
@@ -1113,12 +1120,12 @@ class ForIn: Node, Stmt {
     var aggregate: Expr
     var body: Block
 
-    var breakLabel: Entity!
-    var continueLabel: Entity!
-    var element: Entity!
-    var index: Entity?
+    var breakLabel: Entity! = nil
+    var continueLabel: Entity! = nil
+    var element: Entity! = nil
+    var index: Entity? = nil
+    var checked: Checked! = nil
 
-    var checked: Checked!
     enum Checked {
         case array(Int)
         case slice
@@ -1129,7 +1136,7 @@ class ForIn: Node, Stmt {
     var end: Pos { return body.end }
 
 // sourcery:inline:auto:ForIn.Init
-init(keyword: Pos, names: [Ident], aggregate: Expr, body: Block, breakLabel: Entity!, continueLabel: Entity!, element: Entity!, index: Entity?, checked: Checked!) {
+init(keyword: Pos, names: [Ident], aggregate: Expr, body: Block, breakLabel: Entity! = nil, continueLabel: Entity! = nil, element: Entity! = nil, index: Entity? = nil, checked: Checked! = nil) {
     self.keyword = keyword
     self.names = names
     self.aggregate = aggregate
@@ -1151,15 +1158,16 @@ class Import: Node, TopLevelStmt {
     var path: Expr
     var importSymbolsIntoScope: Bool
     var exportSymbolsOutOfScope: Bool
-    var resolvedName: String?
-    var scope: Scope!
-    var importee: Importable!
+
+    var resolvedName: String? = nil
+    var scope: Scope! = nil
+    var importee: Importable! = nil
 
     var start: Pos { return directive }
     var end: Pos { return alias?.end ?? path.end }
 
 // sourcery:inline:auto:Import.Init
-init(directive: Pos, alias: Ident?, path: Expr, importSymbolsIntoScope: Bool, exportSymbolsOutOfScope: Bool, resolvedName: String?, scope: Scope!, importee: Importable!) {
+init(directive: Pos, alias: Ident?, path: Expr, importSymbolsIntoScope: Bool, exportSymbolsOutOfScope: Bool, resolvedName: String? = nil, scope: Scope! = nil, importee: Importable! = nil) {
     self.directive = directive
     self.alias = alias
     self.path = path
@@ -1177,13 +1185,13 @@ class Library: Node, TopLevelStmt {
     var path: Expr
     var alias: Ident?
 
-    var resolvedName: String?
+    var resolvedName: String? = nil
 
     var start: Pos { return directive }
     var end: Pos { return alias?.end ?? path.end }
 
 // sourcery:inline:auto:Library.Init
-init(directive: Pos, path: Expr, alias: Ident?, resolvedName: String?) {
+init(directive: Pos, path: Expr, alias: Ident?, resolvedName: String? = nil) {
     self.directive = directive
     self.path = path
     self.alias = alias
@@ -1192,33 +1200,33 @@ init(directive: Pos, path: Expr, alias: Ident?, resolvedName: String?) {
 // sourcery:end
 }
 
-// sourcery:noinit
 class Foreign: Node, TopLevelStmt, LinknameApplicable, CallConvApplicable {
     var directive: Pos
     var library: Ident
     var decl: Decl
 
-    var linkname: String?
-    var callconv: String?
+    var linkname: String? = nil
+    var callconv: String? = nil
 
-    var dependsOn: Set<Entity>
-    var emitted: Bool
+    var dependsOn: Set<Entity> = []
+    var emitted: Bool = false
 
     var start: Pos { return directive }
     var end: Pos { return decl.end }
 
-    init(directive: Pos, library: Ident, decl: Decl, linkname: String?, callconv: String?, dependsOn: Set<Entity> = [], emitted: Bool = false) {
-        self.directive = directive
-        self.library = library
-        self.decl = decl
-        self.linkname = linkname
-        self.callconv = callconv
-        self.dependsOn = dependsOn
-        self.emitted = emitted
-    }
+// sourcery:inline:auto:Foreign.Init
+init(directive: Pos, library: Ident, decl: Decl, linkname: String? = nil, callconv: String? = nil, dependsOn: Set<Entity> = [], emitted: Bool = false) {
+    self.directive = directive
+    self.library = library
+    self.decl = decl
+    self.linkname = linkname
+    self.callconv = callconv
+    self.dependsOn = dependsOn
+    self.emitted = emitted
+}
+// sourcery:end
 }
 
-// sourcery:noinit
 class DeclBlock: Node, TopLevelStmt, CallConvApplicable {
     var lbrace: Pos
     var decls: [Declaration]
@@ -1226,25 +1234,27 @@ class DeclBlock: Node, TopLevelStmt, CallConvApplicable {
 
     var isForeign: Bool
 
-    var linkprefix: String?
-    var callconv: String?
+    var linkprefix: String? = nil
+    var callconv: String? = nil
 
-    var dependsOn: Set<Entity>
-    var emitted: Bool
+    var dependsOn: Set<Entity> = []
+    var emitted: Bool = false
 
     var start: Pos { return lbrace }
     var end: Pos { return rbrace }
 
-    init(lbrace: Pos, decls: [Declaration], rbrace: Pos, isForeign: Bool, linkprefix: String?, callconv: String?, dependsOn: Set<Entity> = [], emitted: Bool = false) {
-        self.lbrace = lbrace
-        self.decls = decls
-        self.rbrace = rbrace
-        self.isForeign = isForeign
-        self.linkprefix = linkprefix
-        self.callconv = callconv
-        self.dependsOn = dependsOn
-        self.emitted = emitted
-    }
+// sourcery:inline:auto:DeclBlock.Init
+init(lbrace: Pos, decls: [Declaration], rbrace: Pos, isForeign: Bool, linkprefix: String? = nil, callconv: String? = nil, dependsOn: Set<Entity> = [], emitted: Bool = false) {
+    self.lbrace = lbrace
+    self.decls = decls
+    self.rbrace = rbrace
+    self.isForeign = isForeign
+    self.linkprefix = linkprefix
+    self.callconv = callconv
+    self.dependsOn = dependsOn
+    self.emitted = emitted
+}
+// sourcery:end
 }
 
 class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplicable, TestApplicable {
@@ -1255,36 +1265,21 @@ class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplica
 
     var isConstant: Bool
 
-    var callconv: String?
-    var linkname: String?
-    var isTest: Bool
+    var callconv: String? = nil
+    var linkname: String? = nil
+    var isTest: Bool = false
 
-    var entities: [Entity]!
-    var dependsOn: Set<Entity>
-    var declaringScope: Scope?
-    var checked: Bool
-    var emitted: Bool
+    var entities: [Entity]! = nil
+    var dependsOn: Set<Entity> = []
+    var declaringScope: Scope? = nil
+    var checked: Bool = false
+    var emitted: Bool = false
 
     var start: Pos { return names.first!.start }
     var end: Pos { return values.first?.end ?? names.last!.start }
 
-    init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?, isTest: Bool) {
-        self.names = names
-        self.explicitType = explicitType
-        self.values = values
-        self.isConstant = isConstant
-        self.callconv = callconv
-        self.linkname = linkname
-        self.isTest = isTest
-        self.entities = nil
-        self.dependsOn = []
-        self.declaringScope = nil
-        self.checked = false
-        self.emitted = false
-    }
-
 // sourcery:inline:auto:Declaration.Init
-init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String?, linkname: String?, isTest: Bool, entities: [Entity]!, dependsOn: Set<Entity>, declaringScope: Scope?, checked: Bool, emitted: Bool) {
+init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String? = nil, linkname: String? = nil, isTest: Bool = false, entities: [Entity]! = nil, dependsOn: Set<Entity> = [], declaringScope: Scope? = nil, checked: Bool = false, emitted: Bool = false) {
     self.names = names
     self.explicitType = explicitType
     self.values = values

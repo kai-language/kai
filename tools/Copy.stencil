@@ -77,8 +77,9 @@ func copy(_ entity: Entity) -> Entity {
         owningScope: entity.owningScope,
         callconv: entity.callconv,
         linkname: entity.linkname,
+        declaration: entity.declaration,
+        dependencies: nil,
         mangledName: nil,
         value: nil
     )
 }
-

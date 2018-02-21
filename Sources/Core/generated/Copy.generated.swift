@@ -85,8 +85,7 @@ func copy(_ node: Binary) -> Binary {
         rhs: copy(node.rhs),
         type: node.type,
         conversion: node.conversion,
-        irOp: node.irOp,
-        isPointerArithmetic: node.isPointerArithmetic
+        flags: node.flags
     )
 }
 
@@ -108,10 +107,10 @@ func copy(_ nodes: [Block]) -> [Block] {
 
 func copy(_ node: Branch) -> Branch {
     return Branch(
+        start: node.start,
         token: node.token,
         label: node.label.map(copy),
-        target: node.target,
-        start: node.start
+        target: node.target
     )
 }
 
@@ -881,8 +880,9 @@ func copy(_ entity: Entity) -> Entity {
         owningScope: entity.owningScope,
         callconv: entity.callconv,
         linkname: entity.linkname,
+        declaration: entity.declaration,
+        dependencies: nil,
         mangledName: nil,
         value: nil
     )
 }
-

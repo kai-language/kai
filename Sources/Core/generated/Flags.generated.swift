@@ -3,6 +3,13 @@
 
 
 
+extension Binary {
+
+    var isPtrMath: Bool {
+        return flags.contains(.ptrMath) 
+    }
+}
+
 extension Entity {
 
     var isBuiltin: Bool {

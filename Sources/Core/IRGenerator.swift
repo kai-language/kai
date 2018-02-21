@@ -1214,22 +1214,47 @@ extension IRGenerator {
             rhs = b.buildTruncOrBitCast(rhs, type: i1)
         }
 
-        switch binary.irOp! {
-        case .icmp:
-            // FIXME: We default to signed comparision here if it's not a pointer but should probably default to unsigned
-            let isSigned = (baseType(binary.lhs.type) as? ty.Integer)?.isSigned ?? true // if type isn't an int it's a ptr
-            var pred: IntPredicate
+        switch binary.op {
+        case .add:
+            return b.buildAdd(lhs, rhs, overflowBehavior: .default)
+        case .sub:
+            return b.buildSub(lhs, rhs, overflowBehavior: .default)
+        case .mul:
+            return b.buildMul(lhs, rhs, overflowBehavior: .default)
+        case .quo:
+            return b.buildDiv(lhs, rhs, signed: isSigned(binary.type), exact: false) // what even is exact?
+        case .rem:
+            return b.buildRem(lhs, rhs, signed: isSigned(binary.type))
+
+        case .and, .land:
+            return b.buildAnd(lhs, rhs)
+        case .or, .lor:
+            return b.buildOr(lhs, rhs)
+        case .xor:
+            return b.buildXor(lhs, rhs)
+        case .shl:
+            return b.buildShl(lhs, rhs)
+        case .shr:
+            return b.buildShr(lhs, rhs)
+            
+        default:
+            break
+        }
+        if isInteger(binary.type) || isBoolean(binary.type) {
+            let signed = isSigned(binary.type)
+            let pred: IntPredicate
             switch binary.op {
-            case .lss: pred = isSigned ? .signedLessThan : .unsignedLessThan
-            case .gtr: pred = isSigned ? .signedGreaterThan : .unsignedGreaterThan
-            case .leq: pred = isSigned ? .signedLessThanOrEqual : .unsignedLessThanOrEqual
-            case .geq: pred = isSigned ? .signedGreaterThanOrEqual : .unsignedGreaterThanOrEqual
+            case .lss: pred = signed ? .signedLessThan : .unsignedLessThan
+            case .gtr: pred = signed ? .signedGreaterThan : .unsignedGreaterThan
+            case .leq: pred = signed ? .signedLessThanOrEqual : .unsignedLessThanOrEqual
+            case .geq: pred = signed ? .signedGreaterThanOrEqual : .unsignedGreaterThanOrEqual
             case .eql: pred = .equal
             case .neq: pred = .notEqual
             default:   preconditionFailure()
             }
             return b.buildICmp(lhs, rhs, pred)
-        case .fcmp:
+        } else {
+            assert(isFloat(binary.type))
             var pred: RealPredicate
             switch binary.op {
             case .lss: pred = .orderedLessThan
@@ -1241,18 +1266,6 @@ extension IRGenerator {
             default:   preconditionFailure()
             }
             return b.buildFCmp(lhs, rhs, pred)
-        default:
-            if binary.isPointerArithmetic {
-                switch binary.op {
-                case .add, .sub:
-                    if binary.op == .sub {
-                        rhs = b.buildNeg(rhs)
-                    }
-                    return b.buildGEP(lhs, indices: [rhs])
-                default: preconditionFailure()
-                }
-            }
-            return b.buildBinaryOperation(binary.irOp, lhs, rhs)
         }
     }
 
@@ -1275,7 +1288,7 @@ extension IRGenerator {
                 }
 
                 // C ABI requires floats to be promoted to doubles
-                if isFloatingPoint($0.type), $0.type.width! < 64 {
+                if isFloat($0.type), $0.type.width! < 64 {
                     val = b.buildCast(.fpext, value: val, type: f64)
                 }
 

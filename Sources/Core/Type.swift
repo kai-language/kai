@@ -270,14 +270,24 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
 
     var allowed = false
     switch (type, target) {
-    case (is ty.UntypedNil, is ty.Pointer),
+    case (is ty.UntypedNil, is ty.Pointer):
+        if let lit = expr as? Nil {
+            lit.type = target
+            return true
+        }
+        allowed = true
 
-         (is ty.UntypedInteger, is ty.Integer),
+    case (is ty.UntypedInteger, is ty.Integer),
          (is ty.UntypedInteger, is ty.Float),
+         (is ty.UntypedFloat, is ty.Float):
+        if let lit = expr as? BasicLit {
+            lit.type = target
+            return true
+        }
+        allowed = true
 
-         (is ty.UntypedFloat, is ty.Float),
-
-         (is ty.Array, is ty.Slice):
+     case (is ty.Array, is ty.Slice):
+        // FIXME: @Test I am not sure this should actually convert
         allowed = true
 
     case (is ty.Pointer, is ty.Pointer):
@@ -655,7 +665,7 @@ func isUntypedNumber(_ type: Type) -> Bool {
 }
 
 func isNumber(_ type: Type) -> Bool {
-    return isUntypedNumber(type) || isInteger(type) || isFloatingPoint(type)
+    return isUntypedNumber(type) || isInteger(type) || isFloat(type)
 }
 
 func isVoid(_ type: Type) -> Bool {
@@ -676,7 +686,7 @@ func isSigned(_ type: Type) -> Bool {
     return type is ty.UntypedInteger || (type as? ty.Integer)?.isSigned ?? false
 }
 
-func isFloatingPoint(_ type: Type) -> Bool {
+func isFloat(_ type: Type) -> Bool {
     let type = baseType(type)
     return type is ty.Float || type is ty.UntypedFloat
 }
@@ -725,7 +735,7 @@ func isUntypedInteger(_ type: Type) -> Bool {
     return type is ty.UntypedInteger
 }
 
-func isUntypedFloatingPoint(_ type: Type) -> Bool {
+func isUntypedFloat(_ type: Type) -> Bool {
     return type is ty.UntypedFloat
 }
 
@@ -751,4 +761,28 @@ func isInvalid(_ type: Type) -> Bool {
 
 func isFile(_ type: Type) -> Bool {
     return type is ty.File
+}
+
+func isEquatable(_ type: Type) -> Bool {
+    switch type {
+    case is ty.UntypedInteger, is ty.UntypedFloat:
+        return true
+
+    case is ty.Integer, is ty.Float:
+        return true
+
+    case is ty.Pointer:
+        return true
+
+    case let vector as ty.Vector:
+        return isEquatable(vector.elementType)
+    // TODO: Make Slices & Arrays comparable where the element types are comparible
+
+    default:
+        return false
+    }
+}
+
+func isComparable(_ type: Type) -> Bool {
+    return isInteger(type) || isFloat(type)
 }

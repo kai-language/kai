@@ -6,6 +6,18 @@ extension Double: Value {}
 extension String: Value {}
 extension Nil: Value {}
 
+func isConstantZero(_ value: Value?) -> Bool {
+    switch value {
+    case let value as UInt64:
+        return value == 0
+    case let value as Double:
+        return value.isZero
+    default:
+        return false
+    }
+}
+
+// TODO: apply for unary operations
 func negate(_ value: Value) -> Value {
     switch value {
     case let value as UInt64:
@@ -277,4 +289,33 @@ func apply(_ lhs: Value?, _ rhs: Value?, op: Token) -> Value? {
         return nil
     }
     return application(for: op)?(lhs, rhs)
+}
+
+func apply(_ val: Value?, op: Token) -> Value? {
+    guard let val = val else {
+        return nil
+    }
+    switch op {
+    case .add:
+        return val
+    case .sub:
+        switch val {
+        case is UInt64: print("WARNING: Cannot negate constant integer value currently"); return nil
+        case let val as Double: return -val
+        default: return nil
+        }
+    case .not:
+        switch val {
+        case let val as UInt64: return val == 0 ? 0 : 1
+        default: return nil
+        }
+    case .bnot:
+        switch val {
+        case let val as UInt64: return ~val
+        default: return nil
+        }
+    case .lss: return nil // Constant dereference is unsupported
+    case .and: return nil // Constant addressOf is unsupported
+    default:   return nil
+    }
 }

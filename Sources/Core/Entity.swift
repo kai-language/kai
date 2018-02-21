@@ -4,25 +4,25 @@ class Entity: CustomStringConvertible {
     var ident: Ident
     var type: Type?
     var flags: Flag = .none
-    var constant: Value?
+    var constant: Value? = nil
     var file: SourceFile?
     var package: SourcePackage? {
         return file?.package
     }
 
-    var memberScope: Scope?
+    var memberScope: Scope? = nil
 
-    var owningScope: Scope!
+    var owningScope: Scope! = nil
 
-    var callconv: String?
-    var linkname: String?
+    var callconv: String? = nil
+    var linkname: String? = nil
 
-    var declaration: Decl?
-    var dependencies: [Decl]!
+    var declaration: Decl? = nil
+    var dependencies: [Decl]! = nil
 
     // set in IRGen
-    var mangledName: String!
-    var value: IRValue?
+    var mangledName: String! = nil
+    var value: IRValue? = nil
 
     var name: String {
         return ident.name
@@ -60,7 +60,7 @@ class Entity: CustomStringConvertible {
     }
 
 // sourcery:inline:auto:Entity.Init
-init(ident: Ident, type: Type? = nil, flags: Flag, constant: Value? = nil, file: SourceFile? = nil, memberScope: Scope? = nil, owningScope: Scope! = nil, callconv: String? = nil, linkname: String? = nil, declaration: Decl? = nil, dependencies: [Decl]! = nil, mangledName: String! = nil, value: IRValue? = nil) {
+init(ident: Ident, type: Type?, flags: Flag = .none, constant: Value? = nil, file: SourceFile?, memberScope: Scope? = nil, owningScope: Scope! = nil, callconv: String? = nil, linkname: String? = nil, declaration: Decl? = nil, dependencies: [Decl]! = nil, mangledName: String! = nil, value: IRValue? = nil) {
     self.ident = ident
     self.type = type
     self.flags = flags

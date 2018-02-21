@@ -1274,7 +1274,7 @@ extension Checker {
             }
             if let desiredType = desiredType, isInteger(desiredType) {
                 lit.type = desiredType
-            } else if let desiredType = desiredType, isFloatingPoint(desiredType) {
+            } else if let desiredType = desiredType, isFloat(desiredType) {
                 lit.type = desiredType
                 lit.constant = Double(lit.constant as! UInt64)
             } else {
@@ -1282,7 +1282,7 @@ extension Checker {
             }
         case .float:
             lit.constant = Double(lit.text)!
-            if let desiredType = desiredType, isFloatingPoint(desiredType) {
+            if let desiredType = desiredType, isFloat(desiredType) {
                 lit.type = desiredType
             } else {
                 lit.type = ty.untypedFloat
@@ -1795,255 +1795,134 @@ extension Checker {
         return Operand(mode: .type, expr: e, type: type, constant: nil, dependencies: dependencies)
     }
 
+    static let unaryOpPredicates: [Token: (Type) -> Bool] = [
+        .add: isNumber,
+        .sub: isNumber,
+        .bnot: isInteger,
+        .not: isBoolean,
+        .lss: isPointer,
+    ]
+
+
     @discardableResult
     mutating func check(unary: Unary, desiredType: Type?) -> Operand {
         let operand = check(expr: unary.element, desiredType: desiredType)
-        var type = operand.type!
-        var mode = Operand.Mode.computed
+        unary.type = ty.invalid // NOTE: for early exits
 
-        // in case we early exit
-        unary.type = ty.invalid
-
-        var constant: Value?
         switch unary.op {
-        case .sub:
-            constant = operand.constant.map(negate)
-            fallthrough
-
-        case .add:
-            guard isInteger(type) || isFloatingPoint(type) else {
-                reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
-                return Operand.invalid
-            }
-
-        case .not:
-            guard isBoolean(type) else {
-                reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
-                return Operand.invalid
-            }
-            constant = operand.constant.map(not)
-
-        case .bnot:
-            guard isInteger(type) else {
-                reportError("Invalid operation '\(unary.op)' on \(operand), expected type of kind Integer", at: unary.start)
-                return Operand.invalid
-            }
-            constant = operand.constant.map(bnot)
-
-        case .lss:
-            guard let pointer = baseType(type) as? ty.Pointer else {
-                reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
-                return Operand.invalid
-            }
-            type = pointer.pointeeType
-            mode = .addressable
-        case .and:
+        case .and: // addressOf
             guard operand.mode == .addressable else {
-                reportError("Cannot take the address of a non lvalue", at: unary.start)
+                reportError("Cannot take address of \(operand)", at: unary.start)
                 return Operand.invalid
             }
-            type = ty.Pointer(type)
+
+            // TODO: Constant address of?
+            unary.type = ty.Pointer(operand.type)
+            return Operand(mode: .computed, expr: unary, type: unary.type, constant: nil, dependencies: [])
 
         default:
-            reportError("Invalid operation '\(unary.op)' on \(operand)", at: unary.start)
+            break
+        }
+
+        if !Checker.unaryOpPredicates[unary.op]!(operand.type) {
+            reportError("Operation '\(unary.op)' undefined for \(operand)", at: unary.start)
             return Operand.invalid
         }
 
-        unary.type = type
-        return Operand(mode: mode, expr: unary, type: type, constant: constant, dependencies: operand.dependencies)
+        if unary.op == .lss {
+            unary.type = (operand.type as! ty.Pointer).pointeeType
+        } else {
+            unary.type = operand.type
+        }
+
+        let constant = apply(operand.constant, op: unary.op)
+        return Operand(mode: .computed, expr: unary, type: unary.type, constant: constant, dependencies: [])
     }
 
+    static let binaryOpPredicates: [Token: (Type) -> Bool] = [
+        .add: isNumber,
+        .sub: isNumber,
+        .mul: isNumber,
+        .quo: isNumber,
+        .rem: isInteger,
+
+        .and: isInteger,
+        .or:  isInteger,
+        .xor: isInteger,
+        .shl: isInteger,
+        .shr: isInteger,
+
+        .eql: isEquatable,
+        .neq: isEquatable,
+
+        .lss: isComparable,
+        .gtr: isComparable,
+        .leq: isComparable,
+        .geq: isComparable,
+
+        .land: isBoolean,
+        .lor:  isBoolean,
+    ]
 
     // FIXME: Refactor this, for the love of all that is good.
     @discardableResult
     mutating func check(binary: Binary, desiredType: Type?) -> Operand {
-        var dependencies: Set<Entity> = []
-
         let lhs = check(expr: binary.lhs)
         let rhs = check(expr: binary.rhs)
-
-        dependencies.formUnion(lhs.dependencies)
-        dependencies.formUnion(rhs.dependencies)
 
         var lhsType = baseType(lhs.type!)
         var rhsType = baseType(rhs.type!)
 
-        // in case we early exit
+        // Set Invalid for any early exits
         binary.type = ty.invalid
 
-        if isInvalid(lhsType) || isInvalid(rhsType) {
+        if lhs.mode == .invalid || rhs.mode == .invalid {
             return Operand.invalid
         }
 
-        let resultType: Type
-        let op: OpCode.Binary
-        // FIXME: @Decouple
+        if constrainUntyped(lhsType, to: rhsType) {
+            binary.lhs.type = rhsType
+        }
+        if constrainUntyped(rhsType, to: lhsType) {
+            binary.rhs.type = lhsType
+        }
 
-        binary.isPointerArithmetic = false
-
-        // Handle constraining untyped's etc..
-        if isUntypedNumber(lhsType) && rhsType != lhsType {
-
-            guard constrainUntyped(lhsType, to: rhsType) else {
-                reportError("Invalid operation '\(binary.op)' between untyped '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
-                return Operand.invalid
-            }
-            if isNil(lhsType) {
-                (binary.lhs as! Nil).type = rhsType
-            } else if let lhs = binary.lhs as? BasicLit {
-                lhs.type = rhsType
-            } else if let lhs = binary.lhs as? Convertable {
-                lhs.conversion = (lhsType, rhsType)
-            } else {
-                preconditionFailure("Only convertables should get here")
-            }
+        if convert(lhsType, to: rhsType, at: binary.lhs) {
             lhsType = rhsType
-        } else if isUntyped(rhsType) && rhsType != lhsType {
-
-            guard constrainUntyped(rhsType, to: lhsType) else {
-                reportError("Invalid operation '\(binary.op)' between '\(lhsType)' and untyped '\(rhsType)'", at: binary.opPos)
-                return Operand.invalid
-            }
-
-            if isNil(rhsType) {
-                (binary.rhs as! Nil).type = lhsType
-            } else if let rhs = binary.rhs as? BasicLit {
-                rhs.type = lhsType
-            } else if let rhs = binary.rhs as? Convertable {
-                rhs.conversion = (rhsType, lhsType)
-            } else {
-                preconditionFailure("Only convertables should get here")
-            }
+        } else if convert(rhsType, to: lhsType, at: binary.rhs) {
             rhsType = lhsType
         }
 
-        // TODO: REFACTOR
-        // TODO: REFACTOR
-        // TODO: REFACTOR
-        // TODO: REFACTOR
-        // TODO: REFACTOR
-        // TODO: REFACTOR
-        // TODO: REFACTOR
-
-        // Handle extending or truncating
-        if lhsType == rhsType && isUntypedInteger(lhsType) {
-            lhsType = ty.Integer(width: ty.untypedInteger.width, isSigned: false)
-            rhsType = ty.Integer(width: ty.untypedInteger.width, isSigned: false)
-            resultType = ty.untypedInteger
-        } else if lhsType == rhsType && isUntypedFloatingPoint(lhsType) {
-            lhsType = ty.f64
-            rhsType = ty.f64
-            resultType = ty.untypedFloat
-        } else if lhsType == rhsType && !isPointer(lhsType) && !isPointer(rhsType) {
-            resultType = lhsType
-        } else if isInteger(lhsType), isFloatingPoint(rhsType) {
-            resultType = rhsType
-        } else if isInteger(rhsType), isFloatingPoint(lhsType) {
-            resultType = lhsType
-        } else if isBoolean(lhsType) && isBoolean(rhsType) {
-             // all boolean operators return the default boolean type or a desired boolean type
-            if let desiredType = desiredType, isBoolean(desiredType) {
-                resultType = desiredType
-            } else {
-                resultType = ty.bool
-            }
-            // FIXME: This is handled in the IRGen stage right now! When this is rewritten it should be handled in here via
-            //    conversions added to the left or right expression using convert(_:to:at:)
-        } else if isFloatingPoint(lhsType) && isFloatingPoint(rhsType) {
-            // select the largest
-            if lhsType.width! < rhsType.width! {
-                resultType = rhsType
-            } else {
-                resultType = lhsType
-            }
-        } else if let lhsType = baseType(lhsType) as? ty.Integer, let rhsType = baseType(rhsType) as? ty.Integer {
-            guard lhsType.isSigned == rhsType.isSigned else {
-                reportError("Implicit conversion between signed and unsigned integers in operator is disallowed", at: binary.opPos)
+        if lhsType != rhsType {
+            if !isInvalid(lhsType) && !isInvalid(rhsType) {
+                reportError("Mismatched types \(lhs) and \(rhs)", at: binary.start)
                 return Operand.invalid
             }
-            // select the largest
-            if lhsType.width! < rhsType.width! {
-                resultType = rhsType
-            } else {
-                resultType = lhsType
-            }
-        } else if let lhsType = baseType(lhsType) as? ty.Pointer, isInteger(rhsType) {
-            // Can only increment/decrement a pointer
-            guard binary.op == .add || binary.op == .sub else {
-                reportError("Invalid operation '\(binary.op)' between types '\(lhsType) and \(rhsType)'", at: binary.opPos)
-                return Operand.invalid
-            }
-
-            resultType = lhsType
-            binary.isPointerArithmetic = true
-        } else if let lhsType = baseType(lhsType) as? ty.Pointer, let rhsType = baseType(rhsType) as? ty.Pointer {
-            switch binary.op {
-            // allowed for ptr <op> ptr
-            case .leq, .lss, .geq, .gtr, .eql, .neq:
-                resultType = ty.bool
-                binary.isPointerArithmetic = true
-
-            default:
-                reportError("Invalid operation '\(binary.op)' between types '\(lhsType) and \(rhsType)'", at: binary.opPos)
-                return Operand.invalid
-            }
-        } else {
-            reportError("Invalid operation '\(binary.op)' between types '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
             return Operand.invalid
         }
 
-        let underlyingLhs = (baseType(lhsType) as? ty.Vector)?.elementType ?? lhsType
-        let isIntegerOp = isInteger(underlyingLhs) || isPointer(underlyingLhs)
-
-        var type = resultType
-        switch binary.op {
-        case .lss, .leq, .gtr, .geq:
-            guard (isNumber(lhsType) || isVector(lhsType)) && (isNumber(rhsType) || isVector(rhsType)) || binary.isPointerArithmetic else {
-                reportError("Cannot compare '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
-                return Operand.invalid
-            }
-            op = isIntegerOp ? .icmp : .fcmp
-            type = ty.bool
-            if let vec = lhsType as? ty.Vector {
-                type = ty.Vector(size: vec.size, elementType: type)
-            }
-        case .eql, .neq:
-            guard (isNumber(lhsType) || isBoolean(lhsType) || isVector(lhsType) || isEnum(lhsType)) && (isNumber(rhsType) || isBoolean(rhsType) || isVector(rhsType) || isEnum(rhsType)) || binary.isPointerArithmetic else {
-                reportError("Cannot compare '\(lhsType)' and '\(rhsType)'", at: binary.opPos)
-                return Operand.invalid
-            }
-            op = (isIntegerOp || isBoolean(lhsType) || isBoolean(rhsType) || isEnum(lhsType)) ? .icmp : .fcmp
-            type = ty.bool
-            if let vec = lhsType as? ty.Vector {
-                type = ty.Vector(size: vec.size, elementType: type)
-            }
-        case .xor:
-            op = .xor
-        case .and, .land:
-            op = .and
-        case .or, .lor:
-            op = .or
-        case .shl:
-            op = .shl
-        case .shr:
-            op = .lshr // TODO: Arithmatic?
-        case .add:
-            op = isIntegerOp ? .add : .fadd
-        case .sub:
-            op = isIntegerOp ? .sub : .fsub
-        case .mul:
-            op = isIntegerOp ? .mul : .fmul
-        case .quo:
-            op = isIntegerOp ? .udiv : .fdiv
-        case .rem:
-            op = isIntegerOp ? .urem : .frem
-        default:
-            fatalError("Unhandled operator \(binary.op)")
+        if !Checker.binaryOpPredicates[binary.op]!(lhsType) {
+            reportError("Operation '\(binary.op)' undefined for type \(lhsType)", at: binary.opPos)
+            return Operand.invalid
         }
 
-        binary.type = type
-        binary.irOp = op
-        return Operand(mode: .computed, expr: binary, type: type, constant: apply(lhs.constant, rhs.constant, op: binary.op), dependencies: dependencies)
+        if binary.op == .eql || binary.op == .neq || binary.op == .leq || binary.op == .geq || binary.op == .lss || binary.op == .gtr {
+            if let desiredType = desiredType, isBoolean(desiredType), convert(lhs.type, to: desiredType, at: binary.lhs) {
+                binary.type = desiredType
+            } else {
+                binary.type = ty.bool
+            }
+        } else {
+            binary.type = lhsType
+        }
+
+        // TODO: We can check for div by 0 here for constants
+        if (binary.op == .quo || binary.op == .rem) && isConstantZero(rhs.constant) {
+            reportError("Division by zero", at: binary.rhs.start)
+        }
+
+        let constant = apply(lhs.constant, rhs.constant, op: binary.op)
+        return Operand(mode: .computed, expr: binary, type: binary.type, constant: constant, dependencies: [])
     }
 
     @discardableResult
@@ -2810,7 +2689,7 @@ extension Checker {
     }
 
     func newEntity(ident: Ident, type: Type? = nil, flags: Entity.Flag = .none, memberScope: Scope? = nil, owningScope: Scope? = nil, constant: Value? = nil) -> Entity {
-        return Entity(ident: ident, type: type, flags: flags, constant: constant, file: file, memberScope: memberScope, owningScope: owningScope, callconv: nil, linkname: nil, mangledName: nil, value: nil)
+        return Entity(ident: ident, type: type, flags: flags, constant: constant, file: file, memberScope: memberScope, owningScope: owningScope)
     }
 }
 
