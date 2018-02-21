@@ -1818,7 +1818,7 @@ extension Checker {
 
             // TODO: Constant address of?
             unary.type = ty.Pointer(operand.type)
-            return Operand(mode: .computed, expr: unary, type: unary.type, constant: nil, dependencies: [])
+            return Operand(mode: .computed, expr: unary, type: unary.type, constant: nil, dependencies: operand.dependencies)
 
         default:
             break
@@ -1831,13 +1831,13 @@ extension Checker {
 
         if unary.op == .lss {
             unary.type = (operand.type as! ty.Pointer).pointeeType
-            return Operand(mode: .assignable, expr: unary, type: unary.type, constant: nil, dependencies: [])
+            return Operand(mode: .assignable, expr: unary, type: unary.type, constant: nil, dependencies: operand.dependencies)
         } else {
             unary.type = operand.type
         }
 
         let constant = apply(operand.constant, op: unary.op)
-        return Operand(mode: .computed, expr: unary, type: unary.type, constant: constant, dependencies: [])
+        return Operand(mode: .computed, expr: unary, type: unary.type, constant: constant, dependencies: operand.dependencies)
     }
 
     static let binaryOpPredicates: [Token: (Type) -> Bool] = [
@@ -1923,7 +1923,7 @@ extension Checker {
         }
 
         let constant = apply(lhs.constant, rhs.constant, op: binary.op)
-        return Operand(mode: .computed, expr: binary, type: binary.type, constant: constant, dependencies: [])
+        return Operand(mode: .computed, expr: binary, type: binary.type, constant: constant, dependencies: lhs.dependencies.union(rhs.dependencies))
     }
 
     @discardableResult
