@@ -1052,6 +1052,7 @@ extension Checker {
             // let this fall through until later
             expr.type = desiredType ?? ty.invalid
             if let desiredType = desiredType {
+                // FIXME: Actually check if desired type is nilable
                 return Operand(mode: .computed, expr: expr, type: desiredType, constant: expr, dependencies: [])
             }
             return Operand(mode: .computed, expr: expr, type: builtin.untypedNil.type, constant: expr, dependencies: [])
@@ -1289,27 +1290,6 @@ extension Checker {
             }
         case .string:
             lit.type = ty.string
-            if let desiredType = desiredType, isInteger(desiredType) {
-                let constant = lit.constant as! String
-                switch (desiredType.width!, constant.utf8.count) {
-                case (_, 0):
-                    reportError("Cannot convert empty string to utf character", at: lit.start)
-                case (8, 1):
-                    lit.type = desiredType
-                case (8, _):
-                    reportError("Cannot convert string with \(constant.utf8.count) utf8 characters", at: lit.start)
-                case (16, 1), (16, 2):
-                    lit.type = desiredType
-                case (16, _):
-                    reportError("Cannot convert string with \(constant.utf16.count) utf16 characters", at: lit.start)
-                case (32, 1), (32, 2), (32, 3), (32, 4):
-                    lit.type = desiredType
-                case (32, _):
-                    reportError("Cannot convert string with \(constant.unicodeScalars.count) utf32 characters", at: lit.start)
-                default:
-                    reportError("Cannot convert string to unknown character encoding", at: lit.start)
-                }
-            }
         default:
             lit.type = ty.invalid
         }

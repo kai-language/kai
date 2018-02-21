@@ -351,7 +351,6 @@ extension IRGenerator {
 
         if decl.values.isEmpty {
             // this is in a decl block of some sort
-
             for entity in decl.entities where entity !== Entity.anonymous {
                 if let fn = entity.type as? ty.Function {
                     let function = addOrReuseFunction(named: symbol(for: entity), type: canonicalizeSignature(fn))
@@ -1067,18 +1066,11 @@ extension IRGenerator {
     mutating func emit(lit: BasicLit, returnAddress: Bool, entity: Entity?) -> IRValue {
         // TODO: Use the mangled entity name
         if lit.token == .string {
-            let constant = lit.constant as! String
-            let litType = baseType(lit.type)
-            switch litType.width! {
-            case 8:
-                return canonicalize(litType as! ty.Integer).constant(constant.utf8.first!)
-            case 16:
-                return canonicalize(litType as! ty.Integer).constant(constant.utf16.first!)
-            case 32:
-                return canonicalize(litType as! ty.Integer).constant(constant.unicodeScalars.first!.value)
-            default:
+            if isInteger(lit.type), let val = lit.constant as? UInt64 {
+                return canonicalize(lit.type as! ty.Integer).constant(val)
+            } else {
                 assert(lit.type == ty.string)
-                return emit(constantString: constant, returnAddress: returnAddress)
+                return emit(constantString: lit.constant as! String, returnAddress: returnAddress)
             }
         }
 
@@ -1842,6 +1834,10 @@ extension IRGenerator {
 
     mutating func emit(constantString value: String, returnAddress: Bool = false) -> IRValue {
         let len = value.utf8.count
+        // FIXME: Global string pointers crash if emitted at global scope
+        // NOTE(vdka): Likely because buildGlobalStringPtr internally attempts to emit instructions into the current block and there is none.
+        //   Likely we don't need a ptr anyway
+        // We should look at emitting this using buildGlobalString and then using a const GEP to get the base address? or something ...
         let ptr = b.buildGlobalStringPtr(value)
 
         let type = canonicalize(ty.string) as! LLVM.StructType

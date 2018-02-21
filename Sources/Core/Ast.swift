@@ -30,6 +30,10 @@ protocol Convertable: Expr {
     var conversion: (from: Type, to: Type)? { get set }
 }
 
+protocol HasConstantValue: Expr {
+    var constant: Value? { get set }
+}
+
 class Comment: Node {
     /// Position of the '/' starting the comment
     var slash: Pos
@@ -107,19 +111,19 @@ init(start: Pos, end: Pos) {
 // sourcery:end
 }
 
-class LocationDirective: Node, Expr, Convertable {
+class LocationDirective: Node, Expr, Convertable, HasConstantValue {
     var directive: Pos
     var kind: LoneDirective
 
     var type: Type! = nil
-    var constant: Value! = nil
+    var constant: Value? = nil
     var conversion: (from: Type, to: Type)? = nil
 
     var start: Pos { return directive }
     var end: Pos { return directive + kind.rawValue.count }
 
 // sourcery:inline:auto:LocationDirective.Init
-init(directive: Pos, kind: LoneDirective, type: Type! = nil, constant: Value! = nil, conversion: (from: Type, to: Type)? = nil) {
+init(directive: Pos, kind: LoneDirective, type: Type! = nil, constant: Value? = nil, conversion: (from: Type, to: Type)? = nil) {
     self.directive = directive
     self.kind = kind
     self.type = type
@@ -145,7 +149,7 @@ init(start: Pos, type: Type! = nil) {
 // sourcery:end
 }
 
-class Ident: Node, Expr, Convertable {
+class Ident: Node, Expr, Convertable, HasConstantValue {
     var start: Pos
     var name: String
 
@@ -186,19 +190,19 @@ init(start: Pos, element: Expr?, type: Type! = nil) {
 // sourcery:end
 }
 
-class BasicLit: Node, Expr, Convertable {
+class BasicLit: Node, Expr, Convertable, HasConstantValue {
     var start: Pos
     var token: Token
     var text: String
 
     var type: Type! = nil
-    var constant: Value! = nil
+    var constant: Value? = nil
     var conversion: (from: Type, to: Type)? = nil
 
     var end: Pos { return start + text.count }
 
 // sourcery:inline:auto:BasicLit.Init
-init(start: Pos, token: Token, text: String, type: Type! = nil, constant: Value! = nil, conversion: (from: Type, to: Type)? = nil) {
+init(start: Pos, token: Token, text: String, type: Type! = nil, constant: Value? = nil, conversion: (from: Type, to: Type)? = nil) {
     self.start = start
     self.token = token
     self.text = text
@@ -341,7 +345,7 @@ init(lparen: Pos, element: Expr, rparen: Pos, conversion: (from: Type, to: Type)
 // sourcery:end
 }
 
-class Selector: Node, Expr, Convertable {
+class Selector: Node, Expr, Convertable, HasConstantValue {
     var rec: Expr
     var sel: Ident
 
@@ -649,7 +653,7 @@ class SliceType: Node, Expr {
     var explicitType: Expr
 
     var type: Type! = nil
-    
+
     var start: Pos { return lbrack }
     var end: Pos { return explicitType.end }
 
@@ -1370,4 +1374,3 @@ init(specializedTypes: [Type], strippedType: ty.Struct, generatedStructNode: Str
 }
 // sourcery:end
 }
-
