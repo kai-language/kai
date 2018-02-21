@@ -221,12 +221,16 @@ private func application(for token: Token) -> ((Value, Value) -> Value?)? {
         return { lhs, rhs in
             switch (lhs, rhs) {
             case (let lhs as UInt64, let rhs as UInt64):
+                if rhs == 0 { return nil }
                 return lhs / rhs
             case (let lhs as Double, let rhs as Double):
+                if rhs.isZero { return nil }
                 return lhs / rhs
             case (let lhs as Double, let rhs as UInt64):
+                if rhs == 0 { return nil }
                 return lhs / Double(rhs)
             case (let lhs as UInt64, let rhs as Double):
+                if rhs.isZero { return nil }
                 return Double(lhs) / rhs
             default:
                 return nil

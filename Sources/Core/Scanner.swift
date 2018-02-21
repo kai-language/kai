@@ -198,6 +198,13 @@ struct Scanner {
             next()
 
             switch ch {
+            case "o"?:
+                next()
+                scanMantissa(8)
+                mustBeInteger = true
+                if offset - start <= 2 {
+                    reportError("Illegal octal number", at: start)
+                }
             case "x"?:
                 next()
                 scanMantissa(16)
