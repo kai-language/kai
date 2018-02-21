@@ -1840,11 +1840,12 @@ extension IRGenerator {
 
     mutating func emit(constantString value: String, returnAddress: Bool = false) -> IRValue {
         let len = value.utf8.count
-        // FIXME: Global string pointers crash if emitted at global scope
-        // NOTE(vdka): Likely because buildGlobalStringPtr internally attempts to emit instructions into the current block and there is none.
-        //   Likely we don't need a ptr anyway
-        // We should look at emitting this using buildGlobalString and then using a const GEP to get the base address? or something ...
-        let ptr = b.buildGlobalStringPtr(value)
+        let str = LLVM.ArrayType.constant(string: value)
+        var raw = b.addGlobal(".str.raw", initializer: str)
+        raw.isGlobalConstant = true
+        raw.linkage = .private
+
+        let ptr = const.inBoundsGEP(raw, indices: [0, 0])
 
         let type = canonicalize(ty.string) as! LLVM.StructType
         let ir = type.constant(values: [ptr, len, 0])
