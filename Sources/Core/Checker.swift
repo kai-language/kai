@@ -654,7 +654,7 @@ extension Checker {
                 dependencies.formUnion(lhsOperand.dependencies)
                 dependencies.formUnion(rhsOperand.dependencies)
 
-                guard lhsOperand.mode == .addressable else {
+                guard lhsOperand.mode == .assignable || lhsOperand.mode == .addressable else {
                     reportError("Cannot assign to \(lhsOperand)", at: lhs.start)
                     continue
                 }
@@ -1831,6 +1831,7 @@ extension Checker {
 
         if unary.op == .lss {
             unary.type = (operand.type as! ty.Pointer).pointeeType
+            return Operand(mode: .assignable, expr: unary, type: unary.type, constant: nil, dependencies: [])
         } else {
             unary.type = operand.type
         }
