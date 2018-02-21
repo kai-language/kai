@@ -1,0 +1,9 @@
+
+#import kai("posix")
+
+main :: fn() -> i32 {
+    x :: 5
+    y :: 6
+    z :: x - y
+    return 0
+}

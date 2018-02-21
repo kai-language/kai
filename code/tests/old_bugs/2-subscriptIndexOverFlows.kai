@@ -1,0 +1,16 @@
+
+#import kai("posix")
+
+main :: fn() -> void {
+    // element on the stack before arr
+    pre: u64 = 321
+    arr: [65536]u64
+    arr[65535] = 123
+    index: u16 = 65535
+    // Index being u16 max is represented in an LLVM GEP as being signed. 
+    // This results in index wrapping to -1 here demonstrated by the value 
+    //   of pre being printed as it was 1 address before arr on the stack.
+    a := arr[index]
+    posix.printf("%d\n".raw, a)
+}
+

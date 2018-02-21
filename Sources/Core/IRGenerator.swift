@@ -1730,7 +1730,13 @@ extension IRGenerator {
 
     mutating func emit(subscript sub: Subscript, returnAddress: Bool) -> IRValue {
         let aggregate: IRValue
-        let index = emit(expr: sub.index)
+        var index = emit(expr: sub.index)
+        if sub.index.type.width! < word.width {
+            // GEP is signed meaning using values that are unsigned where the top bit is
+            //  set they are treated as negative by LLVM. To get around this we zero extend
+            //  to the word size this permits indexing an array of bits up to 1024 Petabytes in size.
+            index = b.buildZExt(index, type: word)
+        }
 
         let indicies: [IRValue]
 
