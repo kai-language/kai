@@ -832,7 +832,7 @@ extension IRGenerator {
         let agg: IRValue
         let len: IRValue
 
-        switch f.checked! {
+        switch f.checked {
         case .array(let length):
             agg = emit(expr: f.aggregate, returnAddress: true)
             len = i64.constant(length)
@@ -844,6 +844,8 @@ extension IRGenerator {
             len = buildLoad(lenPtr)
         case .enumeration:
             fatalError("Unimplemented")
+        case .invalid:
+            return // FIXME: We should check the body to provide errors anyway
         }
 
         loopCond = currentFunc.appendBasicBlock(named: "for.cond", in: module.context)
@@ -867,7 +869,7 @@ extension IRGenerator {
 
         let indexLoad = buildLoad(index)
         let indices: [IRValue]
-        switch f.checked! {
+        switch f.checked {
         case .array: indices = [0, indexLoad]
         default: indices = [indexLoad]
         }

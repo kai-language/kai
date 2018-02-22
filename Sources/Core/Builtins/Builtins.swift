@@ -67,7 +67,7 @@ class BuiltinEntity {
     }
 
     init(name: String, type: Type, gen: @escaping (inout IRGenerator) -> IRValue) {
-        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+        let ident = Ident(start: noPos, name: name)
         let entity = Entity(ident: ident, type: type, flags: .builtin)
         self.entity = entity
         self.type = type
@@ -111,7 +111,7 @@ class BuiltinFunction {
         let returnType = ty.Tuple.make(outTypes.map(ty.Metatype.init))
         let type = ty.Function(node: nil, labels: nil, params: inTypes, returnType: returnType, flags: .none)
 
-        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+        let ident = Ident(start: noPos, name: name)
         let entity = Entity(ident: ident, type: type)
 
         return BuiltinFunction(entity: entity, generate: gen, onCallCheck: onCallCheck)
@@ -142,7 +142,7 @@ extension Entity {
 
     static func makeBuiltin(_ name: String, type: Type? = nil, flags: Flag = .none) -> Entity {
 
-        let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+        let ident = Ident(start: noPos, name: name)
         let entity = Entity(ident: ident, type: type, flags: flags)
         return entity
     }
@@ -155,7 +155,7 @@ extension BuiltinType {
         var width = 0
         var fields: [ty.Struct.Field] = []
         for (index, (name, type)) in structMembers.enumerated() {
-            let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+            let ident = Ident(start: noPos, name: name)
             let field = ty.Struct.Field(ident: ident, type: type, index: index, offset: width)
             fields.append(field)
             width = (width + type.width!)
@@ -177,7 +177,7 @@ extension BuiltinType {
         var width = 0
         var cases: [ty.Union.Case] = []
         for (index, (name, type)) in unionMembers.enumerated() {
-            let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+            let ident = Ident(start: noPos, name: name)
             let c = ty.Union.Case(ident: ident, type: type, tag: index)
             cases.append(c)
             width = max(width, type.width!)
@@ -202,7 +202,7 @@ extension BuiltinType {
         var width = 0
         var cases: [ty.Union.Case] = []
         for (name, type, tag) in unionMembers {
-            let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+            let ident = Ident(start: noPos, name: name)
             let c = ty.Union.Case(ident: ident, type: type, tag: tag)
             cases.append(c)
             width = max(width, type.width!)

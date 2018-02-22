@@ -85,7 +85,7 @@ func entity(from expr: Expr) -> Entity? {
         return expr.entity
 
     case let expr as Selector:
-        guard case .file(let entity)? = expr.checked else {
+        guard case .file(let entity) = expr.checked else {
             return nil
         }
         return entity

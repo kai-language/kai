@@ -128,7 +128,7 @@ extension builtin {
             entity: Entity.makeBuiltin("SizeOf", type: ty.Function.make([ty.any], [builtin.untypedInteger.type])),
             generate: { function, returnAddress, exprs, gen in
                 assert(!returnAddress)
-                var type = exprs[0].type!
+                var type = exprs[0].type
                 if let meta = type as? ty.Metatype {
                     type = meta.instanceType
                 }
@@ -143,7 +143,7 @@ extension builtin {
         static var typeOf: BuiltinFunction = BuiltinFunction(
             entity: Entity.makeBuiltin("TypeOf", type: ty.Function.make([ty.any], [typeInfoType])),
             generate: { function, returnAddress, args, gen in
-                var type = baseType(args[0].type!) // FIXME: Don't unwrap named types
+                var type = baseType(args[0].type) // FIXME: Don't unwrap named types
                 if type is ty.Metatype {
                     type = type.lower()
                 }

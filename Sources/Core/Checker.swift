@@ -143,7 +143,7 @@ extension Checker {
                 file.attachNote("You will need to manually specify one")
                 return
             }
-            let ident = Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+            let ident = Ident(start: noPos, name: name)
             entity = newEntity(ident: ident, flags: .file)
         }
 
@@ -180,7 +180,7 @@ extension Checker {
             file.attachNote("You will need to manually specify one")
             return
         }
-        let ident = l.alias ?? Ident(start: noPos, name: name, entity: nil, type: nil, conversion: nil, constant: nil)
+        let ident = l.alias ?? Ident(start: noPos, name: name)
         let entity = newEntity(ident: ident, flags: .library)
         declare(entity)
 
@@ -278,13 +278,14 @@ extension Checker {
             let operand = check(expr: stmt.expr)
             switch stmt.expr {
             case let call as Call:
-                switch call.checked! {
+                switch call.checked {
                 case .call, .specializedCall:
                     guard let fnNode = (call.fun.type as? ty.Function)?.node, fnNode.isDiscardable || operand.type is ty.Void else {
                         fallthrough
                     }
                     // TODO: Report unused returns on non discardables
-                default:
+                case .builtinCall: fallthrough
+                case .invalid:
                     break
                 }
 
@@ -1237,7 +1238,7 @@ extension Checker {
                 return Operand(mode: entity.isType ? .type : .addressable, expr: ident, type: desiredType, constant: entity.constant, dependencies: [entity])
             }
         }
-        ident.type = type
+        ident.type = type!
 
         let mode: Operand.Mode
         if entity.isFile {
@@ -1304,7 +1305,7 @@ extension Checker {
             operand = check(expr: explicitType)
             dependencies.formUnion(operand!.dependencies)
             type = lowerFromMetatype(operand!.type, atNode: explicitType)
-            lit.type = type
+            lit.type = type!
         } else if let desiredType = desiredType {
             operand = nil
             type = desiredType
@@ -1353,7 +1354,7 @@ extension Checker {
                     }
                 }
             }
-            lit.type = type
+            lit.type = type!
             return Operand(mode: .computed, expr: lit, type: type, constant: nil, dependencies: dependencies)
 
         case var type as ty.Array:
@@ -1423,7 +1424,7 @@ extension Checker {
 
     @discardableResult
     mutating func check(polyType: PolyType) -> Type {
-        if polyType.type != nil {
+        if !isInvalid(polyType.type) {
             // Do not redeclare any poly types which have been checked before.
             return polyType.type
         }
@@ -1464,7 +1465,7 @@ extension Checker {
             assert(fn.explicitType.labels != nil, "Currently function literals without argument names are disallowed")
 
             for (label, param) in zip(fn.explicitType.labels!, fn.explicitType.params) {
-                if fn.isSpecialization && param.type != nil && !isPolymorphic(param.type) {
+                if fn.isSpecialization && !isInvalid(param.type) && !isPolymorphic(param.type) {
                     // The polymorphic parameters type has been set by the callee
                     inputs.append(param.type)
                     continue
@@ -1975,7 +1976,7 @@ extension Checker {
                     return Operand(mode: .addressable, expr: selector, type: desiredType, constant: member.constant, dependencies: dependencies)
                 }
             }
-            selector.type = member.type
+            selector.type = member.type!
             return Operand(mode: .addressable, expr: selector, type: member.type, constant: member.constant, dependencies: dependencies)
 
         case let strućt as ty.Struct:
@@ -2419,7 +2420,7 @@ extension Checker {
 
         // In the parameter scope we want to set T.specialization.val to the argument type.
 
-        guard case .polymorphic(let declaringScope, var specializations)? = fnLitNode.checked else {
+        guard case .polymorphic(let declaringScope, var specializations) = fnLitNode.checked else {
             preconditionFailure()
         }
 
@@ -2461,7 +2462,7 @@ extension Checker {
 
             // check the remaining arguments
             for (arg, expectedType) in zip(call.args, specialization.strippedType.params)
-                where arg.type == nil
+                where isInvalid(arg.type)
             {
                 let argument = check(expr: arg, desiredType: expectedType)
 
@@ -2541,7 +2542,7 @@ extension Checker {
                 declare(entity)
 
             } else {
-                assert(arg.type == nil)
+                assert(isInvalid(arg.type))
                 let paramType = lowerSpecializedPolymorphics(param.type!)
 
                 // Go back to the calling scope for checking
