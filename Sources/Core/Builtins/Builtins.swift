@@ -13,7 +13,6 @@ enum builtin {
 
     static let untypedInteger = BuiltinType(entity: .anonymous, type: ty.UntypedInteger())
     static let untypedFloat   = BuiltinType(entity: .anonymous, type: ty.UntypedFloat())
-    static let untypedNil     = BuiltinType(entity: .untypedNil, type: ty.UntypedNil())
 
     /// - Note: The type type only exists at compile time
 //    static let type = BuiltinType(entity: .type, type: ty.Metatype(instanceType: ty.Tuple(width: 0, types: [])))

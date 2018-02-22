@@ -1049,27 +1049,7 @@ extension Checker {
 
         switch expr {
         case let expr as Nil:
-            // let this fall through until later
-            expr.type = desiredType ?? ty.invalid
-            if let desiredType = desiredType {
-                // FIXME: Actually check if desired type is nilable
-                return Operand(mode: .computed, expr: expr, type: desiredType, constant: expr, dependencies: [])
-            }
-            return Operand(mode: .computed, expr: expr, type: builtin.untypedNil.type, constant: expr, dependencies: [])
-
-            // TODO: Should the following errors be used?
-            /*
-            guard let desiredType = desiredType else {
-                reportError("'nil' requires a contextual type", at: expr.start)
-                return ty.invalid
-            }
-            guard desiredType is ty.Pointer else {
-                reportError("'nil' is not convertable to '\(desiredType)'", at: expr.start)
-                return ty.invalid
-            }
-            expr.type = desiredType
-            return desiredType
-            */
+            return check(nil: expr, desiredType: desiredType)
 
         case let ident as Ident:
             return check(ident: ident, desiredType: desiredType)
@@ -1254,6 +1234,24 @@ extension Checker {
         }
 
         return Operand(mode: mode, expr: ident, type: type, constant: entity.constant, dependencies: [entity])
+    }
+
+    @discardableResult
+    mutating func check(nil lit: Nil, desiredType: Type?) -> Operand {
+        lit.type = desiredType ?? ty.invalid
+
+        guard let desiredType = desiredType else {
+            reportError("'nil' requires a contextual type", at: lit.start)
+            return Operand.invalid
+        }
+
+        guard isNilable(desiredType) else {
+            reportError("'nil' is not convertable to '\(desiredType)'", at: lit.start)
+            return Operand.invalid
+        }
+
+        lit.type = desiredType
+        return Operand(mode: .computed, expr: lit, type: desiredType, constant: lit, dependencies: [])
     }
 
     @discardableResult

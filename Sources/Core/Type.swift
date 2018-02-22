@@ -193,8 +193,7 @@ func lowerSpecializedPolymorphics(_ type: Type) -> Type {
     case let type as ty.Tuple:
         return ty.Tuple(width: type.width, types: type.types.map(lowerSpecializedPolymorphics))
 
-    case is ty.UntypedNil,
-         is ty.UntypedInteger,
+    case is ty.UntypedInteger,
          is ty.UntypedFloat:
         return type
 
@@ -216,9 +215,7 @@ func baseType(_ type: Type) -> Type {
 
 func constrainUntyped(_ type: Type, to targetType: Type) -> Bool {
     switch (type, targetType) {
-    case (is ty.UntypedNil, is ty.Pointer),
-
-         (is ty.UntypedInteger, is ty.Integer),
+    case (is ty.UntypedInteger, is ty.Integer),
          (is ty.UntypedInteger, is ty.Float),
          (is ty.UntypedInteger, is ty.Pointer),
 
@@ -233,9 +230,6 @@ func constrainUntyped(_ type: Type, to targetType: Type) -> Bool {
 /// - Returns: No default type available for constraint
 func constrainUntypedToDefault(_ type: Type) -> Type {
     switch type {
-    case is ty.UntypedNil:
-        preconditionFailure("You must check for this prior to calling")
-
     case is ty.UntypedInteger:
         return ty.i64
 
@@ -270,13 +264,6 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
 
     var allowed = false
     switch (type, target) {
-    case (is ty.UntypedNil, is ty.Pointer):
-        if let lit = expr as? Nil {
-            lit.type = target
-            return true
-        }
-        allowed = true
-
     case (is ty.UntypedInteger, is ty.Integer),
          (is ty.UntypedInteger, is ty.Float),
          (is ty.UntypedFloat, is ty.Float):
@@ -374,9 +361,7 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
 
 func canCast(_ exprType: Type, to targetType: Type) -> Bool {
     switch (baseType(exprType), baseType(targetType)) {
-    case (is ty.UntypedNil, is ty.Pointer),
-
-         (is ty.UntypedInteger, is ty.Integer),
+    case (is ty.UntypedInteger, is ty.Integer),
          (is ty.UntypedInteger, is ty.Float),
          (is ty.UntypedInteger, is ty.Pointer),
 
@@ -608,10 +593,6 @@ enum ty {
         }
     }
 
-    struct UntypedNil: Type {
-        var width: Int? { return MemoryLayout<Int>.size }
-    }
-
     struct UntypedInteger: Type, CustomStringConvertible {
         var width: Int? { return 64 } // NOTE: Bump up to larger size for more precision.
     }
@@ -682,8 +663,9 @@ extension ty.Union {
     }
 }
 
+@available(*, deprecated, renamed: "isUntypedNumber")
 func isUntyped(_ type: Type) -> Bool {
-    return type is ty.UntypedNil || isUntypedNumber(type)
+    return isUntypedNumber(type)
 }
 
 func isUntypedNumber(_ type: Type) -> Bool {
@@ -753,10 +735,6 @@ func isFunction(_ type: Type) -> Bool {
     return baseType(type) is ty.Function
 }
 
-func isNil(_ type: Type) -> Bool {
-    return type is ty.UntypedNil
-}
-
 func isUntypedInteger(_ type: Type) -> Bool {
     return type is ty.UntypedInteger
 }
@@ -787,6 +765,10 @@ func isInvalid(_ type: Type) -> Bool {
 
 func isFile(_ type: Type) -> Bool {
     return type is ty.File
+}
+
+func isNilable(_ type: Type) -> Bool {
+    return type is ty.Pointer
 }
 
 func isEquatable(_ type: Type) -> Bool {

@@ -1160,6 +1160,8 @@ extension IRGenerator {
                 global.linkage = .private
                 arrayPtr = const.inBoundsGEP(global, indices: [i64.constant(0), i64.constant(0)])
             } else { // We are at function scope
+
+                // FIXME: We are using the stack for slice values, but that results in a lot of issues
                 let stackAddress = b.buildAlloca(type: arrayIr.type)
                 b.buildStore(arrayIr, to: stackAddress)
                 arrayPtr = b.buildInBoundsGEP(stackAddress, indices: [i64.constant(0), i64.constant(0)])
@@ -2108,8 +2110,6 @@ extension IRGenerator {
             }
         case is ty.Polymorphic:
             fatalError("Polymorphic types must be specialized before reaching the IRGenerator")
-        case is ty.UntypedNil:
-            fatalError("Untyped nil should be constrained to target type")
         default:
             preconditionFailure()
         }

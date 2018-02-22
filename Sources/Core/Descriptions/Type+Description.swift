@@ -97,12 +97,6 @@ extension ty.Named {
     }
 }
 
-extension ty.UntypedNil {
-    var description: String {
-        return "nil"
-    }
-}
-
 extension ty.UntypedInteger {
     var description: String {
         return "integer"

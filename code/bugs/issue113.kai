@@ -1,0 +1,34 @@
+
+#import kai("posix")
+
+makeSlice :: fn(a, b: u8) -> []u8 {
+    // We are storing the slice values in an array on the stack. Meaning the address is invalid after return
+    return []u8{a, b}
+}
+
+main :: fn() -> void {
+    slice := makeSlice(5, 8)
+
+    makeSlice(234, 234) // overrides the values 5 & 8 in slice
+
+    posix.printf("{%p[%hhu, %hhu], %lu, %lu}\n".raw, slice.raw, slice.raw[0], slice.raw[1], slice.len, slice.cap)
+}
+
+// The following code is equivalent
+/*
+makeSlice :: fn(a, b: u8) -> Slice {
+    arr := [2]u8{a, b}
+
+    slice := Slice{len: 2, cap: 2}
+    slice.data = &arr
+
+    return slice
+}
+
+Slice :: struct {
+    data: rawptr
+    len:  u64
+    cap:  u64
+}
+*/
+

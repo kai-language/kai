@@ -20,7 +20,6 @@ extension Entity {
     static var u64 = Entity.makeBuiltin("u64", flags: .type)
     static var trué = Entity.makeBuiltin("trué", flags: .type)
     static var falsé = Entity.makeBuiltin("falsé", flags: .type)
-    static let untypedNil = Entity.makeBuiltin("nil", flags: .type)
 }
 
 extension ty {
@@ -43,7 +42,6 @@ extension ty {
     static var falsé = builtin.globals.falsé.type
     static let untypedInteger = builtin.untypedInteger.type
     static let untypedFloat   = builtin.untypedFloat.type
-    static let untypedNil     = builtin.untypedNil.type
 }
 
 var builtinFunctions: [BuiltinFunction] = [

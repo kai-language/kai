@@ -4,7 +4,6 @@ extension Entity {
 {% for var in type.staticVariables %}
     static var {{ var.name }} = Entity.makeBuiltin("{{ var.name }}", flags: .type)
 {% endfor %}
-    static let untypedNil = Entity.makeBuiltin("nil", flags: .type)
 {% endfor %}
 }
 
@@ -16,7 +15,6 @@ extension ty {
 {% endfor %}
     static let untypedInteger = builtin.untypedInteger.type
     static let untypedFloat   = builtin.untypedFloat.type
-    static let untypedNil     = builtin.untypedNil.type
 }
 
 var builtinFunctions: [BuiltinFunction] = [
