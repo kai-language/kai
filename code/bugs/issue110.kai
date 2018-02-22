@@ -1,0 +1,9 @@
+
+// Compiler crashes when a second entity is declared and used later when the rhs is checked to ty.invalid
+
+main :: fn() -> void {
+    // Here we call a function that doesn't exist
+    a, b := na()
+    b = 2
+}
+

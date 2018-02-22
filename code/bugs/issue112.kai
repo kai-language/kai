@@ -1,0 +1,8 @@
+
+// Missing lbrace in for statement causes numerous flow on parser errors
+
+main :: fn() -> void {
+    for // {
+    }
+}
+

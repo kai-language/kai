@@ -1053,44 +1053,35 @@ extension IRGenerator {
         // TODO: Use the mangled entity name
         if lit.token == .string {
             if isInteger(lit.type), let val = lit.constant as? UInt64 {
+                assert(!returnAddress) // NOTE: This probably shouldn't make it past the frontend. It falls under taking the address of a literal number.
                 return canonicalize(lit.type as! ty.Integer).constant(val)
             } else {
                 // NOTE: The following code closely matches the code for emitting slices. Because Strings are slices.
                 assert(lit.type == ty.string)
                 let str = lit.constant as! String
                 let arrayIr = LLVM.ArrayType.constant(string: str, in: module.context)
-
-                let arrayPtr: IRValue
-                if let entity = entity, entity.isConstant {
-                    var global = b.addGlobal(".str.raw", initializer: arrayIr)
-                    global.isGlobalConstant = true
-                    global.linkage = .private
-                    arrayPtr = const.inBoundsGEP(global, indices: [i64.constant(0), i64.constant(0)])
-                } else if context.returnBlock == nil { // we are at a global scope
-                    var global = b.addGlobal(".str.raw", initializer: arrayIr)
-                    global.linkage = .private
-                    arrayPtr = const.inBoundsGEP(global, indices: [i64.constant(0), i64.constant(0)])
-                } else { // We are at funciton scope -> Stack allocate
-                    let stackAddress = b.buildAlloca(type: arrayIr.type)
-                    b.buildStore(arrayIr, to: stackAddress)
-                    arrayPtr = b.buildInBoundsGEP(stackAddress, indices: [i64.constant(0), i64.constant(0)])
-                }
-
+                var global = b.addGlobal(".str.raw", initializer: arrayIr)
+                global.linkage = .private
+                global.isGlobalConstant = entity?.isConstant ?? false
                 let irType = canonicalize(ty.string) as! LLVM.StructType
 
                 // NOTE: Length and Capacity are always constants!
-                var ir = irType.constant(values: [
-                    arrayIr.type.undef(),
+                let ir = irType.constant(values: [
+                    const.inBoundsGEP(global, indices: [i64.constant(0), i64.constant(0)]),
                     i64.constant(str.utf8.count),
                     i64.constant(0), // NOTE: We set the capacity to zero to signify that the data pointer is not managed by an allocator
                 ])
 
-                ir = b.buildInsertValue(aggregate: ir, element: arrayPtr, index: 0) // LLVM will constant fold this if possible.
                 assert(entity != nil && entity!.isConstant, implies: ir.isConstant, "The value being emitted for the entity \(entity!.name) was not constant, but should have been")
+
+                if returnAddress {
+                    return makeAddressable(value: ir, entity: entity)
+                }
                 return ir
             }
         }
 
+        assert(!returnAddress)
         let type = canonicalize(lit.type)
         switch type {
         case let type as IntType:
@@ -1125,6 +1116,10 @@ extension IRGenerator {
                 ir = b.buildInsertValue(aggregate: ir, element: val, index: el.structField!.index)
             }
             assert(entity != nil && entity!.isConstant, implies: ir.isConstant, "The value being emitted for the entity \(entity!.name) was not constant, but should have been")
+
+            if returnAddress {
+                return makeAddressable(value: ir, entity: entity)
+            }
             return ir
 
         case is ty.Array:
@@ -1136,6 +1131,10 @@ extension IRGenerator {
                 ir = b.buildInsertValue(aggregate: ir, element: val, index: index)
             }
             assert(entity != nil && entity!.isConstant, implies: ir.isConstant, "The value being emitted for the entity \(entity!.name) was not constant, but should have been")
+
+            if returnAddress {
+                return makeAddressable(value: ir, entity: entity)
+            }
             return ir
 
         case let slice as ty.Slice:
@@ -1166,13 +1165,16 @@ extension IRGenerator {
 
             // NOTE: Length and Capacity are always constants!
             var ir = irType.constant(values: [
-                arrayIr.type.undef(),
+                arrayPtr.type.undef(),
                 i64.constant(lit.elements.count),
                 i64.constant(0), // NOTE: We set the capacity to zero to signify that the data pointer is not managed by an allocator
             ])
 
             ir = b.buildInsertValue(aggregate: ir, element: arrayPtr, index: 0) // LLVM will constant fold this if possible.
             assert(entity != nil && entity!.isConstant, implies: ir.isConstant, "The value being emitted for the entity \(entity!.name) was not constant, but should have been")
+            if returnAddress {
+                return makeAddressable(value: ir, entity: entity)
+            }
             return ir
 
         case is ty.Vector:
@@ -1181,6 +1183,9 @@ extension IRGenerator {
             for (index, el) in lit.elements.enumerated() {
                 let val = emit(expr: el.value)
                 ir = b.buildInsertElement(vector: ir, element: val, index: index)
+            }
+            if returnAddress {
+                return makeAddressable(value: ir, entity: entity)
             }
             return ir
 
@@ -1345,7 +1350,8 @@ extension IRGenerator {
     mutating func emit(call: Call, returnAddress: Bool = false) -> IRValue {
         // FIXME: We need to convert unnamed types into named types in returns if necissary for aliases
 
-        switch call.checked! {
+        switch call.checked {
+        case .invalid: preconditionFailure("Invalid checked member made it to IRGen")
         case .builtinCall(let builtin):
             return builtin.generate(builtin, returnAddress, call.args, &self)
         case .call:
@@ -1465,7 +1471,11 @@ extension IRGenerator {
     }
 
     mutating func emit(cast: Cast, returnAddress: Bool = false) -> IRValue {
-        var value = emit(expr: cast.expr, returnAddress: true)
+        // FIXME: We shouldn't just return address for everything! There are lots of things we can't and it means we can't check against addressing in the IRGen
+        //  The best solution may be to check the type of the cast.expr and then determine if we should attempt to return the address from that, alternatively check
+        //   what kind of Ast Node the cast.expr is and use that.
+        // @HACK: If it's a basic literal we ensure we don't attempt to return the address
+        var value = emit(expr: cast.expr, returnAddress: !(cast.expr is BasicLit))
 
         var target = canonicalize(cast.type)
         if returnAddress {
@@ -1568,7 +1578,8 @@ extension IRGenerator {
     }
 
     mutating func emit(funcLit fn: FuncLit, entity: Entity?, specializationMangle: String? = nil) -> Function {
-        switch fn.checked! {
+        switch fn.checked {
+        case .invalid: preconditionFailure("Invalid checked member made it to IRGen")
         case .regular:
             let fnType = canonicalizeSignature(fn.type as! ty.Function)
 
@@ -1634,8 +1645,8 @@ extension IRGenerator {
     }
 
     mutating func emit(selector sel: Selector, returnAddress: Bool) -> IRValue {
-        switch sel.checked! {
-        case .invalid: fatalError()
+        switch sel.checked {
+        case .invalid: preconditionFailure("Invalid checked member made it to IRGen")
         case .file(let entity):
             if entity.isConstant {
                 switch baseType(sel.type) {
@@ -1873,6 +1884,19 @@ extension IRGenerator {
 
 extension IRGenerator {
 
+    mutating func makeAddressable(value: IRValue, entity: Entity?) -> IRValue {
+        if let entity = entity, entity.isConstant {
+            assert(value.isConstant)
+            var global = b.addGlobal(entity.mangledName ?? ".", initializer: value)
+            global.isGlobalConstant = true
+            return global
+        } else if context.returnBlock == nil {
+            return b.addGlobal(entity?.mangledName ?? ".", initializer: value)
+        } else {
+            return entryBlockAlloca(type: value.type, name: entity?.mangledName ?? "", default: value)
+        }
+    }
+
     mutating func emit(constantString value: String, returnAddress: Bool = false) -> IRValue {
         let len = value.utf8.count
         let str = LLVM.ArrayType.constant(string: value)
@@ -1967,6 +1991,8 @@ extension IRGenerator {
 
         case (_, is ty.Anyy):
             // We need a heap allocation here, for now we will use malloc from libc.
+            // FIXME: the any type shouldn't always need to malloc, in the case of type smaller than a machine word
+            //   they have their value stored in the memory for the data pointer
             let dataType = canonicalize(from)
             var dataPointer = b.buildMalloc(dataType)
             b.buildStore(value, to: dataPointer)

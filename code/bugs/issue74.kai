@@ -1,0 +1,8 @@
+
+// Missing an lbrace after an if statement causes an infinite loop
+
+main :: fn() -> void {
+    if true // {
+    }
+}
+

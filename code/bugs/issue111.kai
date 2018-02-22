@@ -1,0 +1,15 @@
+
+// The nil literal converts to everything!
+
+A :: struct {
+    a: u16
+}
+
+main :: fn() -> i32 {
+    a: A = nil
+    b: f32 = nil
+    c: i32 = nil
+    d: () -> void = nil
+    return nil
+}
+
