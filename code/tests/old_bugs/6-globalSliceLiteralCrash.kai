@@ -1,0 +1,8 @@
+
+fileConstant :: []u16{1}
+fileVariable := []u16{2}
+
+main :: fn() -> void {
+    fnConstant :: []u16{3}
+    fnVariable := []u16{4}
+}

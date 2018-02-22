@@ -255,3 +255,7 @@ extension Unicode.Scalar {
 
     static let error = Unicode.Scalar(UInt32(0xFFFD))!
 }
+
+func assert(_ a: Bool, implies b: @autoclosure () -> Bool, _ message: @autoclosure () -> String = "", file: StaticString = #file, line: UInt = #line) {
+    assert(!a || b(), message, file: file, line: line)
+}

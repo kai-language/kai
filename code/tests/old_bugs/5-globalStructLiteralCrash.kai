@@ -1,0 +1,13 @@
+
+A :: struct {
+    a: u16
+}
+
+fileConstant :: A{1}
+fileVariable := A{2}
+
+main :: fn() -> void {
+    fnConstant :: A{3}
+    fnVariable := A{4}
+}
+

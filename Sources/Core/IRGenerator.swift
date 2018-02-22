@@ -1104,42 +1104,51 @@ extension IRGenerator {
         case is ty.Struct:
             for el in lit.elements {
                 let val = emit(expr: el.value)
+                // NOTE: For constants LLVM will reliably constant fold this.
                 ir = b.buildInsertValue(aggregate: ir, element: val, index: el.structField!.index)
             }
+            assert(entity != nil && entity!.isConstant, implies: ir.isConstant, "The value being emitted for the entity \(entity!.name) was not constant, but should have been")
             return ir
 
         case is ty.Array:
             for (index, el) in lit.elements.enumerated() {
                 let val = emit(expr: el.value)
+                // NOTE: For constants LLVM will reliably constant fold this.
                 ir = b.buildInsertValue(aggregate: ir, element: val, index: index)
             }
+            assert(entity != nil && entity!.isConstant, implies: ir.isConstant, "The value being emitted for the entity \(entity!.name) was not constant, but should have been")
             return ir
 
         case let slice as ty.Slice:
-            let elementType = canonicalize(slice.elementType)
-            let rawBuffType = LLVM.ArrayType(elementType: elementType, count: lit.elements.count)
-            var constant = rawBuffType.undef()
+            let elType = canonicalize(slice.elementType)
+            var arrayIr = LLVM.ArrayType(elementType: elType, count: lit.elements.count).undef()
             for (index, el) in lit.elements.enumerated() {
                 let val = emit(expr: el.value)
-                constant = b.buildInsertValue(aggregate: constant, element: val, index: index)
+                arrayIr = b.buildInsertValue(aggregate: arrayIr, element: val, index: index)
             }
 
-            let constantStackAlloc = entryBlockAlloca(type: rawBuffType, name: "array.lit", default: constant)
-            let stackAlloc = entryBlockAlloca(type: rawBuffType)
-            let stackAllocPtr = b.buildGEP(stackAlloc, indices: [0, 0])
-            let newBuff = b.buildBitCast(stackAllocPtr, type: LLVM.PointerType(pointee: i8))
-            let constantPtr = b.buildBitCast(constantStackAlloc, type: LLVM.PointerType(pointee: i8))
-            let length = i64.constant((lit.elements.count * slice.elementType.width!).round(upToNearest: 8) / 8)
-            b.buildMemcpy(newBuff, constantPtr, count: length)
+            // Acquire a pointer to the array
+            let arrayPtr: IRValue
+            if let entity = entity, entity.isConstant {
+                var global = b.addGlobal(".slice.raw", initializer: arrayIr)
+                global.isGlobalConstant = true
+                global.linkage = .private
+                arrayPtr = const.inBoundsGEP(global, indices: [i64.constant(0), i64.constant(0)])
+            } else if context.returnBlock == nil { // We are at a global scope
+                var global = b.addGlobal(".slice.raw", initializer: arrayIr)
+                global.linkage = .private
+                arrayPtr = const.inBoundsGEP(global, indices: [i64.constant(0), i64.constant(0)])
+            } else { // We are at function scope
+                let stackAddress = b.buildAlloca(type: arrayIr.type)
+                b.buildStore(arrayIr, to: stackAddress)
+                arrayPtr = b.buildInBoundsGEP(stackAddress, indices: [i64.constant(0), i64.constant(0)])
+            }
 
-            let newBuffCast = b.buildBitCast(newBuff, type: LLVM.PointerType(pointee: elementType))
-            ir = b.buildInsertValue(aggregate: ir, element: newBuffCast, index: 0)
-            ir = b.buildInsertValue(aggregate: ir, element: i64.constant(lit.elements.count), index: 1)
-            // NOTE: since the raw buffer is stack allocated, we need to set the
-            // capacity to `0`. Then, any call that needs to realloc can instead
-            // malloc a new buffer.
-            ir = b.buildInsertValue(aggregate: ir, element: i64.zero(), index: 2) // cap
-
+            // NOTE: We do the length and the cap first because they are always constant values, this means LLVM will constant fold them for us.
+            ir = const.insertValue(ir, value: i64.constant(lit.elements.count), indices: [1])
+            ir = const.insertValue(ir, value: i64.constant(0), indices: [2]) // NOTE: We set the capacity to zero to signify that the data pointer is not managed by an allocator
+            ir = b.buildInsertValue(aggregate: ir, element: arrayPtr, index: 0)
+            assert(entity != nil && entity!.isConstant, implies: ir.isConstant, "The value being emitted for the entity \(entity!.name) was not constant, but should have been")
             return ir
 
         case is ty.Vector:
