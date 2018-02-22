@@ -770,11 +770,12 @@ func isFile(_ type: Type) -> Bool {
 }
 
 func isNilable(_ type: Type) -> Bool {
-    return type is ty.Pointer
+    return baseType(type) is ty.Pointer
 }
 
 func isEquatable(_ type: Type) -> Bool {
-    switch type {
+
+    switch baseType(type) {
     case is ty.UntypedInteger, is ty.UntypedFloat:
         return true
 
