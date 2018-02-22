@@ -55,6 +55,9 @@ var builtinEntities: [BuiltinEntity] = [
     builtin.platform.pointerWidth,
     builtin.platform.isBigEndian,
     builtin.platform.osTriple,
+    builtin.types.flagUntyped,
+    builtin.types.flagSigned,
+    builtin.types.flagVector,
 ]
 
 var globalBuiltins: Set<Entity> = {
@@ -149,6 +152,9 @@ extension builtin.types {
             builtin.types.`enum`.entity,
             builtin.types.enumCase.entity,
             builtin.types.named.entity,
+            builtin.types.flagUntyped.entity,
+            builtin.types.flagSigned.entity,
+            builtin.types.flagVector.entity,
             builtin.types.sizeOf.entity,
             builtin.types.typeOf.entity,
         ].toDictionary(with: { $0.name })
@@ -177,6 +183,9 @@ extension builtin.types {
     static var enumType: Type { return builtin.types.`enum`.type }
     static var enumCaseType: Type { return builtin.types.enumCase.type }
     static var namedType: Type { return builtin.types.named.type }
+    static var flagUntypedType: Type { return builtin.types.flagUntyped.type }
+    static var flagSignedType: Type { return builtin.types.flagSigned.type }
+    static var flagVectorType: Type { return builtin.types.flagVector.type }
     static var sizeOfType: Type { return builtin.types.sizeOf.type }
     static var typeOfType: Type { return builtin.types.typeOf.type }
 }

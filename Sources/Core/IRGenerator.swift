@@ -1534,6 +1534,10 @@ extension IRGenerator {
     }
 
     mutating func emit(bitcast: Cast, returnAddress: Bool = false) -> IRValue {
+        // FIXME: We shouldn't just return address for everything! There are lots of things we can't and it means we can't check against addressing in the IRGen
+        //  The best solution may be to check the type of the cast.expr and then determine if we should attempt to return the address from that, alternatively check
+        //   what kind of Ast Node the cast.expr is and use that.
+        // @HACK: If it's a basic literal we ensure we don't attempt to return the address
         var value = emit(expr: bitcast.expr, returnAddress: true)
 
         var target = canonicalize(bitcast.type)
@@ -1653,6 +1657,7 @@ extension IRGenerator {
         case .invalid: preconditionFailure("Invalid checked member made it to IRGen")
         case .file(let entity):
             if entity.isConstant {
+                // FIXME: Switch on the actual constant value instead
                 switch baseType(sel.type) {
                 case let type as ty.Integer:
                     return canonicalize(type).constant(sel.constant as! UInt64)
@@ -1663,7 +1668,7 @@ extension IRGenerator {
                 case let type as ty.UntypedFloat:
                     return canonicalize(type).constant(sel.constant as! Double)
                 default:
-                    break
+                    break // NOTE: Functions are constant values without a constant representation
                 }
             }
             let address = value(for: entity)

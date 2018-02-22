@@ -1,9 +1,12 @@
 
 import LLVM
 
-
 // Key is Type.description.hashValue
 var typeInfoTable: [String: IRValue] = [:]
+
+private let flagUntypedValue = UInt64(0x1 << 24)
+private let flagSignedValue  = UInt64(0x2 << 24)
+private let flagVectorValue  = UInt64(0x1)
 
 extension builtin {
 
@@ -36,21 +39,21 @@ extension builtin {
         static let boolean: BuiltinType = BuiltinType(name: "Boolean", flags: .packed, structMembers: [
             ("Tag", ty.u8),
             ("Width", ty.Integer(width: 16, isSigned: false)),
-            ("pad", ty.u8),
+            ("Flags", ty.u8),
             ("reserved", ty.u32),
         ])
 
         static let integer: BuiltinType = BuiltinType(name: "Integer", flags: .packed, structMembers: [
             ("Tag", ty.u8),
             ("Width", ty.u16),
-            ("Signed", ty.Boolean(width: 8)),
+            ("Flags", ty.u8),
             ("reserved", ty.u32),
         ])
 
         static let float: BuiltinType = BuiltinType(name: "Float", flags: .packed, structMembers: [
             ("Tag", ty.u8),
             ("Width", ty.u16),
-            ("pad", ty.u8),
+            ("Flags", ty.u8),
             ("reserved", ty.u32),
         ])
 
@@ -121,6 +124,32 @@ extension builtin {
         ])
 
 
+        // - MARK: Constants
+
+        static var flagUntyped: BuiltinEntity = BuiltinEntity(name: "FlagUntyped", type: ty.u64, gen: { gen in
+            let val = gen.i64.constant(flagUntypedValue)
+
+            var global = gen.addOrReuseGlobal(named: ".types.FlagUntyped", initializer: val)
+            global.linkage = .private
+            return global
+        })
+
+        static var flagSigned: BuiltinEntity = BuiltinEntity(name: "FlagSigned", type: ty.u64, gen: { gen in
+            let val = gen.i64.constant(flagSignedValue)
+
+            var global = gen.addOrReuseGlobal(named: ".types.FlagSigned", initializer: val)
+            global.linkage = .private
+            return global
+        })
+
+        static var flagVector: BuiltinEntity = BuiltinEntity(name: "FlagVector", type: ty.u64, gen: { gen in
+            let val = gen.i64.constant(flagVectorValue)
+
+            var global = gen.addOrReuseGlobal(named: ".types.FlagVector", initializer: val)
+            global.linkage = .private
+            return global
+        })
+
         // - MARK: Functions
 
         // sourcery: type = "ty.Function"
@@ -147,16 +176,10 @@ extension builtin {
                 if type is ty.Metatype {
                     type = type.lower()
                 }
-                if let existing = typeInfoTable[type.description] {
-                    // FIXME: Thread safety
-                    return existing
-                }
 
                 assert(gen.b.insertBlock != nil, "For now type info in the global scope is forbidden")
 
                 let value = llvmTypeInfo(type, gen: &gen)
-
-                typeInfoTable[type.description] = value
                 assert(!returnAddress)
                 return value
             },
@@ -174,12 +197,15 @@ extension builtin {
 
         static func tagForType(_ type: Type) -> Int {
             switch type {
+            case is ty.UntypedInteger:  return 0x00 // Untyped is a flag on Integer
             case is ty.Integer:         return 0x00
             case is ty.Boolean:         return 0x10
             case is ty.Float:           return 0x20
+            case is ty.UntypedFloat:    return 0x20 // Untyped is a flag on Float
             case is ty.Anyy:            return 0x30
             case is ty.Void:            return 0x40
             case is ty.Array:           return 0x01
+            case is ty.Vector:          return 0x01 // Vectors have a flag set on the Array structure
             case is ty.Slice:           return 0x02
             case is ty.Pointer:         return 0x03
             case is ty.Function:        return 0x04
@@ -191,6 +217,10 @@ extension builtin {
         }
 
         static func llvmTypeInfo(_ type: Type, gen: inout IRGenerator) -> IRValue {
+            if let existing = typeInfoTable[type.description] { // FIXME: Thread safety
+                return existing
+            }
+
             let canonical: (inout IRGenerator, Type) -> LLVM.StructType = {
                 return $0.canonicalize($1) as! LLVM.StructType
             }
@@ -221,7 +251,7 @@ extension builtin {
                 let structTypeIr = canonical(&gen, structType)
                 var value: IRValue = structTypeIr.constant(values: [
                     llvmSlice(values: fieldsIr, type: structFieldTypeIR, gen: &gen),
-                    gen.i64.constant(0xC0FEBABE), // flags
+                    gen.i64.constant(0x0), // flags
                 ])
 
                 var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
@@ -229,6 +259,7 @@ extension builtin {
                 value = const.ptrToInt(global, to: intptr)
                 value = const.or(value, tag)
                 value = typeInfoUnionIr.constant(values: [value])
+                typeInfoTable[type.description] = value
                 return value
 
             case let type as ty.Function:
@@ -239,7 +270,7 @@ extension builtin {
                 var value: IRValue = functionTypeIr.constant(values: [
                     llvmSlice(values: params, type: typeInfoUnionIr, gen: &gen),
                     llvmSlice(values: results, type: typeInfoUnionIr, gen: &gen),
-                    gen.i64.constant(0xC0FEBABE), // flags
+                    gen.i64.constant(0x0), // flags
                 ])
 
                 var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
@@ -247,24 +278,27 @@ extension builtin {
                 value = const.ptrToInt(global, to: intptr)
                 value = const.or(value, tag)
                 value = typeInfoUnionIr.constant(values: [value])
+                typeInfoTable[type.description] = value
                 return value
 
-            case let type as ty.Array:
+            case is ty.Array, is ty.Vector:
+                let len = (type as? ty.Array)?.length ?? (type as! ty.Vector).size
+                let elType = (type as? ty.Array)?.elementType ?? (type as! ty.Vector).elementType
+
                 let arrayTypeIr = canonical(&gen, arrayType)
                 var value: IRValue = arrayTypeIr.constant(values: [
-                    gen.i64.constant(type.length),
-                    gen.i64.constant(0xC0FEBABE),
-                    llvmTypeInfo(type.elementType, gen: &gen)
+                    gen.i64.constant(len),
+                    gen.i64.constant(isVector(type) ? flagVectorValue : 0),
+                    llvmTypeInfo(elType, gen: &gen)
                 ])
                 var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
                 global.isGlobalConstant = true
                 value = const.ptrToInt(global, to: intptr)
                 value = const.or(value, tag)
                 value = typeInfoUnionIr.constant(values: [value])
+                typeInfoTable[type.description] = value
                 return value
 
-            case is ty.Vector:
-                fatalError()
             case let type as ty.Union:
                 var casesIr: [IRValue] = []
 
@@ -281,7 +315,7 @@ extension builtin {
 
                 var value: IRValue = canonical(&gen, unionType).constant(values: [
                     llvmSlice(values: casesIr, type: caseTypeIr, gen: &gen),
-                    gen.i64.constant(0xC0FEBABE),
+                    gen.i64.constant(0x0),
                 ])
 
                 var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
@@ -289,6 +323,7 @@ extension builtin {
                 value = const.ptrToInt(global, to: intptr)
                 value = const.or(value, tag)
                 value = typeInfoUnionIr.constant(values: [value])
+                typeInfoTable[type.description] = value
                 return value
 
             case let type as ty.Enum:
@@ -306,7 +341,7 @@ extension builtin {
 
                 var value: IRValue = canonical(&gen, enumType).constant(values: [
                     llvmSlice(values: casesIr, type: canonical(&gen, enumCaseType), gen: &gen),
-                    gen.i64.constant(0xC0FEBABE),
+                    gen.i64.constant(0x0),
                 ])
 
                 var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
@@ -314,44 +349,56 @@ extension builtin {
                 value = const.ptrToInt(global, to: intptr)
                 value = const.or(value, tag)
                 value = typeInfoUnionIr.constant(values: [value])
+                typeInfoTable[type.description] = value
                 return value
 
             case let type as ty.Slice:
-                value = llvmTypeInfo(type.elementType, gen: &gen)
-                value = const.ptrToInt(value, to: intptr)
+                let elementType = llvmTypeInfo(type.elementType, gen: &gen)
+                var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: elementType)
+                global.isGlobalConstant = true
+                value = const.ptrToInt(global, to: intptr)
                 value = const.or(value, tag)
                 value = typeInfoUnionIr.constant(values: [value])
+                typeInfoTable[type.description] = value
                 return value
 
             case let type as ty.Pointer:
-                value = llvmTypeInfo(type.pointeeType, gen: &gen)
-                value = const.ptrToInt(value, to: intptr)
+                let pointeeType = llvmTypeInfo(type.pointeeType, gen: &gen)
+                var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: pointeeType)
+                global.isGlobalConstant = true
+                value = const.ptrToInt(global, to: intptr)
                 value = const.or(value, tag)
                 value = typeInfoUnionIr.constant(values: [value])
+                typeInfoTable[type.description] = value
                 return value
 
             case is ty.Anyy, is ty.Void:
                 value = intptr.constant(tag)
                 value = typeInfoUnionIr.constant(values: [value])
+                typeInfoTable[type.description] = value
                 return value
 
-            case is ty.Boolean, is ty.Float:
+            case is ty.Boolean, is ty.Float, is ty.UntypedFloat:
                 assert(type.width! < numericCast(UInt16.max))
                 var v: UInt64 = 0
+                v |= isUntypedFloat(type) ? flagUntypedValue : 0
                 v |= UInt64(type.width!) << 8
                 v |= UInt64(tag)
                 value = intptr.constant(v)
                 value = typeInfoUnionIr.constant(values: [value])
+                typeInfoTable[type.description] = value
                 return value
 
-            case let type as ty.Integer:
+            case is ty.Integer, is ty.UntypedInteger:
                 assert(type.width! < numericCast(UInt16.max))
                 var v: UInt64 = 0
                 v |= UInt64(type.width!) << 8
-                v |= UInt64(type.isSigned ? 1 : 0) << 24
+                v |= isSigned(type) ? flagUntypedValue : 0
+                v |= isUntypedInteger(type) ? flagSignedValue : 0
                 v |= UInt64(tag)
                 value = intptr.constant(v)
                 value = typeInfoUnionIr.constant(values: [value])
+                typeInfoTable[type.description] = value
                 return value
 
             default:
