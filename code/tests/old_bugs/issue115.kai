@@ -1,0 +1,7 @@
+
+main :: fn() -> void {
+    x: u64
+    y := &x == nil
+    // error: 'nil' requires a contextual type
+}
+

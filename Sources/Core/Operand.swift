@@ -18,6 +18,7 @@ struct Operand {
         case assignable
         /// addressable variable or member of aggregate
         case addressable
+        case `nil`
         /// void returns
         case novalue
         /// file
@@ -40,6 +41,8 @@ extension Operand: CustomStringConvertible {
             return expr + "(type \(type!))"
         case .novalue:
             return type.description
+        case .nil:
+            return "nil"
         case .type:
             return type.description
         case .file:

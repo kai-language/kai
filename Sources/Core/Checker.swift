@@ -291,7 +291,7 @@ extension Checker {
 
             default:
                 if !(operand.type is ty.Invalid) {
-                    reportError("Expression of type \(operand.type) is unused", at: stmt.start)
+                    reportError("Expression \(operand) is unused", at: stmt.start)
                 }
             }
             return operand.dependencies
@@ -1241,8 +1241,8 @@ extension Checker {
         lit.type = desiredType ?? ty.invalid
 
         guard let desiredType = desiredType else {
-            reportError("'nil' requires a contextual type", at: lit.start)
-            return Operand.invalid
+            // NOTE: Callee will report an invalid type or handle the nil mode
+            return Operand(mode: .nil, expr: lit, type: ty.invalid, constant: lit, dependencies: [])
         }
 
         guard isNilable(desiredType) else {
@@ -1849,11 +1849,24 @@ extension Checker {
         let lhs = check(expr: binary.lhs)
         let rhs = check(expr: binary.rhs)
 
-        var lhsType = baseType(lhs.type!)
-        var rhsType = baseType(rhs.type!)
+        var lhsType = baseType(lhs.type)
+        var rhsType = baseType(rhs.type)
 
-        // Set Invalid for any early exits
-        binary.type = ty.invalid
+        if lhs.mode == .nil {
+            guard isNilable(rhs.type) else {
+                reportError("Cannot infer type for \(lhs)", at: binary.lhs.start)
+                return Operand.invalid
+            }
+            binary.lhs.type = binary.rhs.type
+            lhsType = rhsType
+        } else if rhs.mode == .nil {
+            guard isNilable(lhs.type) else {
+                reportError("Cannot infer type for \(rhs)", at: binary.rhs.start)
+                return Operand.invalid
+            }
+            binary.rhs.type = binary.lhs.type
+            rhsType = lhsType
+        }
 
         if lhs.mode == .invalid || rhs.mode == .invalid {
             return Operand.invalid
