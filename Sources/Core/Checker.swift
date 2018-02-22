@@ -817,10 +817,7 @@ extension Checker {
         }
 
         if let cond = fór.cond {
-            let operand = check(expr: cond, desiredType: ty.bool)
-            if !convert(operand.type, to: ty.bool, at: cond) {
-                reportError("Cannot convert \(operand) to expected type '\(ty.bool)'", at: cond.start)
-            }
+            check(condition: cond)
         }
 
         if let step = fór.step {
@@ -887,15 +884,29 @@ extension Checker {
         return dependencies
     }
 
+    @discardableResult
+    mutating func check(condition: Expr) -> Operand {
+        var operand = check(expr: condition, desiredType: ty.bool)
+        if isNilable(operand.type) {
+            // NOTE: Pointer as condition is allowed in statement conditions
+            assert(condition is Convertable)
+            (condition as! Convertable).conversion = (operand.type, ty.bool)
+            operand.type = ty.bool
+            return operand
+        }
+        if !convert(operand.type, to: ty.bool, at: condition) {
+            reportError("Cannot convert \(operand) to expected type '\(ty.bool)'", at: condition.start)
+            return Operand.invalid
+        }
+        return operand
+    }
+
     mutating func check(if iff: If) -> Set<Entity> {
         var dependencies: Set<Entity> = []
 
         pushContext()
-        let operand = check(expr: iff.cond, desiredType: ty.bool)
+        let operand = check(condition: iff.cond)
         dependencies.formUnion(operand.dependencies)
-        if !convert(operand.type, to: ty.bool, at: iff.cond) {
-            reportError("Cannot convert \(operand) to expected type '\(ty.bool)'", at: iff.cond.start)
-        }
 
         let deps = check(stmt: iff.body)
         popContext()
@@ -1777,7 +1788,7 @@ extension Checker {
         .add: isNumber,
         .sub: isNumber,
         .bnot: isInteger,
-        .not: isBoolean,
+        .not: { isBoolean($0) || isPointer($0) },
         .lss: isPointer,
     ]
 
@@ -1785,7 +1796,6 @@ extension Checker {
     @discardableResult
     mutating func check(unary: Unary, desiredType: Type?) -> Operand {
         let operand = check(expr: unary.element, desiredType: desiredType)
-        unary.type = ty.invalid // NOTE: for early exits
 
         switch unary.op {
         case .and: // addressOf
@@ -1807,7 +1817,11 @@ extension Checker {
             return Operand.invalid
         }
 
-        if unary.op == .lss {
+        if unary.op == .not {
+            assert(unary.element is Convertable)
+            (unary.element as! Convertable).conversion = (operand.type, ty.bool)
+            unary.type = ty.bool
+        } else if unary.op == .lss {
             unary.type = (operand.type as! ty.Pointer).pointeeType
             return Operand(mode: .assignable, expr: unary, type: unary.type, constant: nil, dependencies: operand.dependencies)
         } else {

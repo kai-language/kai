@@ -10,13 +10,17 @@ extension Entity {
     static var string = Entity.makeBuiltin("string", flags: .type)
     static var f32 = Entity.makeBuiltin("f32", flags: .type)
     static var f64 = Entity.makeBuiltin("f64", flags: .type)
+    static var b8 = Entity.makeBuiltin("b8", flags: .type)
+    static var b16 = Entity.makeBuiltin("b16", flags: .type)
+    static var b32 = Entity.makeBuiltin("b32", flags: .type)
+    static var b64 = Entity.makeBuiltin("b64", flags: .type)
     static var i8 = Entity.makeBuiltin("i8", flags: .type)
-    static var u8 = Entity.makeBuiltin("u8", flags: .type)
     static var i16 = Entity.makeBuiltin("i16", flags: .type)
-    static var u16 = Entity.makeBuiltin("u16", flags: .type)
     static var i32 = Entity.makeBuiltin("i32", flags: .type)
-    static var u32 = Entity.makeBuiltin("u32", flags: .type)
     static var i64 = Entity.makeBuiltin("i64", flags: .type)
+    static var u8 = Entity.makeBuiltin("u8", flags: .type)
+    static var u16 = Entity.makeBuiltin("u16", flags: .type)
+    static var u32 = Entity.makeBuiltin("u32", flags: .type)
     static var u64 = Entity.makeBuiltin("u64", flags: .type)
     static var trué = Entity.makeBuiltin("trué", flags: .type)
     static var falsé = Entity.makeBuiltin("falsé", flags: .type)
@@ -30,13 +34,17 @@ extension ty {
     static var string = builtin.globals.string.type
     static var f32 = builtin.globals.f32.type
     static var f64 = builtin.globals.f64.type
+    static var b8 = builtin.globals.b8.type
+    static var b16 = builtin.globals.b16.type
+    static var b32 = builtin.globals.b32.type
+    static var b64 = builtin.globals.b64.type
     static var i8 = builtin.globals.i8.type
-    static var u8 = builtin.globals.u8.type
     static var i16 = builtin.globals.i16.type
-    static var u16 = builtin.globals.u16.type
     static var i32 = builtin.globals.i32.type
-    static var u32 = builtin.globals.u32.type
     static var i64 = builtin.globals.i64.type
+    static var u8 = builtin.globals.u8.type
+    static var u16 = builtin.globals.u16.type
+    static var u32 = builtin.globals.u32.type
     static var u64 = builtin.globals.u64.type
     static var trué = builtin.globals.trué.type
     static var falsé = builtin.globals.falsé.type
@@ -69,13 +77,17 @@ var globalBuiltins: Set<Entity> = {
         builtin.globals.string.entity,
         builtin.globals.f32.entity,
         builtin.globals.f64.entity,
+        builtin.globals.b8.entity,
+        builtin.globals.b16.entity,
+        builtin.globals.b32.entity,
+        builtin.globals.b64.entity,
         builtin.globals.i8.entity,
-        builtin.globals.u8.entity,
         builtin.globals.i16.entity,
-        builtin.globals.u16.entity,
         builtin.globals.i32.entity,
-        builtin.globals.u32.entity,
         builtin.globals.i64.entity,
+        builtin.globals.u8.entity,
+        builtin.globals.u16.entity,
+        builtin.globals.u32.entity,
         builtin.globals.u64.entity,
         builtin.globals.trué.entity,
         builtin.globals.falsé.entity,
@@ -103,13 +115,17 @@ extension builtin.globals {
             builtin.globals.string.entity,
             builtin.globals.f32.entity,
             builtin.globals.f64.entity,
+            builtin.globals.b8.entity,
+            builtin.globals.b16.entity,
+            builtin.globals.b32.entity,
+            builtin.globals.b64.entity,
             builtin.globals.i8.entity,
-            builtin.globals.u8.entity,
             builtin.globals.i16.entity,
-            builtin.globals.u16.entity,
             builtin.globals.i32.entity,
-            builtin.globals.u32.entity,
             builtin.globals.i64.entity,
+            builtin.globals.u8.entity,
+            builtin.globals.u16.entity,
+            builtin.globals.u32.entity,
             builtin.globals.u64.entity,
             builtin.globals.trué.entity,
             builtin.globals.falsé.entity,

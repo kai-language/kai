@@ -1951,6 +1951,16 @@ extension IRGenerator {
         case (is ty.UntypedFloat, let target as ty.Integer):
             return b.buildCast(target.isSigned ? .fpToSI : .fpToUI, value: value, type: type)
 
+        case (let from as ty.Boolean, let target as ty.Boolean):
+            if from.width! == target.width! {
+                return value
+            }
+            if from.width! > target.width! {
+                return b.buildCast(.trunc, value: value, type: type)
+            } else {
+                return b.buildCast(.zext, value: value, type: type)
+            }
+
         case (let from as ty.Integer, let target as ty.Integer):
             if from.width! == target.width! {
                 return value
@@ -1972,7 +1982,10 @@ extension IRGenerator {
             return b.buildCast(target.isSigned ? .fpToSI : .fpToUI, value: value, type: type)
 
         case (is ty.Pointer, is ty.Boolean):
-            return b.buildPtrToInt(value, type: type as! IntType)
+            // NOTE: We ptr to int to a intptr first because if we don't we only get the bits that are the resultant int size
+            let intptr = b.buildPtrToInt(value, type: word)
+            let truth = b.buildICmp(intptr, word.zero(), .unsignedGreaterThan)
+            return b.buildZExtOrBitCast(truth, type: type as! IntType)
         case (is ty.Pointer, is ty.Integer):
             return b.buildPtrToInt(value, type: type as! IntType)
         case (is ty.Union, is ty.Integer):

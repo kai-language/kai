@@ -372,10 +372,12 @@ func canCast(_ exprType: Type, to targetType: Type) -> Bool {
          (is ty.Integer, is ty.Float),
          (is ty.Integer, is ty.Pointer),
 
+         (is ty.Boolean, is ty.Boolean),
+         (is ty.Boolean, is ty.Integer),
+
          (is ty.Float, is ty.Float),
          (is ty.Float, is ty.Integer),
 
-         (is ty.Pointer, is ty.Boolean),
          (is ty.Pointer, is ty.Integer),
          (is ty.Pointer, is ty.Pointer),
          (is ty.Pointer, is ty.Function),

@@ -1,0 +1,21 @@
+
+#library "libc"
+
+#foreign libc #callconv "c" {
+    printf :: (fmt: *u8, args: #cvargs ..any) -> i32
+}
+
+main :: fn() -> void {
+
+    u: u64
+    ptr := &u
+
+    if !ptr printf("No Pointer!\n".raw)
+    else printf("Pointer!\n".raw)
+
+    for ptr {
+        printf("For body!\n".raw)
+        ptr = nil
+    }
+}
+
