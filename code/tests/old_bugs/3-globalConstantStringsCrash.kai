@@ -1,5 +1,0 @@
-
-s :: "asf"
-
-main :: fn() -> void { }
-

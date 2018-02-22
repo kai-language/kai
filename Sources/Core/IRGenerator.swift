@@ -569,20 +569,6 @@ extension IRGenerator {
                 entity.value = stackValue
 
                 b.buildStore(ir, to: stackValue)
-
-                // NOTE: this checks entity type to ensure we don't force-cast integers
-                if let lit = value as? BasicLit, lit.token == .string, baseType(entity.type!) == ty.string {
-
-                    // If we have a string then ensure the data contents are stored on the stack so they can be mutated
-                    let count = (lit.constant as! String).utf8.count + 1 // + 1 for null byte
-                    var dstPtr = entryBlockAlloca(type: LLVM.ArrayType(elementType: i8, count: count))
-                    dstPtr = b.buildBitCast(dstPtr, type: LLVM.PointerType(pointee: i8))
-                    let tmp = b.buildInsertValue(aggregate: buildLoad(stackValue), element: dstPtr, index: 0)
-                    b.buildStore(tmp, to: stackValue)
-
-                    let srcPtr = const.extractValue(ir, indices: [0])
-                    b.buildMemcpy(dstPtr, srcPtr, count: i64.constant((lit.constant as! String).utf8.count + 1))
-                }
             }
         }
     }
@@ -1069,8 +1055,39 @@ extension IRGenerator {
             if isInteger(lit.type), let val = lit.constant as? UInt64 {
                 return canonicalize(lit.type as! ty.Integer).constant(val)
             } else {
+                // NOTE: The following code closely matches the code for emitting slices. Because Strings are slices.
                 assert(lit.type == ty.string)
-                return emit(constantString: lit.constant as! String, returnAddress: returnAddress)
+                let str = lit.constant as! String
+                let arrayIr = LLVM.ArrayType.constant(string: str, in: module.context)
+
+                let arrayPtr: IRValue
+                if let entity = entity, entity.isConstant {
+                    var global = b.addGlobal(".str.raw", initializer: arrayIr)
+                    global.isGlobalConstant = true
+                    global.linkage = .private
+                    arrayPtr = const.inBoundsGEP(global, indices: [i64.constant(0), i64.constant(0)])
+                } else if context.returnBlock == nil { // we are at a global scope
+                    var global = b.addGlobal(".str.raw", initializer: arrayIr)
+                    global.linkage = .private
+                    arrayPtr = const.inBoundsGEP(global, indices: [i64.constant(0), i64.constant(0)])
+                } else { // We are at funciton scope -> Stack allocate
+                    let stackAddress = b.buildAlloca(type: arrayIr.type)
+                    b.buildStore(arrayIr, to: stackAddress)
+                    arrayPtr = b.buildInBoundsGEP(stackAddress, indices: [i64.constant(0), i64.constant(0)])
+                }
+
+                let irType = canonicalize(ty.string) as! LLVM.StructType
+
+                // NOTE: Length and Capacity are always constants!
+                var ir = irType.constant(values: [
+                    arrayIr.type.undef(),
+                    i64.constant(str.utf8.count),
+                    i64.constant(0), // NOTE: We set the capacity to zero to signify that the data pointer is not managed by an allocator
+                ])
+
+                ir = b.buildInsertValue(aggregate: ir, element: arrayPtr, index: 0) // LLVM will constant fold this if possible.
+                assert(entity != nil && entity!.isConstant, implies: ir.isConstant, "The value being emitted for the entity \(entity!.name) was not constant, but should have been")
+                return ir
             }
         }
 
@@ -1098,10 +1115,10 @@ extension IRGenerator {
     mutating func emit(lit: CompositeLit, returnAddress: Bool, entity: Entity?) -> IRValue {
         // TODO: Use the mangled entity name
         // TODO: Respect `returnAddress` for all of the following
-        let irType = canonicalize(lit.type)
-        var ir = irType.undef()
         switch baseType(lit.type) {
         case is ty.Struct:
+            let irType = canonicalize(lit.type) as! LLVM.StructType
+            var ir = irType.undef()
             for el in lit.elements {
                 let val = emit(expr: el.value)
                 // NOTE: For constants LLVM will reliably constant fold this.
@@ -1111,6 +1128,8 @@ extension IRGenerator {
             return ir
 
         case is ty.Array:
+            let irType = canonicalize(lit.type) as! LLVM.ArrayType
+            var ir = irType.undef()
             for (index, el) in lit.elements.enumerated() {
                 let val = emit(expr: el.value)
                 // NOTE: For constants LLVM will reliably constant fold this.
@@ -1120,6 +1139,7 @@ extension IRGenerator {
             return ir
 
         case let slice as ty.Slice:
+            let irType = canonicalize(lit.type) as! LLVM.StructType
             let elType = canonicalize(slice.elementType)
             var arrayIr = LLVM.ArrayType(elementType: elType, count: lit.elements.count).undef()
             for (index, el) in lit.elements.enumerated() {
@@ -1144,14 +1164,20 @@ extension IRGenerator {
                 arrayPtr = b.buildInBoundsGEP(stackAddress, indices: [i64.constant(0), i64.constant(0)])
             }
 
-            // NOTE: We do the length and the cap first because they are always constant values, this means LLVM will constant fold them for us.
-            ir = const.insertValue(ir, value: i64.constant(lit.elements.count), indices: [1])
-            ir = const.insertValue(ir, value: i64.constant(0), indices: [2]) // NOTE: We set the capacity to zero to signify that the data pointer is not managed by an allocator
-            ir = b.buildInsertValue(aggregate: ir, element: arrayPtr, index: 0)
+            // NOTE: Length and Capacity are always constants!
+            var ir = irType.constant(values: [
+                arrayIr.type.undef(),
+                i64.constant(lit.elements.count),
+                i64.constant(0), // NOTE: We set the capacity to zero to signify that the data pointer is not managed by an allocator
+            ])
+
+            ir = b.buildInsertValue(aggregate: ir, element: arrayPtr, index: 0) // LLVM will constant fold this if possible.
             assert(entity != nil && entity!.isConstant, implies: ir.isConstant, "The value being emitted for the entity \(entity!.name) was not constant, but should have been")
             return ir
 
         case is ty.Vector:
+            let irType = canonicalize(lit.type) as! LLVM.VectorType
+            var ir = irType.undef()
             for (index, el) in lit.elements.enumerated() {
                 let val = emit(expr: el.value)
                 ir = b.buildInsertElement(vector: ir, element: val, index: index)

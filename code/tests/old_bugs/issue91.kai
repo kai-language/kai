@@ -1,0 +1,34 @@
+
+// The compiler crashed when emitting literals at global scopes
+// It also emitted all globals as constant globals
+
+fileConstantArray :: [1]u16{1}
+fileVariableArray := [1]u16{2}
+
+fileConstantSlice :: []u16{1}
+fileVariableSlice := []u16{2}
+
+fileConstantString :: "1"
+fileVariableString := "2"
+
+fileConstantStruct :: A{1}
+fileVariableStruct := A{2}
+
+main :: fn() -> void {
+    fnConstantArray :: [1]u16{3}
+    fnVariableArray := [1]u16{4}
+
+    fnConstantSlice :: []u16{3}
+    fnVariableSlice := []u16{4}
+
+    fnConstantString :: "3"
+    fnVariableString := "4"
+
+    fnConstantStruct :: A{3}
+    fnVariableStruct := A{4}
+}
+
+A :: struct {
+    a: u16
+}
+
