@@ -1161,10 +1161,10 @@ extension IRGenerator {
                 arrayPtr = const.inBoundsGEP(global, indices: [i64.constant(0), i64.constant(0)])
             } else { // We are at function scope
 
-                // FIXME: We are using the stack for slice values, but that results in a lot of issues
-                let stackAddress = b.buildAlloca(type: arrayIr.type)
-                b.buildStore(arrayIr, to: stackAddress)
-                arrayPtr = b.buildInBoundsGEP(stackAddress, indices: [i64.constant(0), i64.constant(0)])
+                // NOTE: For now we are using malloc provided by llvm, but we really want to be using a context allocator when we have those
+                let heapAddress = b.buildMalloc(arrayIr.type)
+                b.buildStore(arrayIr, to: heapAddress)
+                arrayPtr = b.buildInBoundsGEP(heapAddress, indices: [i64.constant(0), i64.constant(0)])
             }
 
             // NOTE: Length and Capacity are always constants!

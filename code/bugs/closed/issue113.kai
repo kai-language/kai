@@ -1,5 +1,9 @@
 
-#import kai("posix")
+#library "libc"
+
+#foreign libc #callconv "c" {
+    printf :: (fmt: *u8, args: #cvargs ..any) -> i32
+}
 
 makeSlice :: fn(a, b: u8) -> []u8 {
     // We are storing the slice values in an array on the stack. Meaning the address is invalid after return
@@ -7,11 +11,14 @@ makeSlice :: fn(a, b: u8) -> []u8 {
 }
 
 main :: fn() -> void {
-    slice := makeSlice(5, 8)
+    slice := makeSlice(1, 2)
+    printf("%p\n".raw, slice.raw)
 
-    makeSlice(234, 234) // overrides the values 5 & 8 in slice
+    makeSlice(8, 9) // overrides the values 1 & 2 in slice
+    printf("%p\n".raw, slice.raw)
 
-    posix.printf("{%p[%hhu, %hhu], %lu, %lu}\n".raw, slice.raw, slice.raw[0], slice.raw[1], slice.len, slice.cap)
+    printf("{0x7ff.........[1, 2], 2, 0} is expected when correct\n".raw)
+    printf("{%p[%hhu, %hhu], %lu, %lu}\n".raw, slice.raw, slice.raw[0], slice.raw[1], slice.len, slice.cap)
 }
 
 // The following code is equivalent
