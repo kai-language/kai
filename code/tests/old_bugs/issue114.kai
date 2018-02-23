@@ -1,0 +1,24 @@
+
+#library "libc"
+
+#foreign libc #callconv "c" {
+    printf :: (fmt: *u8, args: #cvargs ..any) -> i32
+}
+
+main :: fn() -> void {
+
+    cond1 : b8 = true
+    cond2 : b8 = true
+    cond3 : b8 = true
+    cond4 : b8 = true
+
+    y := cond1 || cond2 ? cond3 || cond4 ? 2 : 3 : cond4 ? 4 : 5
+
+    printf("y = %ld\n".raw, y)
+
+    // Ternaries can be used in the form `ptr ?: defaultPtr`
+    validPtr := &cond1
+    nilPtr : rawptr = nil
+    printf("x = %p\n".raw, nilPtr ?: validPtr)
+}
+

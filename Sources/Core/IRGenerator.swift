@@ -1314,10 +1314,15 @@ extension IRGenerator {
     }
 
     mutating func emit(ternary: Ternary) -> IRValue {
-        let cond = emit(expr: ternary.cond)
-        let then = ternary.then.map({ emit(expr: $0) })
+        var cond = emit(expr: ternary.cond)
+        let then = ternary.then.map({ emit(expr: $0) }) ?? cond
         let els  = emit(expr: ternary.els)
-        return b.buildSelect(b.buildTruncOrBitCast(cond, type: i1), then: then ?? cond, else: els)
+
+        // NOTE: Ternaries have to manually perform there conversion to boolean types
+        if cond.type is LLVM.PointerType {
+            cond = performConversion(from: ternary.cond.type, to: ty.bool, with: cond)
+        }
+        return b.buildSelect(b.buildTruncOrBitCast(cond, type: i1), then: then, else: els)
     }
 
     mutating func emit(args: [Expr], cABI: Bool) -> [IRValue] {

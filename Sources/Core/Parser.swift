@@ -194,20 +194,18 @@ extension Parser {
                 return lhs
             }
             next()
+            if op == .question { // parse a ternary
+                var then: Expr?
+                if tok != .colon {
+                    then = parseExpr()
+                }
+                let colon = expect(.colon)
+                let els = parseExpr()
+                return Ternary(cond: lhs, qmark: pos, then: then, colon: colon, els: els)
+            }
             let rhs = parseBinaryExpr(oprec + 1)
             lhs = Binary(lhs: lhs, op: op, opPos: pos, rhs: rhs)
         }
-    }
-
-    mutating func parseTernaryExpr(_ cond: Expr) -> Expr {
-        let qmark = eatToken()
-        var then: Expr?
-        if tok != .colon {
-            then = parseExpr()
-        }
-        let colon = expect(.colon)
-        let els = parseExpr()
-        return Ternary(cond: cond, qmark: qmark, then: then, colon: colon, els: els)
     }
 
     mutating func parsePrimaryExpr(allowPolyOrVariadicType: Bool = false) -> Expr {
@@ -216,8 +214,6 @@ extension Parser {
 
         while true {
             S: switch tok {
-            case .question:
-                x = parseTernaryExpr(x)
             case .period:
                 next()
                 x = Selector(rec: x, sel: parseIdent())
@@ -1294,7 +1290,7 @@ extension Parser {
 
     func tokenPrecedence() -> Int {
         switch tok {
-        case .lor:
+        case .lor, .question: // question is ternary
             return 1
         case .land:
             return 2

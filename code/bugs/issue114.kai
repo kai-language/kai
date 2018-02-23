@@ -1,5 +1,0 @@
-
-main :: fn() -> void {
-    x := true == false ? "true" : "false"
-}
-
