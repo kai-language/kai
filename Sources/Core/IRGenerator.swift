@@ -1038,6 +1038,8 @@ extension IRGenerator {
                 assert(cast.kind == .cast || cast.kind == .autocast)
                 val = emit(cast: cast, returnAddress: returnAddress)
             }
+        case let asm as InlineAsm:
+            val = emit(inlineAsm: asm, returnAddress: returnAddress)
         default:
             preconditionFailure()
         }
@@ -1588,6 +1590,27 @@ extension IRGenerator {
             return buildLoad(value)
 //            fatalError("Cast from type of \(bitcast.expr.type) to \(bitcast.type) unimplemented")
         }
+    }
+
+    mutating func emit(inlineAsm: InlineAsm, returnAddress: Bool) -> IRValue {
+        var args: [IRValue] = []
+        var argTypes: [IRType] = []
+        for arg in inlineAsm.arguments {
+            let a = emit(expr: arg)
+            let at = canonicalize(arg.type)
+            args.append(a)
+            argTypes.append(at)
+        }
+
+        let type = LLVM.FunctionType(argTypes: argTypes, returnType: canonicalize(inlineAsm.type))
+        let asm = b.buildInlineAssembly(
+            inlineAsm.asm.constant! as! String,
+            type: type,
+            constraints: inlineAsm.constraints.constant! as! String,
+            hasSideEffects: true, needsAlignedStack: true
+        )
+
+        return b.buildCall(asm, args: args)
     }
 
     mutating func emit(funcLit fn: FuncLit, entity: Entity?, specializationMangle: String? = nil) -> Function {

@@ -1327,6 +1327,30 @@ init(start: Pos, end: Pos) {
 // sourcery:end
 }
 
+class InlineAsm: Node, Expr, Stmt {
+    var directive: Pos
+    var rparen: Pos
+    var asm: BasicLit
+    var constraints: BasicLit
+    var arguments: [Expr]
+
+    var type: Type = ty.invalid
+
+    var start: Pos { return directive }
+    var end: Pos { return directive }
+
+// sourcery:inline:auto:InlineAsm.Init
+init(directive: Pos, rparen: Pos, asm: BasicLit, constraints: BasicLit, arguments: [Expr], type: Type = ty.invalid) {
+    self.directive = directive
+    self.rparen = rparen
+    self.asm = asm
+    self.constraints = constraints
+    self.arguments = arguments
+    self.type = type
+}
+// sourcery:end
+}
+
 func isAddressOfExpr(_ e: Expr) -> Bool {
     return (e as? Unary)?.op == .and
 }

@@ -298,7 +298,21 @@ extension Parser {
             }
             switch directive {
             case .asm:
-                fatalError("Inline assembly is not yet supported")
+                expect(.lparen)
+                let asm = parseStringLit()
+                expect(.comma)
+                let constraints = parseStringLit()
+                expect(.comma)
+                let (_, arguments) = parseArgumentList()
+                allowTerminator()
+                let rparen = expect(.rparen)
+                return InlineAsm(
+                    directive: pos,
+                    rparen: rparen,
+                    asm: asm,
+                    constraints: constraints,
+                    arguments: arguments
+                )
             case .file, .line, .location, .function:
                 return LocationDirective(directive: pos, kind: directive)
             }
@@ -1162,7 +1176,6 @@ extension Parser {
 
             test.isTest = true
             return stmt
-
         default:
             if TrailingDirective(rawValue: name) != nil {
                 reportError("'\(name)' is a trailing directive", at: directive)

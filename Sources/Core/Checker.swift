@@ -335,7 +335,6 @@ extension Checker {
         case let b as Branch:
             check(branch: b)
             return []
-
         default:
             print("Warning: statement '\(stmt)' passed through without getting checked")
             return []
@@ -1191,7 +1190,8 @@ extension Checker {
 
         case let l as LocationDirective:
             return check(locationDirective: l, desiredType: desiredType)
-
+        case let a as InlineAsm:
+            return check(inlineAsm: a, desiredType: desiredType)
         default:
             print("Warning: expression '\(expr)' passed through without getting checked")
             expr.type = ty.invalid
@@ -2442,6 +2442,38 @@ extension Checker {
         }
 
         return Operand(mode: .computed, expr: l, type: l.type, constant: l.constant, dependencies: [])
+    }
+
+    mutating func check(inlineAsm asm: InlineAsm, desiredType: Type?) -> Operand {
+        let returnType = desiredType ?? ty.void
+        asm.type = returnType
+
+        let asmString = check(basicLit: asm.asm, desiredType: ty.string)
+        if asmString.type != ty.string {
+            reportError("asm constant must be a string", at: asm.asm.start)
+        }
+
+        let constraints = check(basicLit: asm.constraints, desiredType: ty.string)
+        if constraints.type != ty.string {
+            reportError("asm constraints must be a comma-separated string", at: asm.constraints.start)
+        }
+
+        var dependencies: Set<Entity> = []
+
+        var parameters: [Type] = []
+        for arg in asm.arguments {
+            let op = check(expr: arg)
+            dependencies.formUnion(op.dependencies)
+            parameters.append(op.type)
+        }
+
+        return Operand(
+            mode: .computed,
+            expr: asm,
+            type: returnType,
+            constant: nil,
+            dependencies: dependencies
+        )
     }
 
     mutating func check(polymorphicCall call: Call, calleeType: ty.Function, desiredType: Type? = nil) -> Operand {

@@ -433,6 +433,21 @@ func copy(_ nodes: [Import]) -> [Import] {
     return nodes.map(copy)
 }
 
+func copy(_ node: InlineAsm) -> InlineAsm {
+    return InlineAsm(
+        directive: node.directive,
+        rparen: node.rparen,
+        asm: copy(node.asm),
+        constraints: copy(node.constraints),
+        arguments: copy(node.arguments),
+        type: node.type
+    )
+}
+
+func copy(_ nodes: [InlineAsm]) -> [InlineAsm] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: KeyValue) -> KeyValue {
     return KeyValue(
         key: node.key.map(copy),
@@ -785,6 +800,7 @@ func copy(_ node: Expr) -> Expr {
     case let node as FuncLit: return copy(node)
     case let node as FuncType: return copy(node)
     case let node as Ident: return copy(node)
+    case let node as InlineAsm: return copy(node)
     case let node as KeyValue: return copy(node)
     case let node as LocationDirective: return copy(node)
     case let node as Nil: return copy(node)
