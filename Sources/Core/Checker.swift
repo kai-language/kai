@@ -521,9 +521,13 @@ extension Checker {
                     ident.entity.type = type
                 }
                 return dependencies
+            } else {
+                // The rhs is not a tuple and so we must invalidate all values
+                for entity in decl.entities {
+                    entity.flags.insert(.checked)
+                    entity.type = operand.type
+                }
             }
-            decl.names[0].entity.flags.insert(.checked)
-            decl.names[0].entity.type = operand.type
             return dependencies
         }
 
