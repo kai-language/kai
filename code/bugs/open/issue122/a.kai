@@ -1,0 +1,7 @@
+
+#import "b.kai" _
+#import "c.kai" _
+main :: fn() -> void {
+    z := ent
+}
+
