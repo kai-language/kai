@@ -681,10 +681,7 @@ extension Parser {
         var list: [EnumCase] = []
         while tok != .rbrace && tok != .eof {
             list.append(parseEnumCase())
-            if !atComma(in: "enum", .rbrace) {
-                break
-            }
-            next()
+            expectTerm()
         }
         return list
     }
@@ -693,7 +690,13 @@ extension Parser {
         let name = parseIdent()
         var value: Expr?
         if tok == .assign {
+            reportError("Enum values are established at compile time and declared using '::'", at: pos)
+            discardRemainingStmt()
+            return EnumCase(name: name, value: nil)
+        }
+        if tok == .colon {
             next()
+            expect(.colon)
             value = parseExpr()
         }
         return EnumCase(name: name, value: value)
@@ -1386,6 +1389,13 @@ extension Parser {
 // - MARK: Errors
 
 extension Parser {
+
+    /// This is a recovery method that discards the rest of the tokens up to a terminator token
+    mutating func discardRemainingStmt() {
+        while tok != .semicolon && tok != .eof {
+            next()
+        }
+    }
 
     mutating func recover() {
         var startOfLine: Pos?
