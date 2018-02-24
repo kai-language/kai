@@ -1,10 +1,15 @@
 
 protocol Value: CustomStringConvertible {}
 
-extension UInt64: Value {}
-extension Double: Value {}
-extension String: Value {}
-extension Nil: Value {}
+typealias IntegerConstant = UInt64
+typealias FloatConstant = Double
+typealias StringConstant = String
+typealias NilConstant = Nil
+
+extension IntegerConstant: Value {}
+extension FloatConstant: Value {}
+extension StringConstant: Value {}
+extension NilConstant: Value {}
 
 func isConstantZero(_ value: Value?) -> Bool {
     switch value {

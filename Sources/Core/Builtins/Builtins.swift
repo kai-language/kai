@@ -184,7 +184,7 @@ extension BuiltinType {
 
         let entity = Entity.makeBuiltin(name)
 
-        let tagWidth = tagWidth ?? unionMembers.count.bitsNeeded()
+        let tagWidth = tagWidth ?? positionOfHighestBit(unionMembers.count)
 
         if !flags.contains(.inlineTag) {
             width += tagWidth
@@ -209,7 +209,7 @@ extension BuiltinType {
 
         let entity = Entity.makeBuiltin(name)
 
-        let tagWidth = tagWidth ?? unionMembers.count.bitsNeeded()
+        let tagWidth = tagWidth ?? positionOfHighestBit(unionMembers.count)
 
         if !flags.contains(.inlineTag) {
             width += tagWidth

@@ -746,6 +746,7 @@ init(lbrace: Pos, polyTypes: PolyParameterList, fields: [StructField], rbrace: P
 class EnumType: Node, Expr {
     var keyword: Pos
     var explicitType: Expr?
+    var flagsDirective: Pos?
     var cases: [EnumCase]
     var rbrace: Pos
 
@@ -754,10 +755,13 @@ class EnumType: Node, Expr {
     var start: Pos { return keyword }
     var end: Pos { return rbrace }
 
+    var isFlags: Bool { return flagsDirective != nil }
+
 // sourcery:inline:auto:EnumType.Init
-init(keyword: Pos, explicitType: Expr?, cases: [EnumCase], rbrace: Pos, type: Type = ty.invalid) {
+init(keyword: Pos, explicitType: Expr?, flagsDirective: Pos?, cases: [EnumCase], rbrace: Pos, type: Type = ty.invalid) {
     self.keyword = keyword
     self.explicitType = explicitType
+    self.flagsDirective = flagsDirective
     self.cases = cases
     self.rbrace = rbrace
     self.type = type

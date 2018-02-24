@@ -201,6 +201,31 @@ func removeFile(at path: String) throws {
     try fm.removeItem(atPath: path)
 }
 
+func isPowerOfTwo<I: BinaryInteger>(_ value: I) -> Bool {
+    return (value > 0) && (value & (value - 1) == 0)
+}
+
+func highestBitForValue<I: BinaryInteger, O: BinaryInteger>(_ value: I) -> O {
+    return numericCast(1 << (numericCast(value) - 1))
+}
+
+func positionOfHighestBit<I: BinaryInteger, O: BinaryInteger>(_ value: I) -> O {
+    return numericCast(flsl(numericCast(value)))
+}
+
+func maxValueForInteger<I: BinaryInteger, O: BinaryInteger>(width: I, signed: Bool) -> O {
+    let allOnes = ~I(0)
+    if signed {
+        return numericCast((1 << (width - 1)) - 1)
+    } else {
+        return numericCast(~(allOnes << width))
+    }
+}
+
+func minValueForSignedInterger<I: BinaryInteger, O: BinaryInteger>(width w: I) -> O {
+    return numericCast(-1 * (1 << (w - 1)))
+}
+
 extension Int {
 
     func round(upToNearest multiple: Int) -> Int {
@@ -224,12 +249,6 @@ extension Int {
 
     func bytes() -> Int {
         return round(upToNearest: 8) / 8
-    }
-
-    func bitsNeeded() -> Int {
-        guard self > 0 else { return 1 }
-
-        return Int(floor(log2(Double(self - 1))) + 1)
     }
 }
 

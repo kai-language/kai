@@ -1733,7 +1733,7 @@ extension IRGenerator {
             return buildLoad(fieldAddress)
             
         case .enum(let c):
-            return canonicalize(baseType(sel.type) as! ty.Enum).constant(c.number)
+            return canonicalize(baseType(sel.type) as! ty.Enum).constant(c.constant)
 
         case .unionTag:
             var aggregate = emit(expr: sel.rec, returnAddress: true)
@@ -2029,15 +2029,7 @@ extension IRGenerator {
         // enums with an associated type perform conversions per that type
         // enums without an associated type may be converted to any Integer
         case (let from as ty.Enum, let target):
-            if let associatedType = from.associatedType as? ty.Integer {
-                // FIXME: Load this into the new cast
-                return performConversion(from: associatedType, to: target, with: value)
-            }
-            if from.width! == target.width! {
-                return value
-            }
-            let ext = from.width! < target.width!
-            return b.buildCast(ext ? .zext : .trunc, value: value, type: type)
+            return performConversion(from: from.backingType, to: target, with: value)
 
         case (_, is ty.Anyy):
             // We need a heap allocation here, for now we will use malloc from libc.

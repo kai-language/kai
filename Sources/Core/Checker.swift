@@ -702,7 +702,7 @@ extension Checker {
 
             for c in type.cases.orderedValues {
                 let entity = newEntity(ident: c.ident, type: type, flags: [.field, .constant], owningScope: context.scope)
-                entity.constant = c.constant ?? UInt64(c.number)
+                entity.constant = c.constant
                 declare(entity)
             }
         default:
@@ -967,7 +967,7 @@ extension Checker {
 
                 for c in type.cases.orderedValues {
                     let entity = newEntity(ident: c.ident, type: type, flags: [.field, .constant], owningScope: context.scope)
-                    entity.constant = c.constant ?? UInt64(c.number)
+                    entity.constant = c.constant
                     declare(entity)
                 }
             }
@@ -1702,8 +1702,8 @@ extension Checker {
 
         if let tag = u.tag {
             let operand = check(field: tag)
-            if operand.type.width! < cases.count.bitsNeeded() {
-                reportError("Tag specifies a width of \(operand.type!.width!) bits but the union has \(cases.count) cases, requiring \(cases.count.bitsNeeded()) bits for inferred tagging", at: tag.start)
+            if maxValueForInteger(width: operand.type.width!, signed: false) < cases.count {
+                reportError("Tag specifies a width of \(operand.type!.width!) bits but the union has \(cases.count) cases, requiring \(positionOfHighestBit(cases.count) as Int) bits for inferred tagging", at: tag.start)
             }
         }
 
@@ -1726,63 +1726,94 @@ extension Checker {
     mutating func check(enumType e: EnumType) -> Operand {
         var dependencies: Set<Entity> = []
 
-        var explicitType: Type?
-        var useExplicitTypeWidth = false
-        if let expr = e.explicitType {
-            let operand = check(expr: expr)
+        var backingType: ty.Integer?
+        if let explicitType = e.explicitType {
+            let operand = check(expr: explicitType)
             dependencies.formUnion(operand.dependencies)
 
-            explicitType = lowerFromMetatype(operand.type, atNode: expr)
-            useExplicitTypeWidth = explicitType.map(baseType) is ty.Integer?
+            let type = lowerFromMetatype(operand.type, atNode: explicitType)
+            if !isInteger(type) {
+                reportError("Enum backing type must be an integer. We got \(operand)", at: explicitType.start)
+            } else {
+                backingType = baseType(type) as? ty.Integer
+            }
         }
 
-        var number: Int = 0
-        var biggest: Int = 0
+        assert(backingType != nil, implies: !isSigned(backingType!), "For now only unsigned integer values are supported for enum backingTypes")
+
+        var minValue: IntegerConstant?
+        var maxValue: IntegerConstant?
+        if let backingType = backingType {
+            if e.isFlags {
+                minValue = 0
+                maxValue = highestBitForValue(backingType.width!)
+            } else {
+                minValue = backingType.isSigned ? minValueForSignedInterger(width: backingType.width!) : 0
+                maxValue = maxValueForInteger(width: backingType.width!, signed: backingType.isSigned)
+            }
+        }
+
+        var currentValue: IntegerConstant = e.isFlags ? 1 : 0
+        var largestValue: IntegerConstant = 0
+
+        var firstCase = true
 
         var cases: [ty.Enum.Case] = []
-        for x in e.cases {
-            var constant: Value?
-            if let value = x.value {
-                let operand = check(expr: value, desiredType: explicitType)
+        for caseNode in e.cases {
+            if let caseValue = caseNode.value {
+                let operand = check(expr: caseValue, desiredType: backingType)
                 dependencies.formUnion(operand.dependencies)
 
-                constant = operand.constant
+                guard let constant = operand.constant else {
+                    reportError("Expected constant value", at: caseValue.start)
+                    continue
+                }
 
-                if let explicitType = explicitType {
-                    if !convert(operand.type, to: explicitType, at: value) {
-                        reportError("Cannot convert value \(operand) to expected type \(explicitType)", at: value.start)
-                    } else {
-                        if let constant = operand.constant as? UInt64 {
-                            if numericCast(constant) > biggest {
-                                biggest = numericCast(constant)
-                            }
-                            number = numericCast(constant)
-                        } else if operand.constant == nil {
-                            reportError("Enum values must be constant", at: value.start)
-                        }
+                if let backingtype = backingType, !convert(operand.type, to: backingtype, at: caseValue) {
+                    reportError("Cannot convert value \(operand) to expected type \(backingtype)", at: caseValue.start)
+                    continue
+                }
+
+                guard let value = constant as? IntegerConstant else {
+                    fatalError("Expected a constant integer not \(constant)")
+                }
+
+                if let minValue = minValue, value < minValue {
+                    reportError("Value is less than the minimum value of type \(backingType!)", at: caseValue.start)
+                    continue
+                }
+
+                currentValue = value
+                largestValue = max(numericCast(value), largestValue)
+            } else if !firstCase {
+                firstCase = false
+                // increment the currentValue if a value is not specified and it's not the first case
+
+                // FIXME: Check for overflow?
+                if e.isFlags {
+                    guard isPowerOfTwo(currentValue) else {
+                        reportError("Cannot infer next value in enum #flags sequence; previous value was not a power of 2.", at: caseNode.start)
+                        file.attachNote("Either make the previous value \(cases)")
+                        continue
                     }
+                    currentValue <<= 1
                 } else {
-                    if let constant = operand.constant as? UInt64 {
-                        if numericCast(constant) > biggest {
-                            biggest = numericCast(constant)
-                        }
-                    } else {
-                        reportError("Enum values must be constant Integer", at: value.start)
-                        file.attachNote("You may explicitly opt for a different associated type by using enum(string) for example")
-                    }
+                    currentValue += 1
                 }
             }
-            let c = ty.Enum.Case(ident: x.name, value: x.value, constant: constant, number: number)
-            cases.append(c)
-            number += 1
-            if number > biggest {
-                biggest = number
+
+            if let maxValue = maxValue, currentValue > maxValue {
+                reportError("Enum case value exceeds the maximum value for the enum type \(backingType!)", at: caseNode.start)
+                continue
             }
+
+            let `case` = ty.Enum.Case(ident: caseNode.name, value: caseNode.value, constant: currentValue)
+            cases.append(`case`)
         }
 
-        let width = useExplicitTypeWidth ? explicitType!.width! : biggest.bitsNeeded()
+        let width = backingType?.width ?? positionOfHighestBit(largestValue)
         var type: Type
-        type = ty.Enum(width: width, associatedType: explicitType, cases: cases)
+        type = ty.Enum(width: width, backingType: backingType, isFlags: e.isFlags, cases: cases)
         type = ty.Metatype(instanceType: type)
         e.type = type
         return Operand(mode: .type, expr: e, type: type, constant: nil, dependencies: dependencies)
@@ -1843,19 +1874,19 @@ extension Checker {
         .quo: isNumber,
         .rem: isInteger,
 
-        .and: isInteger,
-        .or:  isInteger,
-        .xor: isInteger,
-        .shl: isInteger,
-        .shr: isInteger,
+        .and: { isInteger($0) || isEnumFlags($0) },
+        .or:  { isInteger($0) || isEnumFlags($0) },
+        .xor: { isInteger($0) || isEnumFlags($0) },
+        .shl: { isInteger($0) || isEnumFlags($0) },
+        .shr: { isInteger($0) || isEnumFlags($0) },
 
         .eql: isEquatable,
         .neq: isEquatable,
 
-        .lss: isComparable,
-        .gtr: isComparable,
-        .leq: isComparable,
-        .geq: isComparable,
+        .lss: { isComparable($0) || isEnum($0) },
+        .gtr: { isComparable($0) || isEnum($0) },
+        .leq: { isComparable($0) || isEnum($0) },
+        .geq: { isComparable($0) || isEnum($0) },
 
         .land: isBoolean,
         .lor:  isBoolean,
@@ -1912,7 +1943,7 @@ extension Checker {
         }
 
         if !Checker.binaryOpPredicates[binary.op]!(lhsType) {
-            reportError("Operation '\(binary.op)' undefined for type \(lhsType)", at: binary.opPos)
+            reportError("Operation '\(binary.op)' undefined for type \(binary.lhs.type)", at: binary.opPos)
             return Operand.invalid
         }
 
@@ -2124,11 +2155,10 @@ extension Checker {
                     return Operand.invalid
                 }
                 selector.checked = .enum(c)
-                selector.type = e
+                selector.type = meta.instanceType
                 return Operand(mode: .computed, expr: selector, type: e, constant: nil, dependencies: dependencies)
 
-            case is ty.Struct:
-                fatalError() // TODO
+            // NOTE: Should we support accessing union tags as constant members on their metatype?
 
             default:
                 break

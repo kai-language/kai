@@ -570,10 +570,20 @@ extension Parser {
     mutating func parseEnumType() -> Expr {
         let keyword = eatToken()
         var explicitType: Expr?
-        if tok == .lparen {
-            next()
+        var flagsDirective: Pos?
+
+        if tok != .lbrace && tok != .directive {
             explicitType = parseType()
-            expect(.rparen)
+        }
+        while tok == .directive {
+            switch lit {
+            case "flags":
+                flagsDirective = eatToken()
+            default:
+                reportError("Invalid directive #\(lit)", at: pos)
+                // FIXME: If the directive is more complicated `#foo(asdf)` then this will fail leave us on `(`
+                next()
+            }
         }
         expect(.lbrace)
 
@@ -582,12 +592,8 @@ extension Parser {
             cases = parseEnumCaseList()
         }
 
-        if tok == .semicolon {
-            next()
-        }
-
         let rbrace = expect(.rbrace)
-        return EnumType(keyword: keyword, explicitType: explicitType, cases: cases, rbrace: rbrace)
+        return EnumType(keyword: keyword, explicitType: explicitType, flagsDirective: flagsDirective, cases: cases, rbrace: rbrace)
     }
 
     mutating func parseUnionType() -> Expr {

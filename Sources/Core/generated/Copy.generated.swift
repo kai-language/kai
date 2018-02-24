@@ -277,6 +277,7 @@ func copy(_ node: EnumType) -> EnumType {
     return EnumType(
         keyword: node.keyword,
         explicitType: node.explicitType.map(copy),
+        flagsDirective: node.flagsDirective,
         cases: copy(node.cases),
         rbrace: node.rbrace,
         type: node.type
@@ -845,6 +846,7 @@ func copy(_ node: Stmt) -> Stmt {
     case let node as IdentList: return copy(node)
     case let node as If: return copy(node)
     case let node as Import: return copy(node)
+    case let node as InlineAsm: return copy(node)
     case let node as Label: return copy(node)
     case let node as Library: return copy(node)
     case let node as Return: return copy(node)

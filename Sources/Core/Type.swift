@@ -310,12 +310,9 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
     case (is ty.Boolean, is ty.Boolean):
         allowed = true
 
-    case (let exprType as ty.Enum, let targetType):
-        if let associatedType = exprType.associatedType {
-            allowed = canCast(associatedType, to: targetType)
-            break
-        }
-        allowed = targetType is ty.Integer || targetType is ty.UntypedInteger
+    case (let exprType as ty.Enum, let targetType as ty.Integer):
+        // FIXME: Decide the rules for casting to and from integers
+        allowed = canCast(exprType.backingType, to: targetType)
 
     case (_, is ty.Anyy):
         allowed = true
@@ -394,10 +391,8 @@ func canCast(_ exprType: Type, to targetType: Type) -> Bool {
         return true // TODO: Only if bitcasting.
 
     case (let exprType as ty.Enum, let targetType):
-        if let associatedType = exprType.associatedType {
-            return canCast(associatedType, to: targetType)
-        }
-        return targetType is ty.Integer || targetType is ty.UntypedInteger
+        // FIXME: Decide the rules for casting to and from integers
+        return canCast(exprType.backingType, to: targetType)
 
     default:
         return false
@@ -525,7 +520,7 @@ enum ty {
         /// - Parameter tagWidth: if nil width is inferred from number of cases
         init(width: Int, tagWidth: Int? = nil, flags: Flags = .none, cases: [Case]) {
             self.width = width
-            self.tagType = ty.Integer(width: tagWidth ?? cases.count.bitsNeeded(), isSigned: false)
+            self.tagType = ty.Integer(width: tagWidth ?? positionOfHighestBit(cases.count), isSigned: false)
             self.flags = flags
             self.cases = [:]
             for c in cases {
@@ -549,12 +544,14 @@ enum ty {
 
     struct Enum: Type, NamableType {
         var width: Int?
-        var associatedType: Type?
+        var backingType: ty.Integer
+        var isFlags: Bool
         var cases: OrderedDictionary<String, Case>
 
-        init(width: Int, associatedType: Type?, cases: [Case]) {
+        init(width: Int, backingType: ty.Integer?, isFlags: Bool, cases: [Case]) {
             self.width = width
-            self.associatedType = associatedType
+            self.backingType = backingType ?? ty.Integer(width: highestBitForValue(cases.count), isSigned: false)
+            self.isFlags = isFlags
             self.cases = [:]
             for c in cases {
                 self.cases[c.ident.name] = c
@@ -564,8 +561,7 @@ enum ty {
         struct Case {
             var ident: Ident
             let value: Expr?
-            let constant: Value?
-            let number: Int
+            let constant: IntegerConstant
         }
     }
 
@@ -733,6 +729,10 @@ func isEnum(_ type: Type) -> Bool {
     return baseType(type) is ty.Enum
 }
 
+func isEnumFlags(_ type: Type) -> Bool {
+    return (baseType(type) as? ty.Enum)?.isFlags == true
+}
+
 func isFunction(_ type: Type) -> Bool {
     return baseType(type) is ty.Function
 }
@@ -783,6 +783,9 @@ func isEquatable(_ type: Type) -> Bool {
         return true
 
     case is ty.Pointer:
+        return true
+
+    case is ty.Enum:
         return true
 
     case let vector as ty.Vector:
