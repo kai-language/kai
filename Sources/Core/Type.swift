@@ -310,9 +310,14 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
     case (is ty.Boolean, is ty.Boolean):
         allowed = true
 
-    case (let exprType as ty.Enum, let targetType as ty.Integer):
+    case (let enumType as ty.Enum, is ty.Integer),
+         (is ty.Integer, let enumType as ty.Enum):
         // FIXME: Decide the rules for casting to and from integers
-        allowed = canCast(exprType.backingType, to: targetType)
+        allowed = canCast(enumType.backingType, to: target)
+
+    case (is ty.Enum, is ty.UntypedInteger),
+         (is ty.UntypedInteger, is ty.Enum):
+        allowed = true
 
     case (_, is ty.Anyy):
         allowed = true
