@@ -1,0 +1,8 @@
+
+#import "b.kai" _
+#import "c.kai"
+main :: fn() -> void {
+    x := entInB
+    y := c.entInC
+}
+
