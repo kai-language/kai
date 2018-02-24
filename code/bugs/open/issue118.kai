@@ -1,0 +1,7 @@
+
+a :: fn() -> void {}
+
+main :: fn() -> void {
+    x: void = a()
+}
+
