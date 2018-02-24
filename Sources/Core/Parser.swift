@@ -102,7 +102,7 @@ extension Parser {
         var labels: [Ident?] = []
         var exprs: [Expr] = []
         while true {
-            let expr = parseExpr()
+            let expr = parseExpr(allowPolyOrVariadicType: true)
             if let label = expr as? Ident, tok == .colon {
                 next()
                 labels.append(label)

@@ -2354,15 +2354,31 @@ extension Checker {
         if calleeFn.isVariadic {
             let excessArgs = call.args[requiredArgs...]
             let expectedType = (calleeFn.params.last as! ty.Slice).elementType
-            for arg in excessArgs {
-                let argument = check(expr: arg, desiredType: expectedType)
-                dependencies.formUnion(argument.dependencies)
 
-                // Only perform conversions if the variadics are not C style
-                guard calleeFn.isCVariadic || convert(argument.type, to: expectedType, at: arg) else {
-                    reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
-                    file.attachNote("In call to '\(callee)'")
-                    continue
+            if excessArgs.count == 1, let varg = excessArgs[excessArgs.startIndex] as? VariadicType {
+                let expectedType = ty.Slice(expectedType)
+                let arg = check(expr: varg.explicitType, desiredType: expectedType)
+                dependencies.formUnion(arg.dependencies)
+                if !convert(arg.type, to: expectedType, at: varg.explicitType) {
+                    reportError("Cannot convert value '\(varg.explicitType)' to expected argument type '\(expectedType)'", at: varg.start)
+                }
+            } else {
+                for arg in excessArgs {
+                    guard !(arg is VariadicType) else {
+                        // FIXME(Brett): express this error in a non-garbage way @cleanup
+                        reportError("Variadic argument expansion only valid on final argument", at: arg.start)
+                        break
+                    }
+
+                    let argument = check(expr: arg, desiredType: expectedType)
+                    dependencies.formUnion(argument.dependencies)
+
+                    // Only perform conversions if the variadics are not C style
+                    guard calleeFn.isCVariadic || convert(argument.type, to: expectedType, at: arg) else {
+                        reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
+                        file.attachNote("In call to '\(callee)'")
+                        continue
+                    }
                 }
             }
         }

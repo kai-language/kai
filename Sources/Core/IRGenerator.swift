@@ -1040,6 +1040,8 @@ extension IRGenerator {
             }
         case let asm as InlineAsm:
             val = emit(inlineAsm: asm, returnAddress: returnAddress)
+        case let v as VariadicType:
+            val = emit(expr: v.explicitType, returnAddress: returnAddress)
         default:
             preconditionFailure()
         }
@@ -1377,7 +1379,7 @@ extension IRGenerator {
             let shouldUseCABI = fn.isCVariadic
 
             var args = emit(args: call.args, cABI: shouldUseCABI)
-            if fn.isVariadic && !fn.isCVariadic {
+            if fn.isVariadic && !fn.isCVariadic && !(call.args.last! is VariadicType) {
                 // bundle the excess args into a slice
                 let requiredArgs = fn.params.count - 1
                 let excessArgs = args[requiredArgs...]
