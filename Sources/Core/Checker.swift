@@ -88,6 +88,22 @@ struct Checker {
 extension Checker {
 
     mutating func checkFile() {
+        // Before we begin checking this file we import the entities from our imports where applicable
+        // We can't guarentee collecting happens in any sort of order because that is where we establish an ordering
+        //  because of this importing entities into our scope is only possible now that all of the entities for
+        //  the imported files exist
+        for i in file.imports {
+            if i.importSymbolsIntoScope {
+                for member in i.scope.members.values {
+                    guard !member.isFile && !member.isLibrary else {
+                        continue
+                    }
+
+                    declare(member, scopeOwnsEntity: i.exportSymbolsOutOfScope)
+                }
+            }
+        }
+
         for node in file.nodes {
             check(topLevelStmt: node)
         }
@@ -134,9 +150,9 @@ extension Checker {
             // below
             return assert(file.errors.count > 0)
         }
-        var entity: Entity?
+        var fileEntity: Entity?
         if let alias = i.alias {
-            entity = newEntity(ident: alias, flags: .file)
+            fileEntity = newEntity(ident: alias, flags: .file)
         } else if !i.importSymbolsIntoScope {
             guard let name = i.resolvedName else {
                 reportError("Cannot infer an import name for '\(i.path)'", at: i.path.start)
@@ -144,22 +160,16 @@ extension Checker {
                 return
             }
             let ident = Ident(start: noPos, name: name)
-            entity = newEntity(ident: ident, flags: .file)
+            fileEntity = newEntity(ident: ident, flags: .file)
         }
 
-        // TODO: Ensure the import has been fully checked
-        if i.importSymbolsIntoScope {
-            for member in i.scope.members.values {
-                guard !member.isFile && !member.isLibrary else {
-                    continue
-                }
-
-                declare(member, scopeOwnsEntity: i.exportSymbolsOutOfScope)
-            }
-        } else if let entity = entity {
-            entity.memberScope = i.scope
-            entity.type = ty.File(memberScope: i.scope)
-            declare(entity)
+        // NOTE: If i.importSymbolsIntoScope we leave the import of entities until the file containing the import
+        //   statement is starting to be checked. Only then do we know that all of the entities for the imported file
+        //   have been created.
+        if let fileEntity = fileEntity {
+            fileEntity.memberScope = i.scope
+            fileEntity.type = ty.File(memberScope: i.scope)
+            declare(fileEntity)
         }
     }
 
