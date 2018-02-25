@@ -22,7 +22,7 @@ public final class SourceFile {
 
     var nodes: [TopLevelStmt] = []
 
-    var handle: FileHandle
+    var handle: FileHandle?
     var fullpath: String
 
     var pathFirstImportedAs: String
@@ -248,6 +248,7 @@ extension SourceFile {
 extension SourceFile {
     public func parse() {
         let startTime = gettime()
+        currentPackage = package
 
         var parser = Parser(file: self)
         self.nodes = parser.parseFile()
@@ -259,6 +260,7 @@ extension SourceFile {
 
     public func collect() {
         let startTime = gettime()
+        currentPackage = package
 
         checker.collectFile()
         let endTime = gettime()
@@ -268,6 +270,7 @@ extension SourceFile {
 
     public func check() {
         let startTime = gettime()
+        currentPackage = package
 
         var checker = Checker(file: self)
         checker.checkFile()
@@ -275,10 +278,14 @@ extension SourceFile {
         let endTime = gettime()
         let totalTime = endTime - startTime
         checkStageTiming += totalTime
+
+        handle?.closeFile()
+        handle = nil
     }
 
     public func generateIntermediateRepresentation() {
         let startTime = gettime()
+        currentPackage = package
 
         var irGenerator = IRGenerator(
             topLevelNodes: nodes,
@@ -302,36 +309,6 @@ extension SourceFile {
         lineOffsets.append(offset)
     }
 
-    func pos(offset: UInt32) -> Pos {
-        assert(offset <= self.size)
-        return Pos(fileno: fileno, offset: offset)
-    }
-
-    func offset(pos: Pos) -> UInt32 {
-//        assert(pos.offset <= size)
-        return pos.offset
-    }
-
-    func position(for pos: Pos) -> Position {
-        return unpack(offset: offset(pos: pos))
-    }
-
-    func position(forOffset offset: UInt32) -> Position {
-        return unpack(offset: offset)
-    }
-
-    func unpack(offset: UInt32) -> Position {
-        var line, column: UInt32
-        if let firstPast = lineOffsets.enumerated().first(where: { $0.element > offset }) {
-            let i = firstPast.offset - 1
-            line = UInt32(i) + 1
-            column = offset - lineOffsets[i] + 1
-        } else {
-            (line, column) = (0, 0)
-        }
-        return Position(filename: pathFirstImportedAs, offset: offset, line: line, column: column)
-    }
-
     func addError(_ msg: String, _ pos: Pos) {
         wasError = true
         let error = SourceError(pos: pos, msg: msg)
@@ -351,6 +328,7 @@ extension SourceFile {
 }
 
 extension SourceFile: Hashable {
+
     public var hashValue: Int {
         return unsafeBitCast(self, to: Int.self)
     }

@@ -8,6 +8,9 @@ var buildDirectory = currentDirectory + "/" + fileExtension + "/"
 
 var dependencyPath = currentDirectory + "/deps"
 
+// NOTE: When we return to being multithreaded we will need to have this be ThreadLocal
+var currentPackage: SourcePackage!
+
 // sourcery:noinit
 public final class SourcePackage {
 

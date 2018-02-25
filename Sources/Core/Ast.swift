@@ -1,6 +1,6 @@
 
 // NOTE: For code gen everything must also explicitly conform to Node.
-protocol Node: class {
+protocol Node: class, CustomStringConvertible {
     var start: Pos { get }
     var end: Pos { get }
 }

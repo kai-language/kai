@@ -79,8 +79,8 @@ struct Checker {
     func declare(_ entity: Entity, scopeOwnsEntity: Bool = true) {
         let previous = context.scope.insert(entity, scopeOwnsEntity: scopeOwnsEntity)
         if let previous = previous, entity.file !== previous.file {
-            reportError("Invalid redeclaration of '\(previous.name)'", at: entity.ident.start)
-            file.attachNote("Previous declaration here: \(file.position(for: previous.ident.start).description)")
+            reportError("Invalid redeclaration of '\(previous.name)'", at: entity.ident.start,
+                        attachNotes: "Previous declaration here: \(file.position(for: previous.ident.start).description)")
         }
     }
 }
@@ -155,8 +155,8 @@ extension Checker {
             fileEntity = newEntity(ident: alias, flags: .file)
         } else if !i.importSymbolsIntoScope {
             guard let name = i.resolvedName else {
-                reportError("Cannot infer an import name for '\(i.path)'", at: i.path.start)
-                file.attachNote("You will need to manually specify one")
+                reportError("Cannot infer an import name for '\(i.path)'", at: i.path.start,
+                            attachNotes: "You will need to manually specify one")
                 return
             }
             let ident = Ident(start: noPos, name: name)
@@ -186,8 +186,8 @@ extension Checker {
 
         // TODO: Use the Value system to resolve any string value.
         guard let name = l.resolvedName else {
-            reportError("Cannot infer an import name for '\(path)'", at: l.path.start)
-            file.attachNote("You will need to manually specify one")
+            reportError("Cannot infer an import name for '\(path)'", at: l.path.start,
+                        attachNotes: "You will need to manually specify one")
             return
         }
         let ident = l.alias ?? Ident(start: noPos, name: name)
@@ -500,8 +500,8 @@ extension Checker {
                 return dependencies
             }
             if let type = expectedType as? ty.Function {
-                reportError("Variables of a function type must be initialized", at: decl.start)
-                file.attachNote("If you want an uninitialized function pointer use *\(type) instead")
+                reportError("Variables of a function type must be initialized", at: decl.start,
+                            attachNotes: "If you want an uninitialized function pointer use *\(type) instead")
                 return dependencies
             }
             return dependencies
@@ -690,8 +690,8 @@ extension Checker {
         func declare(_ entity: Entity) {
             let previous = context.scope.insert(entity, scopeOwnsEntity: false)
             if let previous = previous {
-                reportError("Use of 'using' resulted in name collision for the name '\(previous.name)'", at: entity.ident.start)
-                file.attachNote("Previously declared here: \(previous.ident.start)")
+                reportError("Use of 'using' resulted in name collision for the name '\(previous.name)'", at: entity.ident.start,
+                            attachNotes: "Previously declared here: \(previous.ident.start)")
             }
         }
 
@@ -1828,7 +1828,6 @@ extension Checker {
                 if e.isFlags {
                     guard isPowerOfTwo(currentValue) else {
                         reportError("Cannot infer next value in enum #flags sequence; previous value was not a power of 2.", at: caseNode.start)
-                        file.attachNote("Either make the previous value \(cases)")
                         continue
                     }
                     currentValue <<= 1
@@ -2381,8 +2380,8 @@ extension Checker {
             dependencies.formUnion(argument.dependencies)
 
             guard convert(argument.type, to: expectedType, at: arg) else {
-                reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
-                file.attachNote("In call to \(callee)")
+                reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start,
+                            attachNotes: "In call to \(callee)")
                 continue
             }
         }
@@ -2411,8 +2410,8 @@ extension Checker {
 
                     // Only perform conversions if the variadics are not C style
                     guard calleeFn.isCVariadic || convert(argument.type, to: expectedType, at: arg) else {
-                        reportError("Cannot convert \(argument) to expected argument type '\(expectedType)'", at: arg.start)
-                        file.attachNote("In call to '\(callee)'")
+                        reportError("Cannot convert \(argument) to expected argument type '\(expectedType)'", at: arg.start,
+                                    attachNotes: "In call to '\(callee)'")
                         continue
                     }
                 }
@@ -2631,8 +2630,8 @@ extension Checker {
 
                     // Only perform conversions if the variadics are not C style
                     guard generated.isCVariadic || convert(argument.type, to: expectedType, at: arg) else {
-                        reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
-                        file.attachNote("In call to '\(call.fun)'")
+                        reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start,
+                                    attachNotes: "In call to '\(call.fun)'")
                         continue
                     }
                 }
@@ -2716,8 +2715,8 @@ extension Checker {
             let requiredArgs = generated.params.count - 1
             var excessArgs = call.args[requiredArgs...]
             guard !excessArgs.isEmpty else {
-                reportError("Failed to specialize '\(call)' (type \(calleeType))", at: call.start)
-                file.attachNote("Unable to find type for specializing '\(findPolymorphic(generated.params.last!.type!)!.entity.name)'")
+                reportError("Failed to specialize '\(call)' (type \(calleeType))", at: call.start,
+                            attachNotes: "Unable to find type for specializing '\(findPolymorphic(generated.params.last!.type!)!.entity.name)'")
                 return Operand.invalid
             }
             let expectedType = lowerSpecializedPolymorphics((generated.params.last?.type as! ty.Slice).elementType)
@@ -2731,8 +2730,8 @@ extension Checker {
 
                 // Only perform conversions if the variadics are not C style
                 guard generated.isCVariadic || convert(argument.type, to: expectedType, at: arg) else {
-                    reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
-                    file.attachNote("In call to '\(call.fun)'")
+                    reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start,
+                                attachNotes: "In call to '\(call.fun)'")
                     continue
                 }
             }
@@ -2819,7 +2818,10 @@ extension Checker {
 
 extension Checker {
 
-    func reportError(_ message: String, at pos: Pos, function: StaticString = #function, line: UInt = #line) {
+    func reportError(_ message: String, at pos: Pos, function: StaticString = #function, line: UInt = #line, attachNotes notes: String...) {
+
+        // FIXME: this obviously isn't ideal, but it is possible that the pos is invalid in which case we need to do something
+        let file = self.file.package.file(for: pos.fileno) ?? self.file
         file.addError(message, pos)
         if let currentSpecializationCall = context.specializationCallNode {
             // FIXME: This produces correct locations but the error added to the file above may be attached to the wrong file.
@@ -2827,8 +2829,12 @@ extension Checker {
         }
         #if DEBUG
             file.attachNote("During Checking, \(function), line \(line)")
-            file.attachNote("At an offset of \(file.offset(pos: pos)) in the file")
+            file.attachNote("At an offset of \(pos.offset) in the file")
         #endif
+
+        for note in notes {
+            file.attachNote(note)
+        }
     }
 }
 
