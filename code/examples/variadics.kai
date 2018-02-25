@@ -3,7 +3,7 @@
 
 average :: fn(nums: ..f32) -> f32 {
     if nums.len == 0 return 0
-    total : f32 = 0
+    total: f32 = 0
     for num in nums {
         total += num
     }
@@ -27,6 +27,9 @@ main :: fn() -> void {
 
     avg := average(1, 2, 3, 4, 5)
     posix.printf("average(1, 2, 3, 4, 5) = %f\n".raw, avg)
+
+    avg = average(..([]f32{1, 2, 3, 4, 5}))
+    posix.printf("average( ..([]f32{1, 2, 3, 4, 5}) ) = %f\n".raw, avg)
 
     avg = average()
     posix.printf("average() = %f\n".raw, avg)
