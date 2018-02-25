@@ -520,12 +520,14 @@ enum ty {
         var width: Int?
         var flags: Flags
         var tagType: Integer
+        var dataType: Integer // NOTE: Array type may be better to allow control over alignment
         var cases: OrderedDictionary<String, Case>
 
         /// - Parameter tagWidth: if nil width is inferred from number of cases
         init(width: Int, tagWidth: Int? = nil, flags: Flags = .none, cases: [Case]) {
             self.width = width
             self.tagType = ty.Integer(width: tagWidth ?? positionOfHighestBit(cases.count), isSigned: false)
+            self.dataType = ty.Integer(width: width - tagType.width!, isSigned: false)
             self.flags = flags
             self.cases = [:]
             for c in cases {

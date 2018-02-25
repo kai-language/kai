@@ -949,8 +949,11 @@ extension IRGenerator {
                 if union.isInlineTag, let binding = c.binding {
                     let type = LLVM.PointerType(pointee: canonicalize(binding.type!))
                     binding.value = b.buildBitCast(value, type: type)
-                } else {
-                    // FIXME: Do something
+                } else if let binding = c.binding {
+                    let dataPointer = b.buildStructGEP(value, index: 1)
+                    let targetType = LLVM.PointerType(pointee: canonicalize(binding.type!))
+                    binding.value = b.buildBitCast(dataPointer, type: targetType)
+                    // FIXME: We need to decide on alignment rules for both union tags and values
                 }
             } else if sw.isAny {
                 var vals: [IRValue] = []
@@ -1118,10 +1121,34 @@ extension IRGenerator {
             var ir = irType.undef()
             for el in lit.elements {
                 let val = emit(expr: el.value)
+                // NOTE: Swift doesn't offer a great way to share memory without also storing a tag to decern the value
+                guard case .structField(let field) = el.checked else { fatalError() }
                 // NOTE: For constants LLVM will reliably constant fold this.
-                ir = b.buildInsertValue(aggregate: ir, element: val, index: el.structField!.index)
+                ir = b.buildInsertValue(aggregate: ir, element: val, index: field.index)
             }
             assert(entity != nil && entity!.isConstant, implies: ir.isConstant, "The value being emitted for the entity \(entity!.name) was not constant, but should have been")
+
+            if returnAddress {
+                return makeAddressable(value: ir, entity: entity)
+            }
+            return ir
+
+        case let unionType as ty.Union:
+            let irType = canonicalize(unionType)
+            assert(lit.elements.count == 1)
+            // NOTE: Swift doesn't offer a great way to share memory without also storing a tag to decern the value
+            guard case .unionCase(let unionCase) =  lit.elements[0].checked else { fatalError() }
+
+            let unionData = emit(expr: lit.elements[0].value, returnAddress: false)
+
+            var ir = irType.constant(values: [
+                canonicalize(unionType.tagType).constant(unionCase.tag),
+                irType.elementTypes[1].undef(),
+            ])
+
+            let converted = performConversion(from: unionCase.type, to: unionType.dataType, with: unionData)
+
+            ir = b.buildInsertValue(aggregate: ir, element: converted, index: 1)
 
             if returnAddress {
                 return makeAddressable(value: ir, entity: entity)
@@ -1751,13 +1778,20 @@ extension IRGenerator {
             let tag = buildLoad(address, alignment: 16)
             return b.buildAnd(mask, tag)
 
-        case .union(let c):
+        case .union(let unionType, let unionCase):
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {
                 aggregate = buildLoad(aggregate)
             }
-            let type = canonicalize(c.type)
-            let address = b.buildBitCast(aggregate, type: LLVM.PointerType(pointee: type))
+            let type = canonicalize(unionCase.type)
+
+            let address: IRValue
+            if unionType.isInlineTag {
+                address = b.buildBitCast(aggregate, type: LLVM.PointerType(pointee: type))
+            } else {
+                let dataAddress = b.buildStructGEP(aggregate, index: 1)
+                address = b.buildBitCast(dataAddress, type: LLVM.PointerType(pointee: canonicalize(unionCase.type)))
+            }
             if returnAddress {
                 return address
             }
@@ -1865,7 +1899,7 @@ extension IRGenerator {
         case let type as ty.Array:
             let rec = emit(expr: slice.rec, returnAddress: true)
             lo = lo ?? i64.zero()
-            hi = hi ?? type.length
+            hi = hi ?? i64.constant(type.length)
 
             ptr = b.buildInBoundsGEP(rec, indices: [0, lo!])
             len = b.buildSub(hi!, lo!)
@@ -2250,13 +2284,13 @@ extension IRGenerator {
         return IntType(width: e.width!, in: module.context)
     }
 
-    mutating func canonicalize(_ u: ty.Union) -> IRType {
+    mutating func canonicalize(_ u: ty.Union) -> LLVM.StructType {
         if u.isInlineTag {
             let data = LLVM.IntType(width: u.width!, in: module.context)
             return LLVM.StructType(elementTypes: [data])
         }
-        let data = LLVM.IntType(width: u.width! - u.tagType.width!, in: module.context)
         let tag  = canonicalize(u.tagType)
+        let data = canonicalize(u.dataType)
         return LLVM.StructType(elementTypes: [tag, data])
     }
 

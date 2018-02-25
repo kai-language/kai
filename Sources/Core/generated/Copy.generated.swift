@@ -455,8 +455,8 @@ func copy(_ node: KeyValue) -> KeyValue {
         colon: node.colon,
         value: copy(node.value),
         type: node.type,
-        conversion: node.conversion,
-        structField: node.structField
+        checked: node.checked,
+        conversion: node.conversion
     )
 }
 

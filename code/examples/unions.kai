@@ -1,0 +1,32 @@
+
+#library "libc"
+#foreign libc #callconv "c" {
+    printf :: (fmt: *u8, args: #cvargs ..any) -> i32
+}
+
+JSON :: union {
+    Number: f64
+    String: string
+    Array: []JSON
+}
+
+main :: fn() -> void {
+    json := JSON{Number: 5}
+    printJSON(json)
+    json = JSON{String: "asdf"}
+    printJSON(json)
+}
+
+printJSON :: fn(json: JSON) -> void {
+    switch json {
+    case Number:
+        printf("%d\n".raw, json)
+    case String:
+        printf("%s\n".raw, json.raw)
+    case Array:
+        for el in json {
+            printJSON(el)
+        }
+    }
+}
+

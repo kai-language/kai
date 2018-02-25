@@ -359,7 +359,7 @@ class Selector: Node, Expr, Convertable, HasConstantValue {
         case file(Entity)
         case `struct`(ty.Struct.Field)
         case `enum`(ty.Enum.Case)
-        case union(ty.Union.Case)
+        case union(ty.Union, ty.Union.Case)
         case unionTag
         case array(ArrayMember)
         case staticLength(Int)
@@ -589,20 +589,26 @@ class KeyValue: Node, Expr, Convertable {
     var value: Expr
 
     var type: Type = ty.invalid
+    var checked: Checked = .invalid
     var conversion: (from: Type, to: Type)? = nil
-    var structField: ty.Struct.Field? = nil
+
+    enum Checked {
+        case invalid
+        case unionCase(ty.Union.Case)
+        case structField(ty.Struct.Field)
+    }
 
     var start: Pos { return key?.start ?? value.start }
     var end: Pos { return value.end }
 
 // sourcery:inline:auto:KeyValue.Init
-init(key: Expr?, colon: Pos?, value: Expr, type: Type = ty.invalid, conversion: (from: Type, to: Type)? = nil, structField: ty.Struct.Field? = nil) {
+init(key: Expr?, colon: Pos?, value: Expr, type: Type = ty.invalid, checked: Checked = .invalid, conversion: (from: Type, to: Type)? = nil) {
     self.key = key
     self.colon = colon
     self.value = value
     self.type = type
+    self.checked = checked
     self.conversion = conversion
-    self.structField = structField
 }
 // sourcery:end
 }

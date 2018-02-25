@@ -1356,7 +1356,7 @@ extension Checker {
                         continue
                     }
 
-                    el.structField = field
+                    el.checked = .structField(field)
                     let operand = check(expr: el.value, desiredType: field.type)
                     dependencies.formUnion(operand.dependencies)
 
@@ -1366,7 +1366,7 @@ extension Checker {
                         continue
                     }
                 } else {
-                    el.structField = field
+                    el.checked = .structField(field)
                     let operand = check(expr: el.value, desiredType: field.type)
                     dependencies.formUnion(operand.dependencies)
 
@@ -1378,6 +1378,29 @@ extension Checker {
                 }
             }
             lit.type = type!
+            return Operand(mode: .computed, expr: lit, type: type, constant: nil, dependencies: dependencies)
+
+        case let type as ty.Union:
+            guard lit.elements.count == 1, let key = lit.elements[0].key as? Ident else {
+                reportError("Union literals require exactly 1 named member", at: lit.start)
+                // TODO: Return a correct union type anyway?
+                return Operand.invalid
+            }
+            guard let unionCase = type.cases[key.name] else {
+                reportError("Case \(key.name) not found in union", at: key.start)
+                // TODO: Return a correct union type anyway?
+                return Operand.invalid
+            }
+
+            let value = check(expr: lit.elements[0].value, desiredType: unionCase.type)
+
+            guard convert(value.type, to: unionCase.type, at: lit.elements[0].value) else {
+                reportError("Cannot convert \(value) to expected type \(unionCase.type)", at: lit.elements[0].value.start)
+                // TODO: Return a correct union type anyway?
+                return Operand.invalid
+            }
+            lit.elements[0].checked = .unionCase(unionCase)
+            lit.type = type
             return Operand(mode: .computed, expr: lit, type: type, constant: nil, dependencies: dependencies)
 
         case var type as ty.Array:
@@ -2152,7 +2175,7 @@ extension Checker {
                 selector.type = ty.invalid
                 return Operand.invalid
             }
-            selector.checked = .union(casé)
+            selector.checked = .union(union, casé)
             selector.type = casé.type
             return Operand(mode: .addressable, expr: selector, type: casé.type, constant: nil, dependencies: dependencies)
 
@@ -2292,7 +2315,8 @@ extension Checker {
             if let strućt = lowered as? ty.Struct, strućt.isPolymorphic {
                 return check(polymorphicCall: call, calleeType: strućt)
             }
-            fatalError("TODO")
+            reportError("Cannot call \(callee)", at: call.start)
+            return Operand.invalid
         }
         call.checked = .call
 
