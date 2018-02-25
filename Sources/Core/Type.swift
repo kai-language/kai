@@ -527,7 +527,11 @@ enum ty {
         init(width: Int, tagWidth: Int? = nil, flags: Flags = .none, cases: [Case]) {
             self.width = width
             self.tagType = ty.Integer(width: tagWidth ?? positionOfHighestBit(cases.count), isSigned: false)
-            self.dataType = ty.Integer(width: width - tagType.width!, isSigned: false)
+            if flags.contains(.inlineTag) {
+                self.dataType = ty.Integer(width: width, isSigned: false)
+            } else {
+                self.dataType = ty.Integer(width: width - tagType.width!, isSigned: false)
+            }
             self.flags = flags
             self.cases = [:]
             for c in cases {

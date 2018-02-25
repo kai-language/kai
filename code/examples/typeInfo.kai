@@ -15,27 +15,23 @@ width :: fn(type: types.Type) -> u64 {
         case:         return 0
         }
     case Struct:
-        s := bitcast(*types.Struct) (bitcast(u64) type & ~0b111)
         // the offset of the last field + the width of it's type is a structs total width.
-        f := s.Fields[s.Fields.len - 1]
+        f := type.Fields[type.Fields.len - 1]
         return f.Offset + width(f.Type)
     case Union:
-        u := bitcast(*types.Union) (bitcast(u64) type & ~0b111)
         // a unions width is equal to it's largest member
         max: u64 = 0
-        for c in u.Cases {
+        for c in type.Cases {
             if max < width(c.Type)
                 max = width(c.Type)
         }
         return max
     case Enum:
-        u := bitcast(*types.Union) (bitcast(u64) type & ~0b111)
-        return (cast(u64) posix.floor(posix.log2(cast(f64) u.Cases.len - 1))) + 1
+        return (cast(u64) posix.floor(posix.log2(cast(f64) type.Cases.len - 1))) + 1
     case Function:
         return cast(u64) platform.PointerWidth
     case Array:
-        a := bitcast(*types.Array) (bitcast(u64) type & ~0b111)
-        return a.Length * width(a.ElementType)
+        return type.Length * width(type.ElementType)
     case Slice:
         return 3 * cast(u64) platform.PointerWidth
     case Pointer:
@@ -56,8 +52,7 @@ name :: fn(type: types.Type) -> string {
         case:         return "Malformed simples"
         }
     case Array:
-        ptr := bitcast(*types.Array) (bitcast(u64) type & ~0b111)
-        return (ptr.Flags & types.FlagVector != 0) ? "Vector" : "Array"
+        return (type.Flags & types.FlagVector != 0) ? "Vector" : "Array"
     case Slice:    return "Slice"
     case Pointer:  return "Pointer"
     case Function: return "Function"
@@ -179,3 +174,4 @@ main :: fn() -> i32 {
 
     return 0
 }
+

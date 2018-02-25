@@ -949,6 +949,14 @@ extension IRGenerator {
                 if union.isInlineTag, let binding = c.binding {
                     let type = LLVM.PointerType(pointee: canonicalize(binding.type!))
                     binding.value = b.buildBitCast(value, type: type)
+
+                    // Mask the inline tag
+                    let valuePtr = b.buildStructGEP(value, index: 0)
+                    let value = buildLoad(valuePtr)
+                    let mask: UInt64 = ~maxValueForInteger(width: union.tagType.width!, signed: false)
+                    let masked = b.buildAnd(value, canonicalize(union.dataType).constant(mask))
+                    b.buildStore(masked, to: valuePtr)
+                    
                 } else if let binding = c.binding {
                     let dataPointer = b.buildStructGEP(value, index: 1)
                     let targetType = LLVM.PointerType(pointee: canonicalize(binding.type!))
