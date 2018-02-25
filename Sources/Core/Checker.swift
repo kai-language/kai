@@ -2396,7 +2396,7 @@ extension Checker {
                 let arg = check(expr: varg.explicitType, desiredType: expectedType)
                 dependencies.formUnion(arg.dependencies)
                 if !convert(arg.type, to: expectedType, at: varg.explicitType) {
-                    reportError("Cannot convert value '\(varg.explicitType)' to expected argument type '\(expectedType)'", at: varg.start)
+                    reportError("Cannot convert \(arg) to expected argument type '\(expectedType)'", at: varg.start)
                 }
             } else {
                 for arg in excessArgs {
@@ -2411,7 +2411,7 @@ extension Checker {
 
                     // Only perform conversions if the variadics are not C style
                     guard calleeFn.isCVariadic || convert(argument.type, to: expectedType, at: arg) else {
-                        reportError("Cannot convert value '\(argument)' to expected argument type '\(expectedType)'", at: arg.start)
+                        reportError("Cannot convert \(argument) to expected argument type '\(expectedType)'", at: arg.start)
                         file.attachNote("In call to '\(callee)'")
                         continue
                     }
