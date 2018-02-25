@@ -192,7 +192,9 @@ extension Checker {
         }
         let ident = l.alias ?? Ident(start: noPos, name: name)
         let entity = newEntity(ident: ident, flags: .library)
-        declare(entity)
+        // NOTE: At least while we don't do anything to match foreigns to libraries we ignore redeclarations.
+        // To reenable warnings about duplicate library entities use `declare(entity)`
+        _ = context.scope.insert(entity, scopeOwnsEntity: true)
 
         if path != "libc" && path != "llvm" {
 

@@ -156,8 +156,8 @@ main :: fn() -> i32 {
     posix.printf("Value: %p\n".raw, unionType)
     posix.printf("\n".raw)
 
-    enumType := types.TypeOf(enum{a, b, c})
-    posix.printf("  enum{a, b, c}\n".raw)
+    enumType := types.TypeOf(enum{a; b; c})
+    posix.printf("  enum{a; b; c}\n".raw)
     posix.printf("Type: %s\n".raw, name(enumType).raw)
     posix.printf("Width: %lu\n".raw, width(enumType))
     posix.printf("Value: %p\n".raw, enumType)
