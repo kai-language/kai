@@ -1926,7 +1926,6 @@ extension Checker {
         .lor:  isBoolean,
     ]
 
-    // FIXME: Refactor this, for the love of all that is good.
     @discardableResult
     mutating func check(binary: Binary, desiredType: Type?) -> Operand {
         let lhs = check(expr: binary.lhs)
@@ -1981,7 +1980,7 @@ extension Checker {
             return Operand.invalid
         }
 
-        if binary.op == .eql || binary.op == .neq || binary.op == .leq || binary.op == .geq || binary.op == .lss || binary.op == .gtr {
+        if binary.op == .eql || binary.op == .neq || binary.op == .leq || binary.op == .geq || binary.op == .lss || binary.op == .gtr || binary.op == .lor || binary.op == .land {
             if let desiredType = desiredType, isBoolean(desiredType), convert(lhs.type, to: desiredType, at: binary.lhs) {
                 binary.type = desiredType
             } else {
