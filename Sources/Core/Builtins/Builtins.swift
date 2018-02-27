@@ -44,8 +44,6 @@ extension Entity {
 extension ty {
     static let invalid  = ty.Invalid.instance
 }
-
-
 // sourcery:noinit
 class BuiltinEntity {
 
@@ -88,7 +86,7 @@ class BuiltinEntity {
 class BuiltinFunction {
     // FIXME: right now we can only _call_ to builtin functions, refering to them without calling them will crash as their entities have no value!
     typealias Generate = (BuiltinFunction, _ returnAddress: Bool, [Expr], inout IRGenerator) -> IRValue
-    typealias CallCheck = (inout Checker, Call) -> Type
+    typealias CallCheck = (inout Checker, Call) -> Operand
 
     var entity: Entity
     var type: Type

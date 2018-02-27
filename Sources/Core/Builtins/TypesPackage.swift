@@ -165,7 +165,26 @@ extension builtin {
                 // TODO: Ensure the integer returned matches the `untypedInteger` types width.
                 return gen.b.buildSizeOf(irType)
             },
-            onCallCheck: nil
+            onCallCheck: { (checker, call) in
+                guard call.args.count == 1 else {
+                    checker.reportError("Expected 1 argument in call to 'TypeOf'", at: call.start)
+                    return Operand.invalid
+                }
+
+                let argOp = checker.check(expr: call.args[0])
+                var type = argOp.type!
+                if type is ty.Metatype {
+                    type = checker.lowerFromMetatype(call.args[0].type, atNode: call.args[0])
+                }
+
+                return Operand(
+                    mode: .computed,
+                    expr: call,
+                    type: ty.untypedInteger,
+                    constant: UInt64(type.width!.bytes()),
+                    dependencies: argOp.dependencies
+                )
+            }
         )
 
         // sourcery: type = "ty.Function"
@@ -178,7 +197,7 @@ extension builtin {
                 }
 
                 assert(gen.b.insertBlock != nil, "For now type info in the global scope is forbidden")
-
+                let t = ty.invalid
                 let value = llvmTypeInfo(type, gen: &gen)
                 assert(!returnAddress)
                 return value
@@ -186,12 +205,12 @@ extension builtin {
             onCallCheck: { (checker, call) in
                 guard call.args.count == 1 else {
                     checker.reportError("Expected 1 argument in call to 'TypeOf'", at: call.start)
-                    return ty.invalid
+                    return Operand.invalid
                 }
 
                 _ = checker.check(expr: call.args[0])
 
-                return typeInfoType
+                return Operand(mode: .type, expr: nil, type: typeInfoType, constant: nil, dependencies: [])
             }
         )
 

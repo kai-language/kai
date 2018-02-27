@@ -9,9 +9,9 @@ import LLVM
 
 var targetMachine: TargetMachine!
 
-public func setupTargetMachine() {
+public func setupTargetMachine(targetTriple: String?) {
     do {
-        targetMachine = try TargetMachine()
+        targetMachine = try TargetMachine(triple: targetTriple)
     } catch {
         print("ERROR: \(error)")
         print("  While setting up Target Machine")

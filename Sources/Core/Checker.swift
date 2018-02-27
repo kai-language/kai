@@ -2358,7 +2358,8 @@ extension Checker {
         if calleeFn.isBuiltin, let b = builtinFunctions.first(where: { $0.entity === funEntity }) {
             if let customCheck = b.onCallCheck {
 
-                var returnType = customCheck(&self, call)
+                let operand = customCheck(&self, call)
+                var returnType = operand.type!
                 if let tuple = returnType as? ty.Tuple {
                     returnType = splatTuple(tuple)
                 }
@@ -2366,8 +2367,7 @@ extension Checker {
                 call.type = returnType
                 call.checked = .builtinCall(b)
 
-                // TODO: Constants
-                return Operand(mode: .computed, expr: call, type: returnType, constant: nil, dependencies: dependencies)
+                return Operand(mode: .computed, expr: call, type: returnType, constant: operand.constant, dependencies: dependencies)
             }
             builtin = b
         }
