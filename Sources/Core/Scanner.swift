@@ -22,7 +22,9 @@ struct Scanner {
 
     init(file: SourceFile, errorHandler: ErrorHandler?) {
         self.file = file
-        self.data = file.handle.readDataToEndOfFile()
+        self.data = file.handle!.readDataToEndOfFile()
+        file.handle!.closeFile()
+        file.handle = nil
         self.ch = " "
         self.errorHandler = errorHandler
 
@@ -418,7 +420,7 @@ struct Scanner {
     mutating func scan() -> (Pos, Token, String) {
         let (off, tok, lit) = scan0()
 
-        let pos = file.pos(offset: UInt32(off))
+        let pos = Pos(fileno: file.fileno, offset: UInt32(off))
         return (pos, tok, lit)
     }
 
@@ -573,7 +575,7 @@ struct Scanner {
 extension Scanner {
 
     func reportError(_ message: String, at offset: Int, file: StaticString = #file, line: UInt = #line) {
-        let pos = self.file.pos(offset: UInt32(offset))
+        let pos = Pos(fileno: self.file.fileno, offset: UInt32(offset))
         errorHandler?(message, pos)
     }
 }

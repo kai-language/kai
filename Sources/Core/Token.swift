@@ -98,48 +98,6 @@ enum Token: UInt8 {
     case `nil`
 }
 
-struct Pos: Comparable {
-    var fileno: UInt32
-    var offset: UInt32
-
-    static func + (lhs: Pos, rhs: Int) -> Pos {
-        var pos = lhs
-        pos.offset += UInt32(rhs)
-        return pos
-    }
-
-    static func - (lhs: Pos, rhs: Int) -> Pos {
-        var pos = lhs
-        pos.offset -= UInt32(rhs)
-        return pos
-    }
-
-    static func ==(lhs: Pos, rhs: Pos) -> Bool {
-        return lhs.offset == rhs.offset && rhs.fileno == rhs.fileno
-    }
-
-    static func <(lhs: Pos, rhs: Pos) -> Bool {
-        return lhs.offset < rhs.offset && rhs.fileno == rhs.fileno
-    }
-
-    static let filenomask: UInt64 = 0xFF00000000000000
-    static let offsetmask: UInt64 = ~filenomask
-}
-//typealias Pos = UInt
-let noPos: Pos = Pos(fileno: 0, offset: 0)
-
-struct Position {
-
-    /// filename
-    var filename: String
-    /// offset, starting at 0
-    var offset: UInt32
-    /// line number, starting at 1
-    var line: UInt32
-    /// column number, starting at 1 (byte count)
-    var column: UInt32
-}
-
 extension Token: CustomStringConvertible {
     var description: String {
         switch self {
@@ -221,13 +179,3 @@ extension Token: CustomStringConvertible {
         }
     }
 }
-
-extension Position: CustomStringConvertible {
-
-    var description: String {
-        let filename = basename(path: self.filename)
-        return "\(filename):\(line):\(column)"
-    }
-}
-
-

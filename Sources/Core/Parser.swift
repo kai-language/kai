@@ -56,6 +56,7 @@ extension Parser {
 
     mutating func parseIdent() -> Ident {
         var name = "_"
+        let pos = self.pos
         if tok == .ident {
             name = lit
             next()
@@ -1427,7 +1428,7 @@ extension Parser {
                  .assignAdd, .assignSub, .assignMul, .assignQuo, .assignRem,
                  .assignAnd, .assignXor, .assignShl, .assignShr, .assignOr:
                 if let startOfLine = startOfLine {
-                    scanner.set(offset: Int(file.offset(pos: startOfLine)))
+                    scanner.set(offset: Int(startOfLine.offset))
                     return
                 }
             case .semicolon:
@@ -1449,7 +1450,6 @@ extension Parser {
 
     @discardableResult
     mutating func expect(_ expected: Token, function: StaticString = #function, line: UInt = #line) -> Pos {
-        let pos = self.pos
         if tok != expected {
             reportExpected("'" + String(describing: expected) + "'", at: pos, function: function, line: line)
         }
@@ -1510,7 +1510,7 @@ extension Parser {
         file.addError(message, pos)
         #if DEBUG
             file.attachNote("During Parsing, \(function), line \(line)")
-            file.attachNote("At an offset of \(file.offset(pos: pos)) in the file")
+            file.attachNote("At an offset of \(pos.offset) in the file")
         #endif
     }
 }

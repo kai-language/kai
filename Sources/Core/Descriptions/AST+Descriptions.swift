@@ -1,4 +1,12 @@
 
+extension Node {
+
+    // As a fall back we just return the text directly from the file
+    var description: String {
+        return currentPackage.sourceCode(from: start, to: end)
+    }
+}
+
 extension Ident: CustomStringConvertible {
     var description: String {
         return name

@@ -1288,14 +1288,8 @@ extension IRGenerator {
     }
 
     mutating func emit(binary: Binary) -> IRValue {
-        var lhs = emit(expr: binary.lhs)
-        var rhs = emit(expr: binary.rhs)
-
-        if isBoolean(binary.lhs.type) && isBoolean(binary.rhs.type) {
-            // Ensure any 2 potentially differently sized booleans are sized the same
-            lhs = b.buildTruncOrBitCast(lhs, type: i1)
-            rhs = b.buildTruncOrBitCast(rhs, type: i1)
-        }
+        let lhs = emit(expr: binary.lhs)
+        let rhs = emit(expr: binary.rhs)
 
         switch binary.op {
         case .add:
@@ -1309,9 +1303,16 @@ extension IRGenerator {
         case .rem:
             return b.buildRem(lhs, rhs, signed: isSigned(binary.type))
 
-        case .and, .land:
+        case .land:
+            let x = b.buildAnd(lhs, rhs)
+            return b.buildTruncOrBitCast(x, type: i1)
+        case .lor:
+            let x = b.buildOr(lhs, rhs)
+            return b.buildTruncOrBitCast(x, type: i1)
+
+        case .and:
             return b.buildAnd(lhs, rhs)
-        case .or, .lor:
+        case .or:
             return b.buildOr(lhs, rhs)
         case .xor:
             return b.buildXor(lhs, rhs)
@@ -1323,7 +1324,10 @@ extension IRGenerator {
         default:
             break
         }
-        if isInteger(binary.type) || isBoolean(binary.type) {
+
+        // Comparison operations
+
+        if isInteger(binary.lhs.type) || isBoolean(binary.lhs.type) {
             let signed = isSigned(binary.type)
             let pred: IntPredicate
             switch binary.op {
@@ -1337,7 +1341,7 @@ extension IRGenerator {
             }
             return b.buildICmp(lhs, rhs, pred)
         } else {
-            assert(isFloat(binary.type))
+            assert(isFloat(binary.lhs.type))
             var pred: RealPredicate
             switch binary.op {
             case .lss: pred = .orderedLessThan
