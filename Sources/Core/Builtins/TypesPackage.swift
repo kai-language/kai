@@ -158,10 +158,14 @@ extension builtin {
             generate: { function, returnAddress, exprs, gen in
                 assert(!returnAddress)
                 var type = exprs[0].type
+                var width = type.width
                 if let meta = type as? ty.Metatype {
                     type = meta.instanceType
+                    width = type.width
                 }
                 let irType = gen.canonicalize(type)
+
+                assert(width == targetMachine.dataLayout.sizeOfTypeInBits(irType))
                 // TODO: Ensure the integer returned matches the `untypedInteger` types width.
                 return gen.b.buildSizeOf(irType)
             },
@@ -177,11 +181,12 @@ extension builtin {
                     type = checker.lowerFromMetatype(call.args[0].type, atNode: call.args[0])
                 }
 
+                let width = UInt64(type.width!.bytes())
                 return Operand(
                     mode: .computed,
                     expr: call,
                     type: ty.untypedInteger,
-                    constant: UInt64(type.width!.bytes()),
+                    constant: width,
                     dependencies: argOp.dependencies
                 )
             }
