@@ -1186,6 +1186,23 @@ extension Parser {
 
             test.isTest = true
             return stmt
+        case LeadingDirective.void_asm?:
+            expect(.lparen)
+            let asm = parseStringLit()
+            expect(.comma)
+            let constraints = parseStringLit()
+            expect(.comma)
+            let (_, arguments) = parseArgumentList()
+            allowTerminator()
+            let rparen = expect(.rparen)
+            allowTerminator()
+            return InlineAsm(
+                directive: pos,
+                rparen: rparen,
+                asm: asm,
+                constraints: constraints,
+                arguments: arguments
+            )
         default:
             if TrailingDirective(rawValue: name) != nil {
                 reportError("'\(name)' is a trailing directive", at: directive)

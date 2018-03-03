@@ -347,6 +347,9 @@ extension Checker {
         case let b as Branch:
             check(branch: b)
             return []
+        case let a as InlineAsm:
+            let operand = check(inlineAsm: a, desiredType: nil)
+            return operand.dependencies
         default:
             print("Warning: statement '\(stmt)' passed through without getting checked")
             return []
