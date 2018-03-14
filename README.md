@@ -9,7 +9,7 @@ Have you built something cool? Feel free to share it here!
 
 * [KaiNES](https://github.com/BrettRToomey/KaiNES): A pure-Kai NES emulator.
 * [KaiVM](https://github.com/BrettRToomey/KaiVM): A register-based VM and disassembler.
-* [Tinit](https://github.com/aifia/kinit): A minimal init system.
+* [Kinit](https://github.com/aifia/kinit): A minimal init system.
 
 ## Download and Install
 ### MacOS
