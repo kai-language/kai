@@ -1041,6 +1041,11 @@ extension Parser {
         // Note: Scanner inserts a semicolon with '{' as the lit
         //  This prevents interpreting the last stmt as a composite lit
         if tok == .semicolon, lit != "{" {
+            guard lit != "\n" else {
+                next()
+                reportError("Unexpected newline. Expected `;` or `{`", at: pos)
+                return BadStmt(start: pos, end: pos)
+            }
             next()
             s1 = s2
             s2 = nil

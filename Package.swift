@@ -11,7 +11,8 @@ let package = Package(
     ],
     targets: [
         .target(name: "kai", dependencies: ["Core"]),
-        .target(name: "Core", dependencies: ["LLVM", "OrderedDictionary"]),
+        .target(name: "Core", dependencies: ["Object", "LLVM", "OrderedDictionary"]),
+        .target(name: "Object", dependencies: []),
     ],
     swiftLanguageVersions: [4]
 )
