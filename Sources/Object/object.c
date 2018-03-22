@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include "object.h"
 #include <stdint.h>
 
 typedef int	cpu_type_t;
@@ -173,12 +173,10 @@ struct dysymtab_command {
 					/* no padding */
 #define SECT_COMMON	"__common"	/* the section common symbols are */
 
-
-int main() {
+void MakeObject(enum CPU cpu) {
     struct mach_header_64 header;
     header.magic = MH_MAGIC_64;
     header.cputype = CPU_TYPE_X86_64;
     header.cpusubtype = CPU_SUBTYPE_I386_ALL;
-    header.flags = ;
-    return 0;
+    header.flags = MH_SUBSECTIONS_VIA_SYMBOLS;
 }
