@@ -1202,8 +1202,8 @@ extension IRGenerator {
                 arrayPtr = const.inBoundsGEP(global, indices: [i64.constant(0), i64.constant(0)])
             } else { // We are at function scope
 
-                // NOTE: For now we are using malloc provided by llvm, but we really want to be using a context allocator when we have those
-                let heapAddress = b.buildAlloca(type: arrayIr.type)
+                // NOTE: For now we are using malloc provided by LLVM, but we really want to be using a context allocator when we have those
+                let heapAddress = b.buildMalloc(type: arrayIr.type)
                 b.buildStore(arrayIr, to: heapAddress)
                 arrayPtr = b.buildInBoundsGEP(heapAddress, indices: [i64.constant(0), i64.constant(0)])
             }
@@ -2086,7 +2086,7 @@ extension IRGenerator {
             // FIXME: the any type shouldn't always need to malloc, in the case of type smaller than a machine word
             //   they have their value stored in the memory for the data pointer
             let dataType = canonicalize(from)
-            var dataPointer = b.buildAlloca(type: dataType)
+            var dataPointer = b.buildMalloc(type: dataType)
             b.buildStore(value, to: dataPointer)
             dataPointer = b.buildBitCast(dataPointer, type: LLVM.PointerType.toVoid)
 
