@@ -22,12 +22,12 @@ func shell(path launchPath: String, args arguments: [String]) -> String {
 }
 
 
-var clangPath: String?
-func getClangPath() -> String {
-    if let clangPath = clangPath {
-        return clangPath
+var linkerPath: String?
+func getlinkerPath(_ linker: String?) -> String {
+    if let linkerPath = linkerPath {
+        return linkerPath
     }
-    let path = shell(path: "/usr/bin/which", args: ["clang"])
-    clangPath = path
+    let path = shell(path: "/usr/bin/which", args: [linker ?? "clang"])
+    linkerPath = path
     return path
 }

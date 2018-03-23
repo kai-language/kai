@@ -126,24 +126,24 @@ extension builtin {
 
         // - MARK: Constants
 
-        static var flagUntyped: BuiltinEntity = BuiltinEntity(name: "FlagUntyped", type: ty.u64, gen: { gen in
-            let val = gen.i64.constant(flagUntypedValue)
+        static var flagUntyped: BuiltinEntity = BuiltinEntity(name: "FlagUntyped", type: ty.i64, gen: { gen in
+            let val = gen.word.constant(flagUntypedValue)
 
             var global = gen.addOrReuseGlobal(named: ".types.FlagUntyped", initializer: val)
             global.linkage = .private
             return global
         })
 
-        static var flagSigned: BuiltinEntity = BuiltinEntity(name: "FlagSigned", type: ty.u64, gen: { gen in
-            let val = gen.i64.constant(flagSignedValue)
+        static var flagSigned: BuiltinEntity = BuiltinEntity(name: "FlagSigned", type: ty.i64, gen: { gen in
+            let val = gen.word.constant(flagSignedValue)
 
             var global = gen.addOrReuseGlobal(named: ".types.FlagSigned", initializer: val)
             global.linkage = .private
             return global
         })
 
-        static var flagVector: BuiltinEntity = BuiltinEntity(name: "FlagVector", type: ty.u64, gen: { gen in
-            let val = gen.i64.constant(flagVectorValue)
+        static var flagVector: BuiltinEntity = BuiltinEntity(name: "FlagVector", type: ty.i64, gen: { gen in
+            let val = gen.word.constant(flagVectorValue)
 
             var global = gen.addOrReuseGlobal(named: ".types.FlagVector", initializer: val)
             global.linkage = .private
@@ -158,14 +158,38 @@ extension builtin {
             generate: { function, returnAddress, exprs, gen in
                 assert(!returnAddress)
                 var type = exprs[0].type
+                var width = type.width
                 if let meta = type as? ty.Metatype {
                     type = meta.instanceType
+                    width = type.width
                 }
                 let irType = gen.canonicalize(type)
+
+                assert(width == targetMachine.dataLayout.sizeOfTypeInBits(irType))
                 // TODO: Ensure the integer returned matches the `untypedInteger` types width.
                 return gen.b.buildSizeOf(irType)
             },
-            onCallCheck: nil
+            onCallCheck: { (checker, call) in
+                guard call.args.count == 1 else {
+                    checker.reportError("Expected 1 argument in call to 'TypeOf'", at: call.start)
+                    return Operand.invalid
+                }
+
+                let argOp = checker.check(expr: call.args[0])
+                var type = argOp.type!
+                if type is ty.Metatype {
+                    type = checker.lowerFromMetatype(call.args[0].type, atNode: call.args[0])
+                }
+
+                let width = UInt64(type.width!.bytes())
+                return Operand(
+                    mode: .computed,
+                    expr: call,
+                    type: ty.untypedInteger,
+                    constant: width,
+                    dependencies: argOp.dependencies
+                )
+            }
         )
 
         // sourcery: type = "ty.Function"
@@ -178,7 +202,7 @@ extension builtin {
                 }
 
                 assert(gen.b.insertBlock != nil, "For now type info in the global scope is forbidden")
-
+                let t = ty.invalid
                 let value = llvmTypeInfo(type, gen: &gen)
                 assert(!returnAddress)
                 return value
@@ -186,12 +210,12 @@ extension builtin {
             onCallCheck: { (checker, call) in
                 guard call.args.count == 1 else {
                     checker.reportError("Expected 1 argument in call to 'TypeOf'", at: call.start)
-                    return ty.invalid
+                    return Operand.invalid
                 }
 
                 _ = checker.check(expr: call.args[0])
 
-                return typeInfoType
+                return Operand(mode: .type, expr: nil, type: typeInfoType, constant: nil, dependencies: [])
             }
         )
 
@@ -242,7 +266,7 @@ extension builtin {
                     let ir = structFieldTypeIR.constant(values: [
                         gen.emit(constantString: f.name),
                         llvmTypeInfo(f.type, gen: &gen),
-                        gen.i64.constant(f.offset),
+                        gen.word.constant(f.offset),
                     ])
 
                     fieldsIr.append(ir)
@@ -251,7 +275,7 @@ extension builtin {
                 let structTypeIr = canonical(&gen, structType)
                 var value: IRValue = structTypeIr.constant(values: [
                     llvmSlice(values: fieldsIr, type: structFieldTypeIR, gen: &gen),
-                    gen.i64.constant(0x0), // flags
+                    gen.word.constant(0x0), // flags
                 ])
 
                 var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
@@ -270,7 +294,7 @@ extension builtin {
                 var value: IRValue = functionTypeIr.constant(values: [
                     llvmSlice(values: params, type: typeInfoUnionIr, gen: &gen),
                     llvmSlice(values: results, type: typeInfoUnionIr, gen: &gen),
-                    gen.i64.constant(0x0), // flags
+                    gen.word.constant(0x0), // flags
                 ])
 
                 var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
@@ -287,8 +311,8 @@ extension builtin {
 
                 let arrayTypeIr = canonical(&gen, arrayType)
                 var value: IRValue = arrayTypeIr.constant(values: [
-                    gen.i64.constant(len),
-                    gen.i64.constant(isVector(type) ? flagVectorValue : 0),
+                    gen.word.constant(len),
+                    gen.word.constant(isVector(type) ? flagVectorValue : 0),
                     llvmTypeInfo(elType, gen: &gen)
                 ])
                 var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
@@ -307,7 +331,7 @@ extension builtin {
                     let ir = caseTypeIr.constant(values: [
                         gen.emit(constantString: c.ident.name),
                         llvmTypeInfo(c.type, gen: &gen),
-                        gen.i64.constant(c.tag),
+                        gen.word.constant(c.tag),
                     ])
 
                     casesIr.append(ir)
@@ -315,7 +339,7 @@ extension builtin {
 
                 var value: IRValue = canonical(&gen, unionType).constant(values: [
                     llvmSlice(values: casesIr, type: caseTypeIr, gen: &gen),
-                    gen.i64.constant(0x0),
+                    gen.word.constant(0x0),
                 ])
 
                 var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
@@ -334,14 +358,14 @@ extension builtin {
 
                     let ir = caseTypeIr.constant(values: [
                         gen.emit(constantString: c.ident.name),
-                        gen.i64.constant(index),
+                        gen.word.constant(index),
                     ])
                     casesIr.append(ir)
                 }
 
                 var value: IRValue = canonical(&gen, enumType).constant(values: [
                     llvmSlice(values: casesIr, type: canonical(&gen, enumCaseType), gen: &gen),
-                    gen.i64.constant(0x0),
+                    gen.word.constant(0x0),
                 ])
 
                 var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
@@ -416,7 +440,7 @@ extension builtin {
             var global = gen.b.addGlobal("", initializer: LLVM.ArrayType.constant(values, type: type))
             global.isGlobalConstant = true
 
-            return sliceType.constant(values: [const.bitCast(global, to: elPointer), gen.i64.constant(values.count), gen.i64.constant(0xDEADC0DE)])
+            return sliceType.constant(values: [const.bitCast(global, to: elPointer), gen.word.constant(values.count), gen.word.constant(0xDEADC0DE)])
         }
 
         static func patchTypes() {

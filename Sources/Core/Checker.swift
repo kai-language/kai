@@ -347,6 +347,9 @@ extension Checker {
         case let b as Branch:
             check(branch: b)
             return []
+        case let a as InlineAsm:
+            let operand = check(inlineAsm: a, desiredType: nil)
+            return operand.dependencies
         default:
             print("Warning: statement '\(stmt)' passed through without getting checked")
             return []
@@ -2356,7 +2359,8 @@ extension Checker {
         if calleeFn.isBuiltin, let b = builtinFunctions.first(where: { $0.entity === funEntity }) {
             if let customCheck = b.onCallCheck {
 
-                var returnType = customCheck(&self, call)
+                let operand = customCheck(&self, call)
+                var returnType = operand.type!
                 if let tuple = returnType as? ty.Tuple {
                     returnType = splatTuple(tuple)
                 }
@@ -2364,8 +2368,7 @@ extension Checker {
                 call.type = returnType
                 call.checked = .builtinCall(b)
 
-                // TODO: Constants
-                return Operand(mode: .computed, expr: call, type: returnType, constant: nil, dependencies: dependencies)
+                return Operand(mode: .computed, expr: call, type: returnType, constant: operand.constant, dependencies: dependencies)
             }
             builtin = b
         }

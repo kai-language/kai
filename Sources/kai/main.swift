@@ -11,7 +11,7 @@ startTime = gettime()
 
 let opts = Options(arguments: CommandLine.arguments[1...])
 
-setupTargetMachine()
+setupTargetMachine(targetTriple: opts.target)
 
 let filepath = CommandLine.arguments.last!
 

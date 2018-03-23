@@ -621,6 +621,8 @@ extension IRGenerator {
             emit(switch: s)
         case let b as Branch:
             emit(branch: b)
+        case let a as InlineAsm:
+            _ = emit(inlineAsm: a, returnAddress: false)
         default:
             print("Warning: statement didn't codegen: \(stmt)")
             return
@@ -1200,7 +1202,7 @@ extension IRGenerator {
                 arrayPtr = const.inBoundsGEP(global, indices: [i64.constant(0), i64.constant(0)])
             } else { // We are at function scope
 
-                // NOTE: For now we are using malloc provided by llvm, but we really want to be using a context allocator when we have those
+                // NOTE: For now we are using malloc provided by LLVM, but we really want to be using a context allocator when we have those
                 let heapAddress = b.buildMalloc(arrayIr.type)
                 b.buildStore(arrayIr, to: heapAddress)
                 arrayPtr = b.buildInBoundsGEP(heapAddress, indices: [i64.constant(0), i64.constant(0)])

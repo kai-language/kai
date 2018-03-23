@@ -152,10 +152,20 @@ public class Compiler {
 
     public func linkObjects() {
         let startTime = gettime()
-        let clangPath = getClangPath()
+        let clangPath = getlinkerPath(options.linker)
 
         let objFilePaths = packages.values.map({ $0.objpath })
-        var args = ["-o", options.outputFile ?? initialPackage.moduleName] + objFilePaths + [generatedPackage.objpath]
+        var args = ["-o", options.outputFile ?? initialPackage.moduleName]
+            + objFilePaths
+            + [generatedPackage.objpath]
+            + options.linkerFlags
+
+        if let target = compiler.options.target, compiler.options.linker == nil {
+            args.append(contentsOf: [
+                "-target",
+                target
+            ])
+        }
 
         if compiler.options.flags.contains(.shared) {
             args.append("-shared")

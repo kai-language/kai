@@ -8,9 +8,13 @@ public struct Options {
     public static let version = "0.0.0"
 
     public var flags: Flags = []
+    public var linkerFlags: [String] = []
     public var jobs: Int = 1
     public var outputFile: String?
 
+    public var target: String?
+    public var linker: String?
+    
     public var optimizationLevel: Int = 0
 
     public init(arguments: ArraySlice<String>) {
@@ -79,6 +83,28 @@ public struct Options {
                 }
                 jobs = j
                 skip = true
+            case "-target":
+                guard let v = val else {
+                    print("ERROR: -target requires a target triple following it")
+                    exit(1)
+                }
+                skip = true
+                target = v
+            case "-linker":
+                guard let v = val else {
+                    print("ERROR: -linker requires a linker following it")
+                    exit(1)
+                }
+                skip = true
+                linker = v
+            case "-Xlinker":
+                guard let v = val else {
+                    print("ERROR: -Xlinker requires a flag following it")
+                    exit(1)
+                }
+                skip = true
+                let contents = v.split(separator: " ").map({ String($0) })
+                linkerFlags.append(contentsOf: contents)
             case "-help":
                 emitHelp()
             case "-version":

@@ -6,7 +6,7 @@ extension builtin {
     enum platform {
 
         static var pointerWidth: BuiltinEntity = BuiltinEntity(name: "PointerWidth", type: ty.i64) { g in
-            var val = g.i64.constant(targetMachine.dataLayout.pointerSize() * 8)
+            var val = g.word.constant(targetMachine.dataLayout.pointerSize() * 8)
 
             var global = g.addOrReuseGlobal(named: ".platform.PointerWidth", initializer: val)
             global.linkage = .private
