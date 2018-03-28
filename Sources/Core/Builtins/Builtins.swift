@@ -85,7 +85,7 @@ class BuiltinEntity {
 // sourcery:noinit
 class BuiltinFunction {
     // FIXME: right now we can only _call_ to builtin functions, refering to them without calling them will crash as their entities have no value!
-    typealias Generate = (BuiltinFunction, _ returnAddress: Bool, [Expr], inout IRGenerator) -> IRValue
+    typealias Generate = (BuiltinFunction, _ returnAddress: Bool, Call, inout IRGenerator) -> IRValue
     typealias CallCheck = (inout Checker, Call) -> Operand
 
     var entity: Entity

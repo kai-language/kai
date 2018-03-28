@@ -278,3 +278,51 @@ extension Unicode.Scalar {
 func assert(_ a: Bool, implies b: @autoclosure () -> Bool, _ message: @autoclosure () -> String = "", file: StaticString = #file, line: UInt = #line) {
     assert(!a || b(), message, file: file, line: line)
 }
+
+public enum AnsiColor: UInt8 {
+    case black = 30
+    case red
+    case green
+    case yellow
+    case blue
+    case magenta
+    case cyan
+    case white
+    case lightBlack = 90
+    case lightRed
+    case lightGreen
+    case lightYellow
+    case lightBlue
+    case lightMagenta
+    case lightCyan
+    case lightWhite
+
+    public var value: UInt8 {
+        return rawValue
+    }
+}
+
+extension String {
+
+    public func applyingColor(_ code: AnsiColor) -> String {
+        let ESC = "\u{001B}[0;"
+        return "\(ESC)\(code.rawValue)m\(self)\u{001B}[0m"
+    }
+
+    var black: String { return applyingColor(.black) }
+    var red: String { return applyingColor(.red) }
+    var green: String { return applyingColor(.green) }
+    var yellow: String { return applyingColor(.yellow) }
+    var blue: String { return applyingColor(.blue) }
+    var magenta: String { return applyingColor(.magenta) }
+    var cyan: String { return applyingColor(.cyan) }
+    var white: String { return applyingColor(.white) }
+    var lightBlack: String { return applyingColor(.lightBlack) }
+    var lightRed: String { return applyingColor(.lightRed) }
+    var lightGreen: String { return applyingColor(.lightGreen) }
+    var lightYellow: String { return applyingColor(.lightYellow) }
+    var lightBlue: String { return applyingColor(.lightBlue) }
+    var lightMagenta: String { return applyingColor(.lightMagenta) }
+    var lightCyan: String { return applyingColor(.lightCyan) }
+    var lightWhite: String { return applyingColor(.lightWhite) }
+}

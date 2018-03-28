@@ -155,9 +155,9 @@ extension builtin {
         // sourcery: type = "ty.Function"
         static var sizeOf: BuiltinFunction = BuiltinFunction(
             entity: Entity.makeBuiltin("SizeOf", type: ty.Function.make([ty.any], [builtin.untypedInteger.type])),
-            generate: { function, returnAddress, exprs, gen in
+            generate: { function, returnAddress, call, gen in
                 assert(!returnAddress)
-                var type = exprs[0].type
+                var type = call.args[0].type
                 var width = type.width
                 if let meta = type as? ty.Metatype {
                     type = meta.instanceType
@@ -195,14 +195,13 @@ extension builtin {
         // sourcery: type = "ty.Function"
         static var typeOf: BuiltinFunction = BuiltinFunction(
             entity: Entity.makeBuiltin("TypeOf", type: ty.Function.make([ty.any], [typeInfoType])),
-            generate: { function, returnAddress, args, gen in
-                var type = baseType(args[0].type) // FIXME: Don't unwrap named types
+            generate: { function, returnAddress, call, gen in
+                var type = baseType(call.args[0].type) // FIXME: Don't unwrap named types
                 if type is ty.Metatype {
                     type = type.lower()
                 }
 
                 assert(gen.b.insertBlock != nil, "For now type info in the global scope is forbidden")
-                let t = ty.invalid
                 let value = llvmTypeInfo(type, gen: &gen)
                 assert(!returnAddress)
                 return value

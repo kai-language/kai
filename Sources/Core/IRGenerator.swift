@@ -236,6 +236,8 @@ struct IRGenerator {
     )
     lazy var testAsserted = self.b.addGlobal("$testAsserted", initializer: self.i1.constant(0))
 
+    lazy var printf = self.addOrReuseFunction(named: "printf", type: LLVM.FunctionType(argTypes: [LLVM.PointerType(pointee: i8)], returnType: i32, isVarArg: true))
+
     mutating func synthTestMain() {
         if let oldMain = module.function(named: "main") {
             oldMain.delete()
@@ -259,9 +261,8 @@ struct IRGenerator {
             b.buildStore(i1.constant(0), to: testAsserted)
         }
 
-        let printf = addOrReuseFunction(named: "printf", type: LLVM.FunctionType(argTypes: [LLVM.PointerType(pointee: i8)], returnType: i32, isVarArg: true))
-        let successSymbol = b.buildGlobalStringPtr("✔")
-        let failureSymbol = b.buildGlobalStringPtr("✘")
+        let successSymbol = b.buildGlobalStringPtr("✔".green)
+        let failureSymbol = b.buildGlobalStringPtr("✘".red)
 
         let indiviualFormat = b.buildGlobalStringPtr("%s %s\n")
 
@@ -988,7 +989,7 @@ extension IRGenerator {
             } else if sw.isAny {
                 var vals: [IRValue] = []
                 for match in c.match {
-                    let tiPtr = builtin.types.typeOf.generate(builtin.types.typeOf, false, [match], &self)
+                    let tiPtr = builtin.types.llvmTypeInfo(match.type.lower(), gen: &self)
                     let ti = const.extractValue(tiPtr, indices: [0])
                     vals.append(ti)
                 }
@@ -1433,7 +1434,7 @@ extension IRGenerator {
         switch call.checked {
         case .invalid: preconditionFailure("Invalid checked member made it to IRGen")
         case .builtinCall(let builtin):
-            return builtin.generate(builtin, returnAddress, call.args, &self)
+            return builtin.generate(builtin, returnAddress, call, &self)
         case .call:
             var isGlobal = false
             if let entity = entity(from: call.fun) {

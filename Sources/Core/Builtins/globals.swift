@@ -43,12 +43,17 @@ extension builtin {
 
         static var panic: BuiltinFunction = BuiltinFunction(
             entity: Entity.makeBuiltin("panic", type: ty.Function.make([ty.string], [ty.void])),
-            generate: { (function, returnAddress, exprs, gen) -> IRValue in
+            generate: { (function, returnAddress, call, gen) -> IRValue in
                 Swift.assert(!returnAddress)
                 let b = gen.b
 
                 // TODO: do something with the message
-                let msg = exprs[safe: 0].map({ gen.emit(expr: $0) }) ?? b.buildGlobalStringPtr("Panic!")
+                let msg = call.args[safe: 0].map({ gen.emit(expr: $0) }) ?? gen.emit(constantString: "")
+                let location = gen.package.position(for: call.start)
+                let filename = b.buildGlobalStringPtr(location?.filename ?? "unknown")
+                let line = gen.i32.constant(location?.line ?? 0)
+                let fmt = b.buildGlobalStringPtr("panic at %s:%u\n    %s\n")
+                _ = b.buildCall(gen.printf, args: [fmt, filename, line, b.buildExtractValue(msg, index: 0)])
                 if !compiler.options.isTestMode {
                     _ = b.buildCall(gen.trap, args: [])
                 } else {
@@ -77,20 +82,26 @@ extension builtin {
 
         static var assert: BuiltinFunction = BuiltinFunction(
             entity: Entity.makeBuiltin("assert", type: ty.Function.make([ty.bool, ty.string], [ty.void])),
-            generate: { (function, returnAddress, exprs, gen) -> IRValue in
+            generate: { (function, returnAddress, call, gen) -> IRValue in
                 Swift.assert(!returnAddress)
                 let b = gen.b
 
                 let function = gen.b.currentFunction!
 
-                let cond = gen.emit(expr: exprs[0])
+                let cond = gen.emit(expr: call.args[0])
                 let fail = function.appendBasicBlock(named: "assert.failure", in: gen.module.context)
                 let pass = function.appendBasicBlock(named: "assert.pass", in: gen.module.context)
 
                 b.buildCondBr(condition: b.buildTruncOrBitCast(cond, type: gen.i1), then: pass, else: fail)
 
                 b.positionAtEnd(of: fail)
-                let msg = exprs[safe: 1].map({ gen.emit(expr: $0) }) ?? b.buildGlobalStringPtr("Assertion Failed")
+                let msg = call.args[safe: 1].map({ gen.emit(expr: $0) }) ?? gen.emit(constantString: "")
+                let location = gen.package.position(for: call.start)
+                let condition = b.buildGlobalStringPtr(call.args[0].description)
+                let filename = b.buildGlobalStringPtr(location?.filename ?? "unknown")
+                let line = gen.i32.constant(location?.line ?? 0)
+                let fmt = b.buildGlobalStringPtr("assertion failed at %s:%u (%s)\n    %s\n")
+                _ = b.buildCall(gen.printf, args: [fmt, filename, line, condition, b.buildExtractValue(msg, index: 0)])
                 // do something with the message
                 if !compiler.options.isTestMode {
                     _ = b.buildCall(gen.trap, args: [])
