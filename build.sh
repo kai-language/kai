@@ -2,10 +2,27 @@
 
 set -e
 
+case "$OSTYPE" in
+  darwin*)  platform="macOS" ;; 
+  linux*)   platform="linux" ;;
+  *)
+      echo "unknown OS build script will need updating for support"
+      exit 1
+  ;;
+esac
+
 MACOSX_DEPLOYMENT_TARGET=10.13
+
+unsupportedCommand() {
+    echo "Unsupported command $1"
+    exit 1
+}
 
 case "$1" in
 xcode)
+    if [ "$platform" != "macOS" ]; then
+        unsupportedCommand "xcode"
+    fi
     swift package generate-xcodeproj
 ;;
 
@@ -13,10 +30,18 @@ sourcery)
     ./tools/genAccessors.sh
 ;;
 release)
-    swift build -Xswiftc -DDEBUG -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx$MACOSX_DEPLOYMENT_TARGET" -c release
+    case "$platform" in
+        macOS) swift build -Xswiftc -DDEBUG -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx$MACOSX_DEPLOYMENT_TARGET" -c release ;;
+        linux) swift build -Xswiftc -DDEBUG -Xswiftc "-target" -Xswiftc "x86_64-pc-linux-gnu" -c release ;;
+        *)
+            unsupportedCommand "release"
+    esac
     cp .build/release/kai /usr/local/bin/
 ;;
 distribute)
+    if [ "$platform" != "macOS" ]; then
+        unsupportedCommand "distribute"
+    fi
     TAG=$(git describe --abbrev=0 --tags);
     git checkout $TAG;
     cat ./Sources/Core/Options.swift | \
@@ -45,7 +70,11 @@ distribute)
     git reset --hard HEAD
 ;;
 *)
-    swift build -Xswiftc -DDEBUG -Xswiftc -DDEVELOPER -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx$MACOSX_DEPLOYMENT_TARGET"
+
+    case "$platform" in
+        macOS) swift build -Xswiftc -DDEBUG -Xswiftc -DDEVELOPER -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx$MACOSX_DEPLOYMENT_TARGET" ;;
+        linux) swift build -Xswiftc -DDEBUG -Xswiftc -DDEVELOPER -Xswiftc "-target" -Xswiftc "x86_64-pc-linux-gnu" ;;
+    esac
     cp .build/debug/kai /usr/local/bin/
 esac
 
