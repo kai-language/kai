@@ -1187,11 +1187,17 @@ extension IRGenerator {
 
         case is ty.Array:
             let irType = canonicalize(lit.type) as! LLVM.ArrayType
-            var ir = irType.undef()
-            for (index, el) in lit.elements.enumerated() {
-                let val = emit(expr: el.value)
-                // NOTE: For constants LLVM will reliably constant fold this.
-                ir = b.buildInsertValue(aggregate: ir, element: val, index: index)
+            var ir: IRValue
+            if !lit.elements.isEmpty {
+                // Zero initialize the array
+                ir = irType.null()
+            } else {
+                ir = irType.undef()
+                for (index, el) in lit.elements.enumerated() {
+                    let val = emit(expr: el.value)
+                    // NOTE: For constants LLVM will reliably constant fold this.
+                    ir = b.buildInsertValue(aggregate: ir, element: val, index: index)
+                }
             }
             assert(entity != nil && entity!.isConstant, implies: ir.isConstant, "The value being emitted for the entity \(entity!.name) was not constant, but should have been")
 

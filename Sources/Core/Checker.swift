@@ -1413,8 +1413,8 @@ extension Checker {
 
         case var type as ty.Array:
             if type.length != nil {
-                if lit.elements.count != type.length {
-                    reportError("Element count (\(lit.elements.count)) does not match array length (\(type.length))", at: lit.start)
+                if lit.elements.count != type.length && lit.elements.count != 0 {
+                    reportError("Element count (\(lit.elements.count)) does not match array length (\(type.length!))", at: lit.start)
                 }
             } else {
                 // NOTE: implicit array length
