@@ -40,5 +40,97 @@ extension builtin {
         // FIXME: For builtin entities we need to allow the desired type to propigate the correct boolean type into here, in case it's a non 1 width boolean
         static let trué: BuiltinEntity = BuiltinEntity(name: "true", type: bool.type, gen: { IntType(width: 1, in: $0.module.context).constant(1) })
         static let falsé: BuiltinEntity = BuiltinEntity(name: "false", type: bool.type, gen: { IntType(width: 1, in: $0.module.context).constant(0) })
+
+        static var panic: BuiltinFunction = BuiltinFunction(
+            entity: Entity.makeBuiltin("panic", type: ty.Function.make([ty.string], [ty.void])),
+            generate: { (function, returnAddress, exprs, gen) -> IRValue in
+                Swift.assert(!returnAddress)
+                let b = gen.b
+
+                // TODO: do something with the message
+                let msg = exprs[safe: 0].map({ gen.emit(expr: $0) }) ?? b.buildGlobalStringPtr("Panic!")
+                if !compiler.options.isTestMode {
+                    _ = b.buildCall(gen.trap, args: [])
+                } else {
+                    b.buildStore(gen.i1.constant(1), to: gen.testAsserted)
+                }
+                // FIXME: We need to have an unreachable return type and unreachable directive
+                b.buildBr(gen.context.returnBlock!)
+
+                return VoidType().undef()
+            },
+            onCallCheck: { (checker, call) -> Operand in
+                var dependencies: Set<Entity> = []
+                if let msg = call.args[safe: 0] {
+                    let op = checker.check(expr: msg, desiredType: ty.string)
+                    dependencies.formUnion(op.dependencies)
+                    guard convert(op.type, to: ty.string, at: msg) else {
+                        checker.reportError("Cannot convert value '\(msg)' to expected argument type '\(ty.string)'", at: call.args[0].start,
+                                            attachNotes: "In call to builtin 'assert'")
+                        return Operand.invalid
+                    }
+                }
+
+                return Operand(mode: .computed, expr: call, type: ty.void, constant: nil, dependencies: dependencies)
+            }
+        )
+
+        static var assert: BuiltinFunction = BuiltinFunction(
+            entity: Entity.makeBuiltin("assert", type: ty.Function.make([ty.bool, ty.string], [ty.void])),
+            generate: { (function, returnAddress, exprs, gen) -> IRValue in
+                Swift.assert(!returnAddress)
+                let b = gen.b
+
+                let function = gen.b.currentFunction!
+
+                let cond = gen.emit(expr: exprs[0])
+                let fail = function.appendBasicBlock(named: "assert.failure", in: gen.module.context)
+                let pass = function.appendBasicBlock(named: "assert.pass", in: gen.module.context)
+
+                b.buildCondBr(condition: b.buildTruncOrBitCast(cond, type: gen.i1), then: pass, else: fail)
+
+                b.positionAtEnd(of: fail)
+                let msg = exprs[safe: 1].map({ gen.emit(expr: $0) }) ?? b.buildGlobalStringPtr("Assertion Failed")
+                // do something with the message
+                if !compiler.options.isTestMode {
+                    _ = b.buildCall(gen.trap, args: [])
+                } else {
+                    b.buildStore(gen.i1.constant(1), to: gen.testAsserted)
+                }
+                b.buildBr(gen.context.returnBlock!)
+
+                b.positionAtEnd(of: pass)
+
+                return VoidType().undef()
+            },
+            onCallCheck: { (checker, call) -> Operand in
+                guard !call.args.isEmpty && call.args.count <= 2 else {
+                    checker.reportError("Expected arguments (bool, string)", at: call.start,
+                                        attachNotes: "in call to builtin 'assert'")
+                    return Operand.invalid
+                }
+
+                var dependencies: Set<Entity> = []
+                let cond = checker.check(expr: call.args[0], desiredType: ty.bool)
+                dependencies.formUnion(cond.dependencies)
+                guard convert(cond.type, to: ty.bool, at: call.args[0]) else {
+                    checker.reportError("Cannot convert value '\(call.args[0])' to expected argument type '\(ty.bool)'", at: call.args[0].start,
+                                        attachNotes: "In call to builtin 'assert'")
+                    return Operand.invalid
+                }
+
+                if let msg = call.args[safe: 1] {
+                    let op = checker.check(expr: msg, desiredType: ty.string)
+                    dependencies.formUnion(op.dependencies)
+                    guard convert(op.type, to: ty.string, at: msg) else {
+                        checker.reportError("Cannot convert value '\(msg)' to expected argument type '\(ty.string)'", at: call.args[0].start,
+                                            attachNotes: "In call to builtin 'assert'")
+                        return Operand.invalid
+                    }
+                }
+
+                return Operand(mode: .computed, expr: call, type: ty.void, constant: nil, dependencies: dependencies)
+            }
+        )
     }
 }

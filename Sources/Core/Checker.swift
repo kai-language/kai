@@ -129,8 +129,10 @@ extension Checker {
             collect(decl: d)
         case let using as Using:
             check(using: using)
+        case is TestCase:
+            break
         default:
-            print("Warning: statement '\(stmt)' passed tharrough without getting checked")
+            print("Warning: statement '\(stmt)' passed through without getting checked")
         }
     }
 
@@ -207,10 +209,6 @@ extension Checker {
     }
 
     mutating func collect(decl: Declaration) {
-        if decl.isTest && !compiler.options.isTestMode {
-            return
-        }
-
         var entities: [Entity] = []
 
         for ident in decl.names {
@@ -264,16 +262,21 @@ extension Checker {
                 return
             }
 
-            if d.isTest && !compiler.options.isTestMode {
-                return
-            }
-
             let dependencies = check(decl: d)
             d.dependsOn = dependencies
             d.checked = true
         case let block as DeclBlock:
             let dependencies = check(declBlock: block)
             block.dependsOn = dependencies
+        case let test as TestCase:
+            guard compiler.options.isTestMode else {
+                return
+            }
+            pushContext()
+            for stmt in test.body.stmts {
+                _ = check(stmt: stmt)
+            }
+            popContext()
         default:
             print("Warning: statement '\(stmt)' passed through without getting checked")
         }
@@ -2335,25 +2338,6 @@ extension Checker {
             return Operand.invalid
         }
 
-        if call.args.count > calleeFn.params.count && !calleeFn.isVariadic {
-            reportError("Too many arguments in call to \(callee)", at: call.args[calleeFn.params.count].start)
-            call.type = calleeFn.returnType
-            return Operand(mode: .computed, expr: call, type: calleeFn.returnType, constant: nil, dependencies: dependencies)
-        }
-
-        let requiredArgs = calleeFn.isVariadic ? calleeFn.params.count - 1 : calleeFn.params.count
-        if call.args.count < requiredArgs {
-            // Less arguments then parameters
-            guard calleeFn.isVariadic, call.args.count + 1 == calleeFn.params.count else {
-                reportError("Not enough arguments in call to '\(callee)'", at: call.start)
-                return Operand(mode: .computed, expr: call, type: ty.invalid, constant: nil, dependencies: dependencies)
-            }
-        }
-
-        if isPolymorphic(calleeFn) || calleeFn.isPolymorphic {
-            return check(polymorphicCall: call, calleeType: calleeType as! ty.Function, desiredType: desiredType)
-        }
-
         var builtin: BuiltinFunction?
         let funEntity = entity(from: call.fun)
         if calleeFn.isBuiltin, let b = builtinFunctions.first(where: { $0.entity === funEntity }) {
@@ -2371,6 +2355,25 @@ extension Checker {
                 return Operand(mode: .computed, expr: call, type: returnType, constant: operand.constant, dependencies: dependencies)
             }
             builtin = b
+        }
+
+        if call.args.count > calleeFn.params.count && !calleeFn.isVariadic {
+            reportError("Too many arguments in call to \(callee)", at: call.args[calleeFn.params.count].start)
+            call.type = calleeFn.returnType
+            return Operand(mode: .computed, expr: call, type: calleeFn.returnType, constant: nil, dependencies: dependencies)
+        }
+
+        let requiredArgs = calleeFn.isVariadic ? calleeFn.params.count - 1 : calleeFn.params.count
+        if call.args.count < requiredArgs {
+            // Less arguments then parameters
+            guard calleeFn.isVariadic, call.args.count + 1 == calleeFn.params.count else {
+                reportError("Not enough arguments in call to '\(callee)'", at: call.start)
+                return Operand(mode: .computed, expr: call, type: ty.invalid, constant: nil, dependencies: dependencies)
+            }
+        }
+
+        if isPolymorphic(calleeFn) || calleeFn.isPolymorphic {
+            return check(polymorphicCall: call, calleeType: calleeType as! ty.Function, desiredType: desiredType)
         }
 
         var paramArgPairs = AnySequence(zip(call.args, calleeFn.params))

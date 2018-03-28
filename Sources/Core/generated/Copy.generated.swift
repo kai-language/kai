@@ -215,7 +215,6 @@ func copy(_ node: Declaration) -> Declaration {
         isConstant: node.isConstant,
         callconv: node.callconv,
         linkname: node.linkname,
-        isTest: node.isTest,
         entities: node.entities,
         dependsOn: node.dependsOn,
         declaringScope: node.declaringScope,
@@ -719,6 +718,18 @@ func copy(_ nodes: [Ternary]) -> [Ternary] {
     return nodes.map(copy)
 }
 
+func copy(_ node: TestCase) -> TestCase {
+    return TestCase(
+        directive: node.directive,
+        name: copy(node.name),
+        body: copy(node.body)
+    )
+}
+
+func copy(_ nodes: [TestCase]) -> [TestCase] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: Unary) -> Unary {
     return Unary(
         start: node.start,
@@ -851,6 +862,7 @@ func copy(_ node: Stmt) -> Stmt {
     case let node as Library: return copy(node)
     case let node as Return: return copy(node)
     case let node as Switch: return copy(node)
+    case let node as TestCase: return copy(node)
     case let node as Using: return copy(node)
     default: fatalError()
     }

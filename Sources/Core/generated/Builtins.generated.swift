@@ -24,6 +24,8 @@ extension Entity {
     static var u64 = Entity.makeBuiltin("u64", flags: .type)
     static var trué = Entity.makeBuiltin("trué", flags: .type)
     static var falsé = Entity.makeBuiltin("falsé", flags: .type)
+    static var panic = Entity.makeBuiltin("panic", flags: .type)
+    static var assert = Entity.makeBuiltin("assert", flags: .type)
 }
 
 extension ty {
@@ -48,11 +50,15 @@ extension ty {
     static var u64 = builtin.globals.u64.type
     static var trué = builtin.globals.trué.type
     static var falsé = builtin.globals.falsé.type
+    static var panic = builtin.globals.panic.type
+    static var assert = builtin.globals.assert.type
     static let untypedInteger = builtin.untypedInteger.type
     static let untypedFloat   = builtin.untypedFloat.type
 }
 
 var builtinFunctions: [BuiltinFunction] = [
+    builtin.globals.panic,
+    builtin.globals.assert,
     builtin.types.sizeOf,
     builtin.types.typeOf,
 ]
@@ -91,6 +97,8 @@ var globalBuiltins: Set<Entity> = {
         builtin.globals.u64.entity,
         builtin.globals.trué.entity,
         builtin.globals.falsé.entity,
+        builtin.globals.panic.entity,
+        builtin.globals.assert.entity,
     ]
 }()
 
@@ -129,6 +137,8 @@ extension builtin.globals {
             builtin.globals.u64.entity,
             builtin.globals.trué.entity,
             builtin.globals.falsé.entity,
+            builtin.globals.panic.entity,
+            builtin.globals.assert.entity,
         ].toDictionary(with: { $0.name })
         return Scope(parent: .global, owningNode: nil, isFile: false, isPackage: true, members: members)
     }()

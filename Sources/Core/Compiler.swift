@@ -154,8 +154,13 @@ public class Compiler {
         let startTime = gettime()
         let clangPath = getlinkerPath(options.linker)
 
+        var outputFile = options.outputFile ?? initialPackage.moduleName
+        if options.isTestMode {
+            outputFile += "_tests"
+        }
+
         let objFilePaths = packages.values.map({ $0.objpath })
-        var args = ["-o", options.outputFile ?? initialPackage.moduleName]
+        var args = ["-o", outputFile]
             + objFilePaths
             + [generatedPackage.objpath]
             + options.linkerFlags

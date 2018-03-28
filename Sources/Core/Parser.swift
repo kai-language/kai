@@ -1178,14 +1178,11 @@ extension Parser {
             return block
 
         case .test?:
-            let stmt = parseStmt()
-            guard let test = stmt as? TestApplicable else {
-                reportError("Expected a testable declaration", at: stmt.start)
-                return stmt
-            }
+            let name = parseStringLit()
+            let body = parseBlock()
+            allowTerminator()
+            return TestCase(directive: directive, name: name, body: body)
 
-            test.isTest = true
-            return stmt
         case LeadingDirective.void_asm?:
             expect(.lparen)
             let asm = parseStringLit()

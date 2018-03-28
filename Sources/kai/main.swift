@@ -32,12 +32,7 @@ compiler.initialPackage.validateIR()
 setupBuildDirectories()
 
 if opts.flags.intersection([.emitIr, .emitBitcode, .emitAssembly]).isEmpty {
-
     compiler.emitObjects()
-    compiler.linkObjects()
-    if !opts.flags.contains(.noCleanup) {
-        compiler.cleanupBuildProducts()
-    }
 } else {
     if opts.flags.contains(.emitIr) {
         compiler.emitIntermediateRepresentation()
@@ -54,6 +49,14 @@ if opts.flags.intersection([.emitIr, .emitBitcode, .emitAssembly]).isEmpty {
 
 if opts.flags.contains(.dumpIr) {
     compiler.dumpIntermediateRepresentation()
+}
+
+if !opts.flags.contains(.noLink) {
+    compiler.linkObjects()
+}
+
+if !opts.flags.contains(.noCleanup) {
+    compiler.cleanupBuildProducts()
 }
 
 if opts.flags.contains(.emitDebugTimes) {

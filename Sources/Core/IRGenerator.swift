@@ -7,6 +7,8 @@ struct IRGenerator {
     var package: SourcePackage
     var topLevelNodes: [TopLevelStmt]
 
+    var testCases: [Function] = []
+
     /// - Note: Used for the generative features only (builtins & specializations)
     var specializations: [FunctionSpecialization] = []
 
@@ -228,6 +230,56 @@ struct IRGenerator {
         let type = FunctionType(argTypes: [], returnType: void)
         return addOrReuseFunction(named: "llvm.trap", type: type)
     }()
+
+    lazy var testResults = self.b.addGlobal("$testResults", initializer:
+        LLVM.ArrayType(elementType: self.i1, count: self.testCases.count).null()
+    )
+    lazy var testAsserted = self.b.addGlobal("$testAsserted", initializer: self.i1.constant(0))
+
+    mutating func synthTestMain() {
+        if let oldMain = module.function(named: "main") {
+            oldMain.delete()
+        }
+
+        let main = b.addFunction("main", type: FunctionType(argTypes: [], returnType: VoidType()))
+        let entryBlock = main.appendBasicBlock(named: "entry", in: module.context)
+        let returnBlock = main.appendBasicBlock(named: "ret", in: module.context)
+
+        b.positionAtEnd(of: returnBlock)
+        b.buildRetVoid()
+
+        b.positionAtEnd(of: entryBlock)
+
+        for (index, test) in testCases.enumerated() {
+            _ = b.buildCall(test, args: [])
+            let result = b.buildGEP(testResults, indices: [0, i32.constant(index)])
+
+            let failure = b.buildLoad(testAsserted)
+            b.buildStore(failure, to: result)
+            b.buildStore(i1.constant(0), to: testAsserted)
+        }
+
+        let printf = addOrReuseFunction(named: "printf", type: LLVM.FunctionType(argTypes: [LLVM.PointerType(pointee: i8)], returnType: i32, isVarArg: true))
+        let successSymbol = b.buildGlobalStringPtr("✔")
+        let failureSymbol = b.buildGlobalStringPtr("✘")
+
+        let indiviualFormat = b.buildGlobalStringPtr("%s %s\n")
+
+        var passes: IRValue = i64.constant(0)
+        for (index, test) in testCases.enumerated() {
+            let result = b.buildLoad(b.buildGEP(testResults, indices: [0, i32.constant(index)]))
+            let sym = b.buildSelect(result, then: failureSymbol, else: successSymbol)
+            let name = b.buildGlobalStringPtr(test.name)
+            _ = b.buildCall(printf, args: [indiviualFormat, sym, name])
+            passes = b.buildAdd(passes, b.buildSelect(result, then: 1, else: 0))
+        }
+
+        let percentPass = b.buildMul(b.buildDiv(b.buildIntToFP(passes, type: FloatType(kind: .double, in: module.context), signed: false), FloatType(kind: .double, in: module.context).constant(Double(testCases.count))), FloatType(kind: .double, in: module.context).constant(100))
+        let summaryFormat = b.buildGlobalStringPtr("%.2f%% success (%ld out of %ld)\n")
+        _ = b.buildCall(printf, args: [summaryFormat, percentPass, passes, i64.constant(testCases.count)])
+
+        b.buildBr(returnBlock)
+    }
 }
 
 extension IRGenerator {
@@ -261,43 +313,9 @@ extension IRGenerator {
             emit(topLevelStmt: node)
         }
 
-        if !isModuleDependency && compiler.options.isTestMode {
-            let callback = synthesizeSignalCallback()
-            synthesizeTestMain(signalCallback: callback)
+        if compiler.options.isTestMode {
+            synthTestMain()
         }
-    }
-
-    mutating func synthesizeTestMain(signalCallback: Function) {
-        let mainType = LLVM.FunctionType(argTypes: [], returnType: void)
-        let main = b.addFunction("main", type: mainType)
-        let entry = main.appendBasicBlock(named: "entry")
-        b.positionAtEnd(of: entry)
-
-        let signalType = LLVM.FunctionType(argTypes: [i32, LLVM.PointerType(pointee:signalCallbackType)], returnType: void)
-        let signal = b.addFunction("signal", type: signalType)
-
-        // capture 'SIGSEGV'
-        _ = b.buildCall(signal, args: [i32.constant(11), signalCallback])
-
-        for node in topLevelNodes {
-            guard let decl = node as? Declaration, decl.isTest else {
-                continue
-            }
-
-            _ = b.buildCall(decl.entities.first!.value!, args: [])
-        }
-
-
-        b.buildRetVoid()
-    }
-
-    mutating func synthesizeSignalCallback() -> Function {
-        let signalCallbackType = LLVM.FunctionType(argTypes: [i32], returnType: void)
-        let signalCallback = b.addFunction("@test.signal.callback", type: signalCallbackType)
-        let entry = signalCallback.appendBasicBlock(named: "entry")
-        b.positionAtEnd(of: entry)
-        b.buildRetVoid()
-        return signalCallback
     }
 
     mutating func emit(topLevelStmt stmt: TopLevelStmt) {
@@ -315,6 +333,11 @@ extension IRGenerator {
                 return
             }
             emit(declaration: d)
+        case let testCase as TestCase:
+            if compiler.options.isTestMode {
+                let fn = emit(testCase: testCase)
+                testCases.append(fn)
+            }
         default:
             print("Warning: statement didn't codegen: \(stmt)")
         }
@@ -340,9 +363,6 @@ extension IRGenerator {
     }
 
     mutating func emit(constantDecl decl: Declaration) {
-        if decl.isTest && !compiler.options.isTestMode {
-            return
-        }
 
         // ignore main while in test mode
         if isInvokationFile && decl.names.first?.name == "main" && compiler.options.isTestMode {
@@ -1654,6 +1674,30 @@ extension IRGenerator {
         )
 
         return b.buildCall(asm, args: args)
+    }
+
+    mutating func emit(testCase: TestCase) -> Function {
+        let fnType = LLVM.FunctionType(argTypes: [], returnType: VoidType())
+        let function = b.addFunction(testCase.name.constant as! String, type: fnType)
+
+        let entryBlock = function.appendBasicBlock(named: "entry", in: module.context)
+        let returnBlock = function.appendBasicBlock(named: "ret", in: module.context)
+
+        b.positionAtEnd(of: returnBlock)
+        b.buildRetVoid()
+
+        b.positionAtEnd(of: entryBlock)
+
+        pushContext(scopeName: "", returnBlock: returnBlock)
+        emit(statement: testCase.body)
+        if b.insertBlock?.terminator == nil {
+            b.buildBr(context.deferBlocks.last ?? returnBlock)
+        }
+        popContext()
+
+        returnBlock.moveAfter(function.lastBlock!)
+
+        return function
     }
 
     mutating func emit(funcLit fn: FuncLit, entity: Entity?, specializationMangle: String? = nil) -> Function {

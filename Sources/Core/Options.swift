@@ -47,6 +47,8 @@ public struct Options {
                     print("WARNING: Multiple optimization levels specified")
                 }
                 optimizationLevel = 3
+            case "-no-link":
+                flags.insert(.noLink)
             case "-no-cleanup":
                 flags.insert(.noCleanup)
             case "-emit-ast":
@@ -63,6 +65,8 @@ public struct Options {
                 flags.insert(.emitBitcode)
             case "-emit-asm", "-S":
                 flags.insert(.emitAssembly)
+            case "-emit-object":
+                flags.insert(.emitObject)
             case "-test":
                 flags.insert(.testMode)
             case "-shared":
@@ -133,6 +137,7 @@ public struct Options {
         print("  -emit-asm              Emit assembly file(s)")
         print("  -emit-ast              Parse, check and emit AST file(s)")
         print("  -emit-bitcode          Emit LLVM bitcode file(s)")
+        print("  -emit-object           Emit object file(s)")
         print("  -emit-ir               Emit LLVM IR file(s)")
         print("  -emit-times            Emit times for each stage of compilation")
         print()
@@ -141,6 +146,7 @@ public struct Options {
         print()
         print("  -jobs \u{001B}[36m<value>\u{001B}[0m          Controls the amount of workers (default is # of cores)")
         print()
+        print("  -no-link               Do not link output objects")
         print("  -no-cleanup            Keeps the build folder after compilation")
         print()
         print("  -Onone                 Compile with no optimizations")
@@ -177,21 +183,22 @@ public struct Options {
             self.rawValue = rawValue
         }
 
-        public static let noCleanup    = Flags(rawValue: 0b0001)
-
         /// dumpIr will dump the IR to stdout
-        public static let dumpIr       = Flags(rawValue: 0b0001 << 4)
-        public static let emitIr       = Flags(rawValue: 0b0010 << 4)
-        public static let emitBitcode  = Flags(rawValue: 0b0100 << 4)
-        public static let emitAssembly = Flags(rawValue: 0b1000 << 4)
+        public static let dumpIr       = Flags(rawValue: (1 << 1))
+        public static let emitIr       = Flags(rawValue: (1 << 2))
+        public static let emitBitcode  = Flags(rawValue: (1 << 3))
+        public static let emitAssembly = Flags(rawValue: (1 << 4))
+        public static let emitObject   = Flags(rawValue: (1 << 5))
 
-        public static let emitTimes      = Flags(rawValue: 0b0001 << 8)
-        public static let emitDebugTimes = Flags(rawValue: 0b0010 << 8)
-        public static let emitAst        = Flags(rawValue: 0b0100 << 8)
+        public static let emitTimes      = Flags(rawValue: (1 << 6))
+        public static let emitDebugTimes = Flags(rawValue: (1 << 7))
+        public static let emitAst        = Flags(rawValue: (1 << 8))
 
-        public static let testMode = Flags(rawValue: 0b1000 << 8)
+        public static let testMode  = Flags(rawValue: (1 <<  9))
+        public static let noLink    = Flags(rawValue: (1 << 10))
+        public static let noCleanup = Flags(rawValue: (1 << 11))
 
-        public static let shared     = Flags(rawValue: 0b0001 << 12)
-        public static let dynamicLib = Flags(rawValue: 0b0010 << 12)
+        public static let shared     = Flags(rawValue: (1 << 12))
+        public static let dynamicLib = Flags(rawValue: (1 << 13))
     }
 }

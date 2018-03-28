@@ -20,9 +20,6 @@ protocol LinknameApplicable: Stmt {
 protocol CallConvApplicable: Stmt {
     var callconv: String? { get set }
 }
-protocol TestApplicable: Stmt {
-    var isTest: Bool { get set }
-}
 
 protocol Convertable: Expr {
     var conversion: (from: Type, to: Type)? { get set }
@@ -255,6 +252,23 @@ class IdentList: Node, Stmt {
 // sourcery:inline:auto:IdentList.Init
 init(idents: [Expr]) {
     self.idents = idents
+}
+// sourcery:end
+}
+
+class TestCase: Node, Stmt, TopLevelStmt {
+    var directive: Pos
+    var name: BasicLit
+    var body: Block
+
+    var start: Pos { return directive }
+    var end: Pos { return body.end }
+
+// sourcery:inline:auto:TestCase.Init
+init(directive: Pos, name: BasicLit, body: Block) {
+    self.directive = directive
+    self.name = name
+    self.body = body
 }
 // sourcery:end
 }
@@ -1273,7 +1287,7 @@ init(lbrace: Pos, decls: [Declaration], rbrace: Pos, isForeign: Bool, linkprefix
 // sourcery:end
 }
 
-class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplicable, TestApplicable {
+class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplicable {
 
     var names: [Ident]
     var explicitType: Expr?
@@ -1283,7 +1297,6 @@ class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplica
 
     var callconv: String? = nil
     var linkname: String? = nil
-    var isTest: Bool = false
 
     var entities: [Entity]! = nil
     var dependsOn: Set<Entity> = []
@@ -1295,14 +1308,13 @@ class Declaration: Node, TopLevelStmt, Decl, LinknameApplicable, CallConvApplica
     var end: Pos { return values.first?.end ?? names.last!.start }
 
 // sourcery:inline:auto:Declaration.Init
-init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String? = nil, linkname: String? = nil, isTest: Bool = false, entities: [Entity]! = nil, dependsOn: Set<Entity> = [], declaringScope: Scope? = nil, checked: Bool = false, emitted: Bool = false) {
+init(names: [Ident], explicitType: Expr?, values: [Expr], isConstant: Bool, callconv: String? = nil, linkname: String? = nil, entities: [Entity]! = nil, dependsOn: Set<Entity> = [], declaringScope: Scope? = nil, checked: Bool = false, emitted: Bool = false) {
     self.names = names
     self.explicitType = explicitType
     self.values = values
     self.isConstant = isConstant
     self.callconv = callconv
     self.linkname = linkname
-    self.isTest = isTest
     self.entities = entities
     self.dependsOn = dependsOn
     self.declaringScope = declaringScope
