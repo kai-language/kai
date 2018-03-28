@@ -91,7 +91,8 @@ struct IRGenerator {
             return entity.value!
         }
 
-        if entityPackage !== package {
+        if entityPackage !== package && package !== compiler.generatedPackage {
+            // NOTE: The exception to the assert is generated entities for polymorphism, caught in the last condition above
             assert(entity.owningScope.isPackage || entity.owningScope.isFile, "Reference from 1 package to another package beyond top level")
             let symbol = self.symbol(for: entity)
 
@@ -120,7 +121,6 @@ struct IRGenerator {
         if entity.value == nil {
             let prevContext = context
             assert(entity.owningScope.isPackage || entity.owningScope.isFile, "Assumption is that entities without existing values are only possible at file or package scope")
-            assert(entity.package === package)
 
             // Use the context for the file itself
             context = entity.file!.irContext
