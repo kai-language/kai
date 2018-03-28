@@ -12,21 +12,16 @@ struct IRGenerator {
     /// - Note: Used for the generative features only (builtins & specializations)
     var specializations: [FunctionSpecialization] = []
 
-    let isInvokationFile: Bool
-    let isModuleDependency: Bool
-
     var context: Context
 
     var passManager: FunctionPassManager { return package.passManager }
     var module: Module { return package.module }
     var b: IRBuilder { return package.builder }
 
-    init(topLevelNodes: [TopLevelStmt], package: SourcePackage, context: Context, isInvokationFile: Bool, isModuleDependency: Bool) {
+    init(topLevelNodes: [TopLevelStmt], package: SourcePackage, context: Context) {
         self.topLevelNodes = topLevelNodes
         self.package = package
         self.context = context
-        self.isModuleDependency = isModuleDependency
-        self.isInvokationFile = isInvokationFile
     }
 
     init(specializations: [FunctionSpecialization], package: SourcePackage) {
@@ -34,8 +29,6 @@ struct IRGenerator {
         self.specializations = specializations
         self.package = package
         self.context = Context(mangledNamePrefix: "", deferBlocks: [], returnBlock: nil, previous: nil)
-        self.isModuleDependency = true
-        self.isInvokationFile = false
     }
 
     // sourcery:noinit
@@ -228,10 +221,21 @@ struct IRGenerator {
         return addOrReuseFunction(named: "llvm.trap", type: type)
     }()
 
-    lazy var testResults = self.b.addGlobal("$testResults", initializer:
-        LLVM.ArrayType(elementType: self.i1, count: self.testCases.count).null()
-    )
-    lazy var testAsserted = self.b.addGlobal("$testAsserted", initializer: self.i1.constant(0))
+    lazy var testResults: IRGlobal = {
+        let type = LLVM.ArrayType(elementType: self.i1, count: self.testCases.count)
+        if package === compiler.initialPackage {
+            return b.addGlobal("$testResults", initializer: type.null())
+        } else {
+            return b.addGlobal("$testResults", type: type)
+        }
+    }()
+    lazy var testAsserted: IRGlobal = {
+        if package === compiler.initialPackage {
+            return b.addGlobal("$testAsserted", initializer: i1.constant(0))
+        } else {
+            return b.addGlobal("$testAsserted", type: i1)
+        }
+    }()
 
     lazy var printf = self.addOrReuseFunction(named: "printf", type: LLVM.FunctionType(argTypes: [LLVM.PointerType(pointee: i8)], returnType: i32, isVarArg: true))
 
@@ -240,7 +244,7 @@ struct IRGenerator {
             oldMain.delete()
         }
 
-        let main = b.addFunction("main", type: FunctionType(argTypes: [], returnType: VoidType(in: module.context)))
+        let main = b.addFunction("main", type: FunctionType(argTypes: [], returnType: void))
         let entryBlock = main.appendBasicBlock(named: "entry", in: module.context)
         let returnBlock = main.appendBasicBlock(named: "ret", in: module.context)
 
@@ -251,7 +255,7 @@ struct IRGenerator {
 
         for (index, test) in testCases.enumerated() {
             _ = b.buildCall(test, args: [])
-            let result = b.buildGEP(testResults, indices: [0, i32.constant(index)])
+            let result = b.buildGEP(testResults, indices: [i32.zero(), i32.constant(index)])
 
             let failure = b.buildLoad(testAsserted)
             b.buildStore(failure, to: result)
@@ -265,11 +269,11 @@ struct IRGenerator {
 
         var passes: IRValue = i64.constant(0)
         for (index, test) in testCases.enumerated() {
-            let asserted = b.buildLoad(b.buildGEP(testResults, indices: [0, i32.constant(index)]))
+            let asserted = b.buildLoad(b.buildGEP(testResults, indices: [i32.zero(), i32.constant(index)]))
             let sym = b.buildSelect(asserted, then: failureSymbol, else: successSymbol)
             let name = b.buildGlobalStringPtr(test.name)
             _ = b.buildCall(printf, args: [indiviualFormat, sym, name])
-            passes = b.buildAdd(passes, b.buildSelect(asserted, then: 0, else: 1))
+            passes = b.buildAdd(passes, b.buildSelect(asserted, then: i64.constant(0), else: i64.constant(1)))
         }
 
         let percentPass = b.buildMul(b.buildDiv(b.buildIntToFP(passes, type: FloatType(kind: .double, in: module.context), signed: false), FloatType(kind: .double, in: module.context).constant(Double(testCases.count))), FloatType(kind: .double, in: module.context).constant(100))
@@ -311,7 +315,7 @@ extension IRGenerator {
             emit(topLevelStmt: node)
         }
 
-        if compiler.options.isTestMode && package.isInitialPackage {
+        if compiler.options.isTestMode && package === compiler.initialPackage {
             synthTestMain()
         }
     }
@@ -361,11 +365,6 @@ extension IRGenerator {
     }
 
     mutating func emit(constantDecl decl: Declaration) {
-
-        // ignore main while in test mode
-        if isInvokationFile && decl.names.first?.name == "main" && compiler.options.isTestMode {
-            return
-        }
 
         if decl.values.isEmpty {
             // this is in a decl block of some sort
@@ -1681,7 +1680,7 @@ extension IRGenerator {
     }
 
     mutating func emit(testCase: TestCase) -> Function {
-        let fnType = LLVM.FunctionType(argTypes: [], returnType: VoidType())
+        let fnType = LLVM.FunctionType(argTypes: [], returnType: void)
         let function = b.addFunction(testCase.name.constant as! String, type: fnType)
 
         let entryBlock = function.appendBasicBlock(named: "entry", in: module.context)

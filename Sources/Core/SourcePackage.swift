@@ -15,9 +15,6 @@ var currentPackage: SourcePackage!
 public final class SourcePackage {
 
     public weak var firstImportedFrom: SourceFile?
-    public var isInitialPackage: Bool {
-        return firstImportedFrom == nil
-    }
 
     public var fullpath: String
 
@@ -43,11 +40,8 @@ public final class SourcePackage {
     lazy var module: Module = {
         var context: Context? = nil
 
-        // LLVM contexts aren't thread safe. So, each thread gets its own. The
-        // initial package gets `global`.
-        if !isInitialPackage {
-            context = Context()
-        }
+        // LLVM contexts aren't thread safe. So, each package gets its own.
+        context = Context()
 
         return Module(name: moduleName, context: context)
     }()

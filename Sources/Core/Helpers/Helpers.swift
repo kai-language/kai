@@ -35,7 +35,7 @@ public func ensureBuildDirectoriesExist() throws {
 
     try fm.createDirectory(atPath: buildDirectory, withIntermediateDirectories: true, attributes: nil)
 
-    for package in compiler.packages.values.filter({ !$0.isInitialPackage }) {
+    for package in compiler.packages.values.filter({ $0 !== compiler.initialPackage }) {
         try fm.createDirectory(atPath: dirname(path: package.emitPath), withIntermediateDirectories: true, attributes: nil)
     }
 }

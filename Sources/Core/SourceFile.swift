@@ -39,7 +39,7 @@ public final class SourceFile {
 
     // Set in IRGen lazily
     lazy var irContext: IRGenerator.Context = {
-        let packagePrefix = package.isInitialPackage ? "" : package.moduleName
+        let packagePrefix = package === compiler.initialPackage ? "" : package.moduleName
         let filePrefix = isInitialFile ? "" : dropExtension(path: pathFirstImportedAs)
         
         return IRGenerator.Context(mangledNamePrefix: packagePrefix + filePrefix, deferBlocks: [], returnBlock: nil, previous: nil)
@@ -290,9 +290,7 @@ extension SourceFile {
         var irGenerator = IRGenerator(
             topLevelNodes: nodes,
             package: package,
-            context: irContext,
-            isInvokationFile: isInitialFile,
-            isModuleDependency: !package.isInitialPackage
+            context: irContext
         )
         irGenerator.emit()
 
