@@ -54,7 +54,7 @@ extension SourcePackage {
             return nil
         }
 
-        return files[numericCast(fileno - 1)]
+        return files[safe: numericCast(fileno - 1)]
     }
 
     func position(for pos: Pos) -> SourceLocation? {
