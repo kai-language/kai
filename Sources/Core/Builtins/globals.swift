@@ -80,6 +80,12 @@ extension builtin {
             }
         )
 
+        static var sizeof: BuiltinFunction = BuiltinFunction(
+            entity: Entity.makeBuiltin("sizeof", type: builtin.types.sizeOf.type),
+            generate: builtin.types.sizeOf.generate,
+            onCallCheck: builtin.types.sizeOf.onCallCheck
+        )
+
         static var assert: BuiltinFunction = BuiltinFunction(
             entity: Entity.makeBuiltin("assert", type: ty.Function.make([ty.bool, ty.string], [ty.void])),
             generate: { (function, returnAddress, call, gen) -> IRValue in

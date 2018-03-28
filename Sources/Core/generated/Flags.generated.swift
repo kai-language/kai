@@ -101,10 +101,6 @@ extension FuncType {
 
 extension Options {
 
-    var isNoCleanup: Bool {
-        return flags.contains(.noCleanup) 
-    }
-
     var isDumpIr: Bool {
         return flags.contains(.dumpIr) 
     }
@@ -121,6 +117,10 @@ extension Options {
         return flags.contains(.emitAssembly) 
     }
 
+    var isEmitObject: Bool {
+        return flags.contains(.emitObject) 
+    }
+
     var isEmitTimes: Bool {
         return flags.contains(.emitTimes) 
     }
@@ -135,6 +135,14 @@ extension Options {
 
     var isTestMode: Bool {
         return flags.contains(.testMode) 
+    }
+
+    var isNoLink: Bool {
+        return flags.contains(.noLink) 
+    }
+
+    var isNoCleanup: Bool {
+        return flags.contains(.noCleanup) 
     }
 
     var isShared: Bool {
