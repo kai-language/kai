@@ -86,23 +86,20 @@ struct IRGenerator {
             return builtin.gen(&self)
         }
         guard let entityPackage = entity.package else {
+            // FIXME(180329:vdka): What's this doing? Comment this,
+            //  probably checking for builtins or something... even though that's handled above.
             return entity.value!
         }
 
-        let topLevelEntity = entity.owningScope.isPackage || entity.owningScope.isFile
-        guard entityPackage === package || !topLevelEntity else {
-            // The entity is not in the same package as us, this means it will be in a
-            //   different `.o` file and we will want to emit a 'stub'
+        if entityPackage !== package {
+            assert(entity.owningScope.isPackage || entity.owningScope.isFile, "Reference from 1 package to another package beyond top level")
             let symbol = self.symbol(for: entity)
 
-            // only constant functions are emitted as functions, otherwise they are actually globals
+            // Only constant functions are emitted as functions, otherwise they are globals.
             if let type = entity.type as? ty.Function, entity.isConstant {
                 return addOrReuseFunction(named: symbol, type: canonicalizeSignature(type))
             } else {
-                if let existing = module.global(named: symbol) {
-                    return existing
-                }
-                return b.addGlobal(symbol, type: canonicalize(entity.type!))
+                return addOrReuseGlobal(named: symbol, type: canonicalize(entity.type!))
             }
         }
 
@@ -122,7 +119,7 @@ struct IRGenerator {
 
         if entity.value == nil {
             let prevContext = context
-            assert(topLevelEntity, "Assumption is that entities without existing values are only possible at file or package scope")
+            assert(entity.owningScope.isPackage || entity.owningScope.isFile, "Assumption is that entities without existing values are only possible at file or package scope")
             assert(entity.package === package)
 
             // Use the context for the file itself
