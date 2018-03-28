@@ -25,10 +25,6 @@ xcode)
     fi
     swift package generate-xcodeproj
 ;;
-
-sourcery)
-    ./tools/genAccessors.sh
-;;
 release)
     case "$platform" in
         macOS) swift build -Xswiftc -DDEBUG -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx$MACOSX_DEPLOYMENT_TARGET" -c release ;;
