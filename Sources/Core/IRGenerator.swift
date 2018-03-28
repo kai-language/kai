@@ -241,7 +241,7 @@ struct IRGenerator {
             oldMain.delete()
         }
 
-        let main = b.addFunction("main", type: FunctionType(argTypes: [], returnType: VoidType()))
+        let main = b.addFunction("main", type: FunctionType(argTypes: [], returnType: VoidType(in: module.context)))
         let entryBlock = main.appendBasicBlock(named: "entry", in: module.context)
         let returnBlock = main.appendBasicBlock(named: "ret", in: module.context)
 
@@ -267,11 +267,11 @@ struct IRGenerator {
 
         var passes: IRValue = i64.constant(0)
         for (index, test) in testCases.enumerated() {
-            let result = b.buildLoad(b.buildGEP(testResults, indices: [0, i32.constant(index)]))
-            let sym = b.buildSelect(result, then: failureSymbol, else: successSymbol)
+            let asserted = b.buildLoad(b.buildGEP(testResults, indices: [0, i32.constant(index)]))
+            let sym = b.buildSelect(asserted, then: failureSymbol, else: successSymbol)
             let name = b.buildGlobalStringPtr(test.name)
             _ = b.buildCall(printf, args: [indiviualFormat, sym, name])
-            passes = b.buildAdd(passes, b.buildSelect(result, then: 1, else: 0))
+            passes = b.buildAdd(passes, b.buildSelect(asserted, then: 0, else: 1))
         }
 
         let percentPass = b.buildMul(b.buildDiv(b.buildIntToFP(passes, type: FloatType(kind: .double, in: module.context), signed: false), FloatType(kind: .double, in: module.context).constant(Double(testCases.count))), FloatType(kind: .double, in: module.context).constant(100))
@@ -313,7 +313,7 @@ extension IRGenerator {
             emit(topLevelStmt: node)
         }
 
-        if compiler.options.isTestMode {
+        if compiler.options.isTestMode && package.isInitialPackage {
             synthTestMain()
         }
     }
