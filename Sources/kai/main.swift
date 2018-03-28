@@ -31,24 +31,23 @@ compiler.initialPackage.validateIR()
 
 setupBuildDirectories()
 
-if opts.flags.intersection([.emitIr, .emitBitcode, .emitAssembly]).isEmpty {
-    compiler.emitObjects()
-} else {
-    if opts.flags.contains(.emitIr) {
-        compiler.emitIntermediateRepresentation()
-    }
 
-    if opts.flags.contains(.emitBitcode) {
-        compiler.emitBitcode()
-    }
-
-    if opts.flags.contains(.emitAssembly) {
-        compiler.emitAssembly()
-    }
-}
+compiler.emitObjects()
 
 if opts.flags.contains(.dumpIr) {
     compiler.dumpIntermediateRepresentation()
+}
+
+if opts.flags.contains(.emitIr) {
+    compiler.emitIntermediateRepresentation()
+}
+
+if opts.flags.contains(.emitBitcode) {
+    compiler.emitBitcode()
+}
+
+if opts.flags.contains(.emitAssembly) {
+    compiler.emitAssembly()
 }
 
 if !opts.flags.contains(.noLink) {

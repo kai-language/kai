@@ -279,32 +279,32 @@ func assert(_ a: Bool, implies b: @autoclosure () -> Bool, _ message: @autoclosu
     assert(!a || b(), message, file: file, line: line)
 }
 
-public enum AnsiColor: UInt8 {
-    case black = 30
-    case red
-    case green
-    case yellow
-    case blue
-    case magenta
-    case cyan
-    case white
-    case lightBlack = 90
-    case lightRed
-    case lightGreen
-    case lightYellow
-    case lightBlue
-    case lightMagenta
-    case lightCyan
-    case lightWhite
-
-    public var value: UInt8 {
-        return rawValue
-    }
-}
-
 extension String {
 
-    public func applyingColor(_ code: AnsiColor) -> String {
+    private enum AnsiColor: UInt8 {
+        case black = 30
+        case red
+        case green
+        case yellow
+        case blue
+        case magenta
+        case cyan
+        case white
+        case lightBlack = 90
+        case lightRed
+        case lightGreen
+        case lightYellow
+        case lightBlue
+        case lightMagenta
+        case lightCyan
+        case lightWhite
+
+        public var value: UInt8 {
+            return rawValue
+        }
+    }
+
+    private func applyingColor(_ code: AnsiColor) -> String {
         let ESC = "\u{001B}[0;"
         return "\(ESC)\(code.rawValue)m\(self)\u{001B}[0m"
     }

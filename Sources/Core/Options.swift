@@ -61,12 +61,16 @@ public struct Options {
                 flags.insert(.dumpIr)
             case "-emit-ir":
                 flags.insert(.emitIr)
+                flags.insert(.noCleanup)
             case "-emit-bitcode":
                 flags.insert(.emitBitcode)
+                flags.insert(.noCleanup)
             case "-emit-asm", "-S":
                 flags.insert(.emitAssembly)
+                flags.insert(.noCleanup)
             case "-emit-object":
                 flags.insert(.emitObject)
+                flags.insert(.noCleanup)
             case "-test":
                 flags.insert(.testMode)
             case "-shared":
