@@ -126,7 +126,7 @@ extension builtin {
 
         // - MARK: Constants
 
-        static var flagUntyped: BuiltinEntity = BuiltinEntity(name: "FlagUntyped", type: ty.i64, gen: { gen in
+        static var flagUntyped: BuiltinEntity = BuiltinEntity(name: "FlagUntyped", type: ty.u64, gen: { gen in
             let val = gen.word.constant(flagUntypedValue)
 
             var global = gen.addOrReuseGlobal(named: ".types.FlagUntyped", initializer: val)
@@ -134,7 +134,7 @@ extension builtin {
             return global
         })
 
-        static var flagSigned: BuiltinEntity = BuiltinEntity(name: "FlagSigned", type: ty.i64, gen: { gen in
+        static var flagSigned: BuiltinEntity = BuiltinEntity(name: "FlagSigned", type: ty.u64, gen: { gen in
             let val = gen.word.constant(flagSignedValue)
 
             var global = gen.addOrReuseGlobal(named: ".types.FlagSigned", initializer: val)
@@ -142,7 +142,7 @@ extension builtin {
             return global
         })
 
-        static var flagVector: BuiltinEntity = BuiltinEntity(name: "FlagVector", type: ty.i64, gen: { gen in
+        static var flagVector: BuiltinEntity = BuiltinEntity(name: "FlagVector", type: ty.u64, gen: { gen in
             let val = gen.word.constant(flagVectorValue)
 
             var global = gen.addOrReuseGlobal(named: ".types.FlagVector", initializer: val)
