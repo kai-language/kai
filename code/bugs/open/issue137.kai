@@ -1,0 +1,7 @@
+
+main :: fn() -> void {
+    switch 5 {
+    case 1: break
+        a := 1
+    }
+}
