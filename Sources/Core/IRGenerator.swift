@@ -271,7 +271,7 @@ struct IRGenerator {
         for (index, test) in testCases.enumerated() {
             let asserted = b.buildLoad(b.buildGEP(testResults, indices: [i32.zero(), i32.constant(index)]))
             let sym = b.buildSelect(asserted, then: failureSymbol, else: successSymbol)
-            let name = b.buildGlobalStringPtr(test.name)
+            let name = b.buildGlobalStringPtr(String(test.name.dropFirst(5))) // We prepend 'test$'
             _ = b.buildCall(printf, args: [indiviualFormat, sym, name])
             passes = b.buildAdd(passes, b.buildSelect(asserted, then: i64.constant(0), else: i64.constant(1)))
         }
@@ -1681,7 +1681,7 @@ extension IRGenerator {
 
     mutating func emit(testCase: TestCase) -> Function {
         let fnType = LLVM.FunctionType(argTypes: [], returnType: void)
-        let function = b.addFunction(testCase.name.constant as! String, type: fnType)
+        let function = b.addFunction("test$" + (testCase.name.constant as! String), type: fnType)
 
         let entryBlock = function.appendBasicBlock(named: "entry", in: module.context)
         let returnBlock = function.appendBasicBlock(named: "ret", in: module.context)
