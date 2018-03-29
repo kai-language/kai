@@ -277,7 +277,9 @@ func apply(_ val: Value?, op: Token) -> Value? {
         return val
     case .sub:
         switch val {
-        case is UInt64: print("WARNING: Cannot negate constant integer value currently"); return nil
+        case let val as UInt64:
+            let bc = Int64(bitPattern: val)
+            return UInt64(bitPattern: -bc)
         case let val as Double: return -val
         default: return nil
         }
