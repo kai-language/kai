@@ -1352,7 +1352,7 @@ extension IRGenerator {
 
         // Comparison operations
 
-        if isInteger(binary.lhs.type) || isBoolean(binary.lhs.type) {
+        if isInteger(binary.lhs.type) || isBoolean(binary.lhs.type) || isPointer(binary.lhs.type)  {
             let signed = isSigned(binary.type)
             let pred: IntPredicate
             switch binary.op {
