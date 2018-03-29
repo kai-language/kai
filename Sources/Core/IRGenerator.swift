@@ -65,6 +65,12 @@ struct IRGenerator {
         if let mangledName = entity.mangledName {
             return mangledName
         }
+        if let entityPackage = entity.package, entityPackage !== package {
+            // NOTE: probably not correct
+            let mangledName = entity.package!.moduleName + "." + entity.name
+            entity.mangledName = mangledName
+            return mangledName
+        }
         let mangledName = (context.mangledNamePrefix.isEmpty ? "" : context.mangledNamePrefix + ".") + entity.name
         entity.mangledName = mangledName
         return mangledName
@@ -243,6 +249,9 @@ struct IRGenerator {
         if let oldMain = module.function(named: "main") {
             oldMain.delete()
         }
+
+        // Ensure test asserted exists in this package.
+        _ = testAsserted
 
         let main = b.addFunction("main", type: FunctionType(argTypes: [], returnType: void))
         let entryBlock = main.appendBasicBlock(named: "entry", in: module.context)
