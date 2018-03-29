@@ -1710,7 +1710,7 @@ extension IRGenerator {
             let fnType = canonicalizeSignature(fn.type as! ty.Function)
 
             // NOTE: The entity.value should be set already for recursion
-            let function = (entity?.value as? Function) ?? addOrReuseFunction(named: specializationMangle ?? entity.map(symbol) ?? ".fn", type: fnType)
+            let function = (entity?.value as? Function) ?? addOrReuseFunction(named: specializationMangle ?? entity.map(symbol) ?? ".fn." + fn.start.offset.description, type: fnType)
             let prevBlock = b.insertBlock
 
             let isVoid = fnType.returnType is VoidType
