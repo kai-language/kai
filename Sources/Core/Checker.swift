@@ -78,7 +78,7 @@ struct Checker {
 
     func declare(_ entity: Entity, scopeOwnsEntity: Bool = true) {
         let previous = context.scope.insert(entity, scopeOwnsEntity: scopeOwnsEntity)
-        if let previous = previous, entity.file !== previous.file {
+        if let previous = previous, entity.file !== previous.file, !(entity.isFile && previous.isFile) {
             reportError("Invalid redeclaration of '\(previous.name)'", at: entity.ident.start,
                         attachNotes: "Previous declaration here: \(file.position(for: previous.ident.start).description)")
         }
