@@ -54,13 +54,7 @@ class BuiltinEntity {
     init(entity: Entity, type: Type, gen: @escaping (inout IRGenerator) -> IRValue) {
         self.entity = entity
         self.type = type
-        self.gen = {
-            if let value = entity.value {
-                return value
-            }
-            entity.value = gen(&$0)
-            return entity.value!
-        }
+        self.gen = gen
     }
 
     init(name: String, type: Type, gen: @escaping (inout IRGenerator) -> IRValue) {
@@ -68,13 +62,7 @@ class BuiltinEntity {
         let entity = Entity(ident: ident, type: type, flags: .builtin)
         self.entity = entity
         self.type = type
-        self.gen = {
-            if let value = entity.value {
-                return value
-            }
-            entity.value = gen(&$0)
-            return entity.value!
-        }
+        self.gen = gen
     }
 }
 

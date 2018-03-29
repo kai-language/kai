@@ -2,7 +2,7 @@
 extension Entity {
 {% for type in types.all where type.name == "builtin.globals" %}
 {% for var in type.staticVariables %}
-    static var {{ var.name }} = Entity.makeBuiltin("{{ var.name }}", flags: .type)
+    static var {{ var.name }} = Entity.makeBuiltin("{{ var.name|replace:"`","" }}", flags: .type)
 {% endfor %}
 {% endfor %}
 }

@@ -22,8 +22,8 @@ extension Entity {
     static var u16 = Entity.makeBuiltin("u16", flags: .type)
     static var u32 = Entity.makeBuiltin("u32", flags: .type)
     static var u64 = Entity.makeBuiltin("u64", flags: .type)
-    static var trué = Entity.makeBuiltin("trué", flags: .type)
-    static var falsé = Entity.makeBuiltin("falsé", flags: .type)
+    static var `true` = Entity.makeBuiltin("true", flags: .type)
+    static var `false` = Entity.makeBuiltin("false", flags: .type)
     static var panic = Entity.makeBuiltin("panic", flags: .type)
     static var sizeof = Entity.makeBuiltin("sizeof", flags: .type)
     static var assert = Entity.makeBuiltin("assert", flags: .type)
@@ -49,8 +49,8 @@ extension ty {
     static var u16 = builtin.globals.u16.type
     static var u32 = builtin.globals.u32.type
     static var u64 = builtin.globals.u64.type
-    static var trué = builtin.globals.trué.type
-    static var falsé = builtin.globals.falsé.type
+    static var `true` = builtin.globals.`true`.type
+    static var `false` = builtin.globals.`false`.type
     static var panic = builtin.globals.panic.type
     static var sizeof = builtin.globals.sizeof.type
     static var assert = builtin.globals.assert.type
@@ -67,8 +67,8 @@ var builtinFunctions: [BuiltinFunction] = [
 ]
 
 var builtinEntities: [BuiltinEntity] = [
-    builtin.globals.trué,
-    builtin.globals.falsé,
+    builtin.globals.`true`,
+    builtin.globals.`false`,
     builtin.platform.pointerWidth,
     builtin.platform.isBigEndian,
     builtin.platform.osTriple,
@@ -98,8 +98,8 @@ var globalBuiltins: Set<Entity> = {
         builtin.globals.u16.entity,
         builtin.globals.u32.entity,
         builtin.globals.u64.entity,
-        builtin.globals.trué.entity,
-        builtin.globals.falsé.entity,
+        builtin.globals.`true`.entity,
+        builtin.globals.`false`.entity,
         builtin.globals.panic.entity,
         builtin.globals.sizeof.entity,
         builtin.globals.assert.entity,
@@ -139,8 +139,8 @@ extension builtin.globals {
             builtin.globals.u16.entity,
             builtin.globals.u32.entity,
             builtin.globals.u64.entity,
-            builtin.globals.trué.entity,
-            builtin.globals.falsé.entity,
+            builtin.globals.`true`.entity,
+            builtin.globals.`false`.entity,
             builtin.globals.panic.entity,
             builtin.globals.sizeof.entity,
             builtin.globals.assert.entity,
