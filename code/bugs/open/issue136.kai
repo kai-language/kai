@@ -1,0 +1,6 @@
+
+main :: fn() -> void {
+    err := false
+    err := false
+}
+
