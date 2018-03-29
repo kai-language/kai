@@ -456,9 +456,18 @@ enum ty {
     struct Slice: Type, NamableType /*, IRNamableType */ {
         var width: Int? { return 3 * platformPointerWidth } // pointer, length, capacity
         var elementType: Type
+        var flags: Flags = .none
 
-        init(_ elementType: Type) {
+        init(_ elementType: Type, flags: Flags = .none) {
             self.elementType = elementType
+            self.flags = flags
+        }
+
+        struct Flags: OptionSet {
+            var rawValue: UInt64
+
+            static let none   = Flags(rawValue: 0b0)
+            static let string = Flags(rawValue: 0b1)
         }
     }
 

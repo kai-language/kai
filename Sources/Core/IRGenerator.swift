@@ -1784,6 +1784,9 @@ extension IRGenerator {
         case .invalid: preconditionFailure("Invalid checked member made it to IRGen")
         case .file(let entity):
             if entity.isConstant {
+                if entity.isBuiltin {
+                    return value(for: entity)
+                }
                 // FIXME: Switch on the actual constant value instead
                 switch baseType(sel.type) {
                 case let type as ty.Integer:

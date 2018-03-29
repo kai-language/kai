@@ -57,9 +57,9 @@ class BuiltinEntity {
         self.gen = gen
     }
 
-    init(name: String, type: Type, gen: @escaping (inout IRGenerator) -> IRValue) {
+    init(name: String, flags: Entity.Flag = .none, type: Type, gen: @escaping (inout IRGenerator) -> IRValue) {
         let ident = Ident(start: noPos, name: name)
-        let entity = Entity(ident: ident, type: type, flags: .builtin)
+        let entity = Entity(ident: ident, type: type, flags: flags.union(.builtin))
         self.entity = entity
         self.type = type
         self.gen = gen

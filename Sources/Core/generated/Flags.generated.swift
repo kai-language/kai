@@ -192,6 +192,13 @@ extension ty.Function {
     }
 }
 
+extension ty.Slice {
+
+    var isString: Bool {
+        return flags.contains(.string) 
+    }
+}
+
 extension ty.Struct {
 
     var isPacked: Bool {

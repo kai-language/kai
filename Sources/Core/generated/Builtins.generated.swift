@@ -75,6 +75,7 @@ var builtinEntities: [BuiltinEntity] = [
     builtin.types.flagUntyped,
     builtin.types.flagSigned,
     builtin.types.flagVector,
+    builtin.types.flagString,
 ]
 
 var globalBuiltins: Set<Entity> = {
@@ -186,6 +187,7 @@ extension builtin.types {
             builtin.types.flagUntyped.entity,
             builtin.types.flagSigned.entity,
             builtin.types.flagVector.entity,
+            builtin.types.flagString.entity,
             builtin.types.sizeOf.entity,
             builtin.types.typeOf.entity,
         ].toDictionary(with: { $0.name })
@@ -217,6 +219,7 @@ extension builtin.types {
     static var flagUntypedType: Type { return builtin.types.flagUntyped.type }
     static var flagSignedType: Type { return builtin.types.flagSigned.type }
     static var flagVectorType: Type { return builtin.types.flagVector.type }
+    static var flagStringType: Type { return builtin.types.flagString.type }
     static var sizeOfType: Type { return builtin.types.sizeOf.type }
     static var typeOfType: Type { return builtin.types.typeOf.type }
 }

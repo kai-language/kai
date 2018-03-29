@@ -77,6 +77,7 @@ extension builtin {
 
         static let slice: BuiltinType = BuiltinType(name: "Slice", structMembers: [
             ("ElementType", typeInfoType),
+            ("Flags", ty.u64),
         ])
 
         static let function: BuiltinType = BuiltinType(name: "Function", structMembers: [
@@ -126,29 +127,10 @@ extension builtin {
 
         // - MARK: Constants
 
-        static var flagUntyped: BuiltinEntity = BuiltinEntity(name: "FlagUntyped", type: ty.u64, gen: { gen in
-            let val = gen.word.constant(flagUntypedValue)
-
-            var global = gen.addOrReuseGlobal(named: ".types.FlagUntyped", initializer: val)
-            global.linkage = .private
-            return global
-        })
-
-        static var flagSigned: BuiltinEntity = BuiltinEntity(name: "FlagSigned", type: ty.u64, gen: { gen in
-            let val = gen.word.constant(flagSignedValue)
-
-            var global = gen.addOrReuseGlobal(named: ".types.FlagSigned", initializer: val)
-            global.linkage = .private
-            return global
-        })
-
-        static var flagVector: BuiltinEntity = BuiltinEntity(name: "FlagVector", type: ty.u64, gen: { gen in
-            let val = gen.word.constant(flagVectorValue)
-
-            var global = gen.addOrReuseGlobal(named: ".types.FlagVector", initializer: val)
-            global.linkage = .private
-            return global
-        })
+        static var flagUntyped: BuiltinEntity = BuiltinEntity(name: "FlagUntyped", flags: .constant, type: ty.u64, gen: { $0.word.constant(flagUntypedValue) })
+        static var flagSigned: BuiltinEntity = BuiltinEntity(name: "FlagSigned", flags:   .constant, type: ty.u64, gen: { $0.word.constant(flagSignedValue) })
+        static var flagVector: BuiltinEntity = BuiltinEntity(name: "FlagVector", flags:   .constant, type: ty.u64, gen: { $0.word.constant(flagVectorValue) })
+        static var flagString: BuiltinEntity = BuiltinEntity(name: "FlagString", flags:   .constant, type: ty.u64, gen: { $0.word.constant(ty.Slice.Flags.string.rawValue) })
 
         // - MARK: Functions
 
@@ -376,8 +358,12 @@ extension builtin {
                 return value
 
             case let type as ty.Slice:
-                let elementType = llvmTypeInfo(type.elementType, gen: &gen)
-                var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: elementType)
+                let sliceTypeIr = canonical(&gen, sliceType)
+                var value: IRValue = sliceTypeIr.constant(values: [
+                    llvmTypeInfo(type.elementType, gen: &gen),
+                    gen.word.constant(type.flags.rawValue),
+                ])
+                var global = gen.b.addGlobal("TypeInfo for \(type)", initializer: value)
                 global.isGlobalConstant = true
                 value = const.ptrToInt(global, to: intptr)
                 value = const.or(value, tag)

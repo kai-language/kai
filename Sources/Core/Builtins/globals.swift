@@ -19,7 +19,7 @@ extension builtin {
 
         static let bool   = BuiltinType(entity:  .bool,   type: ty.Boolean(width: 1))
         static let rawptr = BuiltinType(entity:  .rawptr, type: ty.Pointer(u8.type))
-        static let string = BuiltinType(entity:  .string, type: ty.Slice(u8.type))
+        static let string = BuiltinType(entity:  .string, type: ty.Slice(u8.type, flags: .string))
 
         static let f32 = BuiltinType(entity: .f32, type: ty.Float(width: 32))
         static let f64 = BuiltinType(entity: .f64, type: ty.Float(width: 64))
