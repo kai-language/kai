@@ -1353,7 +1353,7 @@ extension IRGenerator {
         case .shl:
             return b.buildShl(lhs, rhs)
         case .shr:
-            return b.buildShr(lhs, rhs)
+            return b.buildShr(lhs, rhs, isArithmetic: isSigned(binary.lhs.type))
             
         default:
             break
