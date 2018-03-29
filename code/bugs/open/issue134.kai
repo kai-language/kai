@@ -1,0 +1,10 @@
+
+IndexWhere :: fn(arr: []$T, predicate: (T) -> bool) -> i64, bool {
+    return 0, false
+}
+
+main :: fn() -> void {
+    arr := []u16{0}
+    _, found := IndexWhere(arr, fn(v: u16) -> bool { return false })
+}
+

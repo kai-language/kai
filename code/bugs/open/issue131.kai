@@ -1,0 +1,8 @@
+
+Foo :: fn(a: ($T) -> bool) -> void {
+}
+
+main :: fn() -> void {
+    Foo(fn(a: i64) -> bool { return 1 == 2 })
+}
+

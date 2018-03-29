@@ -1,0 +1,8 @@
+
+Foo :: fn(a, a, a: u8) -> void {
+}
+
+main :: fn() -> void {
+    Foo(1, 2, 3)
+}
+

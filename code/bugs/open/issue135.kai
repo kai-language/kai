@@ -1,0 +1,5 @@
+
+main :: fn() -> void {
+    a, b := main()
+}
+
