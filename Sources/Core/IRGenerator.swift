@@ -1468,8 +1468,8 @@ extension IRGenerator {
                     ptr = b.buildGEP(array, indices: [0, 0])
                 }
                 val = b.buildInsertValue(aggregate: val, element: ptr, index: 0)
-                val = b.buildInsertValue(aggregate: val, element: excessArgs.count, index: 1)
-                val = b.buildInsertValue(aggregate: val, element: excessArgs.count, index: 2)
+                val = b.buildInsertValue(aggregate: val, element: i64.constant(excessArgs.count), index: 1)
+                val = b.buildInsertValue(aggregate: val, element: i64.constant(excessArgs.count), index: 2)
 
                 args = Array(args.dropLast(args.count - requiredArgs))
                 args.append(val)
@@ -2144,7 +2144,7 @@ extension IRGenerator {
             let dataType = canonicalize(from)
             var dataPointer = b.buildMalloc(dataType)
             b.buildStore(value, to: dataPointer)
-            dataPointer = b.buildBitCast(dataPointer, type: LLVM.PointerType.toVoid)
+            dataPointer = b.buildBitCast(dataPointer, type: LLVM.PointerType(pointee: i8))
 
             let typeInfo = builtin.types.llvmTypeInfo(from, gen: &self)
             var aggregate = canonicalize(ty.any).undef()
@@ -2357,11 +2357,11 @@ extension IRGenerator {
     mutating func canonicalize(_ u: ty.Union) -> LLVM.StructType {
         if u.isInlineTag {
             let data = LLVM.IntType(width: u.width!, in: module.context)
-            return LLVM.StructType(elementTypes: [data])
+            return LLVM.StructType(elementTypes: [data], in: module.context)
         }
         let tag  = canonicalize(u.tagType)
         let data = canonicalize(u.dataType)
-        return LLVM.StructType(elementTypes: [tag, data])
+        return LLVM.StructType(elementTypes: [tag, data], in: module.context)
     }
 
     mutating func canonicalize(_ integer: ty.UntypedInteger) -> IntType {
