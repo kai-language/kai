@@ -106,8 +106,37 @@ extension builtin {
                 let condition = b.buildGlobalStringPtr(call.args[0].description)
                 let filename = b.buildGlobalStringPtr(location?.filename ?? "unknown")
                 let line = gen.i32.constant(location?.line ?? 0)
+
+                // Generate a nice reason like `5 == 3`
+                if let cond = call.args[0] as? Binary {
+
+                    func printfFormat(for type: Type) -> String {
+                        switch baseType(type) {
+                        case let type as ty.Integer:
+                            if type.width! > 32 {
+                                return type.isSigned ? "%lld" : "%llu"
+                            } else {
+                                return type.isSigned ? "%d" : "%u"
+                            }
+                        case is ty.Float: return "%f"
+                        case is ty.Pointer: return "%p"
+                        default:
+                            return "%llu"
+                        }
+                    }
+
+                    let lfmt = printfFormat(for: cond.lhs.type)
+                    let rfmt = printfFormat(for: cond.rhs.type)
+
+                    let lhs = gen.emit(expr: cond.lhs)
+                    let rhs = gen.emit(expr: cond.rhs)
+                    let fmt = b.buildGlobalStringPtr("assertion failed at %s:%u (%s) (\(lfmt) \(cond.op) \(rfmt))\n    %s\n")
+                    _ = b.buildCall(gen.printf, args: [fmt, filename, line, condition, lhs, rhs, b.buildExtractValue(msg, index: 0)])
+                } else {
                 let fmt = b.buildGlobalStringPtr("assertion failed at %s:%u (%s)\n    %s\n")
                 _ = b.buildCall(gen.printf, args: [fmt, filename, line, condition, b.buildExtractValue(msg, index: 0)])
+                }
+
                 // do something with the message
                 if !compiler.options.isTestMode {
                     _ = b.buildCall(gen.trap, args: [])
