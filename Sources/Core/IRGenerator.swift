@@ -978,17 +978,16 @@ extension IRGenerator {
                 let tag = canonicalize(union.tagType).constant(match.constant! as! UInt64)
                 matches.append([tag])
                 if union.isInlineTag, let binding = c.binding {
-                    let type = LLVM.PointerType(pointee: canonicalize(binding.type!))
-                    binding.value = b.buildBitCast(value, type: type)
+                    let shadow = b.buildAlloca(type: canonicalize(binding.type!), name: "binding.shadow")
+                    binding.value = shadow
 
-                    // Mask the inline tag
                     let valuePtr = b.buildStructGEP(value, index: 0)
                     let value = buildLoad(valuePtr)
                     let mask: UInt64 = ~maxValueForInteger(width: union.tagType.width!, signed: false)
                     let masked = b.buildAnd(value, canonicalize(union.dataType).constant(mask))
-                    b.buildStore(masked, to: valuePtr)
-                    
+                    b.buildStore(masked, to: b.buildBitCast(shadow, type: LLVM.PointerType(pointee: masked.type)))
                 } else if let binding = c.binding {
+                    // FIXME(300318:vdka): Shadow the declaration so no changes can effect the original.
                     let dataPointer = b.buildStructGEP(value, index: 1)
                     let targetType = LLVM.PointerType(pointee: canonicalize(binding.type!))
                     binding.value = b.buildBitCast(dataPointer, type: targetType)
@@ -1003,6 +1002,7 @@ extension IRGenerator {
                 }
                 matches.append(vals)
                 if let binding = c.binding {
+                    // FIXME(300318:vdka): Shadow the declaration so no changes can effect the original.
                     let type = LLVM.PointerType(pointee: canonicalize(binding.type!))
                     let dataAddrPtr = b.buildStructGEP(value, index: 0)
                     let dataPtr = buildLoad(dataAddrPtr)
