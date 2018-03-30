@@ -1,0 +1,8 @@
+
+f :: fn(a: any) -> void {
+}
+
+main :: fn() -> void {
+    a := struct{}
+    f(a)
+}
