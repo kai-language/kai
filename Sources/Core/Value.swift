@@ -278,8 +278,7 @@ func apply(_ val: Value?, op: Token) -> Value? {
     case .sub:
         switch val {
         case let val as UInt64:
-            let bc = Int64(bitPattern: val)
-            return UInt64(bitPattern: -bc)
+            return ~val &+ 1
         case let val as Double: return -val
         default: return nil
         }
