@@ -110,6 +110,7 @@ extension builtin {
 
         static let `enum`: BuiltinType = BuiltinType(name: "Enum", structMembers: [
             ("Cases", ty.Slice(enumCaseType)),
+            ("BackingType", typeInfoType),
             ("Flags", ty.u64),
         ])
 
@@ -346,6 +347,7 @@ extension builtin {
 
                 var value: IRValue = canonical(&gen, enumType).constant(values: [
                     llvmSlice(values: casesIr, type: canonical(&gen, enumCaseType), gen: &gen),
+                    llvmTypeInfo(type.backingType, gen: &gen),
                     gen.word.constant(0x0),
                 ])
 
