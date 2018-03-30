@@ -21,6 +21,17 @@ extension Type {
         }
         return (self as! ty.Metatype).instanceType
     }
+
+    func unwrappingVector() -> Type {
+        switch self {
+        case let type as ty.Vector:
+            return type.elementType
+        case let type as ty.Named:
+            return type.base.unwrappingVector()
+        default:
+            return self
+        }
+    }
 }
 
 func != (lhs: Type, rhs: Type) -> Bool {
@@ -679,11 +690,6 @@ extension ty.Union {
     func tag(for name: String) -> Int {
         return cases.orderedKeys.index(where: { $0 == name })!
     }
-}
-
-@available(*, deprecated, renamed: "isUntypedNumber")
-func isUntyped(_ type: Type) -> Bool {
-    return isUntypedNumber(type)
 }
 
 func isUntypedNumber(_ type: Type) -> Bool {

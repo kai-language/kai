@@ -1981,7 +1981,7 @@ extension Checker {
             return Operand.invalid
         }
 
-        if !Checker.binaryOpPredicates[binary.op]!(lhsType) {
+        if !Checker.binaryOpPredicates[binary.op]!(lhsType.unwrappingVector()) {
             reportError("Operation '\(binary.op)' undefined for type \(binary.lhs.type)", at: binary.opPos)
             return Operand.invalid
         }
