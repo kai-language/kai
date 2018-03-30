@@ -107,13 +107,16 @@ struct IRGenerator {
             switch constant {
             case let c as UInt64:
                 // FIXME: What is this....
+                // UPDATE(300318:vdka): I think this code must have been hackily added to force contant entities
+                //  with Integer constants to be return an address from this function, but ... they _could_ just
+                //  store their values at a global address ... atleast for now, until we find a better approach
                 let type = LLVM.IntType(width: entity.type!.width!, in: module.context)
                 let ptr = b.buildAlloca(type: type)
                 _ = b.buildStore(type.constant(c), to: ptr)
                 entity.value = ptr
 
             default:
-                fatalError()
+                return entity.value!
             }
         }
 
