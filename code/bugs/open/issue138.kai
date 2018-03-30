@@ -1,0 +1,11 @@
+
+a :: fn(b: any) -> void {
+}
+
+S :: struct{}
+
+main :: fn() -> void {
+    a([]u8{})
+    a(S{})
+}
+

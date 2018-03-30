@@ -1,0 +1,7 @@
+
+#import kai("arrays")
+
+main :: fn() -> void {
+    buf := []u8{}
+    arrays.Append(&buf, true ? "i" : "u")
+}
