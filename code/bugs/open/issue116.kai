@@ -1,0 +1,7 @@
+A :: struct {
+    a: rawptr
+}
+main :: fn() -> void {
+    x : rawptr = nil
+    a := bitcast(A) x
+}
