@@ -19,21 +19,21 @@ extension builtin {
 
             // NOTE: Pointer members get patched to have the correct type after instantiation, this avoids a circular reference
             ("Simple",   simpleType, 0x00),
-            ("Array",    ty.rawptr,  0x01), /* arrayType */
-            ("Slice",    ty.rawptr,  0x02), /* sliceType */
-            ("Pointer",  ty.rawptr,  0x03), /* pointerType */
-            ("Function", ty.rawptr,  0x04), /* functionType */
-            ("Struct",   ty.rawptr,  0x05), /* structType */
-            ("Union",    ty.rawptr,  0x06), /* unionType */
-            ("Enum",     ty.rawptr,  0x07), /* enumType */
+            ("Array",    ty.rawptr,  tagForType(ty.Array.self)),    /* arrayType */
+            ("Slice",    ty.rawptr,  tagForType(ty.Slice.self)),    /* sliceType */
+            ("Pointer",  ty.rawptr,  tagForType(ty.Pointer.self)),  /* pointerType */
+            ("Function", ty.rawptr,  tagForType(ty.Function.self)), /* functionType */
+            ("Struct",   ty.rawptr,  tagForType(ty.Struct.self)),   /* structType */
+            ("Union",    ty.rawptr,  tagForType(ty.Union.self)),    /* unionType */
+            ("Enum",     ty.rawptr,  tagForType(ty.Enum.self)),     /* enumType */
         ])
 
         static let simple: BuiltinType = BuiltinType(name: "Simple", flags: .inlineTag, tagWidth: 8, unionMembers: [
-            ("Integer", integerType, 0x00),
-            ("Boolean", booleanType, 0x10),
-            ("Float",   floatType,   0x20),
-            ("Any",     anyType,     0x30),
-            ("Void",    voidType,    0x40),
+            ("Integer", integerType, tagForType(ty.Integer.self)),
+            ("Boolean", booleanType, tagForType(ty.Boolean.self)),
+            ("Float",   floatType,   tagForType(ty.Float.self)),
+            ("Any",     anyType,     tagForType(ty.Anyy.self)),
+            ("Void",    voidType,    tagForType(ty.Void.self)),
         ])
 
         static let boolean: BuiltinType = BuiltinType(name: "Boolean", flags: .packed, structMembers: [
@@ -201,23 +201,23 @@ extension builtin {
             }
         )
 
-        static func tagForType(_ type: Type) -> Int {
+        static func tagForType(_ type: Type.Type) -> Int {
             switch type {
-            case is ty.UntypedInteger:  return 0x00 // Untyped is a flag on Integer
-            case is ty.Integer:         return 0x00
-            case is ty.Boolean:         return 0x10
-            case is ty.Float:           return 0x20
-            case is ty.UntypedFloat:    return 0x20 // Untyped is a flag on Float
-            case is ty.Anyy:            return 0x30
-            case is ty.Void:            return 0x40
-            case is ty.Array:           return 0x01
-            case is ty.Vector:          return 0x01 // Vectors have a flag set on the Array structure
-            case is ty.Slice:           return 0x02
-            case is ty.Pointer:         return 0x03
-            case is ty.Function:        return 0x04
-            case is ty.Struct:          return 0x05
-            case is ty.Union:           return 0x06
-            case is ty.Enum:            return 0x07
+            case is ty.UntypedInteger.Type:  return 0x10 // Untyped is a flag on Integer
+            case is ty.Integer.Type:         return 0x10
+            case is ty.Boolean.Type:         return 0x20
+            case is ty.Float.Type:           return 0x30
+            case is ty.UntypedFloat.Type:    return 0x30 // Untyped is a flag on Float
+            case is ty.Anyy.Type:            return 0x40
+            case is ty.Void.Type:            return 0x50
+            case is ty.Array.Type:           return 0x01
+            case is ty.Vector.Type:          return 0x01 // Vectors have a flag set on the Array structure
+            case is ty.Slice.Type:           return 0x02
+            case is ty.Pointer.Type:         return 0x03
+            case is ty.Function.Type:        return 0x04
+            case is ty.Struct.Type:          return 0x05
+            case is ty.Union.Type:           return 0x06
+            case is ty.Enum.Type:            return 0x07
             default: fatalError()
             }
         }
@@ -234,10 +234,10 @@ extension builtin {
             let typeInfoUnionIr = canonical(&gen, typeInfoType)
 
             let type = baseType(type)
-            
+
             let intptr = targetMachine.dataLayout.intPointerType(context: gen.module.context)
 
-            let tag = tagForType(type)
+            let tag = tagForType(Swift.type(of: type))
 
             var value: IRValue
             switch type {
