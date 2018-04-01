@@ -1,0 +1,98 @@
+#import kai("math")
+#import builtin("types")
+#import builtin("platform")
+
+Width :: fn(type: types.Type) -> u64 {
+    switch type {
+    case Simple:
+        switch type {
+        case Integer: return cast(u64) type.Width
+        case Boolean: return cast(u64) type.Width
+        case Float:   return cast(u64) type.Width
+        case Any:     return cast(u64) platform.PointerWidth * 2
+        case Void:    return 0
+        case: panic()
+        }
+    case Struct:
+        // the offset of the last field + the width of it's type is a structs total width.
+        f := type.Fields[type.Fields.len - 1]
+        return f.Offset + Width(f.Type)
+    case Union:
+        // a unions width is equal to it's largest member
+        max: u64 = 0
+        for c in type.Cases {
+            if max < Width(c.Type)
+                max = Width(c.Type)
+        }
+        return max
+    case Enum:
+        return (cast(u64) math.floor_64(math.log2_64(cast(f64) type.Cases.len - 1))) + 1
+    case Function:
+        return cast(u64) platform.PointerWidth
+    case Array:
+        return type.Length * Width(type.ElementType)
+    case Slice:
+        return 3 * cast(u64) platform.PointerWidth
+    case Pointer:
+        return cast(u64) platform.PointerWidth
+    case: panic()
+    }
+}
+
+IsSigned :: fn(type: types.Type) -> bool {
+    switch type {
+    case Simple:
+        switch type {
+        case Integer: return cast(u64) type.Flags & types.FlagSigned != 0
+        case: return false
+        }
+    case: return false
+    }
+}
+
+#test "TypeInfo" {
+
+    integerType := types.TypeOf(i64)
+    assert(Width(integerType) == 64)
+    assert(IsSigned(integerType))
+    assert(!IsSigned(types.TypeOf(u8)))
+
+    booleanType := types.TypeOf(bool)
+    assert(Width(booleanType) == 1)
+
+    floatType := types.TypeOf(f64)
+    assert(Width(floatType) == 64)
+
+    anyType := types.TypeOf(any)
+    assert(Width(anyType) == cast(u64) platform.PointerWidth * 2)
+
+    voidType := types.TypeOf(void)
+    assert(Width(voidType) == 0)
+
+    arrayType := types.TypeOf([10]i8)
+    assert(Width(arrayType) == 10 * 8)
+
+    vectorType := types.TypeOf([vec 4]f32)
+    assert(Width(vectorType) == 4 * 32)
+
+    sliceType := types.TypeOf([]i8)
+    assert(Width(sliceType) == 3 * cast(u64) platform.PointerWidth)
+
+    pointerType := types.TypeOf(*i8)
+    assert(Width(pointerType) == cast(u64) platform.PointerWidth)
+
+    functionType := types.TypeOf(() -> void)
+    assert(Width(functionType) == cast(u64) platform.PointerWidth)
+
+    structType := types.TypeOf(struct{a: u8})
+    assert(Width(structType) == 8)
+
+    unionType := types.TypeOf(union{a: u8; b: u32})
+    assert(Width(unionType) == 32 + 1) // 2 cases require 1 bit for identification
+
+    enumType := types.TypeOf(enum{a; b; c})
+    assert(Width(enumType) == 2) // 3 cases require 2 bits
+
+    untypedIntegerType := types.TypeOf(5)
+    untypedFloatType := types.TypeOf(5.0)
+}

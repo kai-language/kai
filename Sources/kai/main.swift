@@ -52,6 +52,8 @@ if opts.flags.contains(.emitAssembly) {
 
 if !opts.flags.contains(.noLink) {
     compiler.linkObjects()
+
+    print("Generated \(compiler.options.outputFile!)")
 }
 
 if !opts.flags.contains(.noCleanup) {
