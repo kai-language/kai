@@ -2936,25 +2936,31 @@ func allBranchesRet(_ stmts: [Stmt]) -> Bool {
         switch stmt {
         case is Return:
             hasReturn = true
-        case let iff as If:
-            var children = [iff.body]
-            if let e = iff.els {
+        case let i as If:
+            var children = [i.body]
+            if let e = i.els {
                 children.append(e)
             }
 
             if allBranchesRet(children) {
                 allRet = true
             }
-        case let block as Block:
-            allRet = allBranchesRet(block.stmts)
-        case let switc as Switch:
-            allRet = allBranchesRet(switc.cases)
-        case let cas as CaseClause:
-            allRet = allBranchesRet([cas.block])
+        case let b as Block:
+            allRet = allBranchesRet(b.stmts)
+        case let s as Switch:
+            allRet = allBranchesRet(s.cases)
+        case let c as CaseClause:
+            allRet = allBranchesRet(c.block.stmts)
         case let f as For:
             allRet = allBranchesRet(f.body.stmts)
         case let f as ForIn:
             allRet = allBranchesRet(f.body.stmts)
+        case let stmt as ExprStmt:
+            if let c = stmt.expr as? Call {
+                allRet = isNoReturn(c.type)
+            } else {
+                continue
+            }
         default:
             continue
         }

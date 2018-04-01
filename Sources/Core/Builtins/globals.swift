@@ -59,8 +59,12 @@ extension builtin {
                 } else {
                     b.buildStore(gen.i1.constant(1), to: gen.testAsserted)
                 }
-                // FIXME: We need to have an unreachable return type and unreachable directive
-                b.buildBr(gen.context.returnBlock!)
+                if compiler.options.isTestMode {
+                    // FIXME: We need to have an unreachable return type and unreachable directive
+                    b.buildBr(gen.context.returnBlock!)
+                } else {
+                    _ = b.buildCall(gen.trap, args: [])
+                }
 
                 return VoidType().undef()
             },
@@ -76,7 +80,7 @@ extension builtin {
                     }
                 }
 
-                return Operand(mode: .computed, expr: call, type: ty.void, constant: nil, dependencies: dependencies)
+                return Operand(mode: .computed, expr: call, type: ty.Void(isNoReturn: true), constant: nil, dependencies: dependencies)
             }
         )
 

@@ -1,0 +1,12 @@
+
+main :: fn() -> void {
+    foo :: fn() -> i32 {
+        if !true {
+            panic()
+        } else {
+            return 1
+        }
+    }
+    foo()
+}
+

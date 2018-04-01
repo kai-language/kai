@@ -429,6 +429,11 @@ enum ty {
 
     struct Void: Type {
         var width: Int? { return 0 }
+        var isNoReturn: Bool
+
+        init(isNoReturn: Bool = false) {
+            self.isNoReturn = isNoReturn
+        }
     }
 
     struct Boolean: Type, NamableType {
@@ -793,6 +798,10 @@ func isInvalid(_ type: Type) -> Bool {
 
 func isFile(_ type: Type) -> Bool {
     return type is ty.File
+}
+
+func isNoReturn(_ type: Type) -> Bool {
+    return (type as? ty.Void)?.isNoReturn ?? false
 }
 
 func isNilable(_ type: Type) -> Bool {
