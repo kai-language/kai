@@ -1,4 +1,6 @@
 # Kai Programming Language
+[![Gitter chat](https://badges.gitter.im/kai-language/lobby.png)](https://gitter.im/kai-language/lobby)
+
 An expressive low level programming language.
 
 ## Documentation
