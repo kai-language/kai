@@ -404,8 +404,8 @@ extension builtin {
                 assert(type.width! < numericCast(UInt16.max))
                 var v: UInt64 = 0
                 v |= UInt64(type.width!) << 8
-                v |= isSigned(type) ? flagUntypedValue : 0
-                v |= isUntypedInteger(type) ? flagSignedValue : 0
+                v |= isUntypedInteger(type) ? flagUntypedValue : 0
+                v |= isSigned(type) ? flagSignedValue : 0
                 v |= UInt64(tag)
                 value = intptr.constant(v)
                 value = typeInfoUnionIr.constant(values: [value])
