@@ -551,10 +551,11 @@ enum ty {
         /// - Parameter tagWidth: if nil width is inferred from number of cases
         init(width: Int, tagWidth: Int? = nil, flags: Flags = .none, cases: [Case]) {
             self.width = width
-            self.tagType = ty.Integer(width: tagWidth ?? positionOfHighestBit(cases.count), isSigned: false)
+            self.tagType = ty.Integer(width: tagWidth ?? positionOfHighestBit(cases.count - 1), isSigned: false)
             if flags.contains(.inlineTag) {
                 self.dataType = ty.Integer(width: width, isSigned: false)
             } else {
+                self.width = width + tagType.width!
                 self.dataType = ty.Integer(width: width - tagType.width!, isSigned: false)
             }
             self.flags = flags

@@ -4,8 +4,8 @@ import LLVM
 // Key is Type.description.hashValue
 var typeInfoTable: [String: IRValue] = [:]
 
-private let flagUntypedValue = UInt64(0x1 << 24)
-private let flagSignedValue  = UInt64(0x2 << 24)
+private let flagUntypedValue = UInt64(0x1)
+private let flagSignedValue  = UInt64(0x2)
 private let flagVectorValue  = UInt64(0x1)
 
 extension builtin {
@@ -98,6 +98,7 @@ extension builtin {
         ])
 
         static let union: BuiltinType = BuiltinType(name: "Union", structMembers: [
+            ("TagType", typeInfoType),
             ("Cases", ty.Slice(unionCaseType)),
             ("Flags", ty.u64),
         ])
@@ -128,8 +129,8 @@ extension builtin {
 
         // - MARK: Constants
 
-        static var flagUntyped: BuiltinEntity = BuiltinEntity(name: "FlagUntyped", flags: .constant, type: ty.u64, gen: { $0.word.constant(flagUntypedValue) })
-        static var flagSigned: BuiltinEntity = BuiltinEntity(name: "FlagSigned", flags:   .constant, type: ty.u64, gen: { $0.word.constant(flagSignedValue) })
+        static var flagUntyped: BuiltinEntity = BuiltinEntity(name: "FlagUntyped", flags: .constant, type: ty.u8, gen: { $0.i8.constant(flagUntypedValue) })
+        static var flagSigned: BuiltinEntity = BuiltinEntity(name: "FlagSigned", flags:   .constant, type: ty.u8, gen: { $0.i8.constant(flagSignedValue) })
         static var flagVector: BuiltinEntity = BuiltinEntity(name: "FlagVector", flags:   .constant, type: ty.u64, gen: { $0.word.constant(flagVectorValue) })
         static var flagString: BuiltinEntity = BuiltinEntity(name: "FlagString", flags:   .constant, type: ty.u64, gen: { $0.word.constant(ty.Slice.Flags.string.rawValue) })
 
@@ -320,6 +321,7 @@ extension builtin {
                 }
 
                 var value: IRValue = canonical(&gen, unionType).constant(values: [
+                    llvmTypeInfo(type.tagType, gen: &gen),
                     llvmSlice(values: casesIr, type: caseTypeIr, gen: &gen),
                     gen.word.constant(0x0),
                 ])
@@ -392,7 +394,7 @@ extension builtin {
             case is ty.Boolean, is ty.Float, is ty.UntypedFloat:
                 assert(type.width! < numericCast(UInt16.max))
                 var v: UInt64 = 0
-                v |= isUntypedFloat(type) ? flagUntypedValue : 0
+                v |= isUntypedFloat(type) ? (flagUntypedValue << 24) : 0
                 v |= UInt64(type.width!) << 8
                 v |= UInt64(tag)
                 value = intptr.constant(v)
@@ -404,8 +406,8 @@ extension builtin {
                 assert(type.width! < numericCast(UInt16.max))
                 var v: UInt64 = 0
                 v |= UInt64(type.width!) << 8
-                v |= isUntypedInteger(type) ? flagUntypedValue : 0
-                v |= isSigned(type) ? flagSignedValue : 0
+                v |= isUntypedInteger(type) ? (flagUntypedValue << 24) : 0
+                v |= isSigned(type) ? (flagSignedValue << 24) : 0
                 v |= UInt64(tag)
                 value = intptr.constant(v)
                 value = typeInfoUnionIr.constant(values: [value])
