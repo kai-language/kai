@@ -210,7 +210,7 @@ func highestBitForValue<I: BinaryInteger, O: BinaryInteger>(_ value: I) -> O {
 }
 
 func positionOfHighestBit<I: BinaryInteger, O: BinaryInteger>(_ value: I) -> O {
-    return numericCast(ffsl(numericCast(value)))
+    return numericCast(ffs(numericCast(value)))
 }
 
 func maxValueForInteger<I: BinaryInteger, O: BinaryInteger>(width: I, signed: Bool) -> O {

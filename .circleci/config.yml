@@ -1,0 +1,50 @@
+version: 2
+jobs:
+  Linux:
+    docker:
+      - image: brettrtoomey/kai-tests:0.0.1
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-spm-deps-{{ checksum "Package.resolved" }}
+      - run:
+          name: Copy Resolved Package
+          command: cp Package.resolved res
+      - run:
+          name: Resolve Package
+          command: swift package resolve
+      - run:
+          name: Install libssh2, libc++ and libncurses
+          command: apt-get install -y libssh2-1-dev libc++-dev libncurses5-dev
+      - run:
+          name: Get pkg-config
+          command: wget https://gist.githubusercontent.com/BrettRToomey/4284e9948fbb10e9ed5dfcdb992d4c8d/raw/e5686577ba417115fd62c38d79f58be2850cf9ae/cllvm.pc -O /usr/lib/pkgconfig/cllvm.pc
+      - run:
+          name: Build Kai
+          no_output_timeout: 1800
+          command: ./build.sh
+      - run:
+          name: Build Test Suite
+          command: kai -test test/suite.kai
+      - run:
+          name: Run Test Suite
+          command: ./test_suite
+      - run:
+          name: Restoring Resolved Package
+          command: mv res Package.resolved
+      - save_cache:
+          key: v1-spm-deps-{{ checksum "Package.resolved" }}
+          paths:
+            - .build
+workflows:
+  version: 2
+  build-and-test:
+    jobs:
+      - Linux
+experimental:
+  notify:
+    branches:
+      only:
+        - master
+        - develop
