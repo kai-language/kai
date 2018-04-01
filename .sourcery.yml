@@ -1,6 +1,6 @@
 sources:
     - Sources/
 templates:
-    - tools/
+    - tools/templates
 output:
     Sources/Core/generated/
