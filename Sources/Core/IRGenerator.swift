@@ -97,9 +97,9 @@ struct IRGenerator {
 
             // Only constant functions are emitted as functions, otherwise they are globals.
             if let type = entity.type as? ty.Function, entity.isConstant {
-                return addOrReuseFunction(named: symbol, type: canonicalizeSignature(type))
+                return addOrReuseFunction(symbol, type: canonicalizeSignature(type))
             } else {
-                return addOrReuseGlobal(named: symbol, type: canonicalize(entity.type!))
+                return addOrReuseGlobal(symbol, type: canonicalize(entity.type!))
             }
         }
 
@@ -154,21 +154,21 @@ struct IRGenerator {
         return alloc
     }
 
-    func addOrReuseFunction(named: String, type: FunctionType) -> Function {
+    func addOrReuseFunction(_ named: String, type: FunctionType) -> Function {
         if let existing = module.function(named: named) {
             return existing
         }
         return b.addFunction(named, type: type)
     }
 
-    func addOrReuseGlobal(named: String, type: IRType) -> Global {
+    func addOrReuseGlobal(_ named: String, type: IRType) -> Global {
         if let existing = module.global(named: named) {
             return existing
         }
         return b.addGlobal(named, type: type)
     }
 
-    func addOrReuseGlobal(named: String, initializer: IRValue) -> Global {
+    func addOrReuseGlobal(_ named: String, initializer: IRValue) -> Global {
         if let existing = module.global(named: named) {
             return existing
         }
@@ -222,31 +222,31 @@ struct IRGenerator {
 
     lazy var raise: Function = {
         let type = FunctionType(argTypes:[i32], returnType: void)
-        return addOrReuseFunction(named: "raise", type: type)
+        return addOrReuseFunction("raise", type: type)
     }()
 
     lazy var trap: Function = {
         let type = FunctionType(argTypes: [], returnType: void)
-        return addOrReuseFunction(named: "llvm.trap", type: type)
+        return addOrReuseFunction("llvm.trap", type: type)
     }()
 
     lazy var testResults: IRGlobal = {
         let type = LLVM.ArrayType(elementType: self.i1, count: self.testCases.count)
         if package === compiler.initialPackage {
-            return b.addGlobal("$testResults", initializer: type.null())
+            return addOrReuseGlobal("$testResults", initializer: type.null())
         } else {
-            return b.addGlobal("$testResults", type: type)
+            return addOrReuseGlobal("$testResults", type: type)
         }
     }()
     lazy var testAsserted: IRGlobal = {
         if package === compiler.initialPackage {
-            return b.addGlobal("$testAsserted", initializer: i1.constant(0))
+            return addOrReuseGlobal("$testAsserted", initializer: i1.constant(0))
         } else {
-            return b.addGlobal("$testAsserted", type: i1)
+            return addOrReuseGlobal("$testAsserted", type: i1)
         }
     }()
 
-    lazy var printf = self.addOrReuseFunction(named: "printf", type: LLVM.FunctionType(argTypes: [LLVM.PointerType(pointee: i8)], returnType: i32, isVarArg: true))
+    lazy var printf = self.addOrReuseFunction("printf", type: LLVM.FunctionType(argTypes: [LLVM.PointerType(pointee: i8)], returnType: i32, isVarArg: true))
 
     // Every file with tests has a test runner
     mutating func synthTestRunner() {
@@ -417,7 +417,7 @@ extension IRGenerator {
             // this is in a decl block of some sort
             for entity in decl.entities where entity !== Entity.anonymous {
                 if let fn = entity.type as? ty.Function {
-                    let function = addOrReuseFunction(named: symbol(for: entity), type: canonicalizeSignature(fn))
+                    let function = addOrReuseFunction(symbol(for: entity), type: canonicalizeSignature(fn))
                     switch decl.callconv {
                     case nil:
                         break
@@ -1576,7 +1576,7 @@ extension IRGenerator {
             }
 
             // NOTE: We always emit a stub as all polymorphic specializations are emitted into a specialization package.
-            let function = addOrReuseFunction(named: specialization.mangledName, type: canonicalizeSignature(specialization.strippedType))
+            let function = addOrReuseFunction(specialization.mangledName, type: canonicalizeSignature(specialization.strippedType))
 
             let result: IRValue = b.buildCall(function, args: args)
             if fn.returnType.types.first is ty.Void {
@@ -1757,7 +1757,7 @@ extension IRGenerator {
             let fnType = canonicalizeSignature(fn.type as! ty.Function)
 
             // NOTE: The entity.value should be set already for recursion
-            let function = (entity?.value as? Function) ?? addOrReuseFunction(named: specializationMangle ?? entity.map(symbol) ?? ".fn." + fn.start.offset.description, type: fnType)
+            let function = (entity?.value as? Function) ?? addOrReuseFunction(specializationMangle ?? entity.map(symbol) ?? ".fn." + fn.start.offset.description, type: fnType)
             let prevBlock = b.insertBlock
 
             let isVoid = fnType.returnType is VoidType
