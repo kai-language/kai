@@ -2956,8 +2956,8 @@ func allBranchesRet(_ stmts: [Stmt]) -> Bool {
         case let f as ForIn:
             allRet = allBranchesRet(f.body.stmts)
         case let stmt as ExprStmt:
-            if let c = stmt.expr as? Call {
-                allRet = isNoReturn(c.type)
+            if let c = stmt.expr as? Call, isNoReturn(c.type) {
+                allRet = true
             } else {
                 continue
             }
