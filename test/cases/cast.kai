@@ -1,0 +1,38 @@
+
+#test "int to ptr cast" {
+    x : u64    = 13
+    y : rawptr = cast(rawptr) x
+    z : u64    = cast(u64) x
+    assert(x == 13)
+}
+
+#test "integer literal to pointer cast" {
+    x := cast(*u16) 0xB8000
+    y := cast(u64)  x
+    assert(y == 0xB8000)
+}
+
+#test "pointer reinterpret const float to int" {
+    float: f64 = 5.99999999999994648725e-01
+    float_ptr := &float
+    int_ptr := cast(*i32) float_ptr
+    int_val := <int_ptr
+    assert(int_val == 858993411)
+}
+
+#test "pointer assign with nil literal" {
+    x: *u8 = nil
+    y: rawptr = nil
+    assert(x == nil)
+    assert(y == nil)
+    assert(cast(u64) x == 0)
+    assert(cast(u64) y == 0)
+}
+
+#test "explicit cast from float number literal to integer" {
+    x := cast(i64) 6.28
+    y := cast(i64) 1e4
+    assert(x == 6)
+    assert(y == 10000)
+}
+

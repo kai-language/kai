@@ -1,0 +1,16 @@
+
+/* // github.com/kai-language/issues/116
+#test "bitcast to struct" {
+    A :: struct {
+        a: rawptr
+    }
+    x : rawptr = nil
+    a := bitcast(A) x
+} */
+
+#test "bitcast stack variable to integer" {
+    base: struct{}
+    a := 0xC0FEBABE
+    b := bitcast(rawptr) a
+    assert(b == bitcast(rawptr) &base)
+}

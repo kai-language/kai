@@ -92,6 +92,11 @@ public class Compiler {
             let endTime = gettime()
             debugTimings.append((job.description, endTime - startTime))
         }
+
+        if options.isTestMode {
+            var gen = IRGenerator(topLevelNodes: initialFile.nodes, package: initialPackage, context: initialFile.irContext)
+            gen.synthTestMain()
+        }
     }
 
     func evaluateCheckingCosts() {

@@ -133,8 +133,8 @@ extension builtin {
                     let fmt = b.buildGlobalStringPtr("assertion failed at %s:%u (%s) (\(lfmt) \(cond.op) \(rfmt))\n    %s\n")
                     _ = b.buildCall(gen.printf, args: [fmt, filename, line, condition, lhs, rhs, b.buildExtractValue(msg, index: 0)])
                 } else {
-                let fmt = b.buildGlobalStringPtr("assertion failed at %s:%u (%s)\n    %s\n")
-                _ = b.buildCall(gen.printf, args: [fmt, filename, line, condition, b.buildExtractValue(msg, index: 0)])
+                    let fmt = b.buildGlobalStringPtr("assertion failed at %s:%u (%s)\n    %s\n")
+                    _ = b.buildCall(gen.printf, args: [fmt, filename, line, condition, b.buildExtractValue(msg, index: 0)])
                 }
 
                 // do something with the message

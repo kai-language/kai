@@ -32,6 +32,8 @@ public final class SourcePackage {
 
     public var dependencies: [SourcePackage] = []
 
+    var testRunners: [Function] = []
+
     // Set in Checker
     var scope: Scope
     public var linkedLibraries: Set<String> = []

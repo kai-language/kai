@@ -272,7 +272,9 @@ extension Checker {
             guard compiler.options.isTestMode else {
                 return
             }
+
             pushContext()
+            context.expectedReturnType = ty.Tuple.make([ty.void])
             for stmt in test.body.stmts {
                 _ = check(stmt: stmt)
             }

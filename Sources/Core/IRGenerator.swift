@@ -248,20 +248,12 @@ struct IRGenerator {
 
     lazy var printf = self.addOrReuseFunction(named: "printf", type: LLVM.FunctionType(argTypes: [LLVM.PointerType(pointee: i8)], returnType: i32, isVarArg: true))
 
-    mutating func synthTestMain() {
-        if let oldMain = module.function(named: "main") {
-            oldMain.delete()
-        }
-
-        // Ensure test asserted exists in this package.
-        _ = testAsserted
-
-        let main = b.addFunction("main", type: FunctionType(argTypes: [], returnType: void))
-        let entryBlock = main.appendBasicBlock(named: "entry", in: module.context)
-        let returnBlock = main.appendBasicBlock(named: "ret", in: module.context)
-
-        b.positionAtEnd(of: returnBlock)
-        b.buildRetVoid()
+    // Every file with tests has a test runner
+    mutating func synthTestRunner() {
+        let rtype = LLVM.StructType(elementTypes: [i64, i64], in: module.context)
+        let runner = b.addFunction("test$runner", type: FunctionType(argTypes: [], returnType: rtype))
+        let entryBlock = runner.appendBasicBlock(named: "entry", in: module.context)
+        let returnBlock = runner.appendBasicBlock(named: "ret", in: module.context)
 
         b.positionAtEnd(of: entryBlock)
 
@@ -288,9 +280,52 @@ struct IRGenerator {
             passes = b.buildAdd(passes, b.buildSelect(asserted, then: i64.constant(0), else: i64.constant(1)))
         }
 
-        let percentPass = b.buildMul(b.buildDiv(b.buildIntToFP(passes, type: FloatType(kind: .double, in: module.context), signed: false), FloatType(kind: .double, in: module.context).constant(Double(testCases.count))), FloatType(kind: .double, in: module.context).constant(100))
+        b.buildBr(returnBlock)
+
+        b.positionAtEnd(of: returnBlock)
+        var results = rtype.undef()
+        results = b.buildInsertValue(aggregate: results, element: passes, index: 0)
+        results = b.buildInsertValue(aggregate: results, element: i64.constant(testCases.count), index: 1)
+        b.buildRet(results)
+
+        package.testRunners.append(runner)
+    }
+
+    mutating func synthTestMain() {
+        if let oldMain = module.function(named: "main") {
+            oldMain.delete()
+        }
+
+        // Ensure test asserted exists in this package.
+        _ = testAsserted
+
+        let main = b.addFunction("main", type: FunctionType(argTypes: [], returnType: void))
+        let entryBlock = main.appendBasicBlock(named: "entry", in: module.context)
+        let returnBlock = main.appendBasicBlock(named: "ret", in: module.context)
+
+        b.positionAtEnd(of: returnBlock)
+        b.buildRetVoid()
+
+        b.positionAtEnd(of: entryBlock)
+
+        var totalPasses = i64.constant(0)
+        var totalTests = i64.constant(0)
+        for runner in compiler.packages.values.flatMap({ $0.testRunners }) {
+            let results = b.buildCall(runner, args: [])
+
+            let runnerPasses = b.buildExtractValue(results, index: 0)
+            let runnerTests  = b.buildExtractValue(results, index: 1)
+
+            totalPasses = b.buildAdd(runnerPasses, totalPasses)
+            totalTests = b.buildAdd(runnerTests, totalTests)
+        }
+
+        let fpPass  = b.buildIntToFP(totalPasses, type: f64, signed: false)
+        let fpTests = b.buildIntToFP(totalTests,  type: f64, signed: false)
+
+        let percentPass = b.buildMul(b.buildDiv(fpPass, fpTests), f64.constant(100))
         let summaryFormat = b.buildGlobalStringPtr("%.2f%% success (%ld out of %ld)\n")
-        _ = b.buildCall(printf, args: [summaryFormat, percentPass, passes, i64.constant(testCases.count)])
+        _ = b.buildCall(printf, args: [summaryFormat, percentPass, totalPasses, totalTests])
 
         b.buildBr(returnBlock)
     }
@@ -327,8 +362,8 @@ extension IRGenerator {
             emit(topLevelStmt: node)
         }
 
-        if compiler.options.isTestMode && package === compiler.initialPackage {
-            synthTestMain()
+        if compiler.options.isTestMode && package === compiler.initialPackage && !testCases.isEmpty {
+            synthTestRunner()
         }
     }
 
