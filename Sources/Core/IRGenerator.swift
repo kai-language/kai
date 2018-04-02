@@ -1398,21 +1398,7 @@ extension IRGenerator {
         }
 
         // Comparison operations
-
-        if isInteger(binary.lhs.type) || isBoolean(binary.lhs.type) || isPointer(binary.lhs.type)  {
-            let signed = isSigned(binary.type)
-            let pred: IntPredicate
-            switch binary.op {
-            case .lss: pred = signed ? .signedLessThan : .unsignedLessThan
-            case .gtr: pred = signed ? .signedGreaterThan : .unsignedGreaterThan
-            case .leq: pred = signed ? .signedLessThanOrEqual : .unsignedLessThanOrEqual
-            case .geq: pred = signed ? .signedGreaterThanOrEqual : .unsignedGreaterThanOrEqual
-            case .eql: pred = .equal
-            case .neq: pred = .notEqual
-            default:   preconditionFailure()
-            }
-            return b.buildICmp(lhs, rhs, pred)
-        } else {
+        if isFloat(binary.lhs.type) {
             assert(isFloat(binary.lhs.type))
             var pred: RealPredicate
             switch binary.op {
@@ -1425,6 +1411,19 @@ extension IRGenerator {
             default:   preconditionFailure()
             }
             return b.buildFCmp(lhs, rhs, pred)
+        } else {
+            let signed = isSigned(binary.type)
+            let pred: IntPredicate
+            switch binary.op {
+            case .lss: pred = signed ? .signedLessThan : .unsignedLessThan
+            case .gtr: pred = signed ? .signedGreaterThan : .unsignedGreaterThan
+            case .leq: pred = signed ? .signedLessThanOrEqual : .unsignedLessThanOrEqual
+            case .geq: pred = signed ? .signedGreaterThanOrEqual : .unsignedGreaterThanOrEqual
+            case .eql: pred = .equal
+            case .neq: pred = .notEqual
+            default:   preconditionFailure()
+            }
+            return b.buildICmp(lhs, rhs, pred)
         }
     }
 
