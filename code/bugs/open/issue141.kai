@@ -1,0 +1,40 @@
+
+fn1 :: fn() -> u32 { return 1 }
+
+#test "Call function pointer assigned to variable" {
+    func := fn1
+    fn1()
+}
+
+#test "Call function pointer assigned to constant" {
+    func :: fn1
+    fn1()
+}
+
+#test "Call function pointer in slice from composite literal" {
+    baz := []() -> u32 { fn1 }
+    baz[0]()
+}
+
+#test "Call compile time array of function pointer" {
+    fooCT :: [1]() -> u32 { fn1 }
+    fooCT[0]()
+}
+
+#test "Call array of function pointers" {
+    fooRT := [1]() -> u32 { fn1 }
+    fooRT[0]()
+}
+
+#test "Call compile time struct with function pointer" {
+    Bar :: struct{func: () -> u32}
+    barCT :: Bar{func: fn1}
+    barCT.func()
+}
+
+#test "Call struct with function pointer" {
+    Bar :: struct{func: () -> u32}
+    barRT := Bar{func: fn1}
+    barRT.func()
+}
+
