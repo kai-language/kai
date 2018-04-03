@@ -1,0 +1,25 @@
+
+// @CRASH: github.com/kai-language/issues/141
+// #test "function pointers" {
+//
+//     funcs :: [..]() -> u32 {fn0, fn1, fn2, fn3, fn4}
+//
+//     for func, index in funcs {
+//         // assert(func() == cast(u32) index)
+//     }
+// }
+
+#test "Call function passed as parameter" {
+    caller :: fn(func: () -> u32) -> u32 {
+        return func()
+    }
+
+    assert(caller(fn0) == 0)
+    assert(caller(fn4) == 4)
+}
+
+fn0 :: fn() -> u32 { return 0 }
+fn1 :: fn() -> u32 { return 1 }
+fn2 :: fn() -> u32 { return 2 }
+fn3 :: fn() -> u32 { return 3 }
+fn4 :: fn() -> u32 { return 4 }

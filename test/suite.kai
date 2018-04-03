@@ -1,4 +1,6 @@
 
+#import "cases/enum.kai"
 #import "cases/cast.kai"
 #import "cases/bitcast.kai"
+#import "cases/function.kai"
 #import "cases/type_info.kai"
