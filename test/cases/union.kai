@@ -1,0 +1,33 @@
+
+JSON :: union {
+    String: string
+    Number: f64
+    Boolean: bool
+    Null: void
+    Object: rawptr
+    Array: []JSON
+}
+
+#test "Union composite literals initialize with correct tag" {
+
+    json := JSON{String: "ASF"}
+    switch json {
+    case String:
+        assert(true)
+    case:
+        assert(false)
+    }
+}
+
+#test "Union assignment updates tag" {
+
+    json := JSON{Object: nil}
+
+    json.Boolean = true
+    switch json {
+    case Boolean:
+        assert(true)
+    case:
+        assert(false)
+    }
+}
