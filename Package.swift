@@ -10,8 +10,9 @@ let package = Package(
         .package(url: "https://github.com/BrettRToomey/CLibGit2.git", .branch("master"))
     ],
     targets: [
+        .target(name: "CShims", dependencies: []),
         .target(name: "kai", dependencies: ["Core"]),
-        .target(name: "Core", dependencies: ["LLVM", "OrderedDictionary"]),
+        .target(name: "Core", dependencies: ["LLVM", "OrderedDictionary", "CShims"]),
     ],
     swiftLanguageVersions: [4]
 )

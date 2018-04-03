@@ -7,6 +7,8 @@
 import Foundation
 import LLVM
 
+import CShims
+
 var targetMachine: TargetMachine!
 
 public func setupTargetMachine(targetTriple: String?) {
@@ -210,7 +212,7 @@ func highestBitForValue<I: BinaryInteger, O: BinaryInteger>(_ value: I) -> O {
 }
 
 func positionOfHighestBit<I: BinaryInteger, O: BinaryInteger>(_ value: I) -> O {
-    return numericCast(ffs(numericCast(value)))
+    return numericCast(findLastSetBit(numericCast(value)))
 }
 
 func maxValueForInteger<I: BinaryInteger, O: BinaryInteger>(width: I, signed: Bool) -> O {

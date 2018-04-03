@@ -1829,7 +1829,6 @@ extension Checker {
                 currentValue = value
                 largestValue = max(numericCast(value), largestValue)
             } else if !firstCase {
-                firstCase = false
                 // increment the currentValue if a value is not specified and it's not the first case
 
                 // FIXME: Check for overflow?
@@ -1842,8 +1841,10 @@ extension Checker {
                 } else {
                     currentValue += 1
                 }
+                largestValue = max(currentValue, largestValue)
             }
 
+            firstCase = false
             if let maxValue = maxValue, currentValue > maxValue {
                 reportError("Enum case value exceeds the maximum value for the enum type \(backingType!)", at: caseNode.start)
                 continue
