@@ -1,0 +1,15 @@
+
+#test "labeled break from for loop" {
+    arr := "asdf"
+    count := 0
+
+outer:
+    for _ in arr {
+        for _ in arr {
+            count += 1
+            break outer
+        }
+    }
+    assert(count == 1)
+}
+

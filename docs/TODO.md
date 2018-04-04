@@ -12,6 +12,9 @@ into:
 - improve error for invoking on incorrect file 
     ERROR: print.kaik was invalid!
 
+- Make the index type in a for in stmt untyped
+
+- Add a Go style iota to enum scopes
 
 # Types Package
 - Emit a generated file for reference to
