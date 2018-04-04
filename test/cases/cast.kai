@@ -33,3 +33,9 @@
     assert(cast(u32) Reg.r0 == 0)
     assert(cast(u32) Reg.r5 == 5)
 }
+
+#test "cast associates with unary expressions" {
+    a : u16 = 0xBEEF
+    val := cast(u64)a << 16
+    assert(val == 0xBEEF << 16)
+}

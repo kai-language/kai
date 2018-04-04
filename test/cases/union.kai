@@ -26,9 +26,9 @@ JSON :: union {
 
     switch json {
     case Boolean:
-        assert(true)
+        break
     case:
-        assert(false)
+        assert(false, "Tag not updated for union after assign to union member")
     }
 }
 
