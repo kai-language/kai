@@ -38,3 +38,12 @@
     assert(cast(u32) Foo.v64  == 64)
     assert(cast(u32) Foo.v128 == 128)
 }
+
+#test "enum implicit convert to int" {
+    Foo :: enum(u16) {
+        v1 :: 0x42
+    }
+
+    fortytwo: u16 : 0x42
+    assert(Foo.v1 == fortytwo)
+}

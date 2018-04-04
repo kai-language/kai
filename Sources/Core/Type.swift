@@ -288,28 +288,6 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
         // NOTE: Should we handle this as we do below, allowing string to convert to untyped integer?
         break
 
-    case (_, let target as ty.Integer):
-        if isInteger(target), target.width! >= 8, let expr = expr as? BasicLit, let string = expr.constant as? String {
-            switch (target.width!, string.utf8.count) {
-            case (8, 1):
-                expr.type = target
-                expr.constant = UInt64(string.utf8.first!)
-                return true
-            case (16, 1), (16, 2):
-                allowed = true
-                expr.type = target
-                expr.constant = UInt64(string.utf16.first!)
-                return true
-            case (32, 1), (32, 2), (32, 3), (32, 4):
-                allowed = true
-                expr.type = target
-                expr.constant = UInt64(string.unicodeScalars.first!)
-                return true
-            default:
-                allowed = false
-            }
-        }
-
      case (is ty.Array, is ty.Slice):
         // FIXME: @Test I am not sure this should actually convert
         allowed = true
@@ -357,6 +335,28 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
             break
         }
         return convert(type, to: target.base, at: expr)
+
+    case (_, let target as ty.Integer):
+        if isInteger(target), target.width! >= 8, let expr = expr as? BasicLit, let string = expr.constant as? String {
+            switch (target.width!, string.utf8.count) {
+            case (8, 1):
+                expr.type = target
+                expr.constant = UInt64(string.utf8.first!)
+                return true
+            case (16, 1), (16, 2):
+                allowed = true
+                expr.type = target
+                expr.constant = UInt64(string.utf16.first!)
+                return true
+            case (32, 1), (32, 2), (32, 3), (32, 4):
+                allowed = true
+                expr.type = target
+                expr.constant = UInt64(string.unicodeScalars.first!)
+                return true
+            default:
+                allowed = false
+            }
+        }
 
     default:
         allowed = false
