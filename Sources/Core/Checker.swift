@@ -199,11 +199,34 @@ extension Checker {
         _ = context.scope.insert(entity, scopeOwnsEntity: true)
 
         if path != "libc" && path != "llvm" {
+            // NOTE: On macOS, libs are more likely to be a `dylib`, but on Linux
+            // they're more likely to be an `so`.
+        #if os(macOS)
+            let extensions = [
+                "",
+                ".dylib",
+                ".so",
+                ".a"
+            ]
+        #else
+            let extensions = [
+                "",
+                ".so",
+                ".a",
+                ".dylib",
+            ]
+            #endif
 
-            guard let linkpath = resolveLibraryPath(path, for: file.fullpath) else {
+            let p = extensions.flatMap { exten in
+                return resolveLibraryPath(path+exten, for: file.fullpath)
+            }.first
+
+            guard let linkpath = p else {
                 reportError("Failed to resolve path for '\(path)'", at: l.path.start)
                 return
+
             }
+
             file.package.linkedLibraries.insert(linkpath)
         }
     }
@@ -3017,9 +3040,15 @@ func resolveLibraryPath(_ name: String, for currentFilePath: String) -> String? 
     }
 
     // If the library does not exist at a relative path, check system library locations
-    if let fullpath = absolutePath(for: name, relativeTo: "/usr/local/lib") {
+    if let fullpath = absolutePath(for: name, relativeTo: "/usr/lib/") {
         return fullpath
     }
+
+    // If the library does not exist at a relative path, check local library locations
+    if let fullpath = absolutePath(for: name, relativeTo: "/usr/local/lib/") {
+        return fullpath
+    }
+
 
     return nil
 }

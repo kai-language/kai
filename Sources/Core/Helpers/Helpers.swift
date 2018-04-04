@@ -148,7 +148,6 @@ func absolutePath(for filePath: String) -> String? {
 func absolutePath(for filepath: String, relativeTo file: String) -> String? {
 
     let fileUrl = URL(fileURLWithPath: file)
-        .deletingLastPathComponent()
         .appendingPathComponent(filepath)
 
     do {
