@@ -2221,7 +2221,7 @@ extension Checker {
                 }
                 selector.checked = .enum(c)
                 selector.type = meta.instanceType
-                return Operand(mode: .computed, expr: selector, type: selector.type, constant: nil, dependencies: dependencies)
+                return Operand(mode: .computed, expr: selector, type: selector.type, constant: c.constant, dependencies: dependencies)
 
             // NOTE: Should we support accessing union tags as constant members on their metatype?
 

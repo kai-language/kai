@@ -47,3 +47,24 @@
     fortytwo: u16 : 0x42
     assert(Foo.v1 == fortytwo)
 }
+
+#test "enum constant folding" {
+    Foo :: 0x1
+    Bar :: enum {
+        Baz :: Foo + 1
+    }
+
+    assert(Bar.Baz == 0x2)
+}
+
+#test "enum constant folding nested enums" {
+    Foo :: enum {
+        Bar :: 0x10
+    }
+
+    Baz :: enum {
+        Zaz :: Foo.Bar + 1
+    }
+
+    assert(Baz.Zaz == 0x11)
+}

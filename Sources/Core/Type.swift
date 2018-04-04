@@ -703,7 +703,7 @@ func isUntypedNumber(_ type: Type) -> Bool {
 }
 
 func isNumber(_ type: Type) -> Bool {
-    return isUntypedNumber(type) || isInteger(type) || isFloat(type)
+    return isUntypedNumber(type) || isInteger(type) || isFloat(type) || isEnum(type)
 }
 
 func isVoid(_ type: Type) -> Bool {
