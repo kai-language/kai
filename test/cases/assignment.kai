@@ -1,0 +1,65 @@
+
+#test "assign nil literal to pointer" {
+    x: *u8 = nil
+    y: rawptr = nil
+    assert(x == nil)
+    assert(y == nil)
+    assert(cast(u64) x == 0)
+    assert(cast(u64) y == 0)
+}
+
+#test "assign to function variable" {
+    fn1 :: fn() -> u32 { return 1 }
+    fn2 :: fn() -> u32 { return 2 }
+
+    foo: () -> u32 = fn1
+    assert(foo() == 1)
+
+    foo = fn2
+    assert(foo() == 2)
+
+    foo = fn() -> u32 { return 3 }
+    assert(foo() == 3)
+}
+
+#test "assign to array subscript expression" {
+    array := [3]u8{1, 2, 3}
+
+    array[0] = 4
+    array[1] = 5
+    array[2] = 6
+
+    assert(array[0] == 4)
+    assert(array[1] == 5)
+    assert(array[2] == 6)
+}
+
+#test "assign to slice subscripts expression" {
+    array := []u8{1, 2, 3}
+
+    array[0] = 4
+    array[1] = 5
+    array[2] = 6
+
+    assert(array[0] == 4)
+    assert(array[1] == 5)
+    assert(array[2] == 6)
+}
+
+#test "assign array literal to array type" {
+    array := [3]u8{1, 2, 3}
+
+    array = [3]u8{4, 5, 6}
+    assert(array[0] == 4)
+    assert(array[1] == 5)
+    assert(array[2] == 6)
+}
+
+#test "assign slice literal to slice type" {
+    slice := []u8{1, 2, 3}
+
+    slice = []u8{4, 5, 6}
+    assert(slice[0] == 4)
+    assert(slice[1] == 5)
+    assert(slice[2] == 6)
+}

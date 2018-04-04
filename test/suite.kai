@@ -1,7 +1,16 @@
 
-#import "cases/enum.kai"
+// Casting
 #import "cases/cast.kai"
-#import "cases/union.kai"
 #import "cases/bitcast.kai"
+
+// Types
+#import "cases/enum.kai"
+#import "cases/union.kai"
+#import "cases/array.kai"
+#import "cases/struct.kai"
 #import "cases/function.kai"
+
+// Misc
+#import "cases/for.kai"
 #import "cases/type_info.kai"
+#import "cases/assignment.kai"

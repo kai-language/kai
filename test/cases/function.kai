@@ -9,7 +9,7 @@
 //     }
 // }
 
-#test "Call function passed as parameter" {
+#test "passing function as parameter" {
     caller :: fn(func: () -> u32) -> u32 {
         return func()
     }
@@ -23,3 +23,84 @@ fn1 :: fn() -> u32 { return 1 }
 fn2 :: fn() -> u32 { return 2 }
 fn3 :: fn() -> u32 { return 3 }
 fn4 :: fn() -> u32 { return 4 }
+
+#test "recursive fibonacci" {
+    fib :: fn(n: u64) -> u64 {
+        if n == 0 return 0
+        if n == 1 return 1
+        return fib(n - 1) + fib(n - 2)
+    }
+
+    assert(fib(0) == 0)
+    assert(fib(1) == 1)
+    assert(fib(2) == 1)
+    assert(fib(3) == 2)
+    assert(fib(4) == 3)
+    assert(fib(5) == 5)
+}
+
+#test "recursive factorial" {
+    fact :: fn(n: u64) -> u64 {
+        if n >= 1 return n * fact(n - 1)
+        else return 1
+    }
+
+    assert(fact(5) == 120)
+}
+
+#test "recursive Ackermann function" {
+    ack :: fn(m, n: u32) -> u32 {
+        if m == 0 return n + 1
+        if n == 0 return ack(m - 1, 1)
+        return ack(m - 1, ack(m, n - 1))
+    }
+
+    assert(ack(3, 1) == 13)
+}
+
+#test "parameters shadow the function" {
+    a :: fn(a: u64) -> u64 {
+        return a
+    }
+
+    assert(a(5) == 5)
+}
+
+#test "parameters are addressable" {
+    f :: fn(a: u64) -> u64 {
+        return cast(u64) &a
+    }
+    a := f(8)
+    b := f(0)
+
+    assert(a == b)
+}
+
+#test "multiple returns" {
+    f :: fn(a, b: u32) -> (u32, u32) {
+        return a, b
+    }
+
+    a, b := f(1, 2)
+    assert(a == 1)
+    assert(b == 2)
+}
+
+#test "polymorphic swap & swapInPlace" {
+    swap :: fn(a, b: $T) -> (T, T) {
+        return b, a
+    }
+
+    a, b := swap(1, 2)
+    assert(a == 2)
+    assert(b == 1)
+
+    swapInPlace :: fn(a, b: *$T) -> void {
+        <a, <b = swap(<a, <b)
+    }
+
+    swapInPlace(&a, &b)
+
+    assert(a == 1)
+    assert(b == 2)
+}

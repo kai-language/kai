@@ -15,7 +15,7 @@
     assert(b == bitcast(rawptr) &base)
 }
 
-#test "bitcast cast from struct to integer of matching size" {
+#test "bitcast cast from struct to integer" {
     Foo :: struct { a: u64 }
 
     foo := Foo{a: 7}

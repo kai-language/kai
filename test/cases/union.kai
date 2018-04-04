@@ -8,7 +8,7 @@ JSON :: union {
     Array: []JSON
 }
 
-#test "Union composite literals initialize with correct tag" {
+#test "union initializes variable with correct tag" {
 
     json := JSON{String: "ASF"}
     switch json {
@@ -19,15 +19,24 @@ JSON :: union {
     }
 }
 
-#test "Union assignment updates tag" {
+#test "union assignment updates tag" {
 
     json := JSON{Object: nil}
-
     json.Boolean = true
+
     switch json {
     case Boolean:
         assert(true)
     case:
         assert(false)
     }
+}
+
+#test "union direct tag access" {
+
+    json := JSON{String: ""}
+    assert(json.Tag == 0)
+
+    json.Tag = 3
+    assert(json.Tag == 3)
 }

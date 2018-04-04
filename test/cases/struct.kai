@@ -1,0 +1,56 @@
+
+#import kai("strings")
+
+User :: struct {
+    name: string
+    age: u8
+    height: f32
+}
+
+#test "constant declaration from struct literal" {
+    harry :: User{name: "Harry", age: 15, height: 1.75}
+
+    assert(strings.Equal(harry.name, "Harry"))
+    assert(harry.age == 15)
+    assert(harry.height == 1.75)
+}
+
+
+#test "assignment to struct member" {
+    harry := User{name: "Harry", age: 15, height: 1.75}
+
+    assert(strings.Equal(harry.name, "Harry"))
+    assert(harry.age == 15)
+    assert(harry.height == 1.75)
+
+    harry.age = 16
+    assert(harry.age == 16)
+}
+
+#test "struct members are layed out in order" {
+    harry := User{name: "Harry", age: 15, height: 1.75}
+
+    assert(cast(u64) &harry.name < cast(u64) &harry.age)
+    assert(cast(u64) &harry.age < cast(u64) &harry.height)
+}
+
+#test "struct referencing itself in a LinkedList" {
+    Node :: struct {
+        val: u64
+        next: *Node
+    }
+
+    v4 := Node{4, next: nil}
+    v3 := Node{3, next: &v4}
+    v2 := Node{2, next: &v3}
+    v1 := Node{1, next: &v2}
+    v0 := Node{0, next: &v1}
+
+    cur := &v0
+    index : u64 = 0
+    for cur != nil {
+        assert(cur.val == index)
+        cur = cur.next
+        index += 1
+    }
+}

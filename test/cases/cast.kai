@@ -20,23 +20,14 @@
     assert(int_val == 858993411)
 }
 
-#test "pointer assign with nil literal" {
-    x: *u8 = nil
-    y: rawptr = nil
-    assert(x == nil)
-    assert(y == nil)
-    assert(cast(u64) x == 0)
-    assert(cast(u64) y == 0)
-}
-
-#test "explicit cast from float number literal to integer" {
+#test "cast float literal to integer" {
     x := cast(i64) 6.28
     y := cast(i64) 1e4
     assert(x == 6)
     assert(y == 10000)
 }
 
-#test "explicit cast from enum to backing type" {
+#test "cast enum to backing type" {
     Reg :: enum(u32) { r0; r1; r2; r3; r4; r5; r6; r7 }
 
     assert(cast(u32) Reg.r0 == 0)

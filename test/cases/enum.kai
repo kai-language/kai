@@ -1,5 +1,5 @@
 
-#test "enum auto incrementing" {
+#test "enum auto increment" {
     Foo :: enum(u32) {
         v0
         v1
@@ -17,7 +17,7 @@
     assert(cast(u32) Foo.v21 == 21)
 }
 
-#test "enum #flags auto incrementing" {
+#test "enum #flags auto increment" {
     Foo :: enum(u32) #flags {
         v1   // 1 << 0
         v2   // 1 << 1
