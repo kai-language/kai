@@ -1232,7 +1232,7 @@ extension IRGenerator {
         case is ty.Array:
             let irType = canonicalize(lit.type) as! LLVM.ArrayType
             var ir: IRValue
-            if !lit.elements.isEmpty {
+            if lit.elements.isEmpty {
                 // Zero initialize the array
                 ir = irType.null()
             } else {
