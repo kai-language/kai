@@ -218,7 +218,7 @@ extension SourceFile {
 
             let cloneJob = Job.clone(fullpath: packageDirectory, work: {
                 print("Cloning \(user)/\(repo)...")
-                Git().clone(repo: "git@github.com:" + user + "/" + repo + ".git", to: packageDirectory)
+                Git().clone(repo: "https://github.com/" + user + "/" + repo + ".git", to: packageDirectory)
 
                 sourceFilesInDir(packageDirectory).forEach {
                     // Adds to package
