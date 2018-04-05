@@ -318,24 +318,6 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
         }
         return convert(type.base, to: target.base, at: expr)
 
-    case (let type as ty.Named, _):
-        if let lit = expr as? BasicLit, let string = lit.constant as? String, string.unicodeScalars.count == 1 {
-            // TODO: @unicode check the length of the unicode scalar to determine if it would fit in a type, allow conversion up to 32 bit integers
-            if target == ty.u8 {
-                allowed = true
-                break
-            }
-        }
-
-        return convert(type.base, to: target, at: expr)
-
-    case (_, let target as ty.Named):
-        if target.entity === Entity.rawptr && type is ty.Pointer {
-            allowed = true
-            break
-        }
-        return convert(type, to: target.base, at: expr)
-
     case (_, let target as ty.Integer):
         if isInteger(target), target.width! >= 8, let expr = expr as? BasicLit, let string = expr.constant as? String {
             switch (target.width!, string.utf8.count) {
@@ -357,6 +339,24 @@ func convert(_ type: Type, to target: Type, at expr: Expr) -> Bool {
                 allowed = false
             }
         }
+
+    case (let type as ty.Named, _):
+        if let lit = expr as? BasicLit, let string = lit.constant as? String, string.unicodeScalars.count == 1 {
+            // TODO: @unicode check the length of the unicode scalar to determine if it would fit in a type, allow conversion up to 32 bit integers
+            if target == ty.u8 {
+                allowed = true
+                break
+            }
+        }
+
+        return convert(type.base, to: target, at: expr)
+
+    case (_, let target as ty.Named):
+        if target.entity === Entity.rawptr && type is ty.Pointer {
+            allowed = true
+            break
+        }
+        return convert(type, to: target.base, at: expr)
 
     default:
         allowed = false
