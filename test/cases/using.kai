@@ -1,0 +1,22 @@
+#test "Using on enum" {
+    Foo :: enum {
+        Bar
+    }
+
+    using Foo
+    assert(Bar == 0)
+}
+
+#test "Using on multiple entities" {
+    Foo :: enum {
+        Bar :: 0x32
+    }
+
+    Baz :: enum {
+        Zaz :: 0x42
+    }
+
+    using Foo, Baz
+    assert(Bar == 0x32)
+    assert(Zaz == 0x42)
+}
