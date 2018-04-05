@@ -337,9 +337,9 @@ extension Parser {
 
     mutating func parseUsingStmt() -> Using {
         let keyword = eatToken()
-        let expr = parseExpr()
+        let exprs = parseExprList()
         allowTerminator()
-        return Using(keyword: keyword, expr: expr)
+        return Using(keyword: keyword, exprs: exprs)
     }
 }
 

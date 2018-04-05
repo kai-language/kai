@@ -726,30 +726,32 @@ extension Checker {
             }
         }
 
-        let operand = check(expr: using.expr)
+        for expr in using.exprs {
+            let operand = check(expr: expr)
 
-        switch baseType(operand.type) {
-        case let type as ty.File:
-            for entity in type.memberScope.members.values {
-                declare(entity)
-            }
-        case let type as ty.Struct:
-            for field in type.fields.orderedValues {
-                let entity = newEntity(ident: field.ident, type: field.type, flags: .field, owningScope: context.scope)
-                declare(entity)
-            }
-        case let meta as ty.Metatype:
-            guard let type = baseType(lowerFromMetatype(meta, atNode: using.expr)) as? ty.Enum else {
-                fallthrough
-            }
+            switch baseType(operand.type) {
+            case let type as ty.File:
+                for entity in type.memberScope.members.values {
+                    declare(entity)
+                }
+            case let type as ty.Struct:
+                for field in type.fields.orderedValues {
+                    let entity = newEntity(ident: field.ident, type: field.type, flags: .field, owningScope: context.scope)
+                    declare(entity)
+                }
+            case let meta as ty.Metatype:
+                guard let type = baseType(lowerFromMetatype(meta, atNode: expr)) as? ty.Enum else {
+                    fallthrough
+                }
 
-            for c in type.cases.orderedValues {
-                let entity = newEntity(ident: c.ident, type: type, flags: [.field, .constant], owningScope: context.scope)
-                entity.constant = c.constant
-                declare(entity)
+                for c in type.cases.orderedValues {
+                    let entity = newEntity(ident: c.ident, type: type, flags: [.field, .constant], owningScope: context.scope)
+                    entity.constant = c.constant
+                    declare(entity)
+                }
+            default:
+                reportError("using is invalid on \(operand)", at: expr.start)
             }
-        default:
-            reportError("using is invalid on \(operand)", at: using.expr.start)
         }
     }
 

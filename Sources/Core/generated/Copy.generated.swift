@@ -763,7 +763,7 @@ func copy(_ nodes: [UnionType]) -> [UnionType] {
 func copy(_ node: Using) -> Using {
     return Using(
         keyword: node.keyword,
-        expr: copy(node.expr)
+        exprs: copy(node.exprs)
     )
 }
 

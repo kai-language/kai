@@ -986,15 +986,15 @@ init(keyword: Pos, stmt: Stmt) {
 
 class Using: Node, Stmt, TopLevelStmt {
     var keyword: Pos
-    var expr: Expr
+    var exprs: [Expr]
 
     var start: Pos { return keyword }
-    var end: Pos { return expr.end }
+    var end: Pos { return exprs.last?.end ?? start }
 
 // sourcery:inline:auto:Using.Init
-init(keyword: Pos, expr: Expr) {
+init(keyword: Pos, exprs: [Expr]) {
     self.keyword = keyword
-    self.expr = expr
+    self.exprs = exprs
 }
 // sourcery:end
 }
