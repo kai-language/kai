@@ -8,11 +8,17 @@
     a := bitcast(A) x
 } */
 
-#test "bitcast stack variable to integer" {
-    base: struct{}
-    a := 0xC0FEBABE
-    b := bitcast(rawptr) a
-    assert(b == bitcast(rawptr) &base)
+#test "bitcast stack variable" {
+    a := 42
+    ptr := &a
+    assert(<ptr == a)
+}
+
+#test "bitcast stack variable" {
+    a: i32 = 42
+    b: u32 = bitcast(u32) a
+
+    assert(cast(u32) a == b)
 }
 
 #test "bitcast cast from struct to integer" {
