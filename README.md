@@ -27,7 +27,7 @@ In the future, Kai will offer official binary distribution through apt and other
 Before you can begin building Kai, you must install the following dependencies: 
 
 * Swift 4.0
-* LLVM 4
+* LLVM 4 or higher
 * libgit2
 
 ### Swift 4
@@ -36,7 +36,7 @@ On Mac, the preferred way to install Swift 4 is by installing [Xcode](https://de
 ### LLVM 
 By far, the easiest way to install LLVM on Mac is through [brew](https://brew.sh). After setting up brew, run the following to install the correct version of LLVM:
 ```
-brew install llvm@4.0
+brew install llvm
 ```
 
 #### Using LLVM with Swift Package Manager
