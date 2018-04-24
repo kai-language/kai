@@ -34,8 +34,8 @@ xcode)
 ;;
 release)
     case "$platform" in
-        macOS) swift build -Xswiftc -DDEBUG -static-stdlib -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx$MACOSX_DEPLOYMENT_TARGET" -c release ;;
-        linux) swift build -Xswiftc -DDEBUG -static-stdlib -Xswiftc "-target" -Xswiftc "x86_64-pc-linux-gnu" -c release ;;
+        macOS) swift build -Xswiftc -DDEBUG -Xswiftc -static-stdlib -Xswiftc "-target" -Xswiftc "x86_64-apple-macosx$MACOSX_DEPLOYMENT_TARGET" -c release ;;
+        linux) swift build -Xswiftc -DDEBUG -Xswiftc -static-stdlib -Xswiftc "-target" -Xswiftc "x86_64-pc-linux-gnu" -c release ;;
         *)
             unsupportedCommand "release"
     esac
