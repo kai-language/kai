@@ -681,6 +681,8 @@ extension IRGenerator {
             emit(forIn: forIn)
         case let íf as If:
             emit(if: íf)
+        case let íf as DirectiveIf:
+            emit(directiveIf: íf)
         case let s as Switch:
             emit(switch: s)
         case let b as Branch:
@@ -806,6 +808,12 @@ extension IRGenerator {
         }
 
         b.positionAtEnd(of: postBlock)
+    }
+
+    mutating func emit(directiveIf iff: DirectiveIf) {
+        if let body = iff.nodeToCodegen {
+            emit(statement: body)
+        }
     }
 
     mutating func emit(for f: For) {

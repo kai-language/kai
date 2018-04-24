@@ -22,6 +22,10 @@ func isConstantZero(_ value: Value?) -> Bool {
     }
 }
 
+func isConstantTrue(_ value: Value?) -> Bool {
+    return !isConstantZero(value)
+}
+
 private func application(for token: Token) -> ((Value, Value) -> Value?)? {
     switch token {
     case .lss:
