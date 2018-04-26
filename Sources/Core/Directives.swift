@@ -1,6 +1,8 @@
 
 enum LoneDirective: String {
     case asm
+    case env
+    case os
     case file
     case line
     case location
@@ -16,6 +18,7 @@ enum LeadingDirective: String {
     case linkname
     case linkprefix
     case test
+    case `if`
     case void_asm
 }
 

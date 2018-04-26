@@ -299,12 +299,9 @@ struct IRGenerator {
         // Ensure test asserted exists in this package.
         _ = testAsserted
 
-        let main = b.addFunction("main", type: FunctionType(argTypes: [], returnType: void))
+        let main = b.addFunction("main", type: FunctionType(argTypes: [], returnType: i32))
         let entryBlock = main.appendBasicBlock(named: "entry", in: module.context)
         let returnBlock = main.appendBasicBlock(named: "ret", in: module.context)
-
-        b.positionAtEnd(of: returnBlock)
-        b.buildRetVoid()
 
         b.positionAtEnd(of: entryBlock)
 
@@ -328,6 +325,9 @@ struct IRGenerator {
         _ = b.buildCall(printf, args: [summaryFormat, percentPass, totalPasses, totalTests])
 
         b.buildBr(returnBlock)
+
+        b.positionAtEnd(of: returnBlock)
+        b.buildRet(b.buildCast(.sext, value: b.buildICmp(totalPasses, totalTests, .notEqual), type: i32))
     }
 }
 
@@ -681,6 +681,8 @@ extension IRGenerator {
             emit(forIn: forIn)
         case let íf as If:
             emit(if: íf)
+        case let íf as DirectiveIf:
+            emit(directiveIf: íf)
         case let s as Switch:
             emit(switch: s)
         case let b as Branch:
@@ -806,6 +808,12 @@ extension IRGenerator {
         }
 
         b.positionAtEnd(of: postBlock)
+    }
+
+    mutating func emit(directiveIf iff: DirectiveIf) {
+        if let body = iff.nodeToCodegen {
+            emit(statement: body)
+        }
     }
 
     mutating func emit(for f: For) {

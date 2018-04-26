@@ -369,6 +369,9 @@ extension Checker {
         case let íf as If:
             return check(if: íf)
 
+        case let íf as DirectiveIf:
+            return check(directiveIf: íf)
+
         case let s as Switch:
             return check(switch: s)
 
@@ -965,6 +968,40 @@ extension Checker {
             popContext()
             dependencies.formUnion(deps)
         }
+        return dependencies
+    }
+
+    mutating func check(directiveIf iff: DirectiveIf) -> Set<Entity> {
+        let operand = check(expr: iff.cond)
+        var dependencies = operand.dependencies
+
+        guard let constant = operand.constant else {
+            reportError("Expression must evaluate to a compile-time constant", at: iff.cond.start)
+            return dependencies
+        }
+
+        let cond = isConstantTrue(constant)
+        var node: Stmt?
+        if cond {
+            node = iff.body
+        } else if let els = iff.els {
+            node = els
+        }
+
+        iff.nodeToCodegen = node
+        if let node = node {
+            guard let body = node as? Block else {
+                reportError("Expected a block", at: iff.body.start)
+                return dependencies
+            }
+
+            // NOTE: we're not throwing the block at the checker because we don't
+            // want it to create a new scope
+            for stmt in body.stmts {
+                dependencies.formUnion(check(stmt: stmt))
+            }
+        }
+
         return dependencies
     }
 

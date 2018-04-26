@@ -238,6 +238,20 @@ func copy(_ nodes: [Defer]) -> [Defer] {
     return nodes.map(copy)
 }
 
+func copy(_ node: DirectiveIf) -> DirectiveIf {
+    return DirectiveIf(
+        keyword: node.keyword,
+        cond: copy(node.cond),
+        body: copy(node.body),
+        els: node.els.map(copy),
+        nodeToCodegen: node.nodeToCodegen.map(copy)
+    )
+}
+
+func copy(_ nodes: [DirectiveIf]) -> [DirectiveIf] {
+    return nodes.map(copy)
+}
+
 func copy(_ node: Ellipsis) -> Ellipsis {
     return Ellipsis(
         start: node.start,
@@ -849,6 +863,7 @@ func copy(_ node: Stmt) -> Stmt {
     case let node as DeclBlock: return copy(node)
     case let node as Declaration: return copy(node)
     case let node as Defer: return copy(node)
+    case let node as DirectiveIf: return copy(node)
     case let node as Empty: return copy(node)
     case let node as ExprStmt: return copy(node)
     case let node as For: return copy(node)

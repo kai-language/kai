@@ -38,8 +38,8 @@ extension builtin {
         static let u64 = BuiltinType(entity: .u64, type: ty.Integer(width: 64, isSigned: false))
 
         // FIXME: For builtin entities we need to allow the desired type to propigate the correct boolean type into here, in case it's a non 1 width boolean
-        static let `true`: BuiltinEntity = BuiltinEntity(name: "true", type: bool.type, gen: { $0.i1.constant(1) })
-        static let `false`: BuiltinEntity = BuiltinEntity(name: "false", type: bool.type, gen: { $0.i1.constant(0) })
+        static let `true`: BuiltinEntity = BuiltinEntity(name: "true", constant: 1 as UInt64, type: bool.type, gen: { $0.i1.constant(1) })
+        static let `false`: BuiltinEntity = BuiltinEntity(name: "false", constant: 0 as UInt64, type: bool.type, gen: { $0.i1.constant(0) })
 
         static var panic: BuiltinFunction = BuiltinFunction(
             entity: Entity.makeBuiltin("panic", type: ty.Function.make([ty.string], [ty.void])),

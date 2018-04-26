@@ -1,3 +1,8 @@
+#if os(Linux)
+    import Glibc
+#else
+    import Darwin.C
+#endif
 
 struct Parser {
 
@@ -314,6 +319,49 @@ extension Parser {
                     constraints: constraints,
                     arguments: arguments
                 )
+            case .os:
+                expect(.lparen)
+                let os = parseStringLit()
+                expect(.rparen)
+
+                let isOs: Bool
+
+                switch os.constant as? String {
+                case "mac"?, "macOS"?, "osx"?:
+                #if os(macOS)
+                    isOs = true
+                #else
+                    isOs = false
+                #endif
+
+                case "Linux"?, "linux"?:
+                    #if os(macOS)
+                    isOs = false
+                #else
+                    isOS = true
+                #endif
+
+                default:
+                    isOs = false
+                    reportError("Unknown OS: '\(os)'", at: os.start)
+                }
+
+                let val = isOs ? "1" : "0"
+                return BasicLit(start: os.start, token: Token.int, text: val)
+
+            case .env:
+                expect(.lparen)
+                let v = parseStringLit()
+                let envVar: String? = unquote(v.text).withCString { v in
+                    let res = getenv(v)
+                    guard let envVar = res else { return nil }
+                    return String(cString: envVar)
+                }
+
+                expect(.rparen)
+
+                let constant = envVar ?? ""
+                return BasicLit(start: v.start, token: v.token, text: constant, constant: constant)
             case .file, .line, .location, .function:
                 return LocationDirective(directive: pos, kind: directive)
             }
@@ -1183,6 +1231,25 @@ extension Parser {
             allowTerminator()
             return TestCase(directive: directive, name: name, body: body)
 
+        case .if?:
+            // NOTE: this is because the lexer knows about `if` statements but not
+            // `if` directives.
+            scanner.insertSemiBeforeLbrace = true
+            let cond = parseExpr()
+            if tok == .semicolon {
+                // dummy terminator to prevent confusion with composite lits
+                next()
+            }
+
+            // NOTE: parseStmt will expectTerm
+            let body = parseStmt()
+            var els_: Stmt?
+            if tok == .else {
+                next()
+                els_ = parseStmt()
+            }
+
+            return DirectiveIf(keyword: directive, cond: cond, body: body, els: els_, nodeToCodegen: nil)
         case LeadingDirective.void_asm?:
             expect(.lparen)
             let asm = parseStringLit()

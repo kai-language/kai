@@ -53,10 +53,11 @@ class Entity: CustomStringConvertible {
         return name
     }
 
-    init(ident: Ident, type: Type?, flags: Flag = .none) {
+    init(ident: Ident, type: Type?, flags: Flag = .none, constant: Value? = nil) {
         self.ident = ident
         self.type = type
         self.flags = flags
+        self.constant = constant
     }
 
 // sourcery:inline:auto:Entity.Init
