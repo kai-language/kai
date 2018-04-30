@@ -2264,6 +2264,15 @@ extension Checker {
 
             // NOTE: Should we support accessing union tags as constant members on their metatype?
 
+            case let u as ty.Union:
+                guard let c = u.cases[selector.sel.name] else {
+                    reportError("Case '\(selector.sel)' not found on union \(operand)", at: selector.sel.start)
+                    selector.type = ty.invalid
+                    return Operand.invalid
+                }
+                selector.checked = .unionTagConstant(c)
+                selector.type = u.tagType
+                return Operand(mode: .computed, expr: selector, type: selector.type, constant: UInt64(c.tag), dependencies: dependencies)
             default:
                 break
             }

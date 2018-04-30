@@ -375,6 +375,7 @@ class Selector: Node, Expr, Convertable, HasConstantValue {
         case `enum`(ty.Enum.Case)
         case union(ty.Union, ty.Union.Case)
         case unionTag
+        case unionTagConstant(ty.Union.Case)
         case array(ArrayMember)
         case staticLength(Int)
         case scalar(Int)

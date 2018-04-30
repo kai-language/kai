@@ -1895,7 +1895,8 @@ extension IRGenerator {
             let mask = type.allOnes()
             let tag = buildLoad(address, alignment: 16)
             return b.buildAnd(mask, tag)
-
+        case .unionTagConstant(let unionCase):
+            return canonicalize(sel.type as! ty.Integer).constant(unionCase.tag)
         case .union(let unionType, let unionCase):
             var aggregate = emit(expr: sel.rec, returnAddress: true)
             for _ in 0 ..< sel.levelsOfIndirection {

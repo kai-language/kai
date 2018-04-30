@@ -817,6 +817,11 @@ extension Parser {
         let el = parseExpr()
         if tok == .colon {
             let colon = eatToken()
+
+            if tok == .lbrace {
+                return KeyValue(key: el, colon: colon, value: parseCompositeLiteralBody())
+            }
+
             return KeyValue(key: el, colon: colon, value: parseExpr())
         }
         return KeyValue(key: nil, colon: nil, value: el)
