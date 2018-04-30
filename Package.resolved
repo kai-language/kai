@@ -11,6 +11,15 @@
         }
       },
       {
+        "package": "cllvm",
+        "repositoryURL": "https://github.com/llvm-swift/cllvm.git",
+        "state": {
+          "branch": null,
+          "revision": "e85a8ebe9f45cff9fa31b43c32662318232b392a",
+          "version": "0.0.3"
+        }
+      },
+      {
         "package": "FileCheck",
         "repositoryURL": "https://github.com/llvm-swift/FileCheck.git",
         "state": {
@@ -35,15 +44,6 @@
           "branch": "master",
           "revision": "950ad4134720bc95e3315f8f5c25d01090a0114a",
           "version": null
-        }
-      },
-      {
-        "package": "cllvm",
-        "repositoryURL": "https://github.com/llvm-swift/cllvm.git",
-        "state": {
-          "branch": null,
-          "revision": "e85a8ebe9f45cff9fa31b43c32662318232b392a",
-          "version": "0.0.3"
         }
       }
     ]
